@@ -1,0 +1,10 @@
+# Website transcript export
+Only help the authenticated owner configure this host-granted integration. Never ask a customer for credentials, access another tenant, or grant a binding yourself.
+Read `view` with `action: sheets.status` and the known `site_id`. Configuration lives in the canonical website draft, managed through the Nest no-code interface; Google connection lives in the host vault.
+For a change, use `action` with a stable unique `request_id`, `site_id`, and optional host-granted `binding`. Supported changes: `sheets.connect`, `sheets.disconnect`, `sheets.retry`; `sheets.check` validates the saved draft destination. Reuse the exact request and ID if its outcome is unknown.
+Google consent is a human browser step. Return the host-issued authorization link; never request a code, token, service-account key or password in chat. The current OAuth path requests the Google Sheets read/write scope over the account's spreadsheets. It does not claim per-file consent. Service accounts require sharing the configured Sheet with the host account as an editor.
+Use an existing empty, dedicated tab. Columns A:H belong to the exporter. Do not sort, insert, delete or edit those columns. RAW writes preserve customer text as text, including strings beginning with `=`.
+Only committed public customer inputs, public member replies and final Soot replies are exported. Internal notes, resume instructions, tools and private checkpoints are excluded. Changing a destination never redirects old queued rows. Export begins at the new binding's publication; it does not copy old history into the new file.
+An edited header/row blocks automatic writes. The owner must restore that data before an explicit retry. Permission/quota/reconnect errors are operational status; never tell the customer to resend a chat to force export. The canonical conversation remains in Soot.
+
+Owner tools use the bundled `sdk/` public wire codec; there is no private npm or sibling dependency. Installing never grants owner access or starts the gateway/export worker.

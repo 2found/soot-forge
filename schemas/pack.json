@@ -216,6 +216,12 @@
         "null"
       ]
     },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "id": {
       "type": [
         "string",
@@ -228,6 +234,12 @@
         "tool_area": {
           "additionalProperties": false,
           "properties": {
+            "access": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "action_tool": {
               "type": [
                 "string",
@@ -309,6 +321,12 @@
       },
       "type": [
         "object",
+        "null"
+      ]
+    },
+    "name": {
+      "type": [
+        "string",
         "null"
       ]
     },

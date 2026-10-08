@@ -1,0 +1,192 @@
+{
+  "api_version": "soot/v1",
+  "id": "artifacts",
+  "use": [
+    "read"
+  ],
+  "capabilities": {
+    "read": {
+      "skills": [
+        {
+          "name": "artifacts_read",
+          "file": "skills/read.md",
+          "description": "Read artifact metadata and inline content or host path by ref"
+        }
+      ],
+      "tools": [
+        {
+          "name": "read",
+          "description": "Read an artifact by immutable ref (art_<32hex>)",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^art_[0-9a-f]{32}$",
+                "description": "Artifact identifier"
+              }
+            },
+            "required": [
+              "ref"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-artifacts",
+            "args": [
+              "read"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "artifacts_store",
+            "secret_env": {
+              "ARTIFACT_STORE": "{{cred:ARTIFACT_STORE}}"
+            }
+          }
+        }
+      ]
+    },
+    "create": {
+      "skills": [
+        {
+          "name": "artifacts_create",
+          "file": "skills/create.md",
+          "description": "Store new content into the content-addressed artifact store"
+        }
+      ],
+      "tools": [
+        {
+          "name": "create",
+          "description": "Create an immutable content-addressed artifact",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Optional basename for the artifact"
+              },
+              "mimeType": {
+                "type": "string",
+                "description": "Allowlisted MIME type"
+              },
+              "data_b64": {
+                "type": "string",
+                "description": "Base64-encoded content"
+              },
+              "file": {
+                "type": "string",
+                "description": "Relative filename within operator-configured staging directory"
+              }
+            },
+            "required": [
+              "mimeType"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-artifacts",
+            "args": [
+              "create"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "artifacts_store",
+            "secret_env": {
+              "ARTIFACT_STORE": "{{cred:ARTIFACT_STORE}}"
+            }
+          }
+        }
+      ]
+    },
+    "export": {
+      "skills": [
+        {
+          "name": "artifacts_export",
+          "file": "skills/export.md",
+          "description": "Export an artifact to an operator-bound export directory with TTL"
+        }
+      ],
+      "tools": [
+        {
+          "name": "export",
+          "description": "Export an artifact with an expiry sidecar file",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^art_[0-9a-f]{32}$",
+                "description": "Artifact identifier"
+              },
+              "ttlSec": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 86400,
+                "description": "Time-to-live in seconds (default 3600, max 86400)"
+              }
+            },
+            "required": [
+              "ref"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-artifacts",
+            "args": [
+              "export"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "artifacts_store",
+            "secret_env": {
+              "ARTIFACT_STORE": "{{cred:ARTIFACT_STORE}}",
+              "ARTIFACT_EXPORT": "{{cred:ARTIFACT_EXPORT}}"
+            }
+          }
+        }
+      ]
+    },
+    "remove": {
+      "skills": [
+        {
+          "name": "artifacts_remove",
+          "file": "skills/remove.md",
+          "description": "Delete an artifact and/or a shared export URL from the bound store."
+        }
+      ],
+      "tools": [
+        {
+          "name": "remove",
+          "description": "Remove an artifact by ref and/or a shared export by exportId. Deleting a ref also drops exports that recorded that ref.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^art_[0-9a-f]{32}$"
+              },
+              "exportId": {
+                "type": "string",
+                "pattern": "^exp_[0-9a-f]{32}$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-artifacts",
+            "args": [
+              "remove"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "artifacts_store",
+            "secret_env": {
+              "ARTIFACT_STORE": "{{cred:ARTIFACT_STORE}}",
+              "ARTIFACT_EXPORT": "{{cred:ARTIFACT_EXPORT}}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

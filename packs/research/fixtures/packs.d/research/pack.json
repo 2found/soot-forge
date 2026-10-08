@@ -1,0 +1,26 @@
+{
+  "api_version": "soot/v1",
+  "id": "research",
+  "use": [
+    "web"
+  ],
+  "capabilities": {
+    "web": {
+      "skills": [
+        {
+          "name": "research_web",
+          "file": "skills/web.md",
+          "description": "Search the web, cross-check sources, and report cited evidence with gaps."
+        }
+      ],
+      "tools": [
+        {
+          "name": "web_search"
+        },
+        {
+          "name": "web_fetch"
+        }
+      ]
+    }
+  }
+}

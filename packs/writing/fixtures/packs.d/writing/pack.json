@@ -1,0 +1,84 @@
+{
+  "api_version": "soot/v1",
+  "id": "writing",
+  "use": [
+    "article",
+    "copy"
+  ],
+  "capabilities": {
+    "article": {
+      "skills": [
+        {
+          "name": "writing_article",
+          "file": "skills/article.md",
+          "description": "Draft long-form articles with cited sources and a verifiable structure."
+        }
+      ]
+    },
+    "copy": {
+      "skills": [
+        {
+          "name": "writing_copy",
+          "file": "skills/copy.md",
+          "description": "Write short marketing or product copy variants with a testable angle."
+        }
+      ]
+    },
+    "export": {
+      "skills": [
+        {
+          "name": "writing_export",
+          "file": "skills/export.md",
+          "description": "Export a finished draft artifact or bounded text to a sanitized MD or HTML artifact."
+        }
+      ],
+      "tools": [
+        {
+          "name": "export",
+          "description": "Export a draft (artifact ref or inline text) as a validated Markdown or sanitized HTML artifact. Returns an artifact ref.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["markdown", "html"]
+              },
+              "source_format": {
+                "type": "string",
+                "enum": ["markdown", "html", "text"],
+                "description": "Defaults to format. How to interpret the draft content."
+              },
+              "ref": {
+                "type": "string",
+                "pattern": "^art_[0-9a-f]{32}$",
+                "description": "Draft artifact ref from artifacts/create or a producer pack. Mutually exclusive with text."
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Inline draft content, mutually exclusive with ref."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "Optional output file name hint (sanitized to a basename)."
+              }
+            },
+            "required": ["format"],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-writing",
+            "args": ["export"],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "artifacts_store",
+            "secret_env": {
+              "ARTIFACT_STORE": "{{cred:ARTIFACT_STORE}}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "packs_dir": "packs.d",
+  "listen": "127.0.0.1:7788",
+  "data_dir": "data",
+  "workers": 2,
+  "model": {
+    "provider": "demo",
+    "stream": true
+  },
+  "soots": [
+    "soots/helper/soot.json"
+  ]
+}

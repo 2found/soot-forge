@@ -1,0 +1,19 @@
+{
+  "packs_dir": "packs.d",
+  "model": {
+    "provider": "demo"
+  },
+  "soots": [
+    "soots/helper/soot.json"
+  ],
+  "credentials": {
+    "helper": {
+      "ARTIFACT_STORE": {
+        "env": "SOOT_TEST_ARTIFACT_STORE",
+        "operations": [
+          "artifacts_read"
+        ]
+      }
+    }
+  }
+}

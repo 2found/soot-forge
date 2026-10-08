@@ -1,0 +1,6 @@
+{
+  "id": "helper",
+  "use": [
+    "email/smtp"
+  ]
+}

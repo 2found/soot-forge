@@ -1,0 +1,4 @@
+{
+  "service_url": "https://company-data.example.com",
+  "service_token": "<private credential bound to this Soot>"
+}

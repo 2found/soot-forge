@@ -1,0 +1,57 @@
+{
+  "api_version": "soot/v1",
+  "id": "casework",
+  "capabilities": {
+    "records": {
+      "skills": [
+        {
+          "file": "skill.md",
+          "description": "Optional persistent records for work that needs tracking or handoff"
+        }
+      ],
+      "tools": [
+        {
+          "name": "read",
+          "run": {
+            "program": "bin/soot-case",
+            "args": [
+              "read",
+              "data"
+            ],
+            "stdin": "context",
+            "resource": "casework_records"
+          }
+        },
+        {
+          "name": "upsert",
+          "run": {
+            "program": "bin/soot-case",
+            "args": [
+              "upsert",
+              "data"
+            ],
+            "stdin": "context",
+            "resource": "casework_records",
+            "mode": "write"
+          }
+        },
+        {
+          "name": "handoff",
+          "run": {
+            "program": "bin/soot-case",
+            "args": [
+              "handoff",
+              "data"
+            ],
+            "stdin": "context",
+            "resource": "casework_records",
+            "mode": "write"
+          }
+        }
+      ]
+    }
+  },
+  "use": [
+    "records"
+  ]
+}

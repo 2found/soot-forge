@@ -1,0 +1,25 @@
+{
+  "packs_dir": "packs.d",
+  "listen": "127.0.0.1:7788",
+  "data_dir": "data",
+  "workers": 2,
+  "model": {
+    "provider": "demo",
+    "stream": true
+  },
+  "soots": [
+    "soots/helper/soot.json"
+  ],
+  "credentials": {
+    "helper": {
+      "EMAIL_BINDING": {
+        "env": "SOOT_TEST_EMAIL_BINDING",
+        "operations": ["email_send"]
+      },
+      "ARTIFACT_STORE": {
+        "env": "SOOT_TEST_ARTIFACT_STORE",
+        "operations": ["email_send"]
+      }
+    }
+  }
+}

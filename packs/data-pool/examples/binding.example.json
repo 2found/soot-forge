@@ -1,0 +1,15 @@
+{
+  "endpoint": "http://127.0.0.1:7700",
+  "api_key": "<private Meilisearch credential>",
+  "namespace": "company",
+  "state_dir": "/private/absolute/path/company-data-policy",
+  "soots": [
+    "data-manager",
+    "marketing",
+    "support",
+    "blog-writer"
+  ],
+  "managers": [
+    "data-manager"
+  ]
+}

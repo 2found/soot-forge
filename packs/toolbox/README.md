@@ -88,7 +88,7 @@ Local file tools use direct writes/hash-checked edits; after interruption, read
 the files before retrying. File and shell changes are not rolled back when the
 agent run fails or the user stops it.
 
-See [execution configuration](../../../docs/execution.md) for long tasks.
+See [execution configuration](https://github.com/2found/2agent/blob/main/docs/execution.md) for long tasks.
 
 The techniques follow [oh-my-pi](https://github.com/can1357/oh-my-pi) at
 `898b09d32f147887a2242cf5ec9a1967bcac8873`: composable tools, stale-edit checks,

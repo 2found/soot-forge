@@ -1,0 +1,72 @@
+# writing — viết bài, copy và export draft
+
+Pack `writing` cung cấp kỷ năng viết (skills) và một executable xuất draft
+thành artifact. Ba capabilities chọn độc lập:
+
+| Capability | Gồm | Recipe |
+| --- | --- | --- |
+| `article` | skill `writing_article` — dàn ý, viết có nguồn, tự biên tập | mặc định |
+| `copy` | skill `writing_copy` — biến thể copy theo angle, tôn trọng giới hạn | mặc định |
+| `export` | skill `writing_export` + tool `writing_export` (executable) | chọn riêng |
+
+Recipe mặc định (`use: ["article","copy"]`) chỉ cấp skills — `export` có
+effect ghi artifact nên phải được chọn tường minh.
+
+## Export tool
+
+`writing_export` nhận **một trong hai** nguồn draft:
+
+- `ref` — `art_…` từ `artifacts/create` hoặc producer khác (draft dài).
+- `text` — nội dung inline, ≤ ~64 KiB.
+
+và `format` = `markdown` | `html`. `source_format` (mặc định = `format`)
+khai báo định dạng đầu vào: `markdown`/`html`/`text`. Markdown → HTML dùng
+renderer tối thiểu (heading, list, quote, code, link, emphasis) — bảng và
+footnote không được hỗ trợ. HTML output luôn qua sanitize allowlist: chỉ
+http/https/relative link, không script/style/iframe/event handler.
+
+Output: `{"kind":"artifact","artifact":{ref,mimeType,sha256,bytes,name}}` —
+artifact nằm trong store của operator, không phải URL public.
+
+## Runtime và binding
+
+Runner là Go binary `bin/soot-writing` trong folder pack; build từ module độc lập:
+
+```sh
+(cd packs/writing/runner && go build -o ../bin/soot-writing .)
+```
+
+Pack khai báo `secret_env.ARTIFACT_STORE = {{cred:ARTIFACT_STORE}}` —
+deployment bind đường dẫn tuyệt đối của artifact store qua env hoặc file:
+
+```json
+{
+  "credentials": {
+    "helper": {
+      "ARTIFACT_STORE": {"env": "ARTIFACT_STORE", "operations": ["writing_export"]}
+    }
+  }
+}
+```
+
+Store root do operator sở hữu — model không chọn scope. Layout store theo
+contract của pack `artifacts` (`objects/<sha2>/<sha>`, `meta/<id>.json`).
+Không cần pack `artifacts` để `export` chạy, nhưng cả hai dùng chung layout
+nên có thể trỏ vào cùng một store khi operator bind cùng đường dẫn.
+
+## Kiểm tra
+
+```sh
+(cd packs/writing/runner && go test -race ./...)          # unit tests
+printf '%s\n' '{"api_version":"soot/v1","hook":"tool.call","soot":"helper","operation":"writing_export","input":{"format":"html","source_format":"markdown","text":"# Xin chào"}}' \
+  | ARTIFACT_STORE=/tmp/art-store packs/writing/bin/soot-writing export
+```
+
+Fixture độc lập ở `fixtures/` (pack copy trong `packs.d`):
+
+```sh
+export SOOT_TEST_ARTIFACT_STORE=/tmp/art-store
+cd packs/writing/fixtures && soot check --config deployment.json && soot check --secrets --config deployment.json
+```
+
+Runner không phụ thuộc repo Soot private. Từ pack đã cài: `(cd runner && go build -o ../bin/soot-writing .)`; cài pack không build/chạy runner hoặc cấp quyền. Fixture trong checkout Forge dùng binary do operator tự build/copy, không có binary hay dữ liệu cục bộ trong release.

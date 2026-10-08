@@ -9,7 +9,7 @@ export const run = promisify(execFile);
 const identifier = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const repoName = /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const commit = /^[0-9a-f]{40}$/;
-const skipped = new Set(['.git', '.gitignore', 'node_modules', 'fixtures', 'bin', 'data', 'dist']);
+const skipped = new Set(['.git', '.gitignore', 'node_modules', 'fixtures', 'bin', 'data', 'dist', '__pycache__']);
 const checkManifest = new Ajv2020({ strict: false, allErrors: true }).compile(
   JSON.parse(readFileSync(new URL('../schemas/pack.json', import.meta.url), 'utf8')));
 

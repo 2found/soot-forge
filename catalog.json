@@ -100,6 +100,132 @@
         "path": "packs/2build",
         "ref": "403543cce394020e1f0b9e38c2419f504a188db3"
       }
+    },
+    {
+      "id": "artifacts",
+      "name": "Artifacts",
+      "description": "Read, create, export and remove scoped artifacts in an operator-bound store.",
+      "tags": [
+        "storage",
+        "files"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/artifacts"
+      }
+    },
+    {
+      "id": "casework",
+      "name": "Casework",
+      "description": "Optional passive case records and explicit human handoff, without an event dispatcher.",
+      "tags": [
+        "records"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/casework"
+      }
+    },
+    {
+      "id": "data-pool",
+      "name": "Data pool",
+      "description": "Query and manage shared company data pools through explicitly bound tools.",
+      "tags": [
+        "data",
+        "search"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/data-pool"
+      }
+    },
+    {
+      "id": "email",
+      "name": "Email",
+      "description": "Send SMTP email through host-bound credentials, TLS and durable delivery receipts.",
+      "tags": [
+        "communication"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/email"
+      }
+    },
+    {
+      "id": "live-chat",
+      "name": "Live chat",
+      "description": "Communication guidance for Soots serving visitors through a separately configured gateway.",
+      "tags": [
+        "communication"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/live-chat"
+      }
+    },
+    {
+      "id": "live-chat-sheets",
+      "name": "Live chat Sheets",
+      "description": "Optional Google Sheets transcript export with an explicitly configured gateway binding.",
+      "tags": [
+        "communication",
+        "data"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/live-chat-sheets"
+      }
+    },
+    {
+      "id": "nest-no-code",
+      "name": "Nest no code",
+      "description": "Configure a Live chat website through a host-bound owner endpoint.",
+      "tags": [
+        "configuration",
+        "communication"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/nest-no-code"
+      }
+    },
+    {
+      "id": "research",
+      "name": "Research",
+      "description": "Research guidance using the Soot runtime web search and fetch tools.",
+      "tags": [
+        "research"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/research"
+      }
+    },
+    {
+      "id": "website",
+      "name": "Website",
+      "description": "Review and publish website content and manage a scoped CMS through bound tools.",
+      "tags": [
+        "website",
+        "publishing"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/website"
+      }
+    },
+    {
+      "id": "writing",
+      "name": "Writing",
+      "description": "Article and copywriting guidance with scoped artifact export.",
+      "tags": [
+        "writing",
+        "files"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/writing"
+      }
     }
   ]
 }

@@ -1,0 +1,428 @@
+{
+  "api_version": "soot/v1",
+  "id": "data-pool",
+  "use": [],
+  "capabilities": {
+    "read": {
+      "skills": [
+        {
+          "name": "data-pool-read",
+          "file": "skills/read.md",
+          "description": "Use shared company data with citations instead of recrawling sources."
+        }
+      ],
+      "tools": [
+        {
+          "name": "pools",
+          "description": "List only granted company data pools or inspect one pool; bounded pages.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "pool": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "after": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-data-pool",
+            "args": [
+              "pools"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "data_pool",
+            "timeout": "20s",
+            "max_output_bytes": 131072,
+            "secret_env": {
+              "DATA_POOL": "{{cred:DATA_POOL}}"
+            }
+          }
+        },
+        {
+          "name": "query",
+          "description": "List, read or search company documents in a granted pool. Search tolerates typos and missing Vietnamese accents. Returns source and revision citations.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "list",
+                  "read",
+                  "search"
+                ]
+              },
+              "pool": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "query": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "after": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8192
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 131072
+              }
+            },
+            "required": [
+              "action",
+              "pool"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-data-pool",
+            "args": [
+              "query"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "data_pool",
+            "timeout": "20s",
+            "max_output_bytes": 131072,
+            "secret_env": {
+              "DATA_POOL": "{{cred:DATA_POOL}}"
+            }
+          }
+        },
+        {
+          "name": "status",
+          "description": "Inspect and reconcile a saved request without resubmitting it. A pool manager can specify the original owner to inspect an interrupted or revoked writer.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "owner": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              }
+            },
+            "required": [
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-data-pool",
+            "args": [
+              "status"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "data_pool",
+            "timeout": "20s",
+            "max_output_bytes": 131072,
+            "secret_env": {
+              "DATA_POOL": "{{cred:DATA_POOL}}"
+            }
+          }
+        }
+      ]
+    },
+    "write": {
+      "skills": [
+        {
+          "name": "data-pool-write",
+          "file": "skills/write.md",
+          "description": "Import or update explicitly supplied company data and reconcile pending effects."
+        }
+      ],
+      "tools": [
+        {
+          "name": "write",
+          "description": "Import/update Markdown or text, explicitly import one public webpage, or remove a document. Requires pool write permission and a stable request_id. Never automatically repeat uncertain writes.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "upsert",
+                  "remove"
+                ]
+              },
+              "pool": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 12288
+              },
+              "source": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "tags": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "maxLength": 64
+                }
+              },
+              "generation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "action",
+              "pool",
+              "id",
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-data-pool",
+            "args": [
+              "write"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "data_pool",
+            "timeout": "20s",
+            "max_output_bytes": 131072,
+            "secret_env": {
+              "DATA_POOL": "{{cred:DATA_POOL}}"
+            }
+          }
+        }
+      ]
+    },
+    "manage": {
+      "skills": [
+        {
+          "name": "data-pool-manage",
+          "file": "skills/manage.md",
+          "description": "Manage shared company pools and explicit access for bound Soots."
+        }
+      ],
+      "tools": [
+        {
+          "name": "manage",
+          "description": "Create/remove company data pools and explicitly grant/revoke a bound Soot read, write or manage access. Requires delegated management permission.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "pool_create",
+                  "pool_remove",
+                  "grant",
+                  "revoke"
+                ]
+              },
+              "pool": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "request_id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "soot": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write",
+                  "manage"
+                ]
+              },
+              "generation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expected_policy_revision": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "action",
+              "pool",
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-data-pool",
+            "args": [
+              "manage"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "data_pool",
+            "timeout": "20s",
+            "max_output_bytes": 131072,
+            "secret_env": {
+              "DATA_POOL": "{{cred:DATA_POOL}}"
+            }
+          }
+        }
+      ]
+    },
+    "configure": {
+      "skills": [],
+      "tools": [
+        {
+          "name": "view",
+          "description": "Human operator data-pool view. Requires an authenticated Nest interface; unavailable to model calls.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "overview",
+                  "pools",
+                  "query",
+                  "activity",
+                  "status"
+                ]
+              },
+              "input": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "kind",
+              "input"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-data-pool",
+            "args": [
+              "view"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "data_pool",
+            "timeout": "20s",
+            "max_output_bytes": 131072,
+            "secret_env": {
+              "DATA_POOL": "{{cred:DATA_POOL_UI}}"
+            }
+          }
+        },
+        {
+          "name": "action",
+          "description": "Human operator data-pool action. Requires an authenticated Nest interface; unavailable to model calls.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "write",
+                  "manage"
+                ]
+              },
+              "input": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "kind",
+              "input"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "bin/soot-data-pool",
+            "args": [
+              "action"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "data_pool",
+            "timeout": "20s",
+            "max_output_bytes": 131072,
+            "secret_env": {
+              "DATA_POOL": "{{cred:DATA_POOL_UI}}"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "interface": {
+    "tool_area": {
+      "id": "data",
+      "label": "Data pools",
+      "kind": "data-pool",
+      "access": "operator",
+      "view_tool": "view",
+      "action_tool": "action",
+      "width": 640,
+      "min_width": 320,
+      "max_width": 1200,
+      "aspect_width": 4,
+      "aspect_height": 3,
+      "resizable": true
+    }
+  }
+}

@@ -1,0 +1,4 @@
+bin/
+fixtures/bin/
+fixtures/data/
+fixtures/.env

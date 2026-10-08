@@ -1,0 +1,11 @@
+{
+  "listen": "127.0.0.1:0",
+  "data_dir": "data",
+  "packs_dir": "packs.d",
+  "soots": [
+    "soots/data-manager.json",
+    "soots/marketing.json",
+    "soots/support.json",
+    "soots/blog-writer.json"
+  ]
+}

@@ -1,0 +1,14 @@
+export type CmsLanguage = 'en' | 'vi';
+export type CmsStatus = 'draft' | 'published' | 'archived';
+export type CmsCredential = {origin:string; site:string; token:string};
+export type CmsInspectInput = {slug:string};
+export type CmsSaveInput = CmsInspectInput & {requestId:string; expectedRevision:number; title:string; summary:string; bodyMarkdown:string; status:CmsStatus; language?:CmsLanguage};
+export type CmsMetadata = {slug:string; title:string; summary:string; author:string; revision:number; status:CmsStatus; updatedAt:number; publishedAt:number|null; language?:CmsLanguage};
+export type CmsResult = {post:CmsMetadata & {bodyMarkdown:string}} | {post:null} | {post:CmsMetadata; duplicate:boolean} | {status:'conflict'};
+export const MAX_RESPONSE_BYTES:number;
+export const MAX_STDIN_BYTES:number;
+export function validateCredential(raw:string):CmsCredential;
+export function validateInput(action:'inspect',value:unknown):CmsInspectInput;
+export function validateInput(action:'save',value:unknown):CmsSaveInput;
+export function readEnvelope(stream:AsyncIterable<Uint8Array>):Promise<unknown>;
+export function callCms(action:'save'|'inspect',call:unknown,raw:string,options?:{fetcher?:typeof fetch; timeoutMs?:number}):Promise<CmsResult>;

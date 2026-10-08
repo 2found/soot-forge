@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "api_version": {
+      "const": "soot/v1",
+      "type": "string"
+    },
+    "case_id": {
+      "type": "string"
+    },
+    "event": {
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "observation": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "version_from": {
+          "type": "string"
+        },
+        "version_to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "subject",
+        "text"
+      ],
+      "type": "object"
+    },
+    "hook": {
+      "const": "tool.call",
+      "type": "string"
+    },
+    "input": {},
+    "interaction": {
+      "type": "boolean"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "root": {
+      "type": "string"
+    },
+    "soot": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "api_version",
+    "event",
+    "hook",
+    "operation",
+    "root",
+    "soot"
+  ],
+  "title": "Soot executable tool call",
+  "type": "object"
+}

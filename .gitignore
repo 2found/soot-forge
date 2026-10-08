@@ -4,3 +4,6 @@ node_modules/
 **/.env
 **/data/
 .DS_Store
+
+__pycache__/
+*.pyc

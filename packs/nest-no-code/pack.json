@@ -1,0 +1,159 @@
+{
+  "api_version": "soot/v1",
+  "id": "nest-no-code",
+  "use": [],
+  "capabilities": {
+    "configure": {
+      "skills": [
+        {
+          "name": "configure-live-chat",
+          "description": "Configure website Live chat from the owner chat and Nest through one scoped host authority.",
+          "file": "skills/configure.md"
+        }
+      ],
+      "tools": [
+        {
+          "name": "view",
+          "description": "Read canonical website configurations and host capabilities.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "site_id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "request_id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "after": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "config": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "binding": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/control.mjs",
+              "view"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "nest_no_code",
+            "timeout": "15s",
+            "secret_env": {
+              "SOOT_NO_CODE_URL": "{{cred:NO_CODE_URL}}",
+              "SOOT_NO_CODE_TOKEN": "{{cred:NO_CODE_TOKEN}}"
+            }
+          }
+        },
+        {
+          "name": "action",
+          "description": "Apply owner-authorized website drafts, publication and integration changes; requires current revision and stable request ID.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "site_id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "request_id": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "after": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "config": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "binding": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/control.mjs",
+              "action"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "nest_no_code",
+            "timeout": "15s",
+            "secret_env": {
+              "SOOT_NO_CODE_URL": "{{cred:NO_CODE_URL}}",
+              "SOOT_NO_CODE_TOKEN": "{{cred:NO_CODE_TOKEN}}"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "interface": {
+    "tool_area": {
+      "id": "live-chat",
+      "label": "Live chat",
+      "kind": "live-chat",
+      "view_tool": "view",
+      "action_tool": "action",
+      "width": 680,
+      "min_width": 320,
+      "max_width": 1200,
+      "aspect_width": 4,
+      "aspect_height": 3,
+      "resizable": true
+    }
+  }
+}
