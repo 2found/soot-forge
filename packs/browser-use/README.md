@@ -1,0 +1,45 @@
+# Browser use
+
+A configuration and skill pack. It selects the standalone `soot-browser`
+adapter, which drives [agent-browser](https://github.com/vercel-labs/agent-browser)
+with [CloakBrowser](https://github.com/CloakHQ/cloakbrowser).
+The standalone adapter source is bundled in `adapter/`; it runs separately from Soot. No desktop UI lives in this pack.
+
+Install on the Soot server (Node.js 24+):
+
+```sh
+npm install -g ./adapter
+```
+
+`soot spawn` selects browser-use for the general Soot from the latest stable Forge release.
+Nest selects both browser-use and soot-nest. Existing customized Soot definitions
+are preserved; opt them in with `packs: ["browser-use", "soot-nest"]` alongside
+their existing selections. In the deployment, authorize PATH and HOME for both
+`browser-use_control` and `browser-use_view` under `operation_env`.
+
+The manifest's `interface.tool_area` declares label, renderer, read/action tools,
+width/min/max, aspect width/height and resizability. Nest owns rendering. Installing
+the pack alone grants nothing: both executable capabilities must be selected.
+`npx --no-install` resolves the separately installed adapter and never downloads it.
+
+One profile per conversation ID under the installed pack's private `.browser/`
+directory; deployment path namespaces the daemon name. Persistent cookies and
+storage survive browser close; session cookies follow the site/browser lifetime. Live tabs survive sidebar close and conversation
+switches. Sessions stay alive until explicitly closed; terminate the exact
+`soot-<deployment hash>-<conversation ID>` session during operator cleanup.
+Never use global close-all. Keep `.browser/` private and out of backups/archives
+shared with others: profiles contain website credentials.
+
+Desktop subscribes to agent-browser's live WebSocket screencast through Soot's
+authenticated stream endpoint. It shows navigation, typing, popups and tab changes
+as they happen. Users can open tabs and complete OAuth directly in the sidebar.
+Human click/key/paste/scroll input uses the same browser's input channel and
+remains available while the agent waits. A popup closing can end an agent wait;
+inspect the surviving tab before continuing.
+
+Browser use attaches a resource to the conversation before the action starts.
+The resource list records last use and last verified availability. `stale` means
+not checked for two minutes; `unavailable` means a probe/stream failed. Checking
+never starts a browser. Explicit close ends the process and retains the profile.
+Frames are transient; user actions have durable receipts and are never retried
+automatically. The stream endpoint and profile path remain on the host.

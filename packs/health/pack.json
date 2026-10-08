@@ -1,0 +1,28 @@
+{
+  "api_version": "soot/v1",
+  "id": "health",
+  "capabilities": {
+    "probe": {
+      "skills": [
+        {
+          "file": "skill.md",
+          "description": "Inspect readiness using a configured HTTP endpoint"
+        }
+      ],
+      "tools": [
+        {
+          "name": "probe",
+          "run": {
+            "program": "bin/soot-health",
+            "args": [
+              "http://127.0.0.1:7788/healthz"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "use": [
+    "probe"
+  ]
+}

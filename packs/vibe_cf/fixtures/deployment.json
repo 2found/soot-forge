@@ -1,0 +1,43 @@
+{
+  "packs_dir": "packs.d",
+  "model": {
+    "provider": "demo"
+  },
+  "soots": [
+    "soots/helper/soot.json"
+  ],
+  "credentials": {
+    "helper": {
+      "CF_BINDING": {
+        "env": "SOOT_TEST_CF_BINDING",
+        "operations": [
+          "vibe_cf_r2_share",
+          "vibe_cf_r2_upload",
+          "vibe_cf_r2_unshare",
+          "vibe_cf_r2_list",
+          "vibe_cf_worker_deploy",
+          "vibe_cf_worker_delete",
+          "vibe_cf_worker_list",
+          "vibe_cf_d1_create",
+          "vibe_cf_d1_exec",
+          "vibe_cf_d1_list",
+          "vibe_cf_dns_create",
+          "vibe_cf_dns_delete",
+          "vibe_cf_dns_list",
+          "vibe_cf_shortlink_setup",
+          "vibe_cf_shortlink_mint",
+          "vibe_cf_shortlink_revoke",
+          "vibe_cf_shortlink_list"
+        ]
+      },
+      "ARTIFACT_STORE": {
+        "env": "SOOT_TEST_ARTIFACT_STORE",
+        "operations": [
+          "vibe_cf_r2_share",
+          "vibe_cf_r2_upload",
+          "vibe_cf_shortlink_mint"
+        ]
+      }
+    }
+  }
+}

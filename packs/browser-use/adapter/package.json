@@ -1,0 +1,20 @@
+{
+  "name": "soot-browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Conversation browser adapter for Soot packs",
+  "bin": {
+    "soot-browser": "browser.mjs"
+  },
+  "scripts": {
+    "test": "node --test browser.test.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "agent-browser": "0.38.2",
+    "cloakbrowser": "0.5.10"
+  }
+}

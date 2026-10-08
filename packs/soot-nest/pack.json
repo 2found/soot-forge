@@ -1,0 +1,10 @@
+{
+ "api_version":"soot/v1",
+ "id":"soot-nest",
+ "use":["side-bar"],
+ "capabilities":{
+  "side-bar":{
+   "skills":[{"name":"side-bar","description":"Use Nest's right tool area to present pack interfaces, keep conversation state, and choose suitable size/aspect.","file":"skills/side-bar.md"}]
+  }
+ }
+}

@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "repository": "2found/soot-forge",
+  "packs": [
+    {
+      "id": "health",
+      "name": "Health",
+      "description": "Observe HTTP readiness through a bounded standalone probe.",
+      "tags": [
+        "operations"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/health"
+      }
+    },
+    {
+      "id": "server-care",
+      "name": "Server care",
+      "description": "Guide a Soot through server checks using explicitly granted operations.",
+      "tags": [
+        "operations"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/server-care"
+      }
+    },
+    {
+      "id": "vibe_cf",
+      "name": "Cloudflare",
+      "description": "Share files, deploy Workers, use D1 and manage DNS in a bound account.",
+      "tags": [
+        "cloud",
+        "sharing"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/vibe_cf"
+      }
+    },
+    {
+      "id": "toolbox",
+      "name": "Toolbox",
+      "description": "Select reusable file, shell and web tools from the Soot runtime.",
+      "tags": [
+        "essentials"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/toolbox"
+      }
+    },
+    {
+      "id": "soot",
+      "name": "Soot",
+      "description": "Soot domain knowledge and tools for preparing custom pets.",
+      "tags": [
+        "essentials"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/soot"
+      }
+    },
+    {
+      "id": "browser-use",
+      "name": "Browser use",
+      "description": "Browser control skills with a separately installed browser adapter.",
+      "tags": [
+        "browser"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/browser-use"
+      }
+    },
+    {
+      "id": "soot-nest",
+      "name": "Nest",
+      "description": "Capabilities and interface metadata for the Soot app workspace.",
+      "tags": [
+        "essentials"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/soot-nest"
+      }
+    },
+    {
+      "id": "2build",
+      "name": "2build",
+      "description": "Product engineering workflows and skills maintained in the 2build repository.",
+      "tags": [
+        "engineering"
+      ],
+      "source": {
+        "kind": "github",
+        "repository": "2found/2build",
+        "path": "packs/2build",
+        "ref": "403543cce394020e1f0b9e38c2419f504a188db3"
+      }
+    }
+  ]
+}

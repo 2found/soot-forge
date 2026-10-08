@@ -1,0 +1,11 @@
+{
+  "api_token": "test-token",
+  "account_id": "test-account",
+  "zone_id": "test-zone",
+  "r2_access_key": "test-ak",
+  "r2_secret_key": "test-sk",
+  "r2_bucket": "bucket",
+  "workers_subdomain": "testacct",
+  "api_base": "http://127.0.0.1:8787/client/v4",
+  "r2_endpoint": "http://127.0.0.1:8787"
+}
