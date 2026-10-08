@@ -35,6 +35,16 @@ When a source checkout is available, read its `AGENTS.md`, `BRANDING.md`,
 `docs/authoring-packs.md` and relevant public contracts before changing them.
 These are pointers for source development, not installed-pack dependencies.
 
+## Find and add packs
+
+Read https://raw.githubusercontent.com/2found/soot-forge/main/catalog.json
+(version 1) and match `name`, `description` and `tags` to the user's task.
+Follow https://github.com/2found/soot-forge/blob/main/USAGE.md to derive the
+GitHub folder link from `source`, inspect its README and use `soot add` when
+the user requests installation and existing tool grants permit it. Verify with
+`soot check --show`; installing files never grants capabilities. If no read or
+install tool is granted, explain the operator steps instead of changing grants.
+
 ## Pet lifecycle
 
 Use one activity controller and the existing event transport per conversation.

@@ -2,6 +2,12 @@
 
 Discover, install and share things Soots can use.
 
+Ask your coding agent:
+
+```text
+Read https://github.com/2found/soot-forge/blob/main/USAGE.md and its catalog.json. Help me find a pack for my task, explain its source and required capabilities, and install the pack I choose into my Soot workspace. Verify the installation without automatically granting tools.
+```
+
 Soot Forge is the community pack catalog for [Soot](https://trysoot.com).
 Browse it at [trysoot.com/forge](https://trysoot.com/forge). This repository owns
 the packs and source links; the page is implemented in the Soot website.
@@ -45,6 +51,11 @@ so a changed branch cannot silently change a reviewed pack. Release packaging
 materializes the same pinned content and publishes one archive per catalog
 entry, including linked packs, plus SHA-256 checksums and the projected catalog.
 An archive does not change the upstream ownership of a linked pack.
+
+Agents discover packs from `catalog.json`: `id`, `name`, `description`, `tags`
+and `source` are machine-readable metadata. Each installed pack has its own
+`pack.json` describing capabilities, skills and tools. Follow [USAGE.md](USAGE.md)
+to turn a catalog entry into an installation command.
 
 The General Soot installs default pack archives from a stable Forge release;
 its 2build pack still resolves the latest stable 2build release from upstream.

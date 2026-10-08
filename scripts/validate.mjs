@@ -5,10 +5,12 @@ import { readCatalog, materialize, run } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 
 const args = process.argv.slice(2);
-const remote = args.includes('--remote');
-const sootAt = args.indexOf('--soot');
-const soot = sootAt < 0 ? null : resolve(args[sootAt + 1] ?? '');
-if (args.some((arg, i) => !['--remote', '--soot'].includes(arg) && i !== sootAt + 1) || (sootAt >= 0 && !args[sootAt + 1])) throw new Error('Usage: node scripts/validate.mjs [--remote] [--soot /path/to/soot]');
+let remote = false, soot = null;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--remote' && !remote) remote = true;
+  else if (args[i] === '--soot' && soot === null && args[i + 1] && !args[i + 1].startsWith('--')) soot = resolve(args[++i]);
+  else throw new Error('Usage: node scripts/validate.mjs [--remote] [--soot /path/to/soot]');
+}
 const root = resolve(import.meta.dirname, '..');
 const catalog = await readCatalog(root);
 const work = await mkdtemp(join(tmpdir(), 'soot-forge-validate-'));

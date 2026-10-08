@@ -5,10 +5,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { validateCatalog, validatePack, materialize, sourceLink, installCommand, readCatalog } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const entry = { id: 'example', name: 'Example', description: 'Example pack.', tags: ['research'], source: { kind: 'bundled', path: 'packs/example' } };
 function catalog(pack = entry) { return { version: 1, repository: '2found/soot-forge', packs: [structuredClone(pack)] }; }
 const linked = { ...entry, source: { kind: 'github', repository: 'someone/repo', path: 'packs/example', ref: 'a'.repeat(40) } };
+
+test('validation rejects unknown flags and missing or duplicate installer options', async () => {
+  const exec = promisify(execFile);
+  for (const args of [['--unknown'], ['--soot'], ['--soot', '--remote'], ['--remote', '--remote'], ['--soot', 'soot', '--soot', 'soot']]) {
+    await assert.rejects(exec(process.execPath, [join(import.meta.dirname, 'validate.mjs'), ...args]), error => error.code === 1 && /Usage:/.test(error.stderr));
+  }
+});
 
 test('both contribution modes produce GitHub folder install commands', () => {
   validateCatalog(catalog()); validateCatalog(catalog(linked));
