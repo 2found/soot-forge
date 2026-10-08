@@ -15,6 +15,9 @@ metadata first; never infer permissions from a catalog entry or installation.
   Runners decode the public soot/v1 envelope without private runtime dependencies.
 - Run `node --test scripts/*.test.mjs`, `node scripts/validate.mjs`, and the Go
   race tests in each changed runner. Full validation uses `--soot <binary> --remote`.
+- Approved version changes update package.json and both lockfile mirrors; push
+  main for one check/tag/build/publish pipeline. Catalog version is the schema
+  version. Unchanged versions check only; published tags/assets never move.
 - Release archives contain one pack root, with deterministic bytes and SHA-256.
   Release/push/deploy requires an explicit user instruction.
 

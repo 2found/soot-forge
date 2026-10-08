@@ -81,3 +81,10 @@ release Forge before a Soot binary whose defaults reference it.
 The website consumes a generated catalog snapshot from this file. Refresh it
 with the Soot website's `sync:forge` command after catalog changes; its build
 does not read another checkout or make remote requests.
+
+## Automated releases
+
+The release version lives in `package.json` and `package-lock.json`. Update both
+and push main; the release workflow calls catalog/runner checks once, tags only
+a verified new version, builds deterministic archives and publishes docs and
+download metadata in that same run. Keep the catalog schema version separate.

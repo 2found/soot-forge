@@ -1,39 +1,129 @@
 name: Release packs
 on:
   push:
+    branches: [main]
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to resume
+        required: true
+        type: string
 permissions:
   contents: read
+concurrency:
+  group: forge-release
+  cancel-in-progress: false
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      commit: ${{ steps.plan.outputs.commit }}
+      version: ${{ steps.plan.outputs.version }}
+      release: ${{ steps.plan.outputs.release }}
+      createTag: ${{ steps.plan.outputs.createTag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+      - name: Preserve workflow policy for legacy tag retries
+        run: |
+          cp scripts/release-plan.mjs "$RUNNER_TEMP/release-plan.mjs"
+          cp scripts/release-plan.test.mjs "$RUNNER_TEMP/release-plan.test.mjs"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test "$RUNNER_TEMP/release-plan.test.mjs"
+      - id: plan
+        run: node "$RUNNER_TEMP/release-plan.mjs"
+        env:
+          RELEASE_REF_TYPE: ${{ github.event_name == 'workflow_dispatch' && 'tag' || github.ref_type }}
+          RELEASE_REF_NAME: ${{ inputs.tag || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+  verify:
+    needs: plan
+    uses: ./.github/workflows/check.yml
+    with:
+      ref: ${{ needs.plan.outputs.commit }}
+  tag:
+    needs: [plan, verify]
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          fetch-depth: 0
+      - if: needs.plan.outputs.createTag == 'true'
+        env:
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$RELEASE_TAG" -m "$RELEASE_TAG"
+          git push origin "$RELEASE_TAG"
   build:
+    needs: [plan, tag]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25.x'
+          node-version: 22
       - run: npm ci --ignore-scripts
-      - run: node --test scripts/*.test.mjs
-      - run: node scripts/validate.mjs --remote
-      - run: node scripts/build.mjs "${GITHUB_REF_NAME#v}"
+      - run: node scripts/build.mjs "$VERSION"
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+      - name: Include versioned docs and download index
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          tar -czf "dist/soot-forge-docs_${VERSION}.tar.gz" README.md USAGE.md AGENTS.md
+          printf '# Soot Forge %s\n\nDownload catalog.json for pack URLs and SHA-256 checksums. See USAGE.md in the documentation archive for installation.\n' "$VERSION" > dist/DOWNLOADS.md
+          cd dist
+          sha256sum ./*.tar.gz catalog.json DOWNLOADS.md > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: packs
+          name: packs-${{ github.run_id }}
           path: dist/*
           if-no-files-found: error
+          overwrite: true
   publish:
-    needs: build
+    needs: [plan, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: packs
+          name: packs-${{ github.run_id }}
           path: dist
-      - env:
+      - name: Publish complete immutable release
+        env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --title "Soot Forge $GITHUB_REF_NAME" --generate-notes
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum --check SHA256SUMS
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft > "$RUNNER_TEMP/state.json" 2> "$RUNNER_TEMP/release-error.txt"; then
+            test "$(jq -r .isDraft "$RUNNER_TEMP/state.json")" = true
+          elif grep -q 'release not found' "$RUNNER_TEMP/release-error.txt"; then
+            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --draft --title "Soot Forge $RELEASE_TAG" --generate-notes
+          else
+            cat "$RUNNER_TEMP/release-error.txt" >&2
+            exit 1
+          fi
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file DOWNLOADS.md
+          gh release upload "$RELEASE_TAG" ./* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

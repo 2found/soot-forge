@@ -2,7 +2,13 @@ name: Check packs
 on:
   pull_request:
   push:
-    branches: [main]
+    branches-ignore: [main]
+    tags-ignore: ['v*']
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
@@ -10,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -21,9 +29,9 @@ jobs:
       - run: node scripts/validate.mjs --remote
       # Do not execute contributor code on pull_request. Runner tests are a
       # trusted-main check, after source review; no secrets are available.
-      - if: github.event_name == 'push'
+      - if: github.event_name != 'pull_request'
         working-directory: packs/vibe_cf/runner
         run: go test -race ./...
-      - if: github.event_name == 'push'
+      - if: github.event_name != 'pull_request'
         working-directory: packs/health/runner
         run: go test -race ./...

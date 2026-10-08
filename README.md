@@ -60,8 +60,14 @@ to turn a catalog entry into an installation command.
 The General Soot installs default pack archives from a stable Forge release;
 its 2build pack still resolves the latest stable 2build release from upstream.
 Keep a Forge release containing `toolbox`, `soot`, `browser-use`, `soot-nest`
-and `vibe_cf` available before releasing that Soot default. Publication is a
-separate step: a local checkout or an unpublished tag is not a release.
+and `vibe_cf` available before releasing that Soot default. Update `package.json` and its lockfile to the reviewed stable release version,
+then push `main`. A single workflow validates catalog content and runner tests,
+creates `v<version>` after those checks, builds the pack archives, and publishes
+a complete release with catalog, docs, download instructions and checksums.
+Unchanged versions still run checks and skip publication. `catalog.json.version`
+is the schema version, not the release version. PRs use the same read-only gate;
+no contributor tools run there. Resume an unpublished tag/draft via workflow
+dispatch; published tags and assets are immutable.
 
 ```sh
 node --test scripts/*.test.mjs
