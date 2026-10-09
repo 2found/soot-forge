@@ -109,7 +109,13 @@
             "max_output_bytes": 131072,
             "secret_env": {
               "DATA_POOL": "{{cred:DATA_POOL}}"
-            }
+            },
+            "resource_fields": [
+              "@soot",
+              "pool",
+              "id",
+              "query"
+            ]
           }
         },
         {
@@ -160,7 +166,7 @@
       "tools": [
         {
           "name": "write",
-          "description": "Import/update Markdown or text, explicitly import one public webpage, or remove a document. Requires pool write permission and a stable request_id. Never automatically repeat uncertain writes.",
+          "description": "Append independent entries quickly (duplicate content allowed, omit id); or upsert/remove a stable document. A request_id identifies one intent; retry with the same ID. Backend enforces grants, revisions and per-document uncertainty.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -168,7 +174,8 @@
                 "type": "string",
                 "enum": [
                   "upsert",
-                  "remove"
+                  "remove",
+                  "append"
                 ]
               },
               "pool": {
@@ -220,7 +227,6 @@
             "required": [
               "action",
               "pool",
-              "id",
               "request_id"
             ],
             "additionalProperties": false
@@ -237,7 +243,13 @@
             "max_output_bytes": 131072,
             "secret_env": {
               "DATA_POOL": "{{cred:DATA_POOL}}"
-            }
+            },
+            "resource_fields": [
+              "@soot",
+              "pool",
+              "id",
+              "request_id"
+            ]
           }
         }
       ]

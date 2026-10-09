@@ -52,7 +52,7 @@ failed mutation as permission to repeat it: inspect current state first.
 Credentials belong to the user's site session or operator-approved secret source.
 Never guess credentials or bypass authorization.
 
-Dependencies: Node.js 24+ and `npm install -g ./adapter` from the installed browser-use pack directory. CloakBrowser
+Dependencies: Node.js 24+ and `npm install -g --install-links ./adapter` from the installed browser-use pack directory. CloakBrowser
 downloads its Chromium on first use. Missing dependencies should be reported with
 these setup steps. The browser runs headless because desktop displays its actual
 frames and sends input to the same browser; no independent webview session.

@@ -1,0 +1,10 @@
+{
+  "id": "image-gen",
+  "name": "Image generation",
+  "soul": "SOUL.md",
+  "mission": "mission.md",
+  "use": [
+    "image-gen/inspect",
+    "image-gen/generate"
+  ]
+}

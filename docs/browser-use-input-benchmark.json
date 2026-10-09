@@ -1,0 +1,207 @@
+{
+  "timestamp": "2026-10-09T21:04:06.189Z",
+  "node": "v24.21.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "iterations_per_mode": 20,
+  "warmups_per_mode": 2,
+  "adapter_sha256": "0c24d9f4d336354fdb06d0da1f0f7529105b9ca7b7a79437ba9cfd88937a350a",
+  "scope": "Real unchanged browser-use human text executable path, fixture WebSocket receiver. Excludes Soot API/journal, Tauri IPC, Chromium input processing and display. No browser or provider launched. npx local executable resolution, offline.",
+  "received_messages": 44,
+  "results": {
+    "node": {
+      "received_ms": {
+        "min": 59.8911250000001,
+        "median": 66.85289599999942,
+        "p95": 98.6655839999994,
+        "max": 101.23308300000008
+      },
+      "completed_ms": {
+        "min": 115.84966699999995,
+        "median": 122.19874999999956,
+        "p95": 155.5186249999997,
+        "max": 157.9122500000003
+      }
+    },
+    "npx": {
+      "received_ms": {
+        "min": 289.28116600000067,
+        "median": 306.38241650000055,
+        "p95": 414.57037500000024,
+        "max": 483.12704199999916
+      },
+      "completed_ms": {
+        "min": 351.97020800000064,
+        "median": 374.5353540000001,
+        "p95": 476.3005409999996,
+        "max": 560.4497089999995
+      }
+    }
+  },
+  "samples": {
+    "node": [
+      {
+        "received_ms": 74.86349999999993,
+        "completed_ms": 130.8660829999999
+      },
+      {
+        "received_ms": 68.6125420000003,
+        "completed_ms": 129.70795799999996
+      },
+      {
+        "received_ms": 79.34962500000029,
+        "completed_ms": 137.5631659999999
+      },
+      {
+        "received_ms": 59.8911250000001,
+        "completed_ms": 115.84966699999995
+      },
+      {
+        "received_ms": 74.0508749999999,
+        "completed_ms": 132.29591600000003
+      },
+      {
+        "received_ms": 101.23308300000008,
+        "completed_ms": 157.9122500000003
+      },
+      {
+        "received_ms": 98.6655839999994,
+        "completed_ms": 155.5186249999997
+      },
+      {
+        "received_ms": 64.59416599999986,
+        "completed_ms": 120.63324999999986
+      },
+      {
+        "received_ms": 63.362583000000086,
+        "completed_ms": 118.7913750000007
+      },
+      {
+        "received_ms": 64.99329099999977,
+        "completed_ms": 121.41483299999982
+      },
+      {
+        "received_ms": 71.69891600000028,
+        "completed_ms": 128.8535409999995
+      },
+      {
+        "received_ms": 67.42645799999991,
+        "completed_ms": 122.78345799999988
+      },
+      {
+        "received_ms": 66.39304099999936,
+        "completed_ms": 122.09875000000011
+      },
+      {
+        "received_ms": 66.13254099999904,
+        "completed_ms": 121.09979099999873
+      },
+      {
+        "received_ms": 64.62512500000048,
+        "completed_ms": 120.02800000000025
+      },
+      {
+        "received_ms": 64.101584,
+        "completed_ms": 120.06245899999885
+      },
+      {
+        "received_ms": 68.47662499999933,
+        "completed_ms": 123.35983299999862
+      },
+      {
+        "received_ms": 65.20437499999935,
+        "completed_ms": 121.20579199999884
+      },
+      {
+        "received_ms": 66.80450000000019,
+        "completed_ms": 122.11525000000074
+      },
+      {
+        "received_ms": 66.90129199999865,
+        "completed_ms": 122.28224999999838
+      }
+    ],
+    "npx": [
+      {
+        "received_ms": 336.8105830000002,
+        "completed_ms": 399.7386250000002
+      },
+      {
+        "received_ms": 338.36633299999994,
+        "completed_ms": 403.6600410000001
+      },
+      {
+        "received_ms": 322.3869169999998,
+        "completed_ms": 384.80620899999985
+      },
+      {
+        "received_ms": 321.0334160000002,
+        "completed_ms": 384.08283299999994
+      },
+      {
+        "received_ms": 297.37533399999984,
+        "completed_ms": 358.3645419999998
+      },
+      {
+        "received_ms": 328.3814160000002,
+        "completed_ms": 393.8897910000005
+      },
+      {
+        "received_ms": 483.12704199999916,
+        "completed_ms": 560.4497089999995
+      },
+      {
+        "received_ms": 414.57037500000024,
+        "completed_ms": 476.3005409999996
+      },
+      {
+        "received_ms": 300.04562499999975,
+        "completed_ms": 362.59591699999964
+      },
+      {
+        "received_ms": 296.94824999999946,
+        "completed_ms": 373.5764169999993
+      },
+      {
+        "received_ms": 304.5694170000006,
+        "completed_ms": 364.7840840000008
+      },
+      {
+        "received_ms": 296.9935839999998,
+        "completed_ms": 356.7248749999999
+      },
+      {
+        "received_ms": 302.07916699999987,
+        "completed_ms": 369.0739169999997
+      },
+      {
+        "received_ms": 341.5524580000001,
+        "completed_ms": 404.06583300000057
+      },
+      {
+        "received_ms": 327.20045799999934,
+        "completed_ms": 388.81487500000003
+      },
+      {
+        "received_ms": 290.81462499999907,
+        "completed_ms": 353.62562499999876
+      },
+      {
+        "received_ms": 301.5291249999991,
+        "completed_ms": 364.241
+      },
+      {
+        "received_ms": 308.1954160000005,
+        "completed_ms": 375.4942910000009
+      },
+      {
+        "received_ms": 304.06616700000086,
+        "completed_ms": 366.75745800000004
+      },
+      {
+        "received_ms": 289.28116600000067,
+        "completed_ms": 351.97020800000064
+      }
+    ]
+  }
+}

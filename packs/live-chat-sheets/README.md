@@ -13,3 +13,10 @@ OAuth currently uses `https://www.googleapis.com/auth/spreadsheets` for a pasted
 Owner tools use the bundled `sdk/` public wire codec; there is no private npm or sibling dependency. Installing never grants owner access or starts the gateway/export worker.
 
 The standalone Live chat gateway formerly under Soot contrib has been removed. This pack does not bundle a gateway; the host must provide one implementing its control protocol.
+
+Owner control replies are capped at 60 KiB with one 12-second deadline and no
+redirects/retries. Lost/invalid mutation replies and HTTP 5xx/408 exit 2: inspect
+the stable request ID before retrying. Google response bodies are limited to
+1 MiB; RAW writes accept at most 2,000 rows / 16,000 scalar cells, bounded text
+and finite numbers. Google transport/auth requests have 12-second timeouts.
+The Google SDK version is pinned in both manifest and frozen lockfile.

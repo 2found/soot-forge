@@ -34,7 +34,7 @@ def main():
     storage = json.loads(args.backend_config.read_text())
     soots = storage.get('soots', [])
     managers = storage.get('managers', [])
-    if (not 1 <= len(soots) <= 128 or not 1 <= len(managers) <= 16 or len(set(soots)) != len(soots)
+    if (not 1 <= len(soots) <= 4096 or not 1 <= len(managers) <= 16 or len(set(soots)) != len(soots)
             or any(not isinstance(s, str) or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}', s) for s in soots)
             or any(s not in soots for s in managers + args.writer + args.pool_manager)
             or any(s not in managers for s in args.configurator) or storage.get('service_url')):

@@ -93,7 +93,7 @@ func loadBinding(raw string) (binding, error) {
 	if !identifier.MatchString(b.Namespace) || !filepath.IsAbs(b.StateDir) || len(b.APIKey) < 16 || len(b.APIKey) > 4096 || strings.ContainsAny(b.APIKey, "\r\n") {
 		return b, errors.New("invalid namespace, state directory or backend credential")
 	}
-	if len(b.Soots) == 0 || len(b.Soots) > 128 || len(b.Managers) == 0 || len(b.Managers) > 16 {
+	if len(b.Soots) == 0 || len(b.Soots) > 4096 || len(b.Managers) == 0 || len(b.Managers) > 16 {
 		return b, errors.New("bind allowed Soots and at least one manager")
 	}
 	seen := map[string]bool{}

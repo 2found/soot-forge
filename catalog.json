@@ -251,6 +251,97 @@
         "kind": "bundled",
         "path": "packs/marketing"
       }
+    },
+    {
+      "id": "office",
+      "name": "Office",
+      "description": "Read, create and edit Word, Excel, PowerPoint and PDF files with bounded local tools.",
+      "tags": [
+        "files",
+        "documents",
+        "spreadsheets",
+        "pdf"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/office"
+      }
+    },
+    {
+      "id": "ocr",
+      "name": "OCR",
+      "description": "Extract native PDF text first; recognize scans with a host-bound DeepSeek OCR model.",
+      "tags": [
+        "files",
+        "ocr",
+        "research"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/ocr"
+      }
+    },
+    {
+      "id": "tts",
+      "name": "Text to speech",
+      "description": "Generate measured WAV narration with OmniVoice through a resident host-owned service.",
+      "tags": [
+        "audio",
+        "voice",
+        "media"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/tts"
+      }
+    },
+    {
+      "id": "google-workspace",
+      "name": "Google Workspace",
+      "description": "Work with Google Docs, Sheets and Drive through scoped REST tools, bounded files and durable action receipts.",
+      "tags": [
+        "google",
+        "workspace",
+        "docs",
+        "sheets",
+        "drive",
+        "productivity"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/google-workspace"
+      }
+    },
+    {
+      "id": "video-editor",
+      "name": "Video editor",
+      "description": "Plan and produce short videos with FFmpeg, measured audio, safe captions and optional HyperFrames motion.",
+      "tags": [
+        "video",
+        "media",
+        "creation"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/video-editor"
+      }
+    },
+    {
+      "id": "image-gen",
+      "name": "Image generation",
+      "description": "Local Qwen Image 2.1 Turbo Q4_K_M PNG generation with bounded dimensions, explicit host bindings and artifact receipts.",
+      "tags": [
+        "image",
+        "generation",
+        "qwen",
+        "gguf",
+        "macos",
+        "media"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/image-gen"
+      }
     }
   ]
 }

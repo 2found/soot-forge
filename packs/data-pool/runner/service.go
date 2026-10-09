@@ -420,31 +420,61 @@ func (s *service) manage(ctx context.Context, in manageInput) (any, error) {
 }
 
 func (s *service) write(ctx context.Context, in writeInput) (any, error) {
-	if !identifier.MatchString(in.Pool) || !identifier.MatchString(in.ID) || !identifier.MatchString(in.RequestID) || !slices.Contains([]string{"upsert", "remove"}, in.Action) {
-		return nil, errors.New("invalid write action, pool, document or request_id")
+	// Duplicate content is allowed across append intents; retrying one intent
+	// preserves its generated ID and cannot overwrite another document.
+	if in.Action == "append" {
+		if in.ID != "" || in.ExpectedRevision != nil {
+			return nil, inputError{"append chooses its own document ID and does not accept expected_revision"}
+		}
+		in.ID = appendID(s.actor, in.RequestID)
+	}
+
+	// Inline text wins over an accidentally repeated import URL. Treat the URL
+	// as provenance, without fetching; contradictory provenance is still refused.
+	if in.Content != "" && in.URL != "" {
+		if in.Source != "" && in.Source != in.URL {
+			return nil, inputError{"content source and url disagree; supply one provenance URL"}
+		}
+		in.Source, in.URL = in.URL, ""
+	}
+	if in.Action != "remove" && strings.TrimSpace(in.Title) == "" {
+		in.Title = in.Source
+		if in.Title == "" {
+			in.Title = in.URL
+		}
+		if in.Title == "" {
+			in.Title = in.ID
+		}
+		for len(in.Title) > 256 {
+			_, size := utf8.DecodeLastRuneInString(in.Title)
+			in.Title = in.Title[:len(in.Title)-size]
+		}
+	}
+	if !identifier.MatchString(in.Pool) || !identifier.MatchString(in.ID) || !identifier.MatchString(in.RequestID) || !slices.Contains([]string{"upsert", "append", "remove"}, in.Action) {
+		return nil, inputError{"invalid write action, pool, document or request_id"}
 	}
 	if err := s.authorize(in.Pool, "write"); err != nil {
 		return nil, err
 	}
 	if in.Action == "remove" && (in.Title != "" || in.Content != "" || in.Source != "" || in.URL != "" || len(in.Tags) > 0) {
-		return nil, errors.New("remove accepts only document identity")
+		return nil, inputError{"remove accepts only document identity"}
 	}
-	if in.Action == "upsert" {
+	if in.Action == "upsert" || in.Action == "append" {
 		if strings.TrimSpace(in.Title) == "" || !validText(in.Title, 256) || len(in.Tags) > 16 || !validText(in.Content, 12<<10) || (in.Content == "") == (in.URL == "") || !validText(in.Source, 2048) {
-			return nil, errors.New("upsert needs a title and exactly one of content or url")
+			return nil, inputError{"write needs content or an import url, within the documented bounds"}
 		}
 		for _, tag := range in.Tags {
 			if strings.TrimSpace(tag) == "" || !validText(tag, 64) {
-				return nil, errors.New("invalid document tag")
+				return nil, inputError{"invalid document tag"}
 			}
 		}
 		if in.URL != "" && in.Source != "" {
-			return nil, errors.New("URL imports use the fetched URL as source")
+			return nil, inputError{"URL imports use the fetched URL as source"}
 		}
 		if in.Source != "" {
 			u, err := url.Parse(in.Source)
 			if err != nil || u.Scheme == "" || u.User != nil {
-				return nil, errors.New("source must be a URI without credentials")
+				return nil, inputError{"source must be a URI without credentials"}
 			}
 		}
 	}

@@ -53,6 +53,10 @@ Store root do operator sở hữu — model không chọn scope. Layout store th
 contract của pack `artifacts` (`objects/<sha2>/<sha>`, `meta/<id>.json`).
 Không cần pack `artifacts` để `export` chạy, nhưng cả hai dùng chung layout
 nên có thể trỏ vào cùng một store khi operator bind cùng đường dẫn.
+Writer dùng cùng `.forge-artifacts.lock` với `artifacts` để việc tạo reference
+không chạy đồng thời với garbage collection. Kho bận quá một giây thì từ chối
+trước khi ghi artifact. Nâng cả hai pack cùng lúc; không xoá lockfile.
+Protocol này dùng `flock` trên Linux/macOS; writer bên ngoài/cũ cần phối hợp riêng.
 
 ## Kiểm tra
 

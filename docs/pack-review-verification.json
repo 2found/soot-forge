@@ -1,0 +1,1338 @@
+{
+  "review_date": "2026-10-10",
+  "scope": "25 catalog entries: 24 bundled and 1 pinned external; no release, deployment or external publication",
+  "status": "Local review and listed verification complete; external integration gaps explicitly retained",
+  "environment": {
+    "node": "v23.11.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "python": "3.12.3",
+    "soot": "soot dev (756a14dfdd8dcdf5d46fcafd17985e10bab47c0c, go1.26.5)"
+  },
+  "checks": {
+    "root_node": {
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0
+    },
+    "pack_node": {
+      "total": 74,
+      "passed": 73,
+      "failed": 0,
+      "skipped": 1,
+      "skip_reason": "Existing Linux UID DAC case on macOS"
+    },
+    "go": {
+      "modules": 7,
+      "command": "go test -race -count=1 ./...",
+      "all_lanes_passed": true,
+      "opt_in_not_run": [
+        "Meilisearch CE executable not supplied",
+        "Public webpage fetch not enabled"
+      ]
+    },
+    "python": {
+      "media_passed": 58,
+      "pet_passed": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    "official_soot_remote_validation": {
+      "entries": 25,
+      "passed": 25
+    },
+    "runtime_lanes": [
+      {
+        "name": "owner-support-copy-check",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 0.034
+      },
+      {
+        "name": "pack-node-tests",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 1.407
+      },
+      {
+        "name": "packs/artifacts/runner",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 3.967
+      },
+      {
+        "name": "packs/casework/runner",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 3.778
+      },
+      {
+        "name": "packs/data-pool/runner",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 23.728
+      },
+      {
+        "name": "packs/email/runner",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 2.262
+      },
+      {
+        "name": "packs/health/runner",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 1.862
+      },
+      {
+        "name": "packs/vibe_cf/runner",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 2.138
+      },
+      {
+        "name": "packs/writing/runner",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 2.82
+      },
+      {
+        "name": "media-python-tests",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 11.416
+      },
+      {
+        "name": "soot-pet-python-tests",
+        "exit_code": 0,
+        "signal": null,
+        "seconds": 0.275
+      }
+    ]
+  },
+  "performance": {
+    "pet_cleanup": {
+      "scope": "RGBA cleanup microbenchmark, not full pet generation or model latency",
+      "platform": "macOS-26.5.2-arm64-arm-64bit",
+      "python": "3.12.3",
+      "size": [
+        2304,
+        1456
+      ],
+      "iterations": 3,
+      "before": {
+        "median_seconds": 1.5809010830707848,
+        "python_peak_bytes": 536251736,
+        "sha256": "3cd30c719eb2b77e5927d5cd3e39a1d06db1f5d76863525b01d1cb1bb1c7fba1"
+      },
+      "after": {
+        "median_seconds": 0.011826709029264748,
+        "python_peak_bytes": 4736,
+        "sha256": "3cd30c719eb2b77e5927d5cd3e39a1d06db1f5d76863525b01d1cb1bb1c7fba1"
+      },
+      "speedup": 133.67210431565573,
+      "memory_scope": "tracemalloc Python allocations; native Pillow buffers and process RSS excluded"
+    },
+    "video_repeated_assets": {
+      "fixture": "10 repeated image clips and 2 audio tracks sharing one audio file",
+      "before_probe_calls": 12,
+      "after_probe_calls": 2,
+      "evidence": "scripts/test-media.py:test_video_repeated_assets_are_probed_once_per_timeline",
+      "scope": "Calls measured during actual FFprobe-backed validation; no claimed encoding speedup"
+    }
+  },
+  "live": {
+    "media": {
+      "evidence_directory": "/tmp/soot-forge-review-live-02",
+      "summary": {
+        "scope": "all-media",
+        "runtime": "soot dev (756a14dfdd8dcdf5d46fcafd17985e10bab47c0c, go1.26.5)",
+        "provider": "devin",
+        "lanes": [
+          {
+            "id": "office",
+            "label": "office-roundtrip",
+            "negative": false,
+            "state": "completed",
+            "seconds": 45.28,
+            "conversation": "0e302f2974075728859ef0c69723636d",
+            "expected_files": [
+              "result.docx",
+              "result.xlsx",
+              "result.pptx",
+              "result.pdf",
+              "result-page.png"
+            ],
+            "evidence": "office-roundtrip-events.json"
+          },
+          {
+            "id": "office",
+            "label": "office-negative",
+            "negative": true,
+            "state": "completed",
+            "seconds": 8.093,
+            "conversation": "5baac6a117c9ba47f2e8940d095224d7",
+            "expected_files": [],
+            "evidence": "office-negative-events.json"
+          },
+          {
+            "id": "ocr",
+            "label": "ocr-native",
+            "negative": false,
+            "state": "completed",
+            "seconds": 17.639,
+            "conversation": "c95625020b3e3d04e102fc86f70822ac",
+            "expected_files": [
+              "result-ocr.md"
+            ],
+            "evidence": "ocr-native-events.json"
+          },
+          {
+            "id": "ocr",
+            "label": "ocr-unavailable",
+            "negative": true,
+            "state": "blocked",
+            "seconds": 41.159,
+            "conversation": "5c911cd56f1ff9856bf8accef178f58b",
+            "expected_files": [],
+            "evidence": "ocr-unavailable-events.json"
+          },
+          {
+            "id": "tts",
+            "label": "tts-inspect",
+            "negative": false,
+            "state": "completed",
+            "seconds": 12.101,
+            "conversation": "428e75eed6857d08bc717333d72ecbd7",
+            "expected_files": [],
+            "evidence": "tts-inspect-events.json"
+          },
+          {
+            "id": "tts",
+            "label": "tts-denied-voice",
+            "negative": true,
+            "state": "completed",
+            "seconds": 13.092,
+            "conversation": "a13bf4494a8a59e1095005081a1216f0",
+            "expected_files": [],
+            "evidence": "tts-denied-voice-events.json"
+          },
+          {
+            "id": "video-editor",
+            "label": "video-render",
+            "negative": false,
+            "state": "completed",
+            "seconds": 27.662,
+            "conversation": "45e28eb724cf6012ba8b2b1881b24318",
+            "expected_files": [
+              "result.mp4",
+              "contact-sheet.png"
+            ],
+            "evidence": "video-render-events.json"
+          },
+          {
+            "id": "video-editor",
+            "label": "video-negative",
+            "negative": true,
+            "state": "completed",
+            "seconds": 20.142,
+            "conversation": "844a419dbbc168e524005182b7ed8569",
+            "expected_files": [],
+            "evidence": "video-negative-events.json"
+          },
+          {
+            "id": "google-workspace",
+            "label": "google-expired-token",
+            "negative": true,
+            "state": "completed",
+            "seconds": 8.584,
+            "conversation": "12aee15ed09b35c32aad66dde48dbc71",
+            "expected_files": [],
+            "evidence": "google-expired-token-events.json"
+          },
+          {
+            "id": "google-workspace",
+            "label": "google-sheets-expired-token",
+            "negative": true,
+            "state": "completed",
+            "seconds": 22.141,
+            "conversation": "e690543252820ffd5b1c5c93bf442bfc",
+            "expected_files": [],
+            "evidence": "google-sheets-expired-token-events.json"
+          },
+          {
+            "id": "google-workspace",
+            "label": "google-drive-expired-token",
+            "negative": true,
+            "state": "blocked",
+            "seconds": 18.609,
+            "conversation": "2deb854327898ee017d9d06c4eaf4644",
+            "expected_files": [],
+            "evidence": "google-drive-expired-token-events.json"
+          }
+        ],
+        "status": "completed",
+        "vendor_status": {
+          "soot_provider": "real",
+          "deepseek_ocr": "NOT RUN: no bound OCR model service",
+          "omnivoice": "NOT RUN: no bound model service",
+          "google": "NOT RUN: no authorized Google credentials",
+          "hyperframes": "NOT RUN: no authorized motion project"
+        }
+      },
+      "installed_source_archives": [
+        {
+          "id": "office",
+          "archive_sha256": "d8df49cdb1ec72c2340757c5689a49ac229c607f15d1000afbf43a80e32a8b9f",
+          "archive_bytes": 38002,
+          "matches_final_review_source": false
+        },
+        {
+          "id": "ocr",
+          "archive_sha256": "731170936bc8b42ce5a4e5515d1960e75fc164a8697276e652f91fa283bb2bfe",
+          "archive_bytes": 14248,
+          "matches_final_review_source": false
+        },
+        {
+          "id": "tts",
+          "archive_sha256": "b4494d7193a523b8dc27414eafded1059038053480cbad5f436e4e3deffdf06b",
+          "archive_bytes": 11072,
+          "matches_final_review_source": false
+        },
+        {
+          "id": "google-workspace",
+          "archive_sha256": "8a26471500e5c25caf889156307811563a25a03a7f1a2b641330bf5a36cfecb0",
+          "archive_bytes": 37798,
+          "matches_final_review_source": false
+        },
+        {
+          "id": "video-editor",
+          "archive_sha256": "17c16338a8ccf0c289b2d6263954e05e3f6d0dc4c05bbd7a2a846572141c60e9",
+          "archive_bytes": 37276,
+          "matches_final_review_source": false
+        }
+      ]
+    },
+    "core": {
+      "evidence_directory": "/tmp/soot-forge-review-core-live-02",
+      "summary": {
+        "status": "completed",
+        "provider": "devin",
+        "model": "swe-2",
+        "seconds": 36.194,
+        "conversation": "52b66d8eefc976b26d6d380c19074807",
+        "required_tools": [
+          "artifacts_create",
+          "writing_export",
+          "artifacts_read",
+          "artifacts_remove",
+          "casework_upsert",
+          "casework_read"
+        ],
+        "preserved_ref": "art_e1d59b7c36f51b3ebb47b4c95f4762cc",
+        "preserved_sha256": "aff0766a5290e117b8433c351bae7b7b23bed682b2369bd822d88a647cc58512",
+        "scope": "Real Soot/provider and local Go runners; no external service calls"
+      },
+      "installed_source_archives": [
+        {
+          "id": "artifacts",
+          "archive_sha256": "20ebcd5bbd662042af5fd3e6c97b26af0748fc3afeda78b5bc2265e247c18bc4",
+          "archive_bytes": 18871,
+          "matches_final_review_source": true
+        },
+        {
+          "id": "writing",
+          "archive_sha256": "6cabb272ff7143771d7fdb52eff158eb05890b4ca4554a8353813df33d5c35eb",
+          "archive_bytes": 13038,
+          "matches_final_review_source": true
+        },
+        {
+          "id": "casework",
+          "archive_sha256": "01c66c84908dabb9c8fead815e20e15838a5f5a0a1f42f0d4b9ea926bdd29c51",
+          "archive_bytes": 11477,
+          "matches_final_review_source": true
+        }
+      ]
+    },
+    "artifact_hashes": [
+      {
+        "name": "result.docx",
+        "bytes": 36918,
+        "sha256": "d7300d9c48f3e00893002d5b79cae58d2bac84f024a8cc76afd4785e6b85052d"
+      },
+      {
+        "name": "result.xlsx",
+        "bytes": 5735,
+        "sha256": "37d19fa3ad74cbc47be57024f893adf76a8a000b5f3411fbe442282b37646cd3"
+      },
+      {
+        "name": "result.pptx",
+        "bytes": 33026,
+        "sha256": "50489ef4a2a33542d37a9dbf124cc5eb69688f38ba305141677f8db1cfe278c7"
+      },
+      {
+        "name": "result.pdf",
+        "bytes": 35221,
+        "sha256": "6496d4a11a8d6d7ceb0faeb25ca02ef30a0c673c4b2505942fb44ddd9a846092"
+      },
+      {
+        "name": "result-page.png",
+        "bytes": 20216,
+        "sha256": "6e0eae2c371feee88ce43a3d057618b0b257162207e1ceab96c9ad80a306c040"
+      },
+      {
+        "name": "result-ocr.md",
+        "bytes": 159,
+        "sha256": "517a734f46fbcb178dfe63b52738666cff6cb704b9e481601e872b6e43549308"
+      },
+      {
+        "name": "result.mp4",
+        "bytes": 42733,
+        "sha256": "0441974241e8c6a97b82506ce6839bb17a8a0644d9077fac0a56252d36ec39ae"
+      },
+      {
+        "name": "contact-sheet.png",
+        "bytes": 29260,
+        "sha256": "04aef30d479f64b6910ec8f6e59c4db1d93e196d8063a8361e7e489ed70c1367"
+      }
+    ],
+    "visual_inspection": [
+      "PDF page: Vietnamese marks and text visible",
+      "Video contact sheet at 0.1/0.6/1.0s: sample caption inside safe area"
+    ],
+    "privacy": "Runtime logs/bindings and full conversations stay in local evidence directories; no secrets copied here",
+    "snapshot_note": "Media source archive precedes final HTTP-408 classifier and README changes; final regression covers HTTP-408 with real local HTTP. Source snapshot hashes are kept distinct."
+  },
+  "source_inventory": {
+    "scope": "Deterministic materialized source archives; excludes fixtures/bin/data/dependency caches exactly as release packaging does",
+    "packs": [
+      {
+        "id": "health",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/health"
+        },
+        "archive_sha256": "3be96be22ccd16adef7abbda3dbf388a1992d5aee9413f9015c214f2b0206eda",
+        "archive_bytes": 3217,
+        "use": [
+          "probe"
+        ],
+        "capabilities": [
+          {
+            "name": "probe",
+            "skills": 1,
+            "skill_bytes": 550,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "server-care",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/server-care"
+        },
+        "archive_sha256": "27929a3350b0f457e697ef7d5d9a3c10f60cb30a1457774fa2dc11a87fafe3d1",
+        "archive_bytes": 1155,
+        "use": [
+          "care",
+          "health/probe"
+        ],
+        "capabilities": [
+          {
+            "name": "care",
+            "skills": 1,
+            "skill_bytes": 453,
+            "tools": 0
+          }
+        ]
+      },
+      {
+        "id": "vibe_cf",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/vibe_cf"
+        },
+        "archive_sha256": "c28bd744f9bb8e7e108a973a41247fd5fc448d2b9450fe1ba3927749debe8805",
+        "archive_bytes": 22405,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "r2",
+            "skills": 1,
+            "skill_bytes": 1795,
+            "tools": 4
+          },
+          {
+            "name": "worker",
+            "skills": 1,
+            "skill_bytes": 1590,
+            "tools": 3
+          },
+          {
+            "name": "d1",
+            "skills": 1,
+            "skill_bytes": 1149,
+            "tools": 3
+          },
+          {
+            "name": "dns",
+            "skills": 1,
+            "skill_bytes": 1058,
+            "tools": 3
+          },
+          {
+            "name": "shortlink",
+            "skills": 1,
+            "skill_bytes": 1328,
+            "tools": 4
+          }
+        ]
+      },
+      {
+        "id": "toolbox",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/toolbox"
+        },
+        "archive_sha256": "3dcc8ff7b3d84d4b6a3c7f6062daf60322c5b22c93ed6dfc7ec6061db1737531",
+        "archive_bytes": 2692,
+        "use": [
+          "read",
+          "research"
+        ],
+        "capabilities": [
+          {
+            "name": "read",
+            "skills": 0,
+            "skill_bytes": 0,
+            "tools": 3
+          },
+          {
+            "name": "write",
+            "skills": 0,
+            "skill_bytes": 0,
+            "tools": 3
+          },
+          {
+            "name": "research",
+            "skills": 0,
+            "skill_bytes": 0,
+            "tools": 2
+          },
+          {
+            "name": "http",
+            "skills": 0,
+            "skill_bytes": 0,
+            "tools": 1
+          },
+          {
+            "name": "shell",
+            "skills": 0,
+            "skill_bytes": 0,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "soot",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/soot"
+        },
+        "archive_sha256": "85f5eb75e0d42324dc377b289aeedabb6a1a9954a33abf8b4da7b0993113a301",
+        "archive_bytes": 1043659,
+        "use": [
+          "guide"
+        ],
+        "capabilities": [
+          {
+            "name": "guide",
+            "skills": 1,
+            "skill_bytes": 3472,
+            "tools": 0
+          },
+          {
+            "name": "create-pet",
+            "skills": 1,
+            "skill_bytes": 7772,
+            "tools": 4
+          },
+          {
+            "name": "configure",
+            "skills": 1,
+            "skill_bytes": 1517,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "browser-use",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/browser-use"
+        },
+        "archive_sha256": "b8e5bb44ec91b975574aa98faf02722ced01b97af4039b889b52323dc42a8780",
+        "archive_bytes": 12283,
+        "use": [
+          "browser"
+        ],
+        "capabilities": [
+          {
+            "name": "browser",
+            "skills": 1,
+            "skill_bytes": 3988,
+            "tools": 2
+          }
+        ]
+      },
+      {
+        "id": "soot-nest",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/soot-nest"
+        },
+        "archive_sha256": "74dc27e8eee603df88abf529d3cbf70ed96664c1fd93966de44f39b4998fb5a4",
+        "archive_bytes": 1487,
+        "use": [
+          "side-bar"
+        ],
+        "capabilities": [
+          {
+            "name": "side-bar",
+            "skills": 1,
+            "skill_bytes": 2046,
+            "tools": 0
+          }
+        ]
+      },
+      {
+        "id": "2build",
+        "source": {
+          "kind": "github",
+          "repository": "2found/2build",
+          "path": "packs/2build",
+          "ref": "403543cce394020e1f0b9e38c2419f504a188db3"
+        },
+        "archive_sha256": "9e91288470bd1faf1e836d461dfdda47713f98e13d35490143263609dc939f6d",
+        "archive_bytes": 99326,
+        "use": [
+          "agent-first-docs",
+          "analytics-review",
+          "autopilot",
+          "browse",
+          "conversion-fix",
+          "copy-rewrite",
+          "create-pr",
+          "design-ui",
+          "fix-pr",
+          "growth-experiment",
+          "implement",
+          "investigate",
+          "maintain",
+          "office-hours",
+          "plan-draft",
+          "product-marketing-page",
+          "prototype",
+          "qa",
+          "reason",
+          "recon",
+          "review-pr",
+          "semantic-decision",
+          "setup-project",
+          "social-content",
+          "sweep",
+          "triage"
+        ],
+        "capabilities": [
+          {
+            "name": "agent-first-docs",
+            "skills": 1,
+            "skill_bytes": 2928,
+            "tools": 0
+          },
+          {
+            "name": "analytics-review",
+            "skills": 1,
+            "skill_bytes": 2989,
+            "tools": 0
+          },
+          {
+            "name": "autopilot",
+            "skills": 1,
+            "skill_bytes": 31140,
+            "tools": 0
+          },
+          {
+            "name": "browse",
+            "skills": 1,
+            "skill_bytes": 8470,
+            "tools": 0
+          },
+          {
+            "name": "conversion-fix",
+            "skills": 1,
+            "skill_bytes": 1231,
+            "tools": 0
+          },
+          {
+            "name": "copy-rewrite",
+            "skills": 1,
+            "skill_bytes": 1196,
+            "tools": 0
+          },
+          {
+            "name": "create-pr",
+            "skills": 1,
+            "skill_bytes": 4906,
+            "tools": 0
+          },
+          {
+            "name": "design-ui",
+            "skills": 1,
+            "skill_bytes": 6621,
+            "tools": 0
+          },
+          {
+            "name": "fix-pr",
+            "skills": 1,
+            "skill_bytes": 3572,
+            "tools": 0
+          },
+          {
+            "name": "growth-experiment",
+            "skills": 1,
+            "skill_bytes": 1325,
+            "tools": 0
+          },
+          {
+            "name": "implement",
+            "skills": 1,
+            "skill_bytes": 4358,
+            "tools": 0
+          },
+          {
+            "name": "investigate",
+            "skills": 1,
+            "skill_bytes": 1709,
+            "tools": 0
+          },
+          {
+            "name": "maintain",
+            "skills": 1,
+            "skill_bytes": 2347,
+            "tools": 0
+          },
+          {
+            "name": "office-hours",
+            "skills": 1,
+            "skill_bytes": 1361,
+            "tools": 0
+          },
+          {
+            "name": "plan-draft",
+            "skills": 1,
+            "skill_bytes": 5025,
+            "tools": 0
+          },
+          {
+            "name": "product-marketing-page",
+            "skills": 1,
+            "skill_bytes": 2601,
+            "tools": 0
+          },
+          {
+            "name": "prototype",
+            "skills": 1,
+            "skill_bytes": 2278,
+            "tools": 0
+          },
+          {
+            "name": "qa",
+            "skills": 1,
+            "skill_bytes": 15265,
+            "tools": 0
+          },
+          {
+            "name": "reason",
+            "skills": 1,
+            "skill_bytes": 9972,
+            "tools": 0
+          },
+          {
+            "name": "recon",
+            "skills": 1,
+            "skill_bytes": 1231,
+            "tools": 0
+          },
+          {
+            "name": "review-pr",
+            "skills": 1,
+            "skill_bytes": 18118,
+            "tools": 0
+          },
+          {
+            "name": "semantic-decision",
+            "skills": 1,
+            "skill_bytes": 2513,
+            "tools": 0
+          },
+          {
+            "name": "setup-project",
+            "skills": 1,
+            "skill_bytes": 10866,
+            "tools": 0
+          },
+          {
+            "name": "social-content",
+            "skills": 1,
+            "skill_bytes": 1212,
+            "tools": 0
+          },
+          {
+            "name": "sweep",
+            "skills": 1,
+            "skill_bytes": 1749,
+            "tools": 0
+          },
+          {
+            "name": "triage",
+            "skills": 1,
+            "skill_bytes": 4025,
+            "tools": 0
+          }
+        ]
+      },
+      {
+        "id": "artifacts",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/artifacts"
+        },
+        "archive_sha256": "20ebcd5bbd662042af5fd3e6c97b26af0748fc3afeda78b5bc2265e247c18bc4",
+        "archive_bytes": 18871,
+        "use": [
+          "read"
+        ],
+        "capabilities": [
+          {
+            "name": "read",
+            "skills": 1,
+            "skill_bytes": 1153,
+            "tools": 1
+          },
+          {
+            "name": "create",
+            "skills": 1,
+            "skill_bytes": 1527,
+            "tools": 1
+          },
+          {
+            "name": "export",
+            "skills": 1,
+            "skill_bytes": 1255,
+            "tools": 1
+          },
+          {
+            "name": "remove",
+            "skills": 1,
+            "skill_bytes": 971,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "casework",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/casework"
+        },
+        "archive_sha256": "01c66c84908dabb9c8fead815e20e15838a5f5a0a1f42f0d4b9ea926bdd29c51",
+        "archive_bytes": 11477,
+        "use": [
+          "records"
+        ],
+        "capabilities": [
+          {
+            "name": "records",
+            "skills": 1,
+            "skill_bytes": 678,
+            "tools": 3
+          }
+        ]
+      },
+      {
+        "id": "data-pool",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/data-pool"
+        },
+        "archive_sha256": "3246a5488952ef3096a19270b6b37eebf19e7fc5546b1c29060c5ee66c204c62",
+        "archive_bytes": 53043,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "read",
+            "skills": 1,
+            "skill_bytes": 1462,
+            "tools": 3
+          },
+          {
+            "name": "write",
+            "skills": 1,
+            "skill_bytes": 1336,
+            "tools": 1
+          },
+          {
+            "name": "manage",
+            "skills": 1,
+            "skill_bytes": 1911,
+            "tools": 1
+          },
+          {
+            "name": "configure",
+            "skills": 0,
+            "skill_bytes": 0,
+            "tools": 2
+          }
+        ]
+      },
+      {
+        "id": "email",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/email"
+        },
+        "archive_sha256": "dcff2a97fee358af1fa7b8c95ce69159d3ff0d3c8e4362a9f53003ea1991bc59",
+        "archive_bytes": 17616,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "smtp",
+            "skills": 1,
+            "skill_bytes": 2127,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "live-chat",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/live-chat"
+        },
+        "archive_sha256": "26c6ea45cecbb74a3cf96d4f5910789a162c4b846e7e25545b6292ab4f237959",
+        "archive_bytes": 116616,
+        "use": [
+          "conversation"
+        ],
+        "capabilities": [
+          {
+            "name": "conversation",
+            "skills": 1,
+            "skill_bytes": 2230,
+            "tools": 0
+          }
+        ]
+      },
+      {
+        "id": "live-chat-sheets",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/live-chat-sheets"
+        },
+        "archive_sha256": "6b18282e244a2a10ce3b8824fccca8c1515208605367cf91c9c4309512f25d99",
+        "archive_bytes": 16033,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "sync",
+            "skills": 1,
+            "skill_bytes": 2051,
+            "tools": 2
+          }
+        ]
+      },
+      {
+        "id": "nest-no-code",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/nest-no-code"
+        },
+        "archive_sha256": "c3bb4670335ffea9c2b08e8399b5324cc77211a514a621825b62cf734bf5bd94",
+        "archive_bytes": 12191,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "configure",
+            "skills": 1,
+            "skill_bytes": 1326,
+            "tools": 2
+          }
+        ]
+      },
+      {
+        "id": "research",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/research"
+        },
+        "archive_sha256": "678cac7413a40879b9aa3f438cc884d052b6ea19f89c1744855c23a1a1f25c82",
+        "archive_bytes": 2231,
+        "use": [
+          "web"
+        ],
+        "capabilities": [
+          {
+            "name": "web",
+            "skills": 1,
+            "skill_bytes": 1480,
+            "tools": 2
+          }
+        ]
+      },
+      {
+        "id": "website",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/website"
+        },
+        "archive_sha256": "2525fade3be83eb671785b7a35d373df7427a13709db7fe9f0effbdd6dec79a3",
+        "archive_bytes": 27567,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "publish",
+            "skills": 1,
+            "skill_bytes": 3745,
+            "tools": 2
+          },
+          {
+            "name": "care",
+            "skills": 1,
+            "skill_bytes": 794,
+            "tools": 0
+          },
+          {
+            "name": "cms",
+            "skills": 1,
+            "skill_bytes": 3483,
+            "tools": 2
+          }
+        ]
+      },
+      {
+        "id": "writing",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/writing"
+        },
+        "archive_sha256": "6cabb272ff7143771d7fdb52eff158eb05890b4ca4554a8353813df33d5c35eb",
+        "archive_bytes": 13038,
+        "use": [
+          "article",
+          "copy"
+        ],
+        "capabilities": [
+          {
+            "name": "article",
+            "skills": 1,
+            "skill_bytes": 1520,
+            "tools": 0
+          },
+          {
+            "name": "copy",
+            "skills": 1,
+            "skill_bytes": 1381,
+            "tools": 0
+          },
+          {
+            "name": "export",
+            "skills": 1,
+            "skill_bytes": 1424,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "router-care",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/router-care"
+        },
+        "archive_sha256": "02ff58567186c95007390503b2a50b9c895bb7086b0c644f8d35ab441d893514",
+        "archive_bytes": 9585,
+        "use": [
+          "release-care"
+        ],
+        "capabilities": [
+          {
+            "name": "release-care",
+            "skills": 1,
+            "skill_bytes": 4752,
+            "tools": 0
+          },
+          {
+            "name": "status",
+            "skills": 0,
+            "skill_bytes": 0,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "marketing",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/marketing"
+        },
+        "archive_sha256": "5535ea7a59e305a57bd1d9312c0edec5abef668a0abe2f3d42aa0c52bda5b033",
+        "archive_bytes": 17207,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "coordinate",
+            "skills": 1,
+            "skill_bytes": 1935,
+            "tools": 0
+          },
+          {
+            "name": "radar",
+            "skills": 1,
+            "skill_bytes": 1299,
+            "tools": 0
+          },
+          {
+            "name": "create",
+            "skills": 1,
+            "skill_bytes": 1048,
+            "tools": 1
+          },
+          {
+            "name": "edit",
+            "skills": 1,
+            "skill_bytes": 1421,
+            "tools": 1
+          },
+          {
+            "name": "publish",
+            "skills": 1,
+            "skill_bytes": 1332,
+            "tools": 2
+          },
+          {
+            "name": "records",
+            "skills": 0,
+            "skill_bytes": 0,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "office",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/office"
+        },
+        "archive_sha256": "6cc9cf08d07753797a859f187006aea97e330dcfebc59c1d0bb341499e695c4d",
+        "archive_bytes": 38185,
+        "use": [
+          "read"
+        ],
+        "capabilities": [
+          {
+            "name": "read",
+            "skills": 1,
+            "skill_bytes": 1603,
+            "tools": 1
+          },
+          {
+            "name": "write",
+            "skills": 2,
+            "skill_bytes": 5801,
+            "tools": 3
+          },
+          {
+            "name": "render",
+            "skills": 1,
+            "skill_bytes": 634,
+            "tools": 1
+          },
+          {
+            "name": "convert",
+            "skills": 1,
+            "skill_bytes": 818,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "ocr",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/ocr"
+        },
+        "archive_sha256": "16f4b50c2329b22ca1db301f029a907b987abd28ae573eb17d24777f8e52f41c",
+        "archive_bytes": 14258,
+        "use": [
+          "assess"
+        ],
+        "capabilities": [
+          {
+            "name": "assess",
+            "skills": 1,
+            "skill_bytes": 1016,
+            "tools": 1
+          },
+          {
+            "name": "recognize",
+            "skills": 1,
+            "skill_bytes": 1212,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "tts",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/tts"
+        },
+        "archive_sha256": "78a0351d8b5393ffd0a8a1b1de408d28cd38110e70a90bac3c3548ac340de205",
+        "archive_bytes": 11204,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "inspect",
+            "skills": 1,
+            "skill_bytes": 702,
+            "tools": 2
+          },
+          {
+            "name": "speak",
+            "skills": 1,
+            "skill_bytes": 1766,
+            "tools": 1
+          }
+        ]
+      },
+      {
+        "id": "google-workspace",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/google-workspace"
+        },
+        "archive_sha256": "965f425cef6ddd401b43f05367572d5756d12d49ca66997fbf3b86a3fb2ea80e",
+        "archive_bytes": 37810,
+        "use": [],
+        "capabilities": [
+          {
+            "name": "docs-read",
+            "skills": 1,
+            "skill_bytes": 1080,
+            "tools": 2
+          },
+          {
+            "name": "docs-write",
+            "skills": 2,
+            "skill_bytes": 8429,
+            "tools": 2
+          },
+          {
+            "name": "docs-export",
+            "skills": 1,
+            "skill_bytes": 502,
+            "tools": 1
+          },
+          {
+            "name": "sheets-read",
+            "skills": 2,
+            "skill_bytes": 8821,
+            "tools": 2
+          },
+          {
+            "name": "sheets-write",
+            "skills": 2,
+            "skill_bytes": 8821,
+            "tools": 3
+          },
+          {
+            "name": "drive-read",
+            "skills": 2,
+            "skill_bytes": 8796,
+            "tools": 2
+          },
+          {
+            "name": "drive-download",
+            "skills": 2,
+            "skill_bytes": 8796,
+            "tools": 2
+          },
+          {
+            "name": "drive-write",
+            "skills": 2,
+            "skill_bytes": 8796,
+            "tools": 3
+          }
+        ]
+      },
+      {
+        "id": "video-editor",
+        "source": {
+          "kind": "bundled",
+          "path": "packs/video-editor"
+        },
+        "archive_sha256": "b296c6330c613cc46df76d6e1d2bb97fe7f400f3f6a233b850bbbd4e061b1ced",
+        "archive_bytes": 37487,
+        "use": [
+          "plan"
+        ],
+        "capabilities": [
+          {
+            "name": "plan",
+            "skills": 1,
+            "skill_bytes": 2035,
+            "tools": 0
+          },
+          {
+            "name": "inspect",
+            "skills": 1,
+            "skill_bytes": 826,
+            "tools": 2
+          },
+          {
+            "name": "edit",
+            "skills": 2,
+            "skill_bytes": 4465,
+            "tools": 2
+          },
+          {
+            "name": "hyperframes",
+            "skills": 1,
+            "skill_bytes": 2390,
+            "tools": 1
+          }
+        ]
+      }
+    ]
+  },
+  "not_run": [
+    "Credentialed Google Docs/Sheets/Drive account reads/writes/revocation",
+    "DeepSeek-OCR model inference or GPT/Claude accuracy comparison",
+    "Fresh OmniVoice inference and listening/transcript verification",
+    "Fresh HyperFrames/LibreOffice/native Chromium/Nest UI flows",
+    "Live Cloudflare/router/channel adapters",
+    "Live Meilisearch/public-web opt-in",
+    "GitHub CI remote run"
+  ],
+  "compatibility_notes": [
+    "Upgrade both artifacts and writing writers together; persistent flock inode must not be unlinked; old/external writers and network filesystems need coordination",
+    "Legacy email done/unknown journal without fingerprint or an interrupted send claim requires operator reconciliation, never automatic replay"
+  ],
+  "preserved_preexisting_work": [
+    "Marketing-team README",
+    "Live-chat README/widget sources/assets/scripts",
+    "Marketing manifest/skills",
+    "Previous media/Google verification artifacts"
+  ]
+}

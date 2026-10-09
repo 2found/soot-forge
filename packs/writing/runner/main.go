@@ -34,8 +34,9 @@ const maxEnvelopeBytes = 128 * 1024
 
 func readCall(in io.Reader) (contract.ToolCall, error) {
 	var call contract.ToolCall
-	if err := json.NewDecoder(io.LimitReader(in, maxEnvelopeBytes+1)).Decode(&call); err != nil {
-		return call, err
+	raw, err := io.ReadAll(io.LimitReader(in, maxEnvelopeBytes+1))
+	if err != nil || len(raw) > maxEnvelopeBytes || json.Unmarshal(raw, &call) != nil {
+		return call, fmt.Errorf("invalid or oversized tool envelope")
 	}
 	if call.APIVersion != contract.APIVersion || call.Hook != contract.ToolCallHook || call.Soot == "" {
 		return call, fmt.Errorf("invalid tool context")
@@ -98,15 +99,27 @@ func storeWrite(root string, content []byte, mimeType, name, op, soot string) (a
 	if root == "" || !filepath.IsAbs(root) {
 		return artifactMeta{}, fmt.Errorf("artifact store binding missing or not absolute")
 	}
+	unlock, err := lockArtifactStore(root)
+	if err != nil {
+		return artifactMeta{}, err
+	}
+	defer unlock()
 	sum := sha256.Sum256(content)
 	sumHex := hex.EncodeToString(sum[:])
 	objDir := filepath.Join(root, "objects", sumHex[:2])
 	if err := os.MkdirAll(objDir, 0700); err != nil {
 		return artifactMeta{}, err
 	}
-	if _, err := os.Stat(filepath.Join(objDir, sumHex)); err != nil {
+	if _, err := os.Stat(filepath.Join(objDir, sumHex)); os.IsNotExist(err) {
 		if err := writeFileAtomic(filepath.Join(objDir, sumHex), content); err != nil {
 			return artifactMeta{}, err
+		}
+	} else if err != nil {
+		return artifactMeta{}, err
+	} else {
+		cached, err := readBoundedFile(filepath.Join(objDir, sumHex), int64(len(content)))
+		if err != nil || !bytes.Equal(cached, content) {
+			return artifactMeta{}, fmt.Errorf("existing artifact object failed verification")
 		}
 	}
 	var raw [16]byte
@@ -135,15 +148,15 @@ func storeRead(root, ref string) (artifactMeta, []byte, error) {
 	if !refPattern.MatchString(ref) {
 		return artifactMeta{}, nil, fmt.Errorf("invalid artifact ref")
 	}
-	metaBytes, err := os.ReadFile(filepath.Join(root, "meta", ref+".json"))
+	metaBytes, err := readBoundedFile(filepath.Join(root, "meta", ref+".json"), 64<<10)
 	if err != nil {
 		return artifactMeta{}, nil, fmt.Errorf("artifact not found")
 	}
 	var m artifactMeta
-	if err := json.Unmarshal(metaBytes, &m); err != nil || m.ID != ref || !shaPattern.MatchString(m.SHA256) {
+	if err := json.Unmarshal(metaBytes, &m); err != nil || m.ID != ref || !shaPattern.MatchString(m.SHA256) || m.Bytes < 0 || m.Bytes > 16<<20 {
 		return artifactMeta{}, nil, fmt.Errorf("corrupt artifact meta")
 	}
-	content, err := os.ReadFile(filepath.Join(root, "objects", m.SHA256[:2], m.SHA256))
+	content, err := readBoundedFile(filepath.Join(root, "objects", m.SHA256[:2], m.SHA256), m.Bytes)
 	if err != nil {
 		return artifactMeta{}, nil, fmt.Errorf("artifact object missing")
 	}
@@ -152,6 +165,23 @@ func storeRead(root, ref string) (artifactMeta, []byte, error) {
 		return artifactMeta{}, nil, fmt.Errorf("artifact checksum mismatch")
 	}
 	return m, content, nil
+}
+
+func readBoundedFile(path string, maximum int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("expected regular artifact file")
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maximum+1))
+	if err == nil && int64(len(data)) > maximum {
+		return nil, fmt.Errorf("artifact exceeds byte limit")
+	}
+	return data, err
 }
 
 var nameUnsafe = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
@@ -487,8 +517,11 @@ func run(in io.Reader, out io.Writer, args []string) error {
 	if err != nil {
 		return err
 	}
+	if call.Operation != "writing_export" {
+		return fmt.Errorf("operation mismatch")
+	}
 	var input exportInput
-	if len(call.Input) == 0 {
+	if len(bytes.TrimSpace(call.Input)) == 0 || bytes.TrimSpace(call.Input)[0] != '{' {
 		return fmt.Errorf("missing input")
 	}
 	dec := json.NewDecoder(bytes.NewReader(call.Input))

@@ -1,0 +1,379 @@
+{
+  "api_version": "soot/v1",
+  "id": "office",
+  "name": "Office",
+  "description": "Read, create and edit Word, Excel, PowerPoint and PDF files with bounded local tools.",
+  "use": [
+    "read"
+  ],
+  "capabilities": {
+    "read": {
+      "skills": [
+        {
+          "name": "office_read",
+          "file": "skills/read.md",
+          "description": "Inspect Office/PDF files, paginate content, preserve formulas and identify scanned pages."
+        }
+      ],
+      "tools": [
+        {
+          "name": "inspect",
+          "description": "Read bounded paragraphs, worksheet cells, slide text/notes or PDF pages/forms. Indexes are zero-based except Excel coordinates.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "sheet": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 31,
+                "description": "Exact worksheet name"
+              },
+              "range": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40,
+                "description": "A1:C20; at most 2000 cells"
+              },
+              "data_only": {
+                "type": "boolean",
+                "description": "Read cached Excel values; never computes formulas."
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "inspect"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "write": {
+      "skills": [
+        {
+          "name": "office_write",
+          "file": "skills/write.md",
+          "description": "Create editable Office files; make controlled copies and preserve styles."
+        },
+        {
+          "name": "office_spec",
+          "file": "SPEC.md",
+          "description": "Exact JSON schemas, examples, limits and failure semantics for the pack tools."
+        }
+      ],
+      "tools": [
+        {
+          "name": "compose",
+          "description": "Create a new docx/xlsx/pptx/pdf from a workspace JSON spec. See skill for spec contract. Large content belongs in spec files.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": [
+                  "docx",
+                  "xlsx",
+                  "pptx",
+                  "pdf"
+                ]
+              },
+              "spec": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              }
+            },
+            "required": [
+              "format",
+              "spec",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "compose"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        },
+        {
+          "name": "edit",
+          "description": "Edit a copy: DOCX/PPTX style-preserving replacements, or XLSX cell updates. Source remains unchanged.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "spec": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              }
+            },
+            "required": [
+              "path",
+              "spec",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "edit"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        },
+        {
+          "name": "pdf_modify",
+          "description": "Merge/select/rotate PDF pages or fill existing form fields. Page indexes are zero-based; output is not flattened.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+                },
+                "minItems": 1,
+                "maxItems": 20
+              },
+              "pages": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4999
+                },
+                "minItems": 1,
+                "maxItems": 1000
+              },
+              "rotation": {
+                "type": "integer",
+                "enum": [
+                  0,
+                  90,
+                  180,
+                  270
+                ]
+              },
+              "fields": {
+                "type": "object",
+                "maxProperties": 100,
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              }
+            },
+            "required": [
+              "paths",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "pdf_modify"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "render": {
+      "skills": [
+        {
+          "name": "office_render",
+          "file": "skills/render.md",
+          "description": "Render PDF pages for visual QA without Office or browser dependencies."
+        }
+      ],
+      "tools": [
+        {
+          "name": "render",
+          "description": "Render one zero-based PDF page to PNG through PDFium. Check glyphs/layout before delivery.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4999
+              },
+              "scale": {
+                "type": "number",
+                "minimum": 0.25,
+                "maximum": 3
+              }
+            },
+            "required": [
+              "path",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "render"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "convert": {
+      "skills": [
+        {
+          "name": "office_convert",
+          "file": "skills/convert.md",
+          "description": "Optional LibreOffice conversion for legacy formats, recalculation and visual inspection."
+        }
+      ],
+      "tools": [
+        {
+          "name": "convert",
+          "description": "Convert legacy/modern Office input through separately installed, host-bound LibreOffice. Conversion is optional and may change layout.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              }
+            },
+            "required": [
+              "path",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "convert"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "150s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "OFFICE_BINDING": "{{cred:OFFICE_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

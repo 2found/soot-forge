@@ -12,11 +12,13 @@ job is the content and reading the receipt honestly.
 3. Give a stable `action_id` when the same logical email could be invoked
    twice (e.g. "report-daily-2026-10-06"). Without one the tool derives a
    payload hash — identical content dedups, changed content is a new send.
+   Keep an explicit ID bound to the same payload/account. A changed intent or
+   legacy/corrupt journal needs reconciliation, never a blind replacement.
 4. READ THE RECEIPT — exit 0 does not prove the mail left:
    - `succeeded`: server accepted it (250). Not proof of inbox delivery.
    - `failed`: refused before any data was sent (auth, recipient, TLS).
      Safe to fix the cause and retry.
-   - `unknown`: connection was lost after the message bytes went out. The
+   - `unknown`: a send is active/interrupted, or connection was lost after the message bytes went out. The
      server may have it. DO NOT resend — report `unknown` to the operator
      and let them reconcile against the mail server or the durable
      journal. A second call with the same `action_id` returns `unknown`

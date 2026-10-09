@@ -38,8 +38,9 @@ const maxInlineBytes = 1 << 20 // worker scripts / d1 statements / r2 inline pay
 
 func readCall(in io.Reader) (toolCall, error) {
 	var call toolCall
-	if err := json.NewDecoder(io.LimitReader(in, maxEnvelopeBytes+1)).Decode(&call); err != nil {
-		return call, err
+	raw, err := readResponse(in, maxEnvelopeBytes)
+	if err != nil || json.Unmarshal(raw, &call) != nil {
+		return call, fmt.Errorf("invalid or oversized tool envelope")
 	}
 	if call.APIVersion != "soot/v1" || call.Hook != toolCallHook || call.Soot == "" {
 		return call, fmt.Errorf("invalid tool context")
@@ -48,7 +49,7 @@ func readCall(in io.Reader) (toolCall, error) {
 }
 
 func decodeStrict(raw json.RawMessage, dst any) error {
-	if len(raw) == 0 {
+	if len(bytes.TrimSpace(raw)) == 0 || bytes.TrimSpace(raw)[0] != '{' {
 		return fmt.Errorf("missing input")
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -56,12 +57,16 @@ func decodeStrict(raw json.RawMessage, dst any) error {
 	if err := dec.Decode(dst); err != nil {
 		return fmt.Errorf("invalid input: %w", err)
 	}
+	if dec.Decode(new(any)) != io.EOF {
+		return fmt.Errorf("expected one input object")
+	}
 	return nil
 }
 
 // errUncertain marks failures raised after a request may already have
 // reached Cloudflare — main exits 2 so the host journals uncertain.
 var errUncertain = errors.New("uncertain effect")
+var errNotFound = errors.New("not found")
 
 // ---- binding --------------------------------------------------------------
 
@@ -127,13 +132,36 @@ type cfClient struct {
 
 func newCFClient(b cfBinding) *cfClient {
 	return &cfClient{base: strings.TrimRight(b.APIBase, "/"), token: b.APIToken,
-		http: &http.Client{Timeout: 30 * time.Second}}
+		http: boundClient(30 * time.Second)}
+}
+
+// Never forward credentials or replay a mutation at a redirect destination.
+func boundClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}
+
+func readResponse(body io.Reader, maximum int64) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(body, maximum+1))
+	if err == nil && int64(len(raw)) > maximum {
+		err = errors.New("response exceeds size limit")
+	}
+	return raw, err
 }
 
 // cfDo issues one request. Failures are classified by where they happened:
 // transport/timeout before a response → uncertain (the effect may be queued
-// at CF); any HTTP status → decided (CF saw it and answered).
+// at CF); 5xx cannot prove a mutation was not applied. No automatic retries.
+type pageInfo struct {
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	TotalCount int `json:"total_count"`
+}
+
 func (c *cfClient) do(ctx context.Context, method, path string, body any) (json.RawMessage, error) {
+	return c.doPage(ctx, method, path, body, nil)
+}
+
+func (c *cfClient) doPage(ctx context.Context, method, path string, body any, info *pageInfo) (json.RawMessage, error) {
 	var rd io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
@@ -155,20 +183,24 @@ func (c *cfClient) do(ctx context.Context, method, path string, body any) (json.
 		return nil, fmt.Errorf("%w: %v", errUncertain, err)
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	raw, err := readResponse(resp.Body, 4<<20)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", errUncertain, err)
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("not found")
+		return nil, errNotFound
+	}
+	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusRequestTimeout {
+		return nil, fmt.Errorf("%w: cloudflare HTTP %d", errUncertain, resp.StatusCode)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("cloudflare %d: %s", resp.StatusCode, truncate(string(raw), 400))
 	}
 	var env struct {
-		Success bool            `json:"success"`
-		Result  json.RawMessage `json:"result"`
-		Errors  []struct {
+		ResultInfo pageInfo        `json:"result_info"`
+		Success    bool            `json:"success"`
+		Result     json.RawMessage `json:"result"`
+		Errors     []struct {
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
@@ -181,6 +213,9 @@ func (c *cfClient) do(ctx context.Context, method, path string, body any) (json.
 			msg = env.Errors[0].Message
 		}
 		return nil, fmt.Errorf("%s", msg)
+	}
+	if info != nil {
+		*info = env.ResultInfo
 	}
 	return env.Result, nil
 }
@@ -315,21 +350,28 @@ func r2Do(ctx context.Context, b cfBinding, method, pathQuery string) ([]byte, i
 		", SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature="+sig)
 	req.Header.Set("x-amz-content-sha256", payloadHex)
 	req.Header.Set("x-amz-date", amzdate)
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := boundClient(60 * time.Second)
+	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w: %v", errUncertain, err)
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	raw, err := readResponse(resp.Body, 8<<20)
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("%w: %v", errUncertain, err)
+	}
+	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusRequestTimeout {
+		return nil, resp.StatusCode, fmt.Errorf("%w: r2 HTTP %d", errUncertain, resp.StatusCode)
 	}
 	return raw, resp.StatusCode, nil
 }
 
 // r2Put uploads bytes (context cancelled → uncertain; response decides).
 func r2Put(ctx context.Context, b cfBinding, key string, body []byte) error {
+	if !r2KeyPattern.MatchString(key) || strings.Contains(key, "..") {
+		return fmt.Errorf("invalid object key")
+	}
 	// PUT with signed headers including content hash.
 	host := strings.TrimPrefix(strings.TrimPrefix(b.R2Endpoint, "https://"), "http://")
 	host = strings.SplitN(host, "/", 2)[0]
@@ -359,13 +401,17 @@ func r2Put(ctx context.Context, b cfBinding, key string, body []byte) error {
 		", SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature="+sig)
 	req.Header.Set("x-amz-content-sha256", payloadHex)
 	req.Header.Set("x-amz-date", amzdate)
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := boundClient(120 * time.Second)
+	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errUncertain, err)
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusRequestTimeout {
+		return fmt.Errorf("%w: r2 put HTTP %d", errUncertain, resp.StatusCode)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("r2 put %d", resp.StatusCode)
 	}
@@ -393,17 +439,17 @@ func storeRead(root, ref string) (artMeta, []byte, error) {
 	if !artRefPattern.MatchString(ref) {
 		return m, nil, fmt.Errorf("invalid artifact ref")
 	}
-	metaBytes, err := os.ReadFile(root + "/meta/" + ref + ".json")
+	metaBytes, err := readBoundedFile(root+"/meta/"+ref+".json", 64<<10)
 	if err != nil {
 		return m, nil, fmt.Errorf("artifact not found")
 	}
 	if err := json.Unmarshal(metaBytes, &m); err != nil || m.ID != ref || !artShaPattern.MatchString(m.SHA256) {
 		return m, nil, fmt.Errorf("corrupt artifact meta")
 	}
-	if m.Bytes > maxStoreObject {
+	if m.Bytes < 0 || m.Bytes > maxStoreObject {
 		return m, nil, fmt.Errorf("artifact exceeds %d byte limit", maxStoreObject)
 	}
-	content, err := os.ReadFile(root + "/objects/" + m.SHA256[:2] + "/" + m.SHA256)
+	content, err := readBoundedFile(root+"/objects/"+m.SHA256[:2]+"/"+m.SHA256, m.Bytes)
 	if err != nil {
 		return m, nil, fmt.Errorf("artifact object missing")
 	}
@@ -412,6 +458,19 @@ func storeRead(root, ref string) (artMeta, []byte, error) {
 		return m, nil, fmt.Errorf("artifact checksum mismatch")
 	}
 	return m, content, nil
+}
+
+func readBoundedFile(path string, maximum int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("expected regular artifact file")
+	}
+	return readResponse(f, maximum)
 }
 
 // ---- inputs ---------------------------------------------------------------
@@ -482,6 +541,13 @@ func cmdR2Share(ctx context.Context, b cfBinding, call toolCall, out io.Writer) 
 	if err := decodeStrict(call.Input, &in); err != nil {
 		return err
 	}
+	ttl := time.Duration(in.TTLSec) * time.Second
+	if in.TTLSec == 0 {
+		ttl = time.Hour
+	}
+	if in.TTLSec < 0 || in.TTLSec > 86400 {
+		return fmt.Errorf("ttlSec must be 0..86400")
+	}
 	key := in.Key
 	m := artMeta{}
 	if in.Ref != "" {
@@ -500,10 +566,6 @@ func cmdR2Share(ctx context.Context, b cfBinding, call toolCall, out io.Writer) 
 	}
 	if key == "" {
 		return fmt.Errorf("key or ref is required")
-	}
-	ttl := time.Duration(in.TTLSec) * time.Second
-	if in.TTLSec == 0 {
-		ttl = time.Hour
 	}
 	link, err := presignGet(b, key, ttl, time.Now())
 	if err != nil {
@@ -572,13 +634,27 @@ func cmdR2List(ctx context.Context, b cfBinding, call toolCall, out io.Writer) e
 	}
 	var in struct {
 		Prefix string `json:"prefix"`
+		Cursor string `json:"cursor"`
 		Max    int    `json:"max"`
 	}
-	decodeStrict(call.Input, &in) // list tolerates empty input
-	if in.Max <= 0 || in.Max > 1000 {
+	if len(bytes.TrimSpace(call.Input)) > 0 {
+		if err := decodeStrict(call.Input, &in); err != nil {
+			return err
+		}
+	}
+	if in.Max < 0 || in.Max > 1000 {
+		return fmt.Errorf("max must be 1..1000 or omitted")
+	}
+	if in.Max == 0 {
 		in.Max = 100
 	}
+	if len(in.Prefix) > 1024 || len(in.Cursor) > 4096 || in.Max < 0 || in.Max > 1000 {
+		return fmt.Errorf("invalid R2 page")
+	}
 	q := "?list-type=2&max-keys=" + strconv.Itoa(in.Max)
+	if in.Cursor != "" {
+		q += "&continuation-token=" + url.QueryEscape(in.Cursor)
+	}
 	if in.Prefix != "" {
 		q += "&prefix=" + url.QueryEscape(in.Prefix)
 	}
@@ -590,7 +666,10 @@ func cmdR2List(ctx context.Context, b cfBinding, call toolCall, out io.Writer) e
 		return fmt.Errorf("r2 list %d", code)
 	}
 	var lr struct {
-		Contents []struct {
+		XMLName   xml.Name `xml:"ListBucketResult"`
+		Truncated bool     `xml:"IsTruncated"`
+		Cursor    string   `xml:"NextContinuationToken"`
+		Contents  []struct {
 			Key  string `xml:"Key"`
 			Size int64  `xml:"Size"`
 			ETag string `xml:"ETag"`
@@ -603,12 +682,16 @@ func cmdR2List(ctx context.Context, b cfBinding, call toolCall, out io.Writer) e
 	for _, o := range lr.Contents {
 		items = append(items, map[string]any{"key": o.Key, "bytes": o.Size})
 	}
-	return emit(out, map[string]any{"kind": "list", "objects": items})
+	if lr.Truncated && lr.Cursor == "" {
+		return fmt.Errorf("truncated R2 response missing continuation token")
+	}
+	return emit(out, map[string]any{"kind": "list", "objects": items, "truncated": lr.Truncated, "next_cursor": lr.Cursor})
 }
 
 // ---- worker ---------------------------------------------------------------
 
 var workerNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$`)
+var dnsRecordPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 func cmdWorkerDeploy(ctx context.Context, b cfBinding, call toolCall, out io.Writer) error {
 	if err := b.need("api_token", "account_id"); err != nil {
@@ -668,17 +751,30 @@ func workerDeploy(ctx context.Context, c *cfClient, b cfBinding, name, script, d
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", errUncertain, err)
 	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	raw, err := readResponse(resp.Body, 4<<20)
 	resp.Body.Close()
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", errUncertain, err)
 	}
+	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusRequestTimeout {
+		return "", fmt.Errorf("%w: worker deploy HTTP %d", errUncertain, resp.StatusCode)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("worker deploy %d: %s", resp.StatusCode, truncate(string(raw), 400))
+	}
+	var ack struct {
+		Success bool `json:"success"`
+	}
+	if json.Unmarshal(raw, &ack) != nil || !ack.Success {
+		return "", fmt.Errorf("%w: invalid worker deployment acknowledgement", errUncertain)
 	}
 	// Enable the workers.dev subdomain so the script is publicly reachable.
 	_, subErr := c.do(ctx, "POST", "/accounts/"+b.AccountID+"/workers/scripts/"+name+"/subdomain",
 		map[string]any{"enabled": true, "previews_enabled": false})
+	if subErr != nil {
+		// Script is already deployed, so even a decided route failure is partial.
+		return "", fmt.Errorf("%w: script deployed but route activation failed: %v", errUncertain, subErr)
+	}
 	publicURL := ""
 	if subErr == nil && b.WorkersSubdomain != "" {
 		publicURL = "https://" + name + "." + b.WorkersSubdomain + ".workers.dev"
@@ -701,7 +797,7 @@ func cmdWorkerDelete(ctx context.Context, b cfBinding, call toolCall, out io.Wri
 	}
 	c := newCFClient(b)
 	_, err := c.do(ctx, "DELETE", "/accounts/"+b.AccountID+"/workers/scripts/"+in.Name, nil)
-	if err != nil && !strings.Contains(err.Error(), "not found") {
+	if err != nil && !errors.Is(err, errNotFound) {
 		return err
 	}
 	return emit(out, receipt(stableActionID(call, in.Name), "succeeded",
@@ -720,7 +816,9 @@ func cmdWorkerList(ctx context.Context, b cfBinding, call toolCall, out io.Write
 	var items []struct {
 		ID string `json:"id"`
 	}
-	json.Unmarshal(res, &items)
+	if err := json.Unmarshal(res, &items); err != nil || bytes.Equal(bytes.TrimSpace(res), []byte("null")) {
+		return fmt.Errorf("invalid worker list response")
+	}
 	names := make([]string, 0, len(items))
 	for _, it := range items {
 		names = append(names, it.ID)
@@ -754,7 +852,9 @@ func cmdD1Create(ctx context.Context, b cfBinding, call toolCall, out io.Writer)
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	}
-	json.Unmarshal(res, &db)
+	if err := json.Unmarshal(res, &db); err != nil || db.UUID == "" {
+		return fmt.Errorf("%w: missing created database identity", errUncertain)
+	}
 	return emit(out, receipt(stableActionID(call, in.Name), "succeeded",
 		map[string]string{"database": db.UUID, "name": db.Name}, ""))
 }
@@ -802,9 +902,14 @@ func d1Resolve(ctx context.Context, c *cfClient, b cfBinding, nameOrID string) (
 	var list []struct {
 		UUID string `json:"uuid"`
 	}
-	json.Unmarshal(res, &list)
+	if err := json.Unmarshal(res, &list); err != nil || bytes.Equal(bytes.TrimSpace(res), []byte("null")) {
+		return "", fmt.Errorf("invalid database lookup response")
+	}
 	if len(list) == 0 {
-		return "", fmt.Errorf("d1 database %q not found", nameOrID)
+		return "", fmt.Errorf("%w: d1 database %q", errNotFound, nameOrID)
+	}
+	if list[0].UUID == "" {
+		return "", fmt.Errorf("invalid database lookup identity")
 	}
 	return list[0].UUID, nil
 }
@@ -872,18 +977,59 @@ func d1Query(ctx context.Context, c *cfClient, b cfBinding, dbID, sql string, pa
 		return nil, err
 	}
 	var qr []d1Result
-	if err := json.Unmarshal(res, &qr); err != nil {
-		return nil, fmt.Errorf("undecodable d1 response")
+	if err := json.Unmarshal(res, &qr); err != nil || len(qr) == 0 {
+		return nil, fmt.Errorf("%w: undecodable or empty d1 response", errUncertain)
+	}
+	for _, statement := range qr {
+		if !statement.Success {
+			return nil, fmt.Errorf("D1 statement failed")
+		}
 	}
 	return qr, nil
+}
+
+type listPage struct {
+	Page  int `json:"page"`
+	Limit int `json:"limit"`
+}
+
+func readListPage(input json.RawMessage) (listPage, error) {
+	var in listPage
+	if err := decodeStrict(input, &in); err != nil {
+		return in, err
+	}
+	if in.Page < 0 || in.Page > 1000000 || in.Limit < 0 || in.Limit > 100 {
+		return in, fmt.Errorf("page must be 1..1000000 and limit 1..100, or omitted")
+	}
+	if in.Page == 0 {
+		in.Page = 1
+	}
+	if in.Limit == 0 {
+		in.Limit = 100
+	}
+	return in, nil
+}
+func listPagination(in listPage, info pageInfo, count int) map[string]any {
+	next := 0
+	// A full page without provider totals is potentially incomplete; permit one
+	// additional bounded request rather than inventing an exhaustive list.
+	if in.Page*in.Limit < info.TotalCount || info.TotalCount == 0 && count == in.Limit {
+		next = in.Page + 1
+	}
+	return map[string]any{"page": in.Page, "limit": in.Limit, "total_count": info.TotalCount, "next_page": next}
 }
 
 func cmdD1List(ctx context.Context, b cfBinding, call toolCall, out io.Writer) error {
 	if err := b.need("api_token", "account_id"); err != nil {
 		return err
 	}
+	in, err := readListPage(call.Input)
+	if err != nil {
+		return err
+	}
 	c := newCFClient(b)
-	res, err := c.do(ctx, "GET", "/accounts/"+b.AccountID+"/d1/database", nil)
+	var info pageInfo
+	res, err := c.doPage(ctx, "GET", "/accounts/"+b.AccountID+"/d1/database?page="+strconv.Itoa(in.Page)+"&per_page="+strconv.Itoa(in.Limit), nil, &info)
 	if err != nil {
 		return err
 	}
@@ -891,8 +1037,10 @@ func cmdD1List(ctx context.Context, b cfBinding, call toolCall, out io.Writer) e
 		UUID string `json:"uuid"`
 		Name string `json:"name"`
 	}
-	json.Unmarshal(res, &dbs)
-	return emit(out, map[string]any{"kind": "list", "databases": dbs})
+	if err := json.Unmarshal(res, &dbs); err != nil || bytes.Equal(bytes.TrimSpace(res), []byte("null")) {
+		return fmt.Errorf("invalid database list response")
+	}
+	return emit(out, map[string]any{"kind": "list", "databases": dbs, "pagination": listPagination(in, info, len(dbs))})
 }
 
 // ---- dns ------------------------------------------------------------------
@@ -944,7 +1092,9 @@ func cmdDNSCreate(ctx context.Context, b cfBinding, call toolCall, out io.Writer
 	var rec struct {
 		ID string `json:"id"`
 	}
-	json.Unmarshal(res, &rec)
+	if err := json.Unmarshal(res, &rec); err != nil || !dnsRecordPattern.MatchString(rec.ID) {
+		return fmt.Errorf("%w: missing created DNS identity", errUncertain)
+	}
 	return emit(out, receipt(stableActionID(call, in.Name+"|"+in.Type), "succeeded",
 		map[string]string{"record": rec.ID, "name": in.Name}, ""))
 }
@@ -957,12 +1107,12 @@ func cmdDNSDelete(ctx context.Context, b cfBinding, call toolCall, out io.Writer
 	if err := decodeStrict(call.Input, &in); err != nil {
 		return err
 	}
-	if in.Record == "" || len(in.Record) > 64 {
+	if !dnsRecordPattern.MatchString(in.Record) {
 		return fmt.Errorf("record id is required")
 	}
 	c := newCFClient(b)
 	_, err := c.do(ctx, "DELETE", "/zones/"+b.ZoneID+"/dns_records/"+in.Record, nil)
-	if err != nil && !strings.Contains(err.Error(), "not found") {
+	if err != nil && !errors.Is(err, errNotFound) {
 		return err
 	}
 	return emit(out, receipt(stableActionID(call, in.Record), "succeeded",
@@ -973,16 +1123,23 @@ func cmdDNSList(ctx context.Context, b cfBinding, call toolCall, out io.Writer) 
 	if err := b.need("api_token", "account_id", "zone_id"); err != nil {
 		return err
 	}
+	in, err := readListPage(call.Input)
+	if err != nil {
+		return err
+	}
 	c := newCFClient(b)
-	res, err := c.do(ctx, "GET", "/zones/"+b.ZoneID+"/dns_records?per_page=100", nil)
+	var info pageInfo
+	res, err := c.doPage(ctx, "GET", "/zones/"+b.ZoneID+"/dns_records?page="+strconv.Itoa(in.Page)+"&per_page="+strconv.Itoa(in.Limit), nil, &info)
 	if err != nil {
 		return err
 	}
 	var recs []struct {
 		ID, Type, Name, Content string
 	}
-	json.Unmarshal(res, &recs)
-	return emit(out, map[string]any{"kind": "list", "records": recs})
+	if err := json.Unmarshal(res, &recs); err != nil || bytes.Equal(bytes.TrimSpace(res), []byte("null")) {
+		return fmt.Errorf("invalid DNS list response")
+	}
+	return emit(out, map[string]any{"kind": "list", "records": recs, "pagination": listPagination(in, info, len(recs))})
 }
 
 // ---- shortlink ------------------------------------------------------------
@@ -1034,6 +1191,9 @@ func cmdShortlinkSetup(ctx context.Context, b cfBinding, call toolCall, out io.W
 	c := newCFClient(b)
 	dbID, err := d1Resolve(ctx, c, b, shortlinkDBName(in.Worker))
 	if err != nil {
+		if !errors.Is(err, errNotFound) {
+			return err
+		}
 		// Database missing → create it.
 		res, err := c.do(ctx, "POST", "/accounts/"+b.AccountID+"/d1/database",
 			map[string]any{"name": shortlinkDBName(in.Worker)})
@@ -1042,17 +1202,17 @@ func cmdShortlinkSetup(ctx context.Context, b cfBinding, call toolCall, out io.W
 		}
 		var db struct{ UUID string }
 		if err := json.Unmarshal(res, &db); err != nil || db.UUID == "" {
-			return fmt.Errorf("undecodable d1 create response")
+			return fmt.Errorf("%w: missing created D1 identity", errUncertain)
 		}
 		dbID = db.UUID
 	}
 	if _, err := d1Query(ctx, c, b, dbID,
 		"create table if not exists links (code text primary key, url text not null, expires_at integer, created_at integer)", nil); err != nil {
-		return err
+		return fmt.Errorf("%w: shortlink D1 stage requires reconciliation: %v", errUncertain, err)
 	}
 	publicURL, err := workerDeploy(ctx, c, b, in.Worker, shortlinkScript, dbID)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: D1 ready; worker deployment requires reconciliation: %v", errUncertain, err)
 	}
 	return emit(out, map[string]any{
 		"kind": "service",
@@ -1062,7 +1222,7 @@ func cmdShortlinkSetup(ctx context.Context, b cfBinding, call toolCall, out io.W
 	})
 }
 
-func cmdShortlinkMint(ctx context.Context, b cfBinding, call toolCall, out io.Writer) error {
+func cmdShortlinkMint(ctx context.Context, b cfBinding, call toolCall, out io.Writer) (resultErr error) {
 	if err := b.need("api_token", "account_id", "workers_subdomain"); err != nil {
 		return err
 	}
@@ -1073,6 +1233,27 @@ func cmdShortlinkMint(ctx context.Context, b cfBinding, call toolCall, out io.Wr
 	if !workerNamePattern.MatchString(in.Worker) {
 		return fmt.Errorf("invalid worker name")
 	}
+	if in.TTLSec < 0 || in.Ref != "" && in.TTLSec > 86400 {
+		return fmt.Errorf("invalid shortlink lifetime; artifact URLs expire within 24 hours")
+	}
+	code := in.Code
+	if code == "" {
+		code = newShortcode()
+	}
+	if !shortcodePattern.MatchString(code) {
+		return fmt.Errorf("code must match [a-z0-9_-]{1,64}")
+	}
+	c := newCFClient(b)
+	dbID, err := d1Resolve(ctx, c, b, shortlinkDBName(in.Worker))
+	if err != nil {
+		return fmt.Errorf("shortlink service not set up: run vibe_cf_shortlink_setup first (%w)", err)
+	}
+	uploaded := false
+	defer func() {
+		if uploaded && resultErr != nil {
+			resultErr = fmt.Errorf("%w: R2 object uploaded; shortlink requires reconciliation: %v", errUncertain, resultErr)
+		}
+	}()
 	// Target: explicit https URL, or an artifact ref shared into R2 first.
 	target := in.URL
 	if in.Ref != "" {
@@ -1090,6 +1271,7 @@ func cmdShortlinkMint(ctx context.Context, b cfBinding, call toolCall, out io.Wr
 		if err := r2Put(ctx, b, key, content); err != nil {
 			return err
 		}
+		uploaded = true
 		ttl := time.Duration(in.TTLSec) * time.Second
 		if in.TTLSec <= 0 {
 			ttl = 24 * time.Hour
@@ -1103,27 +1285,17 @@ func cmdShortlinkMint(ctx context.Context, b cfBinding, call toolCall, out io.Wr
 	if err != nil || u.Scheme != "https" {
 		return fmt.Errorf("url must be an https URL")
 	}
-	code := in.Code
-	if code == "" {
-		code = newShortcode()
-	}
-	if !shortcodePattern.MatchString(code) {
-		return fmt.Errorf("code must match [a-z0-9_-]{1,64}")
-	}
-	c := newCFClient(b)
-	dbID, err := d1Resolve(ctx, c, b, shortlinkDBName(in.Worker))
-	if err != nil {
-		return fmt.Errorf("shortlink service not set up: run vibe_cf_shortlink_setup first (%v)", err)
-	}
 	var expiresAt int64
 	if in.TTLSec > 0 {
 		expiresAt = time.Now().Unix() + int64(in.TTLSec)
 	}
+	inserted := false
 	for range 4 {
 		_, qerr := d1Query(ctx, c, b, dbID,
 			"insert into links (code, url, expires_at, created_at) values (?, ?, ?, ?)",
 			[]any{code, target, expiresAt, time.Now().Unix()})
 		if qerr == nil {
+			inserted = true
 			break
 		}
 		if in.Code != "" {
@@ -1134,6 +1306,9 @@ func cmdShortlinkMint(ctx context.Context, b cfBinding, call toolCall, out io.Wr
 			return qerr
 		}
 		code = newShortcode() // random code collided; retry
+	}
+	if !inserted {
+		return fmt.Errorf("could not allocate a shortlink code after four collisions")
 	}
 	return emit(out, map[string]any{
 		"kind": "shortlink",
@@ -1242,6 +1417,9 @@ func run(ctx context.Context, in io.Reader, out io.Writer, getenv func(string) s
 	call, err := readCall(in)
 	if err != nil {
 		return err
+	}
+	if call.Operation != "vibe_cf_"+args[0]+"_"+args[1] {
+		return fmt.Errorf("operation mismatch")
 	}
 	b, err := loadBinding(getenv)
 	if err != nil {

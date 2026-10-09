@@ -150,6 +150,21 @@
                         "null"
                       ]
                     },
+                    "resource_fields": {
+                      "description": "Explicit top-level scalar input fields hashed into the effect resource key; @soot selects the host-bound Soot identity. Omitted keeps exclusive resource-wide admission. Use only when the backend independently enforces cross-key grants, consistency and uncertainty.",
+                      "items": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "maxItems": 4,
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "uniqueItems": true
+                    },
                     "secret_env": {
                       "additionalProperties": {
                         "type": [

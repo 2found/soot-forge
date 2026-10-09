@@ -1,0 +1,30 @@
+{
+  "status": "completed",
+  "provider": "devin",
+  "model": "swe-2",
+  "seconds": 41.838,
+  "conversation": "0eae52305ea564b9e8793f02f019184b",
+  "submitted": "Soot browser đã kiểm chứng",
+  "checks": [
+    "archive install + isolated operator dependency prefix",
+    "real provider snapshot/fill/submit/read",
+    "real animated Chromium stream: one unacknowledged frame",
+    "host ACK releases next frame",
+    "stale human target rejected",
+    "human WebSocket text confirmed in actual DOM"
+  ],
+  "scope": "Real Soot + Devin swe-2 + installed Forge archive + Chromium. Native UI rebuilt from isolated baseline plus browser changes.",
+  "native_checks": [
+    "Tauri/WebKit embedded production frontend renders the real browser",
+    "physical keyboard event arrives exactly once in Chromium DOM",
+    "hidden browser tab reconnects when selected"
+  ],
+  "additional_transport_checks": [
+    "human wheel delta 200 confirmed by Chromium scrollY"
+  ],
+  "limitations": [
+    "Orca synthetic native wheel did not produce DOM scroll; native trackpad/wheel is not verified",
+    "real OS IME composition and Google OAuth not exercised"
+  ],
+  "cleanup": "Owned fixture browser, runtime and both native QA processes closed; no global close-all."
+}

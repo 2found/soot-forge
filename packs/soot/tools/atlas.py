@@ -28,7 +28,10 @@ def pixels(image):
     return image.get_flattened_data() if hasattr(image, 'get_flattened_data') else image.getdata()
 
 def clean_rgba(image):
-    image.putdata([(0, 0, 0, 0) if a == 0 else (r, g, b, a) for r, g, b, a in pixels(image)])
+    # Native Pillow scan avoids one Python tuple per pixel on multi-megapixel
+    # atlases. Only alpha==0 pixels change; all visible bytes stay identical.
+    transparent = image.getchannel('A').point(lambda a: 255 if a == 0 else 0)
+    image.paste((0, 0, 0, 0), (0, 0), transparent)
     return image
 
 cut = transparent_cut
@@ -42,7 +45,8 @@ def extract(path):
         raise ValueError(f'{path}: expected PNG with real alpha')
     image = image.convert('RGBA')
     mask = image.getchannel('A').point(lambda a: 255 if a > 16 else 0)
-    row_bounds = [0, *[cut(mask.getprojection()[1], round(y*image.height/3), 34) for y in (1,2)], image.height]
+    row_projection = mask.getprojection()[1]
+    row_bounds = [0, *[cut(row_projection, round(y*image.height/3), 34) for y in (1,2)], image.height]
     frames = []
     for row in range(3):
         projection = mask.crop((0,row_bounds[row],image.width,row_bounds[row+1])).getprojection()[0]

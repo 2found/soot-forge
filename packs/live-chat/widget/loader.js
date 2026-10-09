@@ -1,0 +1,322 @@
+/* Soot Live chat: direct Soot API browser widget loader.
+ * Backend credentials never enter this file; only publishable app keys (spk_*).
+ */
+(() => {
+  const script = document.currentScript;
+  const app = script?.dataset.app;
+  if (!app || !/^spk_[A-Za-z0-9_-]{20,124}$/.test(app)) return;
+
+  const base = new URL(script.src).origin;
+  const instances = window.SootChat ?? (window.SootChat = {});
+  if (instances[app]) return;
+
+  const frame = document.createElement('iframe');
+  frame.title = 'Soot Live chat';
+  frame.src = `${base}/public/widget/frame/${encodeURIComponent(app)}?parent=${encodeURIComponent(location.origin)}`;
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
+  frame.referrerPolicy = 'no-referrer';
+  frame.loading = 'lazy';
+  Object.assign(frame.style, {
+    position: 'fixed',
+    bottom: '16px',
+    right: '16px',
+    width: '80px',
+    height: '80px',
+    border: '0',
+    zIndex: '2147483000',
+    colorScheme: 'normal',
+  });
+
+  if (document.body) document.body.append(frame);
+  else addEventListener('DOMContentLoaded', () => document.body.append(frame), { once: true });
+
+  const nonce = crypto.randomUUID();
+  let session = null;
+  const scopeStorage=`soot.widget.scope.v1:${base}:${app}`;
+  let selection=null;
+  try{selection=JSON.parse(localStorage.getItem(scopeStorage)||'null');}catch{}
+  let scopeChoices=[];
+  let switching=false;
+  let submitting=false;
+  let expanded = false;
+  let ready = false;
+  let position = 'right';
+  let scrollLock = null;
+
+  const detectedLanguage = document.documentElement.lang?.toLowerCase().startsWith('vi') ? 'vi' : 'en';
+
+  const send = (type, extra = {}) => {
+    frame.contentWindow?.postMessage({ soot_chat: 1, type, nonce, ...extra }, base);
+  };
+
+  function unlock() {
+    if (!scrollLock) return;
+    for (const [element, value, priority] of scrollLock) {
+      if (element.style.getPropertyValue('overflow') !== 'hidden') continue;
+      if (value) element.style.setProperty('overflow', value, priority);
+      else element.style.removeProperty('overflow');
+    }
+    scrollLock = null;
+  }
+
+  function resize() {
+    const mobile = innerWidth <= 600;
+    if (expanded && mobile) {
+      const viewport = window.visualViewport;
+      Object.assign(frame.style, {
+        width: (viewport?.width ?? innerWidth) + 'px',
+        height: (viewport?.height ?? innerHeight) + 'px',
+        top: (viewport?.offsetTop ?? 0) + 'px',
+        left: (viewport?.offsetLeft ?? 0) + 'px',
+        right: 'auto',
+        bottom: 'auto',
+      });
+      if (!scrollLock && document.body) {
+        scrollLock = [document.documentElement, document.body].map(element => [
+          element,
+          element.style.getPropertyValue('overflow'),
+          element.style.getPropertyPriority('overflow'),
+        ]);
+        for (const [element] of scrollLock) element.style.setProperty('overflow', 'hidden');
+      }
+    } else {
+      unlock();
+      Object.assign(frame.style, {
+        width: expanded ? Math.min(380, innerWidth - 32) + 'px' : '80px',
+        height: expanded ? Math.min(600, innerHeight - 32) + 'px' : '80px',
+        top: 'auto',
+        bottom: '16px',
+        left: position === 'left' ? '16px' : 'auto',
+        right: position === 'right' ? '16px' : 'auto',
+      });
+    }
+    send('layout', { mobile });
+  }
+
+  async function acquireTurnstileProof(challenge) {
+    if (!challenge || !challenge.required) return undefined;
+    if (!challenge.site_key) throw new Error('Missing Turnstile site key');
+
+    if (!window.turnstile) {
+      await new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[src*="turnstile/v0/api.js"]');
+        if (existing) {
+          existing.addEventListener('load', () => resolve(), { once: true });
+          existing.addEventListener('error', () => reject(new Error('Turnstile script load error')), { once: true });
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        s.async = true;
+        s.defer = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Failed to load Turnstile script'));
+        document.head.appendChild(s);
+      });
+    }
+
+    return new Promise((resolve, reject) => {
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;right:16px;bottom:96px;max-width:calc(100vw - 32px);z-index:2147483001;';
+      document.body.appendChild(container);
+      try {
+        const widgetId = window.turnstile.render(container, {
+          sitekey: challenge.site_key,
+          action: challenge.action || 'chat',
+          callback: token => {
+            try { window.turnstile.remove(widgetId); } catch {}
+            container.remove();
+            resolve(token);
+          },
+          'error-callback': err => {
+            try { window.turnstile.remove(widgetId); } catch {}
+            container.remove();
+            reject(new Error('Turnstile challenge failed: ' + err));
+          },
+          'expired-callback': () => {
+            try { window.turnstile.remove(widgetId); } catch {}
+            container.remove();
+            reject(new Error('Turnstile token expired'));
+          },
+        });
+      } catch (err) {
+        container.remove();
+        reject(err);
+      }
+    });
+  }
+
+  async function getSessionInstance() {
+    if (session) return session;
+    const sdk = await import(`${base}/public/widget/browser.js`);
+    session = new sdk.SootChatSession({
+      baseUrl: base,
+      appKey: app,
+      language: detectedLanguage,
+      ...(selection?{sootId:selection.soot,groupId:selection.group,storageKey:`${scopeStorage}:${selection.nonce}`} : {}),
+      proofProvider: acquireTurnstileProof,
+    });
+    return session;
+  }
+
+  async function connect() {
+    if (!ready) return;
+    try {
+      const s = await getSessionInstance();
+      const { appInfo, state } = await s.init();
+      if(session!==s)return;
+      scopeChoices=appInfo.soots.flatMap(soot=>(soot.automatic_groups&&appInfo.capabilities?.includes('groups.auto.v1')?[{id:'auto',default:true}]:soot.groups?.length?soot.groups:[undefined]).map(group=>({value:JSON.stringify([soot.id,group?.id||'']),label:[soot.name||soot.id,group?.name].filter(Boolean).join(' · '),soot:soot.id,group:group?.id,default:group?.default})));
+      const activeConversation=state.conversationId?await s.client.getConversation(state.conversationId):null;
+      if(session!==s)return;
+      if(activeConversation&&!scopeChoices.some(x=>x.soot===activeConversation.soot&&(x.group||'')===(activeConversation.group_id||''))){
+        const soot=appInfo.soots.find(x=>x.id===activeConversation.soot);
+        if(soot){const group=soot.groups?.find(g=>g.id===activeConversation.group_id);scopeChoices.push({value:JSON.stringify([soot.id,activeConversation.group_id||'']),label:[soot.name||soot.id,group?.name].filter(Boolean).join(' · '),soot:soot.id,group:activeConversation.group_id});}
+      }
+      const chosen=activeConversation?scopeChoices.find(x=>x.soot===activeConversation.soot&&(x.group||'')===(activeConversation.group_id||'')):selection?scopeChoices.find(x=>x.soot===selection.soot&&(x.group||'')===(selection.group||'')):scopeChoices.find(x=>x.default)||(scopeChoices.length===1?scopeChoices[0]:undefined);
+      if (appInfo.widget?.position) position = appInfo.widget.position;
+      resize();
+      send('init', {
+        config: appInfo.widget,
+        scopes:scopeChoices.map(({value,label})=>({value,label})),scopeValue:chosen?.value,scopeName:chosen?.label,scopeRequired:scopeChoices.length>1&&!chosen,
+        language: detectedLanguage,
+        draft: state.draft,
+      });
+      if (expanded) send('open');
+      return true;
+    } catch (err) {
+      send('unavailable');
+      resize();
+      if (expanded) send('open');
+      return false;
+    }
+  }
+
+  async function syncMessages(after) {
+    let source;
+    try {
+      const s = await getSessionInstance();
+      source=s;
+      const state = await s.reconcile();
+      if(session!==s)return;
+      let messages = [];
+      let next_after = after;
+      let activity = 'connected';
+
+      if (state.conversationId) {
+        try {
+          const conv = await s.client.getConversation(state.conversationId);
+          if (conv.state) activity = conv.state;
+          const page = await s.client.getMessages(state.conversationId, { after, limit: 50 });
+          messages = page.messages || [];
+          next_after = page.next_after || after;
+        } catch (err) {
+          if(session!==s)return;
+          send('sync', { error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
+          return;
+        }
+      }
+
+      if(session!==s)return;
+      send('sync', {
+        messages,
+        next_after,
+        activity,
+        pendingMessage: state.pendingMessage,
+      });
+    } catch {
+      if(source && session!==source)return;
+      send('sync', { error: { kind: 'connection' } });
+    }
+  }
+
+  const api = {
+    open: () => {
+      expanded = true;
+      resize();
+      send('open');
+    },
+    close: () => {
+      expanded = false;
+      resize();
+      send('close');
+    },
+    reset: () => send('reset'),
+    retry: () => void connect(),
+  };
+
+  instances[app] = api;
+  addEventListener('resize', resize);
+  window.visualViewport?.addEventListener('resize', resize);
+  window.visualViewport?.addEventListener('scroll', resize);
+  addEventListener('pagehide', unlock);
+
+  addEventListener('message', async event => {
+    if (event.origin !== base || event.source !== frame.contentWindow || event.data?.soot_chat !== 1) return;
+    const msg = event.data;
+
+    if (msg.type === 'ready') {
+      ready = true;
+      void connect();
+      return;
+    }
+
+    if (msg.nonce !== nonce) return;
+    if (msg.type === 'retry-connect') { await connect(); return; }
+
+    if(msg.type==='scope'){
+      if(switching)return;
+      if(submitting){send('sync',{error:{kind:'reset'}});return;}
+      const chosen=scopeChoices.find(x=>x.value===msg.value);
+      if(!chosen){send('sync',{error:{kind:'reset'}});return;}
+      switching=true;
+      const previousSelection=selection,oldSession=session;
+      try{
+        const old=await getSessionInstance();const state=old.readState();
+        if(state.pendingMessage||state.pendingCreate)throw new Error('Reconcile before changing scope');
+        const next={soot:chosen.soot,group:chosen.group,nonce:crypto.randomUUID()};
+        localStorage.setItem(scopeStorage,JSON.stringify(next));selection=next;session=null;
+        if(!await connect())throw new Error('Scope connection failed');send('reset-done');
+      }catch{selection=previousSelection;session=oldSession;try{if(selection)localStorage.setItem(scopeStorage,JSON.stringify(selection));else localStorage.removeItem(scopeStorage);}catch{}send('sync',{error:{kind:'reset'}});}finally{switching=false;}
+      return;
+    }
+    if(switching && ['send','draft','sync','reset'].includes(msg.type))return;
+    if (msg.type === 'open') {
+      expanded = true;
+      resize();
+    } else if (msg.type === 'close') {
+      expanded = false;
+      resize();
+    } else if (msg.type === 'position' && ['left', 'right'].includes(msg.position)) {
+      position = msg.position;
+      resize();
+    } else if (msg.type === 'sync') {
+      await syncMessages(msg.after ?? 0);
+    } else if (msg.type === 'draft') {
+      if (typeof msg.text === 'string') {
+        const s = await getSessionInstance().catch(() => null);
+        s?.saveDraft(msg.text);
+      }
+    } else if (msg.type === 'send') {
+      if(submitting)return;
+      submitting=true;
+      try {
+        const s = await getSessionInstance();
+        await s.sendMessage(msg.text);
+        if(session!==s)return;
+        await syncMessages(0);
+      } catch (err) {
+        const kind = err?.status === 429 ? 'rate' : err?.status === 400 ? 'validation' : err?.status === 401 ? 'expired' : 'send';
+        send('sync', { error: { kind } });
+      } finally {submitting=false;}
+    } else if (msg.type === 'reset') {
+      try {
+        const s = await getSessionInstance();
+        await s.reset();
+        await s.init();
+        send('reset-done');
+      } catch {
+        send('sync', { error: { kind: 'reset' } });
+      }
+    }
+  });
+})();

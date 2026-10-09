@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/2found/soot-forge/packs/casework/runner/contract"
@@ -15,17 +16,22 @@ func run(in io.Reader, out io.Writer, args []string) error {
 		return fmt.Errorf("usage: soot-case <read|upsert|handoff> <data-directory>")
 	}
 	var call contract.ToolCall
-	d := json.NewDecoder(io.LimitReader(in, 65537))
-	if err := d.Decode(&call); err != nil {
-		return err
+	raw, err := io.ReadAll(io.LimitReader(in, 65537))
+	if err != nil || len(raw) > 65536 || json.Unmarshal(raw, &call) != nil {
+		return fmt.Errorf("invalid or oversized tool envelope")
 	}
 	if call.APIVersion != contract.APIVersion || call.Hook != contract.ToolCallHook || call.Event.Subject == "" || call.Soot == "" {
 		return fmt.Errorf("invalid tool context")
 	}
+	if call.Operation != "casework_"+args[0] {
+		return fmt.Errorf("operation mismatch")
+	}
 	var input struct{ Title, Summary, Status, To string }
 	if len(call.Input) > 0 {
-		if err := json.Unmarshal(call.Input, &input); err != nil {
-			return err
+		d := json.NewDecoder(bytes.NewReader(call.Input))
+		d.DisallowUnknownFields()
+		if err := d.Decode(&input); err != nil || d.Decode(new(any)) != io.EOF || bytes.Equal(bytes.TrimSpace(call.Input), []byte("null")) {
+			return fmt.Errorf("invalid input fields")
 		}
 	}
 	store, err := storage.OpenStore(args[1], 256, 64)

@@ -1,0 +1,481 @@
+{
+  "schema": "soot-forge-media-verification/v1",
+  "review_date": "2026-10-10",
+  "runtime": "soot dev (756a14dfdd8dcdf5d46fcafd17985e10bab47c0c, go1.26.5)",
+  "provider": "devin",
+  "model": "swe-2",
+  "checks": {
+    "node_tests": {
+      "passed": 16,
+      "failed": 0
+    },
+    "python_regression_tests": {
+      "passed": 38,
+      "failed": 0
+    },
+    "catalog": {
+      "entries": 25,
+      "external_content_checked": true,
+      "official_installer_checked": true
+    }
+  },
+  "live_lanes": [
+    {
+      "id": "office",
+      "label": "office-roundtrip",
+      "negative": false,
+      "state": "completed",
+      "seconds": 36.853,
+      "conversation": "23e230701997bbce92ad58205e4c0cc7",
+      "expected_files": [
+        "result.docx",
+        "result.xlsx",
+        "result.pptx",
+        "result.pdf",
+        "result-page.png"
+      ],
+      "evidence": "office-roundtrip-events.json",
+      "tools": {
+        "office_compose": {
+          "started": 4,
+          "completed": 4,
+          "failed": 0
+        },
+        "office_inspect": {
+          "started": 4,
+          "completed": 4,
+          "failed": 0
+        },
+        "office_render": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "id": "office",
+      "label": "office-negative",
+      "negative": true,
+      "state": "completed",
+      "seconds": 6.099,
+      "conversation": "270d631407afa1ffa3f678291613f14c",
+      "expected_files": [],
+      "evidence": "office-negative-events.json",
+      "tools": {
+        "office_inspect": {
+          "started": 1,
+          "completed": 0,
+          "failed": 1
+        }
+      }
+    },
+    {
+      "id": "ocr",
+      "label": "ocr-native",
+      "negative": false,
+      "state": "completed",
+      "seconds": 21.176,
+      "conversation": "8187f7eca59ef252f4d50b3fd15a0ac5",
+      "expected_files": [
+        "result-ocr.md"
+      ],
+      "evidence": "ocr-native-events.json",
+      "tools": {
+        "ocr_assess": {
+          "started": 2,
+          "completed": 2,
+          "failed": 0
+        },
+        "ocr_recognize": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "id": "ocr",
+      "label": "ocr-unavailable",
+      "negative": true,
+      "state": "blocked",
+      "seconds": 10.615,
+      "conversation": "a7c5d173dbd303ebe1b3b47a4eb36b1f",
+      "expected_files": [],
+      "evidence": "ocr-unavailable-events.json",
+      "tools": {
+        "ocr_recognize": {
+          "started": 1,
+          "completed": 0,
+          "failed": 1
+        }
+      }
+    },
+    {
+      "id": "tts",
+      "label": "tts-omnivoice",
+      "negative": false,
+      "state": "completed",
+      "seconds": 39.242,
+      "conversation": "2e02dc06b54fc7a15ba4064efab351de",
+      "expected_files": [
+        "narration.wav"
+      ],
+      "evidence": "tts-omnivoice-events.json",
+      "tools": {
+        "tts_voices": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "tts_synthesize": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "tts_inspect": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "id": "tts",
+      "label": "tts-denied-voice",
+      "negative": true,
+      "state": "completed",
+      "seconds": 7.606,
+      "conversation": "fc2eb6c1681eff2cb95df626c9b7fbd5",
+      "expected_files": [],
+      "evidence": "tts-denied-voice-events.json",
+      "tools": {
+        "tts_synthesize": {
+          "started": 1,
+          "completed": 0,
+          "failed": 1
+        }
+      }
+    },
+    {
+      "id": "video-editor",
+      "label": "video-render",
+      "negative": false,
+      "state": "completed",
+      "seconds": 35.96,
+      "conversation": "774e4df0d2f78ce78dbca3f24ca349f1",
+      "expected_files": [
+        "result.mp4",
+        "contact-sheet.png"
+      ],
+      "evidence": "video-render-events.json",
+      "tools": {
+        "video-editor_validate": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "video-editor_render": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "video-editor_probe": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "video-editor_contact_sheet": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "id": "video-editor",
+      "label": "video-narrated",
+      "negative": false,
+      "state": "completed",
+      "seconds": 24.823,
+      "conversation": "f3d848137a0667dea6f4b801ab19333a",
+      "expected_files": [
+        "narrated.mp4",
+        "narrated-contact.png"
+      ],
+      "evidence": "video-narrated-events.json",
+      "tools": {
+        "video-editor_validate": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "video-editor_render": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "video-editor_probe": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "video-editor_contact_sheet": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "id": "video-editor",
+      "label": "video-hyperframes",
+      "negative": false,
+      "state": "completed",
+      "seconds": 49.306,
+      "conversation": "d2eaa8e7048d284fe46569bb77aa7a23",
+      "expected_files": [
+        "motion.mp4",
+        "motion-contact.png"
+      ],
+      "evidence": "video-hyperframes-events.json",
+      "tools": {
+        "video-editor_hyperframes": {
+          "started": 2,
+          "completed": 2,
+          "failed": 0
+        },
+        "video-editor_probe": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        },
+        "video-editor_contact_sheet": {
+          "started": 1,
+          "completed": 1,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "id": "video-editor",
+      "label": "video-negative",
+      "negative": true,
+      "state": "completed",
+      "seconds": 11.248,
+      "conversation": "03af762f36b38531787690ce12984900",
+      "expected_files": [],
+      "evidence": "video-negative-events.json",
+      "tools": {
+        "video-editor_validate": {
+          "started": 1,
+          "completed": 0,
+          "failed": 1
+        }
+      }
+    },
+    {
+      "id": "google-doc",
+      "label": "google-expired-token",
+      "negative": true,
+      "state": "blocked",
+      "seconds": 8.149,
+      "conversation": "1861881272fdb2ff17e8f1c0e43a8661",
+      "expected_files": [],
+      "evidence": "google-expired-token-events.json",
+      "tools": {
+        "google-doc_read": {
+          "started": 1,
+          "completed": 0,
+          "failed": 1
+        }
+      }
+    }
+  ],
+  "final_motion_iteration": {
+    "state": "completed",
+    "conversation": "3f636776ee34dba75825662264284b0a",
+    "hyperframes_check_and_render_completed": true,
+    "lint_errors": 0,
+    "lint_warnings": 0,
+    "layout_samples": 9,
+    "layout_findings": 0,
+    "contrast_checked": 9,
+    "contrast_passed": 9,
+    "motion_audit_enabled": false,
+    "decoded_contact_frames": 3,
+    "duration_seconds": 2
+  },
+  "vendor_status": {
+    "soot_provider": "real",
+    "deepseek_ocr": "NOT RUN: no bound OCR model service",
+    "omnivoice": "real endpoint exercised; listening pending",
+    "google": "NOT RUN: no authorized Google credentials",
+    "hyperframes": "real local CLI check/render through Soot"
+  },
+  "audio_screening": {
+    "narration.wav": {
+      "text": " Xin chào Việt Nam! So giúp bạn làm việc với tài liệu và video."
+    },
+    "quality": "ASR is an independent screening aid; human listening pending, especially the brand name Soot.",
+    "narrated.mp4": {
+      "text": " Xin chào Việt Nam! So giúp bạn làm việc với tài liệu và video."
+    }
+  },
+  "artifacts": [
+    {
+      "path": "result.docx",
+      "bytes": 36918,
+      "sha256": "147f1e4b61ef1c29b6cdae6df093aaf2e12171e6f529172410cd685f4163bc50"
+    },
+    {
+      "path": "result.xlsx",
+      "bytes": 5736,
+      "sha256": "6ba8bbe983dbc59e3549767753a303e8c8127120d24e5b65a3ab5c87cfc7fd6d"
+    },
+    {
+      "path": "result.pptx",
+      "bytes": 33026,
+      "sha256": "ff93bfa66118a4f6b9815283e59d1a21c5c23c9fa8134fc81df492c3f4ef2b3b"
+    },
+    {
+      "path": "result.pdf",
+      "bytes": 35221,
+      "sha256": "6c6f425b12f5416dfd935d45e9f9a80036b944f186875a626b4d22f4710ef9e2"
+    },
+    {
+      "path": "result-page.png",
+      "bytes": 20216,
+      "sha256": "6e0eae2c371feee88ce43a3d057618b0b257162207e1ceab96c9ad80a306c040"
+    },
+    {
+      "path": "result-ocr.md",
+      "bytes": 159,
+      "sha256": "517a734f46fbcb178dfe63b52738666cff6cb704b9e481601e872b6e43549308"
+    },
+    {
+      "path": "narration.wav",
+      "bytes": 201644,
+      "sha256": "a90b64dd1845ffaeb21237e13c6197747efa1e53d87274280ce07f6789b64a6c"
+    },
+    {
+      "path": "result.mp4",
+      "bytes": 42733,
+      "sha256": "0441974241e8c6a97b82506ce6839bb17a8a0644d9077fac0a56252d36ec39ae"
+    },
+    {
+      "path": "contact-sheet.png",
+      "bytes": 29260,
+      "sha256": "04aef30d479f64b6910ec8f6e59c4db1d93e196d8063a8361e7e489ed70c1367"
+    },
+    {
+      "path": "narrated.mp4",
+      "bytes": 159521,
+      "sha256": "1127ca6646bf06ca987766205f3270ff82fcebba9e0180e2d5e05c92152e0a47"
+    },
+    {
+      "path": "narrated-contact.png",
+      "bytes": 46730,
+      "sha256": "3640209a2101d64ffc4dbf8cf46c370641e8fe7c6a749a083875e38f685a998a"
+    },
+    {
+      "path": "motion-reviewed.mp4",
+      "bytes": 38757,
+      "sha256": "f65d7c82ce78c62c3674e58699eef38c29c68b78a1ea8dc00ab5669427936442"
+    },
+    {
+      "path": "motion-reviewed-contact.png",
+      "bytes": 19878,
+      "sha256": "c52e9ed205590b5c0ca3ea8a1f1fed935e4e687a20be16a503425dd264441a06"
+    }
+  ],
+  "reviewed_archives": [
+    {
+      "id": "office",
+      "bytes": 37795,
+      "sha256": "071e4064c02df8d1eaaa4f18e09126eb302671da3159a0243a1a5d41e985ca2e",
+      "reproducible": true
+    },
+    {
+      "id": "ocr",
+      "bytes": 14248,
+      "sha256": "731170936bc8b42ce5a4e5515d1960e75fc164a8697276e652f91fa283bb2bfe",
+      "reproducible": true
+    },
+    {
+      "id": "tts",
+      "bytes": 11050,
+      "sha256": "650f6d65a811b9ed859661c189170e538d7b18a7e68ca90a085f4a6f2280ba26",
+      "reproducible": true
+    },
+    {
+      "id": "google-doc",
+      "bytes": 27784,
+      "sha256": "59dd84abcb379308663028473eb68f97500600755650e61b1171d731d3822448",
+      "reproducible": true
+    },
+    {
+      "id": "video-editor",
+      "bytes": 36567,
+      "sha256": "ee86e5d2de74752a8f12abe557363911b976f177a0dba0f1a8b457a31fa8c10f",
+      "reproducible": true
+    }
+  ],
+  "live_install_archives": [
+    {
+      "id": "office",
+      "sha256": "b18b2c2792b56e9cf90a5b265dd226fcc0fd728d4fb5bdaf594085af5862c894"
+    },
+    {
+      "id": "ocr",
+      "sha256": "731170936bc8b42ce5a4e5515d1960e75fc164a8697276e652f91fa283bb2bfe"
+    },
+    {
+      "id": "tts",
+      "sha256": "650f6d65a811b9ed859661c189170e538d7b18a7e68ca90a085f4a6f2280ba26"
+    },
+    {
+      "id": "google-doc",
+      "sha256": "ca4d22703931cc6b623a13a3f15bfde22237348514cee2209c1d5d0fbf63a005"
+    },
+    {
+      "id": "video-editor",
+      "sha256": "ee86e5d2de74752a8f12abe557363911b976f177a0dba0f1a8b457a31fa8c10f"
+    }
+  ],
+  "reviewed_source_sha256": {
+    "packs/office/pack.json": "b9bcf3a8ca6ca8334521e0db40117a9b310c9f07d76f3c3ee2bf87530b0289ba",
+    "packs/office/tools/run": "b72652bc2404c38ec37e94e4eb50093f27e5f64bc0ab9b8117e12e90897ff3bd",
+    "packs/office/tools/runner.py": "a9cfac5d91393c21fa7e9fcbf7eca4bac30864f0bea89f92618a7782308b1900",
+    "packs/office/tools/common.py": "44e4318d957117784984f9718b1f5487b72c8cfbc8ab462ed04b4e9737bd6230",
+    "packs/office/requirements.lock": "556e62f925e84d898e60e16259c637b80d7029ca899599e5c7d1675f820b8a4f",
+    "packs/ocr/pack.json": "395164b45462d1584380ef3b4fa9ef78de8d20cf94dd6aea0f0cbabaa67ca353",
+    "packs/ocr/tools/run": "b72652bc2404c38ec37e94e4eb50093f27e5f64bc0ab9b8117e12e90897ff3bd",
+    "packs/ocr/tools/runner.py": "515c52b93676fa4c2e8dc75a3596458d771e6f219dfd88fbc559f5dea9b4ed2b",
+    "packs/ocr/tools/common.py": "44e4318d957117784984f9718b1f5487b72c8cfbc8ab462ed04b4e9737bd6230",
+    "packs/ocr/requirements.lock": "9136efd44bac1ff1fabf7a54bb43902360c550511bb9d9612599a0af83bf67b0",
+    "packs/tts/pack.json": "52725a15b2254086581bef0c7c216b496b3c3047d2bfac67522c7b0f07755f94",
+    "packs/tts/tools/run": "b72652bc2404c38ec37e94e4eb50093f27e5f64bc0ab9b8117e12e90897ff3bd",
+    "packs/tts/tools/runner.py": "c716bb639804ff2fb117f3811e0041de20d66cbfa66c648f4ea0233fdb74571f",
+    "packs/tts/tools/common.py": "44e4318d957117784984f9718b1f5487b72c8cfbc8ab462ed04b4e9737bd6230",
+    "packs/tts/requirements.lock": "d43bab938f4868e1a3f8d7f98191df9a87e915087e193739ca415fc6b3c2facb",
+    "packs/google-doc/pack.json": "ce827e144bb972c6c43298f6f0497b2dd93a5c70180510c8f176717d15420f37",
+    "packs/google-doc/tools/run": "b72652bc2404c38ec37e94e4eb50093f27e5f64bc0ab9b8117e12e90897ff3bd",
+    "packs/google-doc/tools/runner.py": "a6d2c75c7b3565566aff824ff232797f3effc96a58569d5f8263b936cc06a0c3",
+    "packs/google-doc/tools/common.py": "44e4318d957117784984f9718b1f5487b72c8cfbc8ab462ed04b4e9737bd6230",
+    "packs/google-doc/requirements.lock": "47f119678c654675824638d06ca2bce39ff8b23bb4f1d4901cdf56930c1bf482",
+    "packs/video-editor/pack.json": "a488c4109b594cd902364ef2ebb69c897b4d301c4fd1f29e8d978560019c0804",
+    "packs/video-editor/tools/run": "b72652bc2404c38ec37e94e4eb50093f27e5f64bc0ab9b8117e12e90897ff3bd",
+    "packs/video-editor/tools/runner.py": "29cba4e0e4fb3f1a47b9bbeb045fb6cc82da4d604d890e53ac2bdca1a172f1ea",
+    "packs/video-editor/tools/common.py": "44e4318d957117784984f9718b1f5487b72c8cfbc8ab462ed04b4e9737bd6230",
+    "packs/video-editor/requirements.lock": "74017c36d93b2db33823e99d028fd9a8d657c66ad7cd255410b9414956a68696"
+  },
+  "limits": [
+    "No live DeepSeek OCR endpoint or authorized Google test document was available.",
+    "Optional LibreOffice and the shipped official Python OmniVoice model server were not live-tested.",
+    "ASR flags the Soot brand pronunciation; human listening remains pending.",
+    "Final Office header and Google receipt-directory durability adjustments were additionally verified by regression cases after archive installation."
+  ],
+  "local_evidence_directory": "/tmp/soot-forge-live-07",
+  "publication": "none"
+}

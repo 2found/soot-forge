@@ -27,11 +27,33 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node --test scripts/*.test.mjs
       - run: node scripts/validate.mjs --remote
-      # Do not execute contributor code on pull_request. Runner tests are a
-      # trusted-main check, after source review; no secrets are available.
-      - if: github.event_name != 'pull_request'
-        working-directory: packs/vibe_cf/runner
-        run: go test -race ./...
-      - if: github.event_name != 'pull_request'
-        working-directory: packs/health/runner
-        run: go test -race ./...
+  runners:
+    # Pack runners execute source code. Keep this off the contributor PR path,
+    # preserving the existing trust boundary; no provider credentials required.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - run: python -m venv /tmp/forge-test-python
+      - run: /tmp/forge-test-python/bin/pip install --require-hashes -r packs/office/requirements.lock
+      - run: corepack enable && corepack pnpm --dir packs/live-chat-sheets install --frozen-lockfile --ignore-scripts
+      - run: npm ci --prefix packs/browser-use/adapter --ignore-scripts --no-audit --no-fund
+      - run: node scripts/test-packs.mjs --python /tmp/forge-test-python/bin/python --report /tmp/pack-tests.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pack-runner-test-report
+          path: /tmp/pack-tests.json
+          if-no-files-found: ignore

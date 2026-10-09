@@ -41,3 +41,35 @@ Soot no longer bundles `contrib/9router`, `contrib/adapters`,
 Live chat Sheets pack client remain here. The former standalone Live chat gateway
 and 9router deployment worker are not Forge pack implementations; hosts supply
 those independently. Public runtime/SDK contracts remain in Soot.
+
+## Office and media packs
+
+`office`, `ocr`, `tts`, `google-workspace`, `video-editor` and `image-gen` are original standalone
+Forge implementations against the public `soot/v1` tool envelope. They contain
+no private Soot runtime imports or sibling checkout dependencies. Their copied
+support module is maintained in `scripts/support/runner_common.py`, with
+`scripts/sync-media-support.py --check` enforcing identical distributed copies.
+
+The video guidance draws on the local `lohi-tiktok-planner` and
+`lohi-tiktok-content-creator` workflows: source fidelity, continuity, measured
+speech, production handoff and actual decoded-frame review. It was rewritten
+for general use. Personal voice references, Lohi assets, deployment settings
+and private integration code were not exported.
+
+Upstream HyperFrames, OmniVoice and DeepSeek OCR remain external dependencies,
+not vendored skill or model source. Pins, source links and verification scope
+are recorded in [docs/media-packs.md](docs/media-packs.md). Host examples and
+test evidence are outside pack roots; release archives contain no credentials,
+virtualenvs, node_modules, model weights or generated media.
+
+The unreleased `google-doc` identity was subsequently renamed to
+`google-workspace`, with original Sheets/Drive tools using the same standalone
+REST/auth/receipt foundation. Historical verification records retain original
+IDs and hashes; the new catalog, manifests and consumer examples use Workspace.
+
+`image-gen` uses externally prepared stable-diffusion.cpp and the explicitly
+selected Abiray conversion of Qwen Image 2.1 Turbo (`Q4_K_M`). The original
+checkpoint, quantized diffusion, Qwen encoder and VAE provenance are pinned in
+`packs/image-gen/model.json`. No upstream model or native inference source is
+vendored. Qwen's Research License applies to these model weights; Forge's code
+license does not replace it. See [verification](docs/office-ocr-image-gen.md).

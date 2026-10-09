@@ -19,7 +19,14 @@
               "data"
             ],
             "stdin": "context",
-            "resource": "casework_records"
+            "resource": "casework_records",
+            "timeout": "15s"
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
           }
         },
         {
@@ -32,7 +39,36 @@
             ],
             "stdin": "context",
             "resource": "casework_records",
-            "mode": "write"
+            "mode": "write",
+            "timeout": "15s"
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "resolved"
+                ]
+              }
+            },
+            "required": [
+              "title",
+              "summary",
+              "status"
+            ],
+            "additionalProperties": false
           }
         },
         {
@@ -45,7 +81,27 @@
             ],
             "stdin": "context",
             "resource": "casework_records",
-            "mode": "write"
+            "mode": "write",
+            "timeout": "15s"
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "to": {
+                "type": "string",
+                "const": "human"
+              }
+            },
+            "required": [
+              "summary",
+              "to"
+            ],
+            "additionalProperties": false
           }
         }
       ]

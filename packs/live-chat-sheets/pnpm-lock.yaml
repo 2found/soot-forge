@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       google-auth-library:
-        specifier: ^10.0.0
+        specifier: 10.9.1
         version: 10.9.1
 
 packages:

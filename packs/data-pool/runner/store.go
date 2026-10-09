@@ -260,7 +260,7 @@ func (s *service) finish(r receipt, status string) (receipt, error) {
 		}
 		if status == "succeeded" {
 			switch r.Action {
-			case "upsert":
+			case "upsert", "append":
 				b := docsBucket(tx, r.Pool)
 				if b == nil {
 					return errors.New("pool state unavailable")
@@ -347,7 +347,7 @@ func (s *service) replay(id, fingerprint string) (receipt, bool, error) {
 		if s.authorizeReceipt(r, "manage") != nil {
 			return r, true, errors.New("access denied")
 		}
-	} else if err := s.authorizeReceipt(r, map[string]string{"upsert": "write", "remove": "write", "grant": "manage", "revoke": "manage"}[r.Action]); err != nil {
+	} else if err := s.authorizeReceipt(r, map[string]string{"upsert": "write", "append": "write", "remove": "write", "grant": "manage", "revoke": "manage"}[r.Action]); err != nil {
 		return r, true, err
 	}
 	r.Replay = true

@@ -1,0 +1,2 @@
+# Python >=3.12. Lightweight client dependencies only.
+pillow==12.3.0

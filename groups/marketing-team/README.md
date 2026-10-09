@@ -1,6 +1,6 @@
 # Marketing team
 
-Give a Soot a brief and choose the teammates for that session. This template proposes a coordinator, Radar, content creator, editor, Blog publisher and X publisher. Remove publishers for a draft-only session; add another explicitly configured publisher for another channel. Editor plans against the actual selected roster.
+Give the Soot a brief. It automatically coordinates authorized collaborators and returns one result in the same conversation. This operator template configures the entry Soot with Radar, content creator, editor, Blog publisher and X publisher. Use --draft-only during setup to omit publishers; additional channels require explicit host configuration. Editor plans against the host-admitted roster. Chat users never select or edit a session team.
 
 Group release archives contain `group.json` plus exact checksummed dependency archives. Installing downloads the whole group but never starts it, runs scripts, grants credentials or activates schedules.
 

@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+base=$(CDPATH= cd -- "${0%/*}" && pwd)
+case "${PYTHON_EXECUTABLE:-}" in
+  /*) ;;
+  *) printf '%s\n' '{"error":"Host must bind an absolute PYTHON_EXECUTABLE outside packs_dir."}' >&2; exit 1 ;;
+esac
+if [ ! -x "$PYTHON_EXECUTABLE" ]; then
+  printf '%s\n' '{"error":"Host must prepare the bound Python environment outside packs_dir."}' >&2
+  exit 1
+fi
+exec "$PYTHON_EXECUTABLE" -I "$base/runner.py" "$@"

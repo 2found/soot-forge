@@ -11,7 +11,7 @@ import (
 func TestPassiveCaseToolsScopeAndHumanFence(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "cases")
 	invoke := func(scope, command, input string) error {
-		call := contract.ToolCall{APIVersion: contract.APIVersion, Hook: contract.ToolCallHook, Soot: "helper", Event: contract.Event{Subject: scope}, Input: json.RawMessage(input)}
+		call := contract.ToolCall{APIVersion: contract.APIVersion, Hook: contract.ToolCallHook, Soot: "helper", Operation: "casework_" + command, Event: contract.Event{Subject: scope}, Input: json.RawMessage(input)}
 		b, _ := json.Marshal(call)
 		return run(bytes.NewReader(b), &bytes.Buffer{}, []string{command, dir})
 	}

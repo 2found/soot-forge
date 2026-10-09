@@ -50,6 +50,15 @@ func remoteExecute(ctx context.Context, b binding, call toolCall, out io.Writer)
 		return errors.New("data-pool service unavailable; inspect the original request_id before retrying a mutation")
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusBadRequest {
+		data, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		var failure struct {
+			Error struct{ Code, Message string }
+		}
+		if json.Unmarshal(data, &failure) == nil && failure.Error.Code == "invalid_input" && validText(failure.Error.Message, 512) {
+			return errors.New("invalid input; no mutation submitted: " + failure.Error.Message)
+		}
+	}
 	if res.StatusCode != http.StatusOK {
 		return errors.New("data-pool service denied or failed the request; inspect the original request_id before retrying a mutation")
 	}

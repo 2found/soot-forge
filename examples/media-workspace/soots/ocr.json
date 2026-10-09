@@ -1,0 +1,10 @@
+{
+  "id": "ocr",
+  "name": "OCR",
+  "soul": "SOUL.md",
+  "mission": "mission.md",
+  "use": [
+    "ocr/assess",
+    "ocr/recognize"
+  ]
+}

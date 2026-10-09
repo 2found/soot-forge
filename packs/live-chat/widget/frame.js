@@ -1,0 +1,487 @@
+import { createWidgetComposer } from "./widget-composer.js";
+import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
+
+(() => {
+  const params = new URLSearchParams(location.search);
+  const app = params.get('app');
+  const parentOrigin = params.get('parent');
+  const $ = id => document.getElementById(id);
+
+  let nonce = '';
+  let cursor = 0;
+  let timer = null;
+  let closed = false;
+  let pending = null;
+  let sending = false;
+  let resetting = false;
+  let errorKind = '';
+  let follow = true;
+  let configuredPosition = 'right';
+  let language = 'vi';
+  let scopes=[],scopeValue='',scopeName='',scopeRequired=false;
+  let removeThemeListener = () => {};
+  const sharedFiles = new Map();
+
+  const dict = {
+    vi: {
+      connecting: 'Đang kết nối…',
+      connected: 'Sẵn sàng hỗ trợ',
+      queued: 'Đã nhận · Đang chờ',
+      working: 'Soot đang hỗ trợ…',
+      waiting_input: 'Soot đang chờ bạn',
+      waiting_human: 'Đang chờ nhân viên',
+      blocked: 'Cần nhân viên hỗ trợ',
+      completed: 'Sẵn sàng hỗ trợ',
+      failed: 'Chưa thể trả lời',
+      stopped: 'Đã dừng',
+      reconnecting: 'Đang kết nối lại…',
+      sending: 'Đang gửi…',
+      pending_send: 'Tin nhắn đang chờ gửi',
+      cannot_connect: 'Chưa thể kết nối',
+      new_conversation: 'Cuộc trò chuyện mới',
+      reset_title: 'Bắt đầu cuộc trò chuyện mới?',
+      reset_desc: 'Cuộc trò chuyện hiện tại sẽ đóng. Nội dung chưa gửi sẽ được xóa.',
+      keep_chat: 'Tiếp tục chat',
+      confirm_reset: 'Bắt đầu mới',
+      new_messages: 'Tin mới',
+      retry: 'Thử lại',
+      resend: 'Gửi lại',
+      reconnect: 'Kết nối lại',
+      validation_error: 'Tin nhắn quá dài hoặc có ký tự không hợp lệ. Hãy rút ngắn rồi gửi lại.',
+      send_validation_error: 'Tin chưa hợp lệ. Hãy sửa nội dung rồi gửi lại.',
+      rate_error: 'Bạn đang gửi quá nhanh. Chờ một chút rồi thử lại.',
+      send_error: 'Chưa xác nhận tin đã gửi. Nội dung vẫn được giữ lại.',
+      expired_error: 'Phiên chat đã hết hạn. Bắt đầu cuộc trò chuyện mới để tiếp tục.',
+      connect_error: 'Hỗ trợ đang mất kết nối. Bạn có thể thử lại sau.',
+      reset_error: 'Chưa xác nhận đã đóng phiên. Thử lại để tránh tạo hai phiên.',
+      placeholder: 'Nhắn tin…',
+      send_label: 'Gửi tin nhắn',
+      sending_label: 'Đang gửi tin nhắn',
+      you: 'Bạn',
+      staff: 'Nhân viên',
+      powered_by: 'Được hỗ trợ bởi Soot',
+      open_label: 'Mở ',
+      options_label: 'Tùy chọn cuộc trò chuyện',
+      close_label: 'Thu gọn chat',
+      transcript: 'Lịch sử trò chuyện', message: 'Tin nhắn', suggestions: 'Gợi ý bắt đầu',
+      composer_hint: 'Enter để gửi · Shift + Enter để xuống dòng · Esc hai lần xóa text',
+    },
+    en: {
+      connecting: 'Connecting…',
+      connected: 'Ready to help',
+      queued: 'Received · Queued',
+      working: 'Soot is responding…',
+      waiting_input: 'Soot is waiting for you',
+      waiting_human: 'Waiting for staff',
+      blocked: 'Staff assistance needed',
+      completed: 'Ready to help',
+      failed: 'Unable to reply',
+      stopped: 'Stopped',
+      reconnecting: 'Reconnecting…',
+      sending: 'Sending…',
+      pending_send: 'Message queued to send',
+      cannot_connect: 'Unable to connect',
+      new_conversation: 'New conversation',
+      reset_title: 'Start a new conversation?',
+      reset_desc: 'Current conversation will close. Unsent messages will be cleared.',
+      keep_chat: 'Continue chat',
+      confirm_reset: 'Start new',
+      new_messages: 'New messages',
+      retry: 'Retry',
+      resend: 'Resend',
+      reconnect: 'Reconnect',
+      validation_error: 'Message is too long or contains invalid characters. Please shorten and resend.',
+      send_validation_error: 'Message invalid. Please adjust and resend.',
+      rate_error: 'You are sending too quickly. Please wait a moment.',
+      send_error: 'Message receipt unconfirmed. Draft preserved.',
+      expired_error: 'Chat session expired. Start a new conversation to continue.',
+      connect_error: 'Live chat is currently unavailable. Please try again later.',
+      reset_error: 'Failed to confirm session closure. Retry to avoid duplicate sessions.',
+      placeholder: 'Type a message…',
+      send_label: 'Send message',
+      sending_label: 'Sending message',
+      you: 'You',
+      staff: 'Staff',
+      powered_by: 'Powered by Soot',
+      open_label: 'Open ',
+      options_label: 'Conversation options',
+      close_label: 'Close chat',
+      transcript: 'Conversation history', message: 'Message', suggestions: 'Suggested messages',
+      composer_hint: 'Enter to send · Shift + Enter for a new line · Double Esc to clear',
+    },
+  };
+
+  const t = key => (dict[language] && dict[language][key]) || dict.vi[key] || key;
+
+  const post = (type, extra = {}) => {
+    if (parentOrigin) {
+      parent.postMessage({ soot_chat: 1, type, nonce, ...extra }, parentOrigin);
+    }
+  };
+
+  const composer = createWidgetComposer($('composer'), submit, text => {
+    if (errorKind === 'validation' && valid(text)) error();
+    controls();
+    if (follow) bottom();
+    post('draft', {text});
+  });
+
+  function expanded(value) {
+    $('chat').hidden = !value;
+    $('launcher').hidden = value;
+    $('launcher').setAttribute('aria-expanded', String(value));
+    if (!value) {
+      $('options').open = false;
+      $('reset-confirm').hidden = true;
+    }
+    post(value ? 'open' : 'close');
+    (value ? $('chat') : $('launcher')).focus({ preventScroll: true });
+    if (value && follow) bottom();
+  }
+
+  function error(value = '', kind = '', retry = '') {
+    errorKind = kind;
+    $('error').textContent = value;
+    $('error-bar').hidden = !value;
+    $('retry').hidden = !retry;
+    $('retry').textContent = retry || t('retry');
+    composer.update({invalid:kind === 'validation',error:!!value});
+  }
+
+  function controls() {
+    const locked = !!pending || resetting;
+    composer.update({disabled:resetting,readOnly:!!pending,sending,canSend:!locked&&!scopeRequired,scopes,scopeValue,scopeName,scopeDisabled:locked||sending,scopeLabel:'Soot',scopePlaceholder:language==='vi'?'Chọn Soot':'Choose Soot',onScope:value=>{if(locked||sending)return;resetting=true;controls();post('scope',{value});},
+      sendLabel:sending?t('sending_label'):t('send_label'),message:t('message'),placeholder:t('placeholder'),
+      name:$('name').textContent,hint:t('composer_hint'),files:[...sharedFiles.values()].slice(-256),
+      skillLabel:language==='vi'?'Kỹ năng':'Skills',fileLabel:language==='vi'?'Tệp đã chia sẻ':'Shared files',
+      emptyLabel:language==='vi'?'Chưa có mục phù hợp trong phiên này.':'No matching items in this conversation.',
+      mobile:document.documentElement.dataset.layout==='mobile'});
+    $('retry').disabled = sending || resetting;
+    $('reset').disabled = resetting;
+    $('confirm-reset').disabled = resetting;
+    $('keep').disabled = resetting;
+    for (const b of $('quick').children) {
+      b.disabled = locked || !!$('text').value.trim();
+    }
+  }
+
+  function bottom() {
+    $('transcript').scrollTop = $('transcript').scrollHeight;
+    follow = true;
+    $('jump').hidden = true;
+  }
+
+  function render(message) {
+    const role = message.role === 'user' ? (message.actor_role === 'member' ? 'member' : 'customer') : message.role;
+    if (
+      !['customer', 'assistant', 'member'].includes(role) ||
+      document.querySelector('[data-message="' + CSS.escape(String(message.id)) + '"]')
+    ) {
+      return false;
+    }
+    for (const match of String(message.text || '').matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g)) {
+      try { const url=new URL(match[2]); if(!url.username&&!url.password&&/\.[a-z0-9]{1,8}$/i.test(url.pathname)) sharedFiles.set(url.href,{value:url.href,label:match[1]}); } catch {}
+      if(sharedFiles.size>256)sharedFiles.delete(sharedFiles.keys().next().value);
+    }
+    const article = document.createElement('article');
+    article.className = 'message ui-agent-message ' + role;
+    article.dataset.agentRole = role === 'customer' ? 'user' : 'assistant';
+    article.dataset.message = String(message.id);
+    const body = document.createElement('p');
+    body.textContent = message.text;
+    const meta = document.createElement('small');
+    meta.className = 'ui-agent-message-label';
+    meta.id = 'message-label-' + String(message.id);
+    article.setAttribute('aria-labelledby', meta.id);
+    meta.textContent =
+      role === 'customer' ? t('you') : role === 'member' ? t('staff') : $('name').textContent;
+    const date = new Date(message.created);
+    if (Number.isFinite(date.getTime())) {
+      const time = document.createElement('time');
+      time.dateTime = date.toISOString();
+      time.textContent = date.toLocaleTimeString(language === 'vi' ? 'vi' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      meta.append(' · ', time);
+    }
+    article.append(meta, body);
+    $('transcript').append(article);
+    return true;
+  }
+
+  function valid(value) {
+    return new TextEncoder().encode(value).length <= 4000 && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
+  }
+
+  function submit() {
+    if (sending || resetting) return;
+    const value = $('text').value.trim();
+    if (!value && !pending) return;
+
+    if (!pending) {
+      if (!valid(value)) {
+        error(t('validation_error'), 'validation');
+        return;
+      }
+      pending = { id: crypto.randomUUID(), text: value };
+    }
+
+    sending = true;
+    controls();
+    error();
+    $('activity').textContent = t('sending');
+    post('send', { id: pending.id, text: pending.text });
+  }
+
+  function reset() {
+    if (resetting) return;
+    resetting = true;
+    controls();
+    $('activity').textContent = t('connecting');
+    post('reset');
+  }
+
+  function applyLanguage(lang) {
+    if (lang === 'en' || lang === 'vi') {
+      language = lang;
+      document.documentElement.lang = lang;
+    }
+    $('transcript').setAttribute('aria-label', t('transcript'));
+    $('quick').setAttribute('aria-label', t('suggestions'));
+    $('close').setAttribute('aria-label', t('close_label'));
+    $('options').querySelector('summary').setAttribute('aria-label', t('options_label'));
+    $('reset').textContent = t('new_conversation');
+    $('reset-title').textContent = t('reset_title');
+    const resetP = $('reset-confirm').querySelector('p');
+    if (resetP) resetP.textContent = t('reset_desc');
+    $('keep').textContent = t('keep_chat');
+    $('confirm-reset').textContent = t('confirm_reset');
+    const footer = $('chat').querySelector('footer');
+    if (footer) footer.textContent = t('powered_by');
+    const jump = $('jump');
+    if (jump) {
+      const svg = jump.querySelector('svg');
+      jump.replaceChildren(svg || '', t('new_messages'));
+    }
+  }
+
+  function applyConfig(cfg) {
+    if (!cfg) return;
+    $('name').textContent = cfg.name || 'Soot';
+    $('launcher').setAttribute('aria-label', t('open_label') + (cfg.name || 'Soot'));
+    $('greeting').textContent = cfg.greeting || '';
+    removeThemeListener();
+    const appearance = matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      document.documentElement.dataset.appearance =
+        cfg.theme === 'auto' || cfg.theme === 'system'
+          ? appearance.matches
+            ? 'dark'
+            : 'light'
+          : cfg.theme || 'light';
+    };
+    applyTheme();
+    if (cfg.theme === 'auto' || cfg.theme === 'system') {
+      appearance.addEventListener('change', applyTheme);
+      removeThemeListener = () => appearance.removeEventListener('change', applyTheme);
+    }
+    if (cfg.logo) {
+      const image = document.createElement('img');
+      image.src = cfg.logo;
+      image.alt = '';
+      $('logo').replaceChildren(image);
+    } else {
+      $('logo').textContent = (cfg.name || 'Soot').slice(0, 1);
+    }
+    $('quick').replaceChildren();
+    if (Array.isArray(cfg.quick_replies)) {
+      for (const title of cfg.quick_replies) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = title;
+        b.onclick = () => {
+          if (pending || resetting || $('text').value.trim()) return;
+          composer.setValue(title);
+          controls();
+          post('draft', { text: title });
+          $('text').focus();
+          $('text').setSelectionRange(title.length, title.length);
+        };
+        $('quick').append(b);
+      }
+    }
+    configuredPosition = cfg.position || 'right';
+    post('position', { position: configuredPosition });
+    controls();
+  }
+
+  function requestSync() {
+    if (closed || resetting) return;
+    clearTimeout(timer);
+    post('sync', { after: cursor });
+  }
+
+  // DOM Event Handlers
+  $('launcher').onclick = () => expanded(true);
+  $('close').onclick = () => expanded(false);
+  $('transcript').onscroll = () => {
+    const log = $('transcript');
+    follow = isAgentTranscriptAtEnd(log);
+    if (follow) $('jump').hidden = true;
+  };
+  $('jump').onclick = () => { bottom(); $('transcript').focus({ preventScroll: true }); };
+  const transcriptResize = new ResizeObserver(() => { if (follow) bottom(); });
+  transcriptResize.observe($('transcript'));
+  transcriptResize.observe($('composer'));
+  $('retry').onclick = () => {
+    if (errorKind === 'reset') reset();
+    else if (errorKind === 'connection' || errorKind === 'expired') post('retry-connect');
+    else if (pending) submit();
+    else requestSync();
+  };
+  $('reset').onclick = () => {
+    $('options').open = false;
+    $('reset-confirm').hidden = false;
+    $('keep').focus();
+  };
+  $('keep').onclick = () => {
+    $('reset-confirm').hidden = true;
+    $('options').querySelector('summary').focus();
+  };
+  $('confirm-reset').onclick = () => reset();
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!$('reset-confirm').hidden) {
+      if (!resetting) $('keep').click();
+    } else if ($('options').open) {
+      $('options').open = false;
+      $('options').querySelector('summary').focus();
+    } else {
+      expanded(false);
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!$('options').contains(e.target)) $('options').open = false;
+  });
+
+  // RPC Message Listener from Parent
+  addEventListener('message', event => {
+    if (event.source !== parent || (parentOrigin && event.origin !== parentOrigin) || event.data?.soot_chat !== 1) {
+      return;
+    }
+    const msg = event.data;
+
+    if (msg.type === 'init' && typeof msg.nonce === 'string') {
+      nonce = msg.nonce;
+      if (msg.language) applyLanguage(msg.language);
+      if (msg.config) applyConfig(msg.config);
+      if(Array.isArray(msg.scopes))scopes=msg.scopes;
+      scopeValue=msg.scopeValue||'';scopeName=msg.scopeName||'';scopeRequired=!!msg.scopeRequired;
+      if (typeof msg.draft === 'string' && !$('text').value) {
+        composer.setValue(msg.draft);
+      }
+      $('activity').textContent = t('connected');
+      controls();
+      requestSync();
+    } else if (msg.type === 'sync' && msg.nonce === nonce) {
+      sending = false;
+      let added = false;
+      if (Array.isArray(msg.messages)) {
+        for (const m of msg.messages) {
+          added = render(m) || added;
+        }
+      }
+      if (typeof msg.next_after === 'number') {
+        cursor = Math.max(cursor, msg.next_after);
+      }
+      if (added) {
+        $('welcome').hidden = true;
+        if (follow) bottom();
+        else $('jump').hidden = false;
+      }
+      if (msg.pendingMessage) {
+        pending = msg.pendingMessage;
+        $('activity').textContent = t('pending_send');
+      } else {
+        if (pending && !msg.error) {
+          // Successfully completed previous pending send
+          pending = null;
+          composer.setValue('');
+          bottom();
+        }
+        $('activity').textContent = sending ? t('sending') : t(msg.activity || 'connected');
+      }
+
+      if (msg.error) {
+        if (msg.error.kind === 'reset') {
+          resetting = false;
+          error(t('reset_error'), 'reset', t('retry'));
+        } else if (msg.error.kind === 'rate') {
+          error(t('rate_error'), 'rate', t('retry'));
+        } else if (msg.error.kind === 'expired') {
+          error(t('expired_error'), 'expired');
+        } else if (msg.error.kind === 'validation') {
+          pending = null;
+          error(t('send_validation_error'), 'validation');
+        } else {
+          error(t('send_error'), 'send', t('resend'));
+        }
+      } else if (msg.pendingMessage) {
+        error(t('send_error'), 'send', t('resend'));
+      } else if (errorKind === 'send' || errorKind === 'rate') {
+        error();
+      }
+
+      controls();
+      if (!closed && !resetting) {
+        clearTimeout(timer);
+        timer = setTimeout(requestSync, 3000);
+      }
+    } else if (msg.type === 'reset-done' && msg.nonce === nonce) {
+      resetting = false;
+      sending = false;
+      pending = null;
+      cursor = 0;
+      sharedFiles.clear();
+      composer.setValue('');
+      $('transcript').querySelectorAll('.message').forEach(x => x.remove());
+      $('welcome').hidden = false;
+      $('reset-confirm').hidden = true;
+      $('activity').textContent = t('connected');
+      bottom();
+      error();
+      controls();
+      requestSync();
+    } else if (msg.type === 'unavailable' && typeof msg.nonce === 'string' && (!nonce || msg.nonce === nonce)) {
+      nonce = msg.nonce;
+      $('activity').textContent = t('cannot_connect');
+      error(t('connect_error'), 'connection', t('reconnect'));
+      controls();
+    } else if (msg.nonce === nonce) {
+      if (msg.type === 'open') expanded(true);
+      if (msg.type === 'close') expanded(false);
+      if (msg.type === 'reset') reset();
+      if (msg.type === 'layout') {
+        document.documentElement.dataset.layout = msg.mobile ? 'mobile' : 'desktop';
+        controls();
+        if (follow) bottom();
+      }
+    }
+  });
+
+  addEventListener('pagehide', () => {
+    composer.destroy();
+    closed = true;
+    transcriptResize.disconnect();
+    removeThemeListener();
+    clearTimeout(timer);
+  });
+
+  // Handshake to parent on load
+  if (parentOrigin) {
+    parent.postMessage({ soot_chat: 1, type: 'ready' }, parentOrigin);
+  }
+})();

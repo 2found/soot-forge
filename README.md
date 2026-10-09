@@ -44,6 +44,26 @@ For example, **2build** keeps its pack in `2found/2build`; Forge links to a
 reviewed commit. Consumers can install directly from that GitHub folder link.
 See [Contributing](CONTRIBUTING.md) for exact entries, validation and release policy.
 
+## Files, speech and video
+
+| Pack | Work it supports | Optional host service |
+| --- | --- | --- |
+| [Office](packs/office/README.md) | Read/create/edit Word, Excel, PowerPoint; extract, merge, fill and render PDF | LibreOffice for conversion/layout rendering |
+| [OCR](packs/ocr/README.md) | Native PDF text first; page/image recognition when needed | DeepSeek OCR / OCR 2 image-capable endpoint |
+| [Image generation](packs/image-gen/README.md) | Local Qwen Image 2.1 Turbo Q4_K_M PNGs with file receipts | Host-owned stable-diffusion.cpp; Metal/CPU and pinned weights |
+| [Text to speech](packs/tts/README.md) | Exact narration, authorized OmniVoice voices, measured PCM WAV | Resident OmniVoice model service |
+| [Google Workspace](packs/google-workspace/README.md) | Docs, Sheets, Drive: read/edit, files, folders and exports | Scoped Google credentials |
+| [Video editor](packs/video-editor/README.md) | Planning, cuts, still motion, audio mixing, timed captions and final-frame QA | FFmpeg; optional pinned HyperFrames/Chromium |
+
+Client dependencies are small and separately prepared. Model weights, Python
+environments, browser binaries and caches stay outside the distributed pack
+tree. Installing a pack starts none of these services. Read the individual
+README and select only the needed capabilities. A complete host example lives
+in [examples/media-workspace](examples/media-workspace/README.md).
+
+See [library choices and verification](docs/media-packs.md) for measured sizes,
+actual Soot/provider evidence, limitations and reproducible test commands.
+
 ## Catalog and releases
 
 `catalog.json` is the single authored list. External entries pin a full commit,
@@ -74,13 +94,21 @@ node --test scripts/*.test.mjs
 node scripts/validate.mjs                         # catalog + bundled content
 node scripts/validate.mjs --soot /path/to/soot --remote  # all pinned content + official installer
 node scripts/build.mjs 0.1.0                     # dist/, no publication
-(cd packs/health/runner && go test -race ./...)
-(cd packs/vibe_cf/runner && go test -race ./...)
+node scripts/test-packs.mjs                      # trusted source: all Go race + pack Node tests
+# Full Python lane: prepare Office's hashed requirements outside packs_dir,
+# install FFmpeg/FFprobe and a local Arial/DejaVu font, then:
+node scripts/test-packs.mjs --python /absolute/office-runtime/bin/python --report /tmp/pack-tests.json
 ```
 
 The repository builds independently. It needs Node 22+, Python 3 and Git;
 Go 1.25+ builds the optional runners. It does not require a sibling checkout.
 No contributor scripts run in catalog checks or packaging.
+
+Runner tests execute pack code and belong to the trusted-source CI lane.
+The Python option is explicit; omitted Python and opt-in service tests are not
+passes. Real provider/service journeys remain separate from hermetic tests.
+See [the catalog-wide review](docs/pack-review.md) for coverage, measured
+performance changes and remaining integration prerequisites.
 
 Soot is a 2found product. **Tiny agents. Better together.**
 

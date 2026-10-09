@@ -62,6 +62,7 @@ Phạm vi truy cập (authorization scope) được xác định trực tiếp b
 
 ```
 <ARTIFACT_STORE>/
+  .forge-artifacts.lock                     # Persistent process-lock inode; never unlink
   objects/<sha256[:2]>/<sha256>            # Dữ liệu content-addressed, quyền 0600
   meta/<id>.json                           # Metadata JSON, quyền 0600
 
@@ -71,6 +72,17 @@ Phạm vi truy cập (authorization scope) được xác định trực tiếp b
 ```
 
 ### Định danh và ghi dữ liệu
+
+`create`, `export`, `remove` và `writing/export` phối hợp qua cùng khoá filesystem
+trên Linux/macOS. Chờ tối đa một giây; kho bận thì từ chối trước khi thay đổi
+artifact. Hệ điều hành tự nhả khoá khi process dừng/chết; không xoá lockfile.
+Nâng cả hai pack writer cùng lúc khi chúng dùng chung store; writer cũ hoặc
+chương trình bên ngoài không tham gia protocol này. Chỉ dùng filesystem có
+semantics `flock`/atomic rename phù hợp; không mặc định coi network mount là an toàn.
+
+Metadata tối đa 64 KiB, object tối đa 16 MiB. Object đã tồn tại được đối chiếu
+hash/độ dài trước khi tạo reference mới. Dọn export chỉ chạm thư mục `exp_<32hex>`;
+metadata hỏng giữ lại object để đối chiếu thay vì xoá theo phỏng đoán.
 
 - `<id>`: `art_` + 32 ký tự hex chữ thường từ CSPRNG (`crypto/rand`).
 - Luồng ghi file an toàn: Ghi ra file tạm `.tmp-*` cùng thư mục → `fsync` → `chmod 0600` → `os.Rename` nguyên tử.

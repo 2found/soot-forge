@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -44,8 +43,8 @@ func validateServerConfig(c serverConfig) error {
 	if err != nil || (c.TLSCert == "") != (c.TLSKey == "") || (c.TLSCert == "" && (ip == nil || !ip.IsLoopback())) {
 		return errors.New("listen must be an explicit loopback address or use TLS certificate and key")
 	}
-	if len(c.Clients) == 0 || len(c.Clients) > 256 {
-		return errors.New("bind between 1 and 256 service clients")
+	if len(c.Clients) == 0 || len(c.Clients) > 4096 {
+		return errors.New("bind between 1 and 4096 service clients")
 	}
 	seen := map[string]bool{}
 	for _, client := range c.Clients {
@@ -67,8 +66,9 @@ func validateServerConfig(c serverConfig) error {
 
 type gateway struct {
 	base    *service
-	clients []serviceClient
-	lock    chan struct{}
+	clients map[string]serviceClient
+	policy  policyGate
+	keys    keyedGate
 	slots   chan struct{}
 }
 
@@ -82,7 +82,11 @@ func newGateway(c serverConfig) (*gateway, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &gateway{base: s, clients: c.Clients, lock: make(chan struct{}, 1), slots: make(chan struct{}, 32)}, nil
+	clients := make(map[string]serviceClient, len(c.Clients))
+	for _, client := range c.Clients {
+		clients[client.TokenSHA256] = client
+	}
+	return &gateway{base: s, clients: clients, slots: make(chan struct{}, 256)}, nil
 }
 
 func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -102,13 +106,8 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	digest := hash(strings.TrimPrefix(auth, "Bearer "))
-	var principal *serviceClient
-	for i := range g.clients {
-		if subtle.ConstantTimeCompare([]byte(digest), []byte(g.clients[i].TokenSHA256)) == 1 {
-			principal = &g.clients[i]
-		}
-	}
-	if principal == nil {
+	principal, authorized := g.clients[digest]
+	if !authorized {
 		http.Error(w, "access denied", 401)
 		return
 	}
@@ -133,17 +132,12 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	timer := time.NewTimer(3 * time.Second)
-	defer timer.Stop()
-	select {
-	case g.lock <- struct{}{}:
-	case <-ctx.Done():
-		return
-	case <-timer.C:
+	release, err := g.admit(ctx, op, call)
+	if err != nil {
 		http.Error(w, "service busy; inspect original request before retrying", 503)
 		return
 	}
-	defer func() { <-g.lock }()
+	defer release()
 	if ctx.Err() != nil {
 		return
 	}
@@ -152,6 +146,13 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.human = call.Interaction && (op == "view" || op == "action")
 	result, err := s.dispatch(ctx, op, call.Input)
 	if err != nil {
+		var invalid inputError
+		if errors.As(err, &invalid) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": "invalid_input", "message": invalid.Error()}})
+			return
+		}
 		http.Error(w, "request denied or failed; inspect original request before retrying", 400)
 		return
 	}
@@ -183,9 +184,9 @@ func serveCommand(args []string) error {
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
 		return errors.New("service config must be a private regular file (mode 0600)")
 	}
-	data, err := io.ReadAll(io.LimitReader(f, 128<<10+1))
+	data, err := io.ReadAll(io.LimitReader(f, 2<<20+1))
 	var c serverConfig
-	if err != nil || len(data) > 128<<10 || decodeStrict(data, &c) != nil {
+	if err != nil || len(data) > 2<<20 || decodeStrict(data, &c) != nil {
 		return errors.New("invalid service config")
 	}
 	g, err := newGateway(c)
@@ -193,9 +194,9 @@ func serveCommand(args []string) error {
 		return err
 	}
 	defer func() {
-		g.lock <- struct{}{}
+		release, _ := g.policy.acquire(context.Background(), true)
+		defer release()
 		g.base.close()
-		<-g.lock
 	}()
 	listener, err := net.Listen("tcp", c.Listen)
 	if err != nil {

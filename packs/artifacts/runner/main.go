@@ -146,9 +146,9 @@ type removeResult struct {
 
 func decodeCall(in io.Reader) (contract.ToolCall, error) {
 	var call contract.ToolCall
-	d := json.NewDecoder(io.LimitReader(in, maxEnvelope))
-	if err := d.Decode(&call); err != nil {
-		return call, fmt.Errorf("invalid tool context: %w", err)
+	raw, err := io.ReadAll(io.LimitReader(in, maxEnvelope+1))
+	if err != nil || len(raw) > maxEnvelope || json.Unmarshal(raw, &call) != nil {
+		return call, errors.New("invalid or oversized tool envelope")
 	}
 	if call.APIVersion != contract.APIVersion || call.Hook != contract.ToolCallHook || call.Soot == "" {
 		return call, errors.New("invalid tool context")
@@ -159,13 +159,16 @@ func decodeCall(in io.Reader) (contract.ToolCall, error) {
 // decodeStrict mirrors the manifest's additionalProperties:false input schema;
 // a scope/owner/root key smuggled into model input is rejected, never ignored.
 func decodeStrict(raw json.RawMessage, dst any) error {
-	if len(raw) == 0 {
+	if len(bytes.TrimSpace(raw)) == 0 || bytes.TrimSpace(raw)[0] != '{' {
 		return errors.New("missing input object")
 	}
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
 	if err := d.Decode(dst); err != nil {
 		return fmt.Errorf("invalid input: %w", err)
+	}
+	if d.Decode(new(any)) != io.EOF {
+		return errors.New("expected one input object")
 	}
 	return nil
 }
@@ -189,7 +192,7 @@ func loadMeta(root, ref string) (artifactMeta, error) {
 	if !validRef(ref) {
 		return meta, fmt.Errorf("invalid artifact ref %q", ref)
 	}
-	data, err := os.ReadFile(metaPath(root, ref))
+	data, err := readFileBounded(metaPath(root, ref), maxMetaBytes)
 	if err != nil {
 		return meta, fmt.Errorf("artifact %s unavailable: %w", ref, err)
 	}
@@ -199,7 +202,7 @@ func loadMeta(root, ref string) (artifactMeta, error) {
 	if err := json.Unmarshal(data, &meta); err != nil {
 		return meta, fmt.Errorf("artifact %s metadata failed to parse", ref)
 	}
-	if meta.ID != ref || !shaPattern.MatchString(meta.SHA256) || meta.Bytes < 0 || meta.MIMEType == "" {
+	if meta.ID != ref || !shaPattern.MatchString(meta.SHA256) || meta.Bytes < 0 || meta.Bytes > hardMaxBytes || meta.MIMEType == "" {
 		return meta, fmt.Errorf("artifact %s metadata is invalid", ref)
 	}
 	return meta, nil
@@ -214,7 +217,7 @@ func verifyObject(path string, meta artifactMeta) error {
 	}
 	defer f.Close()
 	h := sha256.New()
-	n, err := io.Copy(h, f)
+	n, err := io.Copy(h, io.LimitReader(f, meta.Bytes+1))
 	if err != nil {
 		return fmt.Errorf("artifact %s object unreadable", meta.ID)
 	}
@@ -222,6 +225,23 @@ func verifyObject(path string, meta artifactMeta) error {
 		return fmt.Errorf("artifact %s failed sha256 verification", meta.ID)
 	}
 	return nil
+}
+
+func readFileBounded(path string, maximum int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, errors.New("expected a regular file")
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maximum+1))
+	if err == nil && int64(len(data)) > maximum {
+		return nil, errors.New("file exceeds byte limit")
+	}
+	return data, err
 }
 
 func refDTO(meta artifactMeta) artifactRef {
@@ -432,7 +452,7 @@ func cmdRead(o options, call contract.ToolCall, out io.Writer) error {
 	}
 	result := artifactResult{Kind: "artifact", Artifact: refDTO(meta)}
 	if meta.Bytes <= o.inlineMax {
-		data, err := os.ReadFile(path)
+		data, err := readFileBounded(path, o.inlineMax)
 		if err != nil {
 			return err
 		}
@@ -461,7 +481,7 @@ func cmdCreate(o options, call contract.ToolCall, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		data, err = os.ReadFile(path)
+		data, err = readFileBounded(path, o.maxBytes)
 		if err != nil {
 			return err
 		}
@@ -480,6 +500,11 @@ func cmdCreate(o options, call contract.ToolCall, out io.Writer) error {
 	if !mimeAccepted(mediaType, sniffMIME(data), data) {
 		return fmt.Errorf("content does not match allowlisted mimeType %q", mediaType)
 	}
+	unlock, err := lockArtifactStore(o.storeDir)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	for _, dir := range []string{filepath.Join(o.storeDir, "objects"), filepath.Join(o.storeDir, "meta")} {
 		if err := os.MkdirAll(dir, storeDirPerm); err != nil {
 			return err
@@ -488,13 +513,17 @@ func cmdCreate(o options, call contract.ToolCall, out io.Writer) error {
 	sha := sha256.Sum256(data)
 	shaHex := hex.EncodeToString(sha[:])
 	object := objectPath(o.storeDir, shaHex)
-	if _, err := os.Stat(object); err != nil {
+	if _, err := os.Stat(object); os.IsNotExist(err) {
 		if err := os.MkdirAll(filepath.Dir(object), storeDirPerm); err != nil {
 			return err
 		}
 		if err := writeFileAtomic(filepath.Dir(object), shaHex, data); err != nil {
 			return err
 		}
+	} else if err != nil {
+		return err
+	} else if err := verifyObject(object, artifactMeta{SHA256: shaHex, Bytes: int64(len(data))}); err != nil {
+		return err
 	}
 	name := sanitizeName(input.Name)
 	operation := call.Operation
@@ -543,6 +572,11 @@ func cmdExport(o options, call contract.ToolCall, out io.Writer, now time.Time) 
 	if input.TTLSec == 0 {
 		input.TTLSec = defaultTTLSec
 	}
+	unlock, err := lockArtifactStore(o.storeDir)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	meta, err := loadMeta(o.storeDir, input.Ref)
 	if err != nil {
 		return err
@@ -596,6 +630,19 @@ func cmdRemove(o options, call contract.ToolCall, out io.Writer) error {
 	if input.ExportID != "" && !exportPattern.MatchString(input.ExportID) {
 		return fmt.Errorf("invalid export id %q", input.ExportID)
 	}
+	unlock, err := lockArtifactStore(o.storeDir)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	var meta artifactMeta
+	if input.Ref != "" {
+		var err error
+		meta, err = loadMeta(o.storeDir, input.Ref)
+		if err != nil {
+			return err
+		}
+	}
 	result := removeResult{Kind: "removed"}
 	if input.ExportID != "" {
 		if o.exportDir == "" {
@@ -612,10 +659,6 @@ func cmdRemove(o options, call contract.ToolCall, out io.Writer) error {
 		result.Removed = append(result.Removed, input.ExportID)
 	}
 	if input.Ref != "" {
-		meta, err := loadMeta(o.storeDir, input.Ref)
-		if err != nil {
-			return err
-		}
 		if err := os.Remove(metaPath(o.storeDir, input.Ref)); err != nil {
 			return fmt.Errorf("%w: %v", errUncertain, err)
 		}
@@ -634,24 +677,34 @@ func cmdRemove(o options, call contract.ToolCall, out io.Writer) error {
 }
 
 func shaStillReferenced(root, sha string) bool {
-	entries, err := os.ReadDir(filepath.Join(root, "meta"))
+	directory, err := os.Open(filepath.Join(root, "meta"))
 	if err != nil {
 		return true
 	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(root, "meta", e.Name()))
-		if err != nil {
+	defer directory.Close()
+	for {
+		entries, err := directory.ReadDir(128)
+		if err != nil && err != io.EOF {
 			return true
 		}
-		var meta artifactMeta
-		if json.Unmarshal(data, &meta) != nil {
-			continue
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+				continue
+			}
+			data, err := readFileBounded(filepath.Join(root, "meta", e.Name()), maxMetaBytes)
+			if err != nil {
+				return true
+			}
+			var meta artifactMeta
+			if json.Unmarshal(data, &meta) != nil {
+				return true // corruption cannot prove that the object is unreferenced
+			}
+			if meta.SHA256 == sha {
+				return true
+			}
 		}
-		if meta.SHA256 == sha {
-			return true
+		if err == io.EOF {
+			break
 		}
 	}
 	return false
@@ -666,13 +719,13 @@ func removeExportsForRef(dir, ref string) error {
 		return err
 	}
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() || !exportPattern.MatchString(e.Name()) {
 			continue
 		}
 		var expiry struct {
 			Ref string `json:"ref"`
 		}
-		data, err := os.ReadFile(filepath.Join(dir, e.Name(), "expiry.json"))
+		data, err := readFileBounded(filepath.Join(dir, e.Name(), "expiry.json"), maxMetaBytes)
 		if err != nil || json.Unmarshal(data, &expiry) != nil || expiry.Ref != ref {
 			continue
 		}
@@ -693,21 +746,28 @@ func exportExtension(mediaType string) string {
 // sweepExports deletes expired export directories opportunistically within
 // the same invocation, bounded at 128 entries per contract.
 func sweepExports(dir string, now time.Time) {
-	entries, err := os.ReadDir(dir)
+	directory, err := os.Open(dir)
 	if err != nil {
+		return
+	}
+	defer directory.Close()
+	// ReadDir(n) bounds allocation as well as cleanup work; os.ReadDir(path)
+	// sorts/loads the whole directory before the old 128-entry loop could stop.
+	entries, err := directory.ReadDir(maxExportSweep)
+	if err != nil && err != io.EOF {
 		return
 	}
 	for i, e := range entries {
 		if i >= maxExportSweep {
 			break
 		}
-		if !e.IsDir() {
+		if !e.IsDir() || !exportPattern.MatchString(e.Name()) {
 			continue
 		}
 		var expiry struct {
 			ExpiresAt time.Time `json:"expiresAt"`
 		}
-		data, err := os.ReadFile(filepath.Join(dir, e.Name(), "expiry.json"))
+		data, err := readFileBounded(filepath.Join(dir, e.Name(), "expiry.json"), maxMetaBytes)
 		if err != nil || json.Unmarshal(data, &expiry) != nil || expiry.ExpiresAt.IsZero() {
 			continue
 		}
@@ -768,6 +828,9 @@ func run(in io.Reader, out io.Writer, getenv func(string) string, args []string)
 	call, err := decodeCall(in)
 	if err != nil {
 		return err
+	}
+	if call.Operation != "artifacts_"+cmd {
+		return errors.New("operation mismatch")
 	}
 	switch cmd {
 	case "read":

@@ -10,4 +10,10 @@ Google Sheets is optional. Install [its pack](../live-chat-sheets/README.md), gr
 
 Owner tools use the bundled `sdk/` public wire codec; there is no private npm or sibling dependency. Installing never grants owner access or starts the gateway/export worker.
 
+The control client permits only the configured HTTPS endpoint (or explicit local
+HTTP), refuses redirects, bounds replies to 60 KiB and applies one 12-second
+deadline to headers/body. A write with lost/invalid reply or HTTP 5xx/408 exits 2
+(unknown effect); inspect the stable request ID before retrying. Vendor error
+bodies are not exposed. View operations cannot dispatch mutations.
+
 The standalone Live chat gateway formerly under Soot contrib has been removed. This pack does not bundle a gateway; the host must provide one implementing its control protocol.

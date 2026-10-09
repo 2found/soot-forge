@@ -1,0 +1,130 @@
+{
+  "api_version": "soot/v1",
+  "id": "ocr",
+  "name": "OCR",
+  "description": "Extract native PDF text first; recognize scans with a host-bound DeepSeek OCR model.",
+  "use": [
+    "assess"
+  ],
+  "capabilities": {
+    "assess": {
+      "skills": [
+        {
+          "name": "ocr_assess",
+          "file": "skills/assess.md",
+          "description": "Choose native text or dedicated OCR using evidence from selected pages."
+        }
+      ],
+      "tools": [
+        {
+          "name": "assess",
+          "description": "Assess a bounded image/PDF page set without sending it to a model. A text layer is not proof of visual completeness.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "pages": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4999
+                },
+                "minItems": 1,
+                "maxItems": 8
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "assess"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "recognize": {
+      "skills": [
+        {
+          "name": "ocr_recognize",
+          "file": "skills/recognize.md",
+          "description": "Use DeepSeek OCR for images, scans or visually incomplete text layers."
+        }
+      ],
+      "tools": [
+        {
+          "name": "recognize",
+          "description": "Write page-attributed Markdown. Native PDF text is reused unless force=true; scans use host OCR_BINDING OpenAI-compatible DeepSeek OCR endpoint.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "pages": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4999
+                },
+                "minItems": 1,
+                "maxItems": 8
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "force": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "recognize"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "25m",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "OCR_BINDING": "{{cred:OCR_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

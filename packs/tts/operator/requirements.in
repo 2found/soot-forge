@@ -1,0 +1,4 @@
+# Optional resident model server; never installed with the thin client.
+# Select a platform-appropriate torch wheel separately (CUDA/CPU/MPS).
+omnivoice==0.2.1
+soundfile==0.14.0

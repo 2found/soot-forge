@@ -69,8 +69,17 @@ tới server** — durable journal (`<journal>/send-<actionId>.json`) ghi
 Message-ID được tạo và ghi journal trước khi DATA kết thúc nên server-side
 lookup luôn có chìa khóa.
 
+Một `action_id` đã gửi hoặc chưa biết kết quả gắn với đúng nội dung và tài khoản
+gửi; đổi payload không được nhận receipt thành công của email cũ. Journal hỏng
+hoặc receipt cũ thiếu `intentHash` phải đối chiếu trước, không tự gửi lại.
+Claim `.send-<actionId>.lock/` ngăn hai process gửi cùng lúc. Process chết để lại
+claim: operator chỉ gỡ sau khi chứng minh process đã dừng và đối chiếu journal
+cùng Message-ID trên server; không tự xoá claim theo tuổi hoặc PID.
+
 MIME: `text/plain`, `text/html`, `multipart/alternative` (khi cả hai) và
-`multipart/mixed` + base64 attachments (≤8). Header injection bị chặn ở
+`multipart/mixed` + base64 attachments (≤8, mỗi file ≤8 MiB, tổng ≤16 MiB;
+base64 xuống dòng theo giới hạn MIME 76 ký tự). Mailbox dùng địa chỉ ASCII;
+SMTPUTF8 không được thương lượng. Header injection bị chặn ở
 validate (CR/LF trong address/subject/name → lỗi, không gửi). TLS bắt
 buộc verify cert (`starttls`/`implicit`); `tls:none` chỉ chạy khi server
 là loopback — dành cho test server nội bộ.

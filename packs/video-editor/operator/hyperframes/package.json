@@ -1,0 +1,8 @@
+{
+  "name": "soot-video-editor-hyperframes-host",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Optional operator-installed motion runtime; not part of the thin FFmpeg client.",
+  "engines": {"node": ">=22"},
+  "dependencies": {"hyperframes": "0.8.143"}
+}

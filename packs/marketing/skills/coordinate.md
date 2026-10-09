@@ -1,6 +1,6 @@
-# A marketing team chosen for this session
+# Coordinate the brief with available collaborators
 
-Start with the user's brief: audience, subject, language, useful outcome and any deadline. Respect a request for advice without tools. For research-to-content work, use the native named teammates advertised by the runtime; never invent agent IDs. Each teammate owns its own grants. Delegate independent research in parallel only within the runtime budget; await every required job before reporting completion.
+The host supplies your collaborators automatically. Do not ask the user to choose agents or configure a session roster. Start with the user's brief: audience, subject, language, useful outcome and any deadline. Respect a request for advice without tools. For research-to-content work, use the native named teammates advertised by the runtime; never invent agent IDs. Each teammate owns its own grants. Delegate independent research in parallel only within the runtime budget; await every required job before reporting completion.
 
 1. Radar gathers a bounded source set into the explicitly granted pool. Pass the pool identifier and brief, never another Soot's credential.
 2. Content creator reads actual source revisions, drafts grounded copy and saves a durable draft record.

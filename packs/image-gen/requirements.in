@@ -1,0 +1,2 @@
+# Python >=3.12. Model inference is in a separately prepared native runtime.
+pillow==12.3.0

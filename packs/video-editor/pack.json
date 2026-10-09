@@ -1,0 +1,279 @@
+{
+  "api_version": "soot/v1",
+  "id": "video-editor",
+  "name": "Video editor",
+  "description": "Plan and produce short videos with FFmpeg, measured audio, safe captions and optional HyperFrames motion.",
+  "use": [
+    "plan"
+  ],
+  "capabilities": {
+    "plan": {
+      "skills": [
+        {
+          "name": "video_editor_plan",
+          "file": "skills/plan.md",
+          "description": "Plan sourced hooks, beats, exact speech, production intent and verifiable acceptance checks."
+        }
+      ]
+    },
+    "inspect": {
+      "skills": [
+        {
+          "name": "video_editor_inspect",
+          "file": "skills/inspect.md",
+          "description": "Inspect measured media and validate timeline/caption bounds."
+        }
+      ],
+      "tools": [
+        {
+          "name": "probe",
+          "description": "Inspect real codecs, canvas, audio streams and duration with host-bound FFprobe.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "probe"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "VIDEO_BINDING": "{{cred:VIDEO_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        },
+        {
+          "name": "validate",
+          "description": "Validate timeline JSON, measured asset ranges, caption timing and safe-area glyph bounds before rendering.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "spec": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              }
+            },
+            "required": [
+              "spec"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "validate"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "5m",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "VIDEO_BINDING": "{{cred:VIDEO_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "edit": {
+      "skills": [
+        {
+          "name": "video_editor_edit",
+          "file": "skills/edit.md",
+          "description": "Render FFmpeg cuts, still camera moves, fades, audio tracks and timed captions."
+        },
+        {
+          "name": "video_editor_spec",
+          "file": "SPEC.md",
+          "description": "Exact JSON schemas, examples, limits and failure semantics for the pack tools."
+        }
+      ],
+      "tools": [
+        {
+          "name": "render",
+          "description": "Render a JSON timeline to H.264 MP4; image zooms, trims, fades, explicit audio mix and Vietnamese-safe captions. Source clip audio requires explicit audio track.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "spec": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              }
+            },
+            "required": [
+              "spec",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "render"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "25m",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "VIDEO_BINDING": "{{cred:VIDEO_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        },
+        {
+          "name": "contact_sheet",
+          "description": "Decode 1..12 selected frames of a final video into a PNG contact sheet. Zero decoded samples is a failure.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "times": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 600
+                },
+                "minItems": 1,
+                "maxItems": 12
+              }
+            },
+            "required": [
+              "path",
+              "output",
+              "times"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "contact_sheet"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "7m",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "VIDEO_BINDING": "{{cred:VIDEO_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "hyperframes": {
+      "skills": [
+        {
+          "name": "video_editor_hyperframes",
+          "file": "skills/hyperframes.md",
+          "description": "Build seekable HyperFrames HTML motion and run local checks, snapshots and renders."
+        }
+      ],
+      "tools": [
+        {
+          "name": "hyperframes",
+          "description": "Run fixed actions of a separately installed pinned HyperFrames CLI on an authored project. No arbitrary argv, package installs, publish or cloud actions.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "project": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Workspace-relative project directory"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "lint",
+                  "check",
+                  "snapshot",
+                  "render"
+                ]
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "times": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 600
+                },
+                "minItems": 1,
+                "maxItems": 12
+              }
+            },
+            "required": [
+              "project",
+              "action"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "hyperframes"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "10m",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "HYPERFRAMES_BINDING": "{{cred:HYPERFRAMES_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

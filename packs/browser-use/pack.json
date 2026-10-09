@@ -97,6 +97,18 @@
               "tab": {
                 "type": "string",
                 "pattern": "^t[0-9]+$"
+              },
+              "delta_x": {
+                "type": "integer",
+                "minimum": -2400,
+                "maximum": 2400,
+                "description": "Optional precise wheel delta in pixels; preserves legacy direction when omitted."
+              },
+              "delta_y": {
+                "type": "integer",
+                "minimum": -2400,
+                "maximum": 2400,
+                "description": "Optional precise wheel delta in pixels; preserves legacy direction when omitted."
               }
             },
             "required": [
@@ -105,10 +117,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "npx",
+            "program": "soot-browser",
             "args": [
-              "--no-install",
-              "soot-browser",
               "control"
             ],
             "stdin": "context",
@@ -131,10 +141,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "npx",
+            "program": "soot-browser",
             "args": [
-              "--no-install",
-              "soot-browser",
               "view"
             ],
             "stdin": "context",

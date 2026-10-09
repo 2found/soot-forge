@@ -193,6 +193,7 @@ Tools available to selected capabilities:
 | read | `data-pool_query`: action=search, pool, query, offset/limit | Indexed matches, bounded snippets and source/revision metadata |
 | read | `data-pool_query`: action=read, pool, id, offset/limit | Verified original text page with next_offset and complete |
 | read | `data-pool_status`: request_id, optional owner | Reconcile a saved mutation; inspecting another owner requires pool manage |
+| write | `data-pool_write`: action=append, pool, title, content OR url, source/tags, request_id (omit id) | New independent entry; duplicate content accepted, same-intent retry idempotent |
 | write | `data-pool_write`: action=upsert, pool, id, title, content OR url, source/tags, request_id | Import/update receipt |
 | write | `data-pool_write`: action=remove, pool, id, request_id | Removal receipt |
 | manage | `data-pool_manage`: action=pool_create, pool, name, request_id | Create an empty private pool |
@@ -221,8 +222,9 @@ part of this connector.
 Lists/search return at most 20 items; search offsets stop at 980. Reads return
 4096 bytes by default, at most 8192, and next_offset preserves UTF-8 boundaries. A limit too small to fit the next
 character returns an error; use at least 4 bytes for any UTF-8 character.
-There are at most 256 pools and 10,000 documents per pool. Operations serialize
-through a namespace's private state lock; contention fails after three seconds.
+There are at most 256 pools and 10,000 documents per pool. Direct-mode operations serialize through a private state lock. Shared-service
+queries and independent document writes run concurrently; same-document writes
+and policy changes retain consistency boundaries. See [concurrent ingestion](docs/concurrency.md).
 Shared mode holds that state only in the central service; client hosts need no
 policy filesystem or Meilisearch credential.
 Use bounded pages rather than asking a Soot to copy a whole pool into context.

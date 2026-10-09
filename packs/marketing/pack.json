@@ -114,7 +114,7 @@
       "skills": [
         {
           "name": "marketing-edit",
-          "description": "Review drafts and plan only channels in the actual session team.",
+          "description": "Review drafts and plan only channels in the host-authorized collaborators.",
           "file": "skills/edit.md"
         }
       ],

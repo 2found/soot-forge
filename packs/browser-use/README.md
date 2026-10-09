@@ -8,7 +8,7 @@ The standalone adapter source is bundled in `adapter/`; it runs separately from 
 Install on the Soot server (Node.js 24+):
 
 ```sh
-npm install -g ./adapter
+npm install -g --install-links ./adapter
 ```
 
 `soot spawn` selects browser-use for the general Soot from the latest stable Forge release.
@@ -20,7 +20,7 @@ their existing selections. In the deployment, authorize PATH and HOME for both
 The manifest's `interface.tool_area` declares label, renderer, read/action tools,
 width/min/max, aspect width/height and resizability. Nest owns rendering. Installing
 the pack alone grants nothing: both executable capabilities must be selected.
-`npx --no-install` resolves the separately installed adapter and never downloads it.
+The manifest invokes the installed `soot-browser` directly; no per-call `npx` lookup or download. `--install-links` copies the adapter and pinned dependencies into the operator’s global prefix, outside the pack/configuration snapshot. Keep that prefix on the Soot host’s PATH.
 
 One profile per conversation ID under the installed pack's private `.browser/`
 directory; deployment path namespaces the daemon name. Persistent cookies and
@@ -43,3 +43,8 @@ not checked for two minutes; `unavailable` means a probe/stream failed. Checking
 never starts a browser. Explicit close ends the process and retains the profile.
 Frames are transient; user actions have durable receipts and are never retried
 automatically. The stream endpoint and profile path remain on the host.
+
+Viewer delivery is ACK-paced at up to 15 FPS on current Soot/Nest: a decoded,
+presented frame releases the next frame. Hidden panels stop viewing without
+closing the browser. Agent work uses snapshots and refs and needs no viewer.
+See [implementation and measured verification](../../docs/browser-use-optimization.md).

@@ -1,0 +1,94 @@
+@import "./agent.css";
+@import url('theme.css');
+*{box-sizing:border-box}
+html,body{margin:0;background:transparent;color:var(--color-text);font:14px var(--font-sans);height:100%}
+[hidden]{display:none!important}
+button,textarea{font:inherit}
+button,.icon-button{cursor:pointer;min-height:44px;min-width:44px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text);padding:8px 12px}
+button:disabled{opacity:.6;cursor:default}
+button:focus-visible,summary:focus-visible,textarea:focus-visible,#transcript:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+svg{width:20px;height:20px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+#launcher{width:56px;height:56px;margin:12px;background:var(--color-action);color:var(--color-action-ink);border-radius:var(--radius-full);border-color:var(--color-action)}
+#launcher svg{width:24px;height:24px}
+#chat{height:calc(100% - 16px);margin:8px;display:flex;flex-direction:column;border:1px solid var(--color-border);border-radius:var(--radius-lg);overflow:hidden;background:var(--color-surface)}
+header{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-border);flex-shrink:0}
+.identity{flex:1;min-width:0}
+#name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#activity{display:block;font-size:12px;color:var(--color-muted);margin-top:4px;line-height:1.4}
+#logo{display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;overflow:hidden;border-radius:var(--radius-md);background:var(--color-action);color:var(--color-action-ink);font-weight:600}
+#logo img{width:100%;height:100%;object-fit:contain}
+.icon-button{padding:0;display:grid;place-items:center;background:transparent;border:0}
+#options{position:relative}
+summary{list-style:none}
+summary::-webkit-details-marker{display:none}
+.menu{position:absolute;right:0;top:100%;z-index:2;padding:4px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);white-space:nowrap}
+.menu button{border:0}
+#reset-confirm{padding:12px;border-bottom:1px solid var(--color-border);background:var(--color-surface-2)}
+#reset-confirm p{margin:8px 0;font-size:13px;line-height:1.5}
+.confirm-actions{display:flex;gap:8px;flex-wrap:wrap}
+#confirm-reset{background:var(--color-action);color:var(--color-action-ink);border-color:var(--color-action)}
+.history{position:relative;flex:1;min-height:0;display:flex}
+#transcript{overflow:auto;flex:1;padding:16px;overscroll-behavior:contain;overflow-anchor:none}
+#greeting{margin:8px 0 16px;line-height:1.6;overflow-wrap:anywhere}
+#quick{display:flex;flex-wrap:wrap;gap:8px}
+#quick button{font-size:13px;border-radius:var(--radius-full);text-align:left}
+.message{margin:0 0 16px;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.message p{margin:0;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+.message.customer{align-items:flex-end}
+.customer p{max-width:88%;background:var(--color-surface-2);padding:8px 12px;border-radius:var(--radius-md)}
+.message small{font-size:11px;color:var(--color-muted);line-height:1.5}
+#jump{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;border-radius:var(--radius-full);white-space:nowrap}
+#error-bar{padding:8px 12px;background:var(--color-surface-2);display:flex;align-items:center;gap:8px;flex-shrink:0}
+#error{flex:1;color:var(--color-error);margin:0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+#retry{flex-shrink:0;font-size:13px}
+#composer{padding:12px 12px 8px;flex-shrink:0;margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.send{display:flex;gap:8px;align-items:flex-end}
+textarea{min-width:0;flex:1;resize:none;min-height:44px;max-height:144px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);padding:10px 12px;font-size:16px;line-height:22px}
+#send{padding:0;display:grid;place-items:center;background:var(--color-action);color:var(--color-action-ink);border-color:var(--color-action);border-radius:var(--radius-md)}
+footer{text-align:center;padding:0 12px 12px;color:var(--color-muted);font-size:11px;flex-shrink:0}
+[data-layout="mobile"] #chat{height:100%;margin:0;border:0;border-radius:0}
+[data-layout="mobile"] header{padding-top:max(8px,env(safe-area-inset-top));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+[data-layout="mobile"] #composer{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+[data-layout="mobile"] footer{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+
+/* Bridge 2ui to the canonical Soot theme without a second palette. */
+:root {
+  --agent-foreground:var(--color-text); --agent-muted:var(--color-muted);
+  --agent-error:var(--color-error); --agent-border:var(--color-border);
+  --agent-radius:var(--radius-md); --agent-background:var(--color-bg);
+  --agent-inset:var(--color-surface-2); --agent-ring:var(--color-accent);
+  --agent-shadow:var(--shadow-soft);
+}
+#composer-hint { margin:6px 0 0; color:var(--color-muted); font-size:11px; line-height:1.5; }
+[data-layout="mobile"] #composer-hint { display:none; }
+@media (pointer:coarse) { #composer-hint { display:none; } }
+.message.ui-agent-message { gap:6px; }
+.message p { margin:0; }
+
+/* Programmatic dialog focus has no outer browser-blue rectangle. Controls keep their focus rings. */
+#chat:focus { outline:none; }
+
+/* The same 2ui composer used by Nest, inside the existing sandboxed frame. */
+#composer .ui-agent-composer { color:var(--color-text); }
+#composer .ui-agent-composer-surface { margin:0; background:var(--color-bg); box-shadow:none; }
+#composer .ui-agent-composer-field { display:block; width:100%; background:transparent; min-height:44px; padding:0; border:0; border-radius:0; outline:none; box-shadow:none; }
+#composer .ui-agent-composer-send { display:grid; place-items:center; background:var(--color-action); color:var(--color-action-ink); border-color:var(--color-action); }
+#composer .ui-agent-composer-action { min-width:44px; min-height:44px; width:44px; height:44px; }
+#composer .ui-agent-composer-tools button { font-size:12px; }
+.widget-composer-name { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#composer .ui-agent-composer-completions { background:var(--color-surface); }
+
+/* Portable styling for the shared 2ui Select (the iframe does not run Tailwind). */
+#composer .ui-agent-composer-controls { grid-column:1; flex:1; }
+#composer [data-slot="select"] { position:relative; min-width:0; width:100%; }
+.widget-scope-trigger { display:flex; align-items:center; gap:4px; min-width:0; min-height:44px; padding:4px; font-size:12px; cursor:pointer; border-radius:var(--radius-sm); }
+.widget-scope-trigger>div { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.widget-scope-trigger>svg { width:16px; height:16px; flex-shrink:0; color:var(--color-muted); }
+.widget-scope-trigger:focus-visible { outline:2px solid var(--color-accent); outline-offset:2px; }
+.widget-scope-trigger[aria-disabled="true"] { opacity:.5; cursor:default; }
+.widget-scope-menu { position:absolute; bottom:100%; left:0; z-index:50; padding:4px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-surface); box-shadow:var(--shadow-soft); }
+.widget-scope-menu [role="listbox"] { max-height:240px; overflow-y:auto; overscroll-behavior:contain; }
+.widget-scope-menu [role="option"] { display:flex; align-items:center; min-height:44px; padding:8px; font-size:12px; cursor:pointer; border-radius:var(--radius-sm); overflow-wrap:anywhere; }
+.widget-scope-menu [role="option"]:hover,.widget-scope-menu [data-active="true"],.widget-scope-menu [aria-selected="true"] { background:var(--color-surface-2); }

@@ -1,0 +1,11 @@
+{
+  "id": "video-editor",
+  "name": "Video editor",
+  "soul": "SOUL.md",
+  "mission": "mission.md",
+  "use": [
+    "video-editor/plan",
+    "video-editor/inspect",
+    "video-editor/edit"
+  ]
+}

@@ -24,7 +24,7 @@ func (e backendError) Error() string { return fmt.Sprintf("backend rejected requ
 func newBackend(b binding) *backend {
 	return &backend{endpoint: b.Endpoint, key: b.APIKey, client: &http.Client{
 		Timeout:       5 * time.Second,
-		Transport:     &http.Transport{Proxy: nil, MaxIdleConns: 2, IdleConnTimeout: 5 * time.Second},
+		Transport:     &http.Transport{Proxy: nil, MaxIdleConns: 256, MaxIdleConnsPerHost: 128, MaxConnsPerHost: 256, IdleConnTimeout: 30 * time.Second},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}}
 }
@@ -123,7 +123,7 @@ func (s *service) reconcile(ctx context.Context, r receipt) (receipt, error) {
 		}
 		err := s.backend.call(ctx, "GET", path, nil, &doc)
 		var rejected backendError
-		if r.Action == "upsert" && err == nil && doc.Receipt == receiptToken(s, r) && sameDocument(doc.document, *r.Document) && hash(doc.Content) == r.Document.SHA256 {
+		if (r.Action == "upsert" || r.Action == "append") && err == nil && doc.Receipt == receiptToken(s, r) && sameDocument(doc.document, *r.Document) && hash(doc.Content) == r.Document.SHA256 {
 			return s.finish(r, "succeeded")
 		}
 		if (r.Action == "remove" || r.Action == "pool_remove") && errors.As(err, &rejected) && rejected.status == 404 {

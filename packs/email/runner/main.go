@@ -14,12 +14,14 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net"
+	"net/mail"
 	"net/textproto"
 	"os"
 	"path/filepath"
@@ -37,8 +39,9 @@ const maxEnvelopeBytes = 128 * 1024
 
 func readCall(in io.Reader) (contract.ToolCall, error) {
 	var call contract.ToolCall
-	if err := json.NewDecoder(io.LimitReader(in, maxEnvelopeBytes+1)).Decode(&call); err != nil {
-		return call, err
+	raw, err := io.ReadAll(io.LimitReader(in, maxEnvelopeBytes+1))
+	if err != nil || len(raw) > maxEnvelopeBytes || json.Unmarshal(raw, &call) != nil {
+		return call, fmt.Errorf("invalid or oversized tool envelope")
 	}
 	if call.APIVersion != contract.APIVersion || call.Hook != contract.ToolCallHook || call.Soot == "" {
 		return call, fmt.Errorf("invalid tool context")
@@ -127,7 +130,8 @@ type attachmentRef struct {
 var actionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
 func validAddress(addr string) error {
-	if len(addr) > 254 || !addrPattern.MatchString(addr) {
+	parsed, err := mail.ParseAddress(addr)
+	if len(addr) > 254 || !isASCII(addr) || !addrPattern.MatchString(addr) || err != nil || parsed.Address != addr || parsed.Name != "" || strings.ContainsAny(addr, "<>") {
 		return fmt.Errorf("invalid address")
 	}
 	return nil
@@ -181,6 +185,20 @@ func (in *sendInput) payloadHash() string {
 	return "auto_" + hex.EncodeToString(h.Sum(nil))[:32]
 }
 
+// Keep legacy automatic action ids, but bind every acknowledged attempt to an
+// unambiguous input and account fingerprint. Credential rotation is harmless.
+func intentHash(in sendInput, b binding) string {
+	in.ActionID = ""
+	data, _ := json.Marshal(struct {
+		Input          sendInput
+		Server         string
+		Port           int
+		From, Username string
+	}{in, b.Server, b.Port, b.From, b.Username})
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
 // ---- journal (durable intent) --------------------------------------------
 
 const (
@@ -192,12 +210,13 @@ const (
 )
 
 type journal struct {
-	ActionID  string `json:"actionId"`
-	State     string `json:"state"`
-	MessageID string `json:"messageId,omitempty"`
-	Remote    string `json:"remoteId,omitempty"`
-	Error     string `json:"error,omitempty"`
-	UpdatedAt string `json:"updatedAt"`
+	ActionID   string `json:"actionId"`
+	State      string `json:"state"`
+	MessageID  string `json:"messageId,omitempty"`
+	Remote     string `json:"remoteId,omitempty"`
+	Error      string `json:"error,omitempty"`
+	UpdatedAt  string `json:"updatedAt"`
+	IntentHash string `json:"intentHash,omitempty"`
 }
 
 func journalPath(dir, id string) string { return filepath.Join(dir, "send-"+id+".json") }
@@ -215,23 +234,40 @@ func writeJournal(dir string, j journal) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+	if err := tmp.Chmod(0600); err != nil {
 		return err
 	}
-	tmp.Close()
-	os.Chmod(tmp.Name(), 0600)
-	return os.Rename(tmp.Name(), journalPath(dir, j.ActionID))
+	if _, err := tmp.Write(b); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp.Name(), journalPath(dir, j.ActionID)); err != nil {
+		return err
+	}
+	parent, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer parent.Close()
+	return parent.Sync()
 }
 
 func readJournal(dir, id string) (journal, error) {
 	var j journal
-	b, err := os.ReadFile(journalPath(dir, id))
+	f, err := os.Open(journalPath(dir, id))
 	if err != nil {
 		return j, err
 	}
-	if err := json.Unmarshal(b, &j); err != nil || j.ActionID != id {
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, 16*1024+1))
+	if err != nil || len(b) > 16*1024 || json.Unmarshal(b, &j) != nil || j.ActionID != id {
 		return journal{}, fmt.Errorf("corrupt journal")
 	}
 	return j, nil
@@ -256,7 +292,7 @@ func storeRead(root, ref string) (artifactMeta, []byte, error) {
 	if !refPattern.MatchString(ref) {
 		return artifactMeta{}, nil, fmt.Errorf("invalid artifact ref")
 	}
-	mb, err := os.ReadFile(filepath.Join(root, "meta", ref+".json"))
+	mb, err := readBoundedFile(filepath.Join(root, "meta", ref+".json"), 64<<10)
 	if err != nil {
 		return artifactMeta{}, nil, fmt.Errorf("attachment artifact not found")
 	}
@@ -264,15 +300,38 @@ func storeRead(root, ref string) (artifactMeta, []byte, error) {
 	if err := json.Unmarshal(mb, &m); err != nil || m.ID != ref || !shaPattern.MatchString(m.SHA256) {
 		return artifactMeta{}, nil, fmt.Errorf("corrupt attachment meta")
 	}
-	content, err := os.ReadFile(filepath.Join(root, "objects", m.SHA256[:2], m.SHA256))
-	if err != nil {
-		return artifactMeta{}, nil, fmt.Errorf("attachment object missing")
+	if m.Bytes < 0 || m.Bytes > 8<<20 {
+		return m, nil, fmt.Errorf("attachment exceeds 8 MiB limit")
+	}
+	if _, _, err := mime.ParseMediaType(m.MimeType); err != nil || strings.ContainsAny(m.MimeType, "\r\n\x00") {
+		return m, nil, fmt.Errorf("invalid attachment MIME type")
+	}
+	content, err := readBoundedFile(filepath.Join(root, "objects", m.SHA256[:2], m.SHA256), m.Bytes)
+	if err != nil || len(content) > 8<<20 {
+		return m, nil, fmt.Errorf("attachment exceeds 8 MiB limit or is unreadable")
 	}
 	sum := sha256.Sum256(content)
 	if hex.EncodeToString(sum[:]) != m.SHA256 || int64(len(content)) != m.Bytes {
 		return artifactMeta{}, nil, fmt.Errorf("attachment checksum mismatch")
 	}
 	return m, content, nil
+}
+
+func readBoundedFile(path string, maximum int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("expected regular artifact file")
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maximum+1))
+	if err == nil && int64(len(data)) > maximum {
+		return nil, fmt.Errorf("artifact exceeds byte limit")
+	}
+	return data, err
 }
 
 // ---- MIME message ----------------------------------------------------------
@@ -399,11 +458,14 @@ func buildMessage(b binding, in sendInput, messageID string, attach []attachment
 		if err != nil {
 			return nil, err
 		}
-		enc := base64.NewEncoder(base64.StdEncoding, ap)
-		if _, err := enc.Write(a.content); err != nil {
-			return nil, err
+		// RFC 2045: MIME base64 lines are at most 76 characters (57 bytes).
+		for remaining := a.content; len(remaining) > 0; {
+			n := min(57, len(remaining))
+			if _, err := io.WriteString(ap, base64.StdEncoding.EncodeToString(remaining[:n])+"\r\n"); err != nil {
+				return nil, err
+			}
+			remaining = remaining[n:]
 		}
-		enc.Close()
 	}
 	if err := w.Close(); err != nil {
 		return nil, err
@@ -426,8 +488,11 @@ func run(in io.Reader, out io.Writer, args []string) error {
 	if err != nil {
 		return err
 	}
+	if call.Operation != "email_send" {
+		return fmt.Errorf("operation mismatch")
+	}
 	var input sendInput
-	if len(call.Input) == 0 {
+	if len(bytes.TrimSpace(call.Input)) == 0 || bytes.TrimSpace(call.Input)[0] != '{' {
 		return fmt.Errorf("missing input")
 	}
 	dec := json.NewDecoder(bytes.NewReader(call.Input))
@@ -446,8 +511,25 @@ func run(in io.Reader, out io.Writer, args []string) error {
 	if actionID == "" {
 		actionID = input.payloadHash()
 	}
+	// A directory claim works across processes without a platform dependency.
+	// An interrupted owner leaves the claim fenced for operator reconciliation.
+	if err := os.MkdirAll(b.Journal, 0700); err != nil {
+		return err
+	}
+	claim := filepath.Join(b.Journal, ".send-"+actionID+".lock")
+	if err := os.Mkdir(claim, 0700); err != nil {
+		if !errors.Is(err, os.ErrExist) {
+			return err
+		}
+		return json.NewEncoder(out).Encode(receiptUnknown(actionID, "action is active or interrupted; reconcile its journal before retrying"))
+	}
+	defer os.Remove(claim)
+	fingerprint := intentHash(input, b)
 	// Durable intent check before any network I/O.
 	if prior, err := readJournal(b.Journal, actionID); err == nil {
+		if prior.State != stateFailed && prior.State != stateIntent && prior.IntentHash != fingerprint {
+			return fmt.Errorf("action_id belongs to a different or legacy intent; inspect its journal")
+		}
 		switch prior.State {
 		case stateDone:
 			return json.NewEncoder(out).Encode(map[string]any{
@@ -471,13 +553,20 @@ func run(in io.Reader, out io.Writer, args []string) error {
 		default:
 			return fmt.Errorf("journal for %s in unexpected state %q", actionID, prior.State)
 		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("journal unreadable or corrupt; reconcile before retrying")
 	}
 	// Assemble message (headers + MIME) before connecting.
 	var attach []attachment
+	var attachmentBytes int
 	for _, a := range input.Attachments {
 		m, c, err := storeRead(os.Getenv("ARTIFACT_STORE"), a.Ref)
 		if err != nil {
 			return err
+		}
+		attachmentBytes += len(c)
+		if attachmentBytes > 16<<20 {
+			return fmt.Errorf("attachments exceed 16 MiB total limit")
 		}
 		attach = append(attach, attachment{meta: m, content: c})
 	}
@@ -487,7 +576,7 @@ func run(in io.Reader, out io.Writer, args []string) error {
 	if err != nil {
 		return err
 	}
-	j := journal{ActionID: actionID, State: stateIntent, MessageID: messageID}
+	j := journal{ActionID: actionID, State: stateIntent, MessageID: messageID, IntentHash: fingerprint}
 	if err := writeJournal(b.Journal, j); err != nil {
 		return err
 	}
@@ -499,7 +588,9 @@ func run(in io.Reader, out io.Writer, args []string) error {
 	case nil:
 		j.State = stateDone
 		j.Remote = result.remoteID
-		writeJournal(b.Journal, j)
+		if err := writeJournal(b.Journal, j); err != nil {
+			return json.NewEncoder(out).Encode(receiptUnknown(actionID, "SMTP accepted the message but final journal failed; reconcile before retrying"))
+		}
 		return json.NewEncoder(out).Encode(map[string]any{
 			"kind": "receipt",
 			"receipt": map[string]any{
@@ -531,6 +622,10 @@ func run(in io.Reader, out io.Writer, args []string) error {
 			},
 		})
 	}
+}
+
+func receiptUnknown(actionID, message string) map[string]any {
+	return map[string]any{"kind": "receipt", "receipt": map[string]any{"actionId": actionID, "state": "unknown", "error": message}}
 }
 
 // ---- SMTP client -----------------------------------------------------------

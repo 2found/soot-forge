@@ -1,0 +1,133 @@
+{
+  "schema": "soot-forge-workspace-verification/v1",
+  "review_date": "2026-10-10",
+  "pack": "google-workspace",
+  "previous_unreleased_identity": "google-doc",
+  "capabilities": [
+    "docs-read",
+    "docs-write",
+    "docs-export",
+    "sheets-read",
+    "sheets-write",
+    "drive-read",
+    "drive-download",
+    "drive-write"
+  ],
+  "tools": 17,
+  "default_use": [],
+  "checks": {
+    "python_regression_tests": {
+      "passed": 49,
+      "failed": 0,
+      "command": "python scripts/test-media.py"
+    },
+    "node_tests": {
+      "passed": 17,
+      "failed": 0,
+      "command": "node --test scripts/*.test.mjs"
+    },
+    "catalog": {
+      "entries": 25,
+      "external_content_checked": true,
+      "official_installer_checked": true,
+      "command": "node scripts/validate.mjs --soot BINARY --remote"
+    }
+  },
+  "runtime": "soot dev (756a14dfdd8dcdf5d46fcafd17985e10bab47c0c, go1.26.5)",
+  "provider": "devin",
+  "model": "swe-2",
+  "selected_live_capabilities": [
+    "google-workspace/docs-read",
+    "google-workspace/sheets-read",
+    "google-workspace/drive-read"
+  ],
+  "live_lanes": [
+    {
+      "id": "google-workspace",
+      "label": "google-expired-token",
+      "negative": true,
+      "state": "blocked",
+      "seconds": 21.154,
+      "conversation": "628e509753d727a7013f14c5c74a54ff",
+      "expected_files": [],
+      "evidence": "google-expired-token-events.json",
+      "tools": {
+        "google-workspace_docs_read": {
+          "started": 1,
+          "completed": 0,
+          "failed": 1
+        }
+      }
+    },
+    {
+      "id": "google-workspace",
+      "label": "google-sheets-expired-token",
+      "negative": true,
+      "state": "blocked",
+      "seconds": 15.127,
+      "conversation": "91bee142d3ff0ea93b09a9ce027f917f",
+      "expected_files": [],
+      "evidence": "google-sheets-expired-token-events.json",
+      "tools": {
+        "google-workspace_sheets_read": {
+          "started": 1,
+          "completed": 0,
+          "failed": 1
+        }
+      }
+    },
+    {
+      "id": "google-workspace",
+      "label": "google-drive-expired-token",
+      "negative": true,
+      "state": "blocked",
+      "seconds": 15.622,
+      "conversation": "358ff360fb6e6d128cf1b89754d48599",
+      "expected_files": [],
+      "evidence": "google-drive-expired-token-events.json",
+      "tools": {
+        "google-workspace_drive_list": {
+          "started": 1,
+          "completed": 0,
+          "failed": 1
+        }
+      }
+    }
+  ],
+  "google_vendor_status": "NOT RUN: no authorized Google account credentials. All three live lanes deliberately exercise expired-token failures through real Soot/Devin. They do not establish successful Google API access.",
+  "regression_scope": [
+    "Tabbed Docs reads, UTF-16 indexes, requiredRevisionId, bounded exports and durable account-scoped actions.",
+    "Sheets metadata creation and FORMULA/RAW/USER_ENTERED values; bounded Unicode A1 ranges, normalized snapshots, stale preflight, append range and unknown-outcome replay rejection.",
+    "Drive pagination, exact-byte multipart upload, download size/MD5, Office export parts/CRC checks, folder creation, version-preflight rename/move and oversized-input rejection.",
+    "Google transport is injected for regression tests; final exported XLSX is independently read through the Office runner."
+  ],
+  "limits": [
+    "Live Google reads and mutations are unverified without host authorization.",
+    "Sheets and Drive checks are non-atomic preflights; use host serialization and re-read for concurrent editing.",
+    "Moving/uploading into a folder may inherit its permissions; no permission, trash/delete, Gmail or Calendar API is called.",
+    "The reviewed archive includes a documentation fix after the live archive installation; executable sources and manifest match the live-installed copy."
+  ],
+  "reviewed_archive": {
+    "bytes": 37690,
+    "sha256": "cdf4aa63f49bfda1b4cdffae23dd8db1ba6ae7eb51e7bdea956d2034cd309326",
+    "reproducible": true
+  },
+  "live_installed_archive_sha256": "8987533ecf30de810d34ea035cbe54e0bedf95f87655a86aca0edf18b9b5742d",
+  "reviewed_source_sha256": {
+    "packs/google-workspace/README.md": "662b9f967a9404b65a0d4d909bd7eaac624769db157b5c82aa1d802b003c45e9",
+    "packs/google-workspace/SPEC.md": "a1d37a62bab40f17cc12b790c55873aebe7d2c4ed20ca4591a1b4ad4aba7b195",
+    "packs/google-workspace/pack.json": "4f8b214d28e143a363a3fde6d4e3ca95b5ce85c08a29c0ad4c6abf497c328d96",
+    "packs/google-workspace/requirements.in": "0ddafaa818d64b72968d5da3067bf3b27ff797017299a371eef7d4ade9feb82c",
+    "packs/google-workspace/requirements.lock": "ead8cf2ceab6b075bd09f8e5b3f024bf124e080101699aa6cf9c917ccc7e3b1a",
+    "packs/google-workspace/skills/drive.md": "45025bf088aaa3fe680fa3779a4850f40a4ec1580478cdcf49f6b270887d7b55",
+    "packs/google-workspace/skills/export.md": "616042f475ee195dba7b8ed9e5a71c4831cfdb9e3ebcc46541ca0eb88384c6ba",
+    "packs/google-workspace/skills/read.md": "edf0b32ecb406e0fcba6058f41263e4eb2120124c35db6bc1af93fa242c5a965",
+    "packs/google-workspace/skills/sheets.md": "8719ab6bfbafbea6fa9c49d5bde80bf0e2cb89c7ab951e1a0e0e4ecb243c1676",
+    "packs/google-workspace/skills/write.md": "a2c58e374b89fd84ab593127dfa7222bd054989a58f3f576b1d8a10cb787b953",
+    "packs/google-workspace/tools/common.py": "44e4318d957117784984f9718b1f5487b72c8cfbc8ab462ed04b4e9737bd6230",
+    "packs/google-workspace/tools/run": "b72652bc2404c38ec37e94e4eb50093f27e5f64bc0ab9b8117e12e90897ff3bd",
+    "packs/google-workspace/tools/runner.py": "279cd7783fcccbed0559b299580224725a4d8a5a08355ee888dd823ab6833ade"
+  },
+  "local_evidence_directory": "/tmp/soot-forge-workspace-live-01",
+  "publication": "none"
+}

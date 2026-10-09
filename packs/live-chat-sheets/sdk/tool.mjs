@@ -25,8 +25,8 @@ export async function runTool(handler) {
     try {
         stdout.write(encodeOutput(await handler(await readToolCall())));
     }
-    catch {
+    catch (error) {
         stderr.write('Soot tool invocation failed\n');
-        process.exitCode = 1;
+        process.exitCode = error?.uncertain === true ? 2 : 1;
     }
 }

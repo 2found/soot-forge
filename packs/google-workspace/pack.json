@@ -1,0 +1,953 @@
+{
+  "api_version": "soot/v1",
+  "id": "google-workspace",
+  "name": "Google Workspace",
+  "description": "Work with Google Docs, Sheets and Drive through scoped REST tools, bounded files and durable action receipts.",
+  "use": [],
+  "capabilities": {
+    "docs-read": {
+      "skills": [
+        {
+          "name": "google_workspace_read",
+          "file": "skills/read.md",
+          "description": "Read Docs tabs, revision IDs and bounded Drive document listings."
+        }
+      ],
+      "tools": [
+        {
+          "name": "docs_list",
+          "description": "List visible Google Docs with Drive pagination. No sharing or full-drive read scope implied.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "page_token": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "description": "Opaque Drive nextPageToken"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "docs_list"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        },
+        {
+          "name": "docs_read",
+          "description": "Read selected tab content and current revision. API indexes are UTF-16 code units.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "document_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google document ID, not URL"
+              },
+              "tab_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Tab ID returned by read"
+              },
+              "start": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "document_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "docs_read"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "docs-write": {
+      "skills": [
+        {
+          "name": "google_workspace_write",
+          "file": "skills/write.md",
+          "description": "Create and edit Docs with durable action receipts and required revision IDs."
+        },
+        {
+          "name": "google_workspace_spec",
+          "file": "SPEC.md",
+          "description": "Exact JSON schemas, examples, limits and failure semantics for the pack tools."
+        }
+      ],
+      "tools": [
+        {
+          "name": "docs_create",
+          "description": "Create one private Google Doc with stable action_id. Duplicate successful actions return the stored receipt; pending actions require reconciliation.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Document title"
+              },
+              "action_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Stable idempotency key, 1..64 letters/digits/_/-"
+              }
+            },
+            "required": [
+              "title",
+              "action_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "docs_create"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        },
+        {
+          "name": "docs_batch_update",
+          "description": "Apply 1..100 Docs text/style/table requests from a JSON spec, with requiredRevisionId and explicit tab targeting. Never retries unknown outcomes.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "document_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Document ID"
+              },
+              "revision_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "Current revision from read"
+              },
+              "spec": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              },
+              "action_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Stable action ID"
+              }
+            },
+            "required": [
+              "document_id",
+              "revision_id",
+              "spec",
+              "action_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "docs_batch_update"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "docs-export": {
+      "skills": [
+        {
+          "name": "google_workspace_export",
+          "file": "skills/export.md",
+          "description": "Export Google Docs to bounded PDF, Word or text files."
+        }
+      ],
+      "tools": [
+        {
+          "name": "docs_export",
+          "description": "Download one Drive export up to 10 MiB to a new local file.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "document_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Document ID"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "pdf",
+                  "docx",
+                  "txt"
+                ]
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
+              }
+            },
+            "required": [
+              "document_id",
+              "format",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "docs_export"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "60s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
+            }
+          }
+        }
+      ]
+    },
+    "sheets-read": {
+      "skills": [
+        {
+          "name": "google_workspace_sheets_read",
+          "file": "skills/sheets.md",
+          "description": "Read real spreadsheet tabs and bounded cell ranges; distinguish formulas, formatted and raw values."
+        },
+        {
+          "name": "google_workspace_sheets_read_spec",
+          "file": "SPEC.md",
+          "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
+        }
+      ],
+      "tools": [
+        {
+          "name": "sheets_info",
+          "description": "Get spreadsheet title, URL and tab/grid metadata without cell data.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "spreadsheet_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google resource ID, not URL"
+              }
+            },
+            "required": [
+              "spreadsheet_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "sheets_info"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        },
+        {
+          "name": "sheets_read",
+          "description": "Read a bounded A1 rectangle; FORMULA reads return a snapshot for preflight-guarded writes.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "spreadsheet_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google resource ID, not URL"
+              },
+              "range": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Explicit bounded A1 range with tab, e.g. 'Chi phí'!A1:C20; at most 2000 cells."
+              },
+              "render": {
+                "type": "string",
+                "enum": [
+                  "FORMULA",
+                  "FORMATTED_VALUE",
+                  "UNFORMATTED_VALUE"
+                ]
+              }
+            },
+            "required": [
+              "spreadsheet_id",
+              "range"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "sheets_read"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        }
+      ]
+    },
+    "sheets-write": {
+      "skills": [
+        {
+          "name": "google_workspace_sheets_write",
+          "file": "skills/sheets.md",
+          "description": "Create Sheets, write exact rectangles and append rows with durable receipts and honest concurrency limits."
+        },
+        {
+          "name": "google_workspace_sheets_write_spec",
+          "file": "SPEC.md",
+          "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
+        }
+      ],
+      "tools": [
+        {
+          "name": "sheets_create",
+          "description": "Create spreadsheet with 1..20 named tabs. Stable action receipt prevents local duplicate creation.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Google resource ID, not URL"
+              },
+              "tabs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100,
+                  "description": "Tab title"
+                },
+                "minItems": 1,
+                "maxItems": 20,
+                "uniqueItems": true
+              },
+              "action_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Stable action ID: letters, digits, underscore or hyphen. Unknown actions are never resent."
+              }
+            },
+            "required": [
+              "title",
+              "action_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "sheets_create"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        },
+        {
+          "name": "sheets_update",
+          "description": "Update an exact A1 rectangle from values JSON after checking the FORMULA snapshot. Preflight is non-atomic; no server revision lock is claimed.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "spreadsheet_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google resource ID, not URL"
+              },
+              "range": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Explicit bounded A1 range with tab, e.g. 'Chi phí'!A1:C20; at most 2000 cells."
+              },
+              "spec": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean FILE_ROOT-relative path. Outputs must be new and parents must exist."
+              },
+              "expected_snapshot": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "action_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Stable action ID: letters, digits, underscore or hyphen. Unknown actions are never resent."
+              }
+            },
+            "required": [
+              "spreadsheet_id",
+              "range",
+              "spec",
+              "expected_snapshot",
+              "action_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "sheets_update"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        },
+        {
+          "name": "sheets_append",
+          "description": "Append bounded rows to the logical table detected in the A1 range using INSERT_ROWS. RAW by default; unknown append outcomes never replay.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "spreadsheet_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google resource ID, not URL"
+              },
+              "range": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "description": "Explicit bounded A1 range with tab, e.g. 'Chi phí'!A1:C20; at most 2000 cells."
+              },
+              "spec": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean FILE_ROOT-relative path. Outputs must be new and parents must exist."
+              },
+              "action_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Stable action ID: letters, digits, underscore or hyphen. Unknown actions are never resent."
+              }
+            },
+            "required": [
+              "spreadsheet_id",
+              "range",
+              "spec",
+              "action_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "sheets_append"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        }
+      ]
+    },
+    "drive-read": {
+      "skills": [
+        {
+          "name": "google_workspace_drive_read",
+          "file": "skills/drive.md",
+          "description": "List paginated visible files/folders and read metadata without arbitrary query or full-Drive scope."
+        },
+        {
+          "name": "google_workspace_drive_read_spec",
+          "file": "SPEC.md",
+          "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
+        }
+      ],
+      "tools": [
+        {
+          "name": "drive_list",
+          "description": "List accessible Drive files with pagination and optional exact parent/type filters; not fuzzy name search.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "parent_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Exact parent ID or root"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "docs",
+                  "sheets",
+                  "slides",
+                  "folders"
+                ]
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "page_token": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "description": "Opaque nextPageToken"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "drive_list"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        },
+        {
+          "name": "drive_get",
+          "description": "Read actual file MIME, size, parents, version and download capability.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "file_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google resource ID, not URL"
+              }
+            },
+            "required": [
+              "file_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "drive_get"
+            ],
+            "stdin": "context",
+            "mode": "read",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        }
+      ]
+    },
+    "drive-download": {
+      "skills": [
+        {
+          "name": "google_workspace_drive_download",
+          "file": "skills/drive.md",
+          "description": "Download binary files or export Google-native files into new bounded local artifacts."
+        },
+        {
+          "name": "google_workspace_drive_download_spec",
+          "file": "SPEC.md",
+          "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
+        }
+      ],
+      "tools": [
+        {
+          "name": "drive_download",
+          "description": "Download binary file up to 64 MiB; verify actual length and advertised checksum. Google-native files need export.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "file_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google resource ID, not URL"
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean FILE_ROOT-relative path. Outputs must be new and parents must exist."
+              }
+            },
+            "required": [
+              "file_id",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "drive_download"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        },
+        {
+          "name": "drive_export",
+          "description": "Export Docs/Sheets/Slides to supported PDF/Office/text formats up to 10 MiB. CSV contains first sheet only.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "file_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google resource ID, not URL"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "pdf",
+                  "docx",
+                  "xlsx",
+                  "pptx",
+                  "txt",
+                  "csv"
+                ]
+              },
+              "output": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean FILE_ROOT-relative path. Outputs must be new and parents must exist."
+              }
+            },
+            "required": [
+              "file_id",
+              "format",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "drive_export"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        }
+      ]
+    },
+    "drive-write": {
+      "skills": [
+        {
+          "name": "google_workspace_drive_write",
+          "file": "skills/drive.md",
+          "description": "Create folders, upload small files, rename/move files using explicit actions; parent permissions may apply."
+        },
+        {
+          "name": "google_workspace_drive_write_spec",
+          "file": "SPEC.md",
+          "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
+        }
+      ],
+      "tools": [
+        {
+          "name": "drive_folder",
+          "description": "Create folder with optional parent. No sharing changes requested; parent permissions may be inherited.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Folder name"
+              },
+              "parent_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Parent ID or root"
+              },
+              "action_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Stable action ID: letters, digits, underscore or hyphen. Unknown actions are never resent."
+              }
+            },
+            "required": [
+              "name",
+              "action_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "drive_folder"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        },
+        {
+          "name": "drive_upload",
+          "description": "Upload new local Office/PDF/text/image/audio/video file up to 5 MiB using multipart upload. No conversion or overwrite.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Clean FILE_ROOT-relative path. Outputs must be new and parents must exist."
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Remote file name"
+              },
+              "parent_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Parent ID or root"
+              },
+              "action_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Stable action ID: letters, digits, underscore or hyphen. Unknown actions are never resent."
+              }
+            },
+            "required": [
+              "path",
+              "action_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "drive_upload"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        },
+        {
+          "name": "drive_update",
+          "description": "Rename or move an existing file after checking its read version. Check is non-atomic; moving may inherit parent permissions.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "file_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Google resource ID, not URL"
+              },
+              "expected_version": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "Actual version returned by drive_get",
+                "pattern": "^[0-9]{1,100}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "New name"
+              },
+              "parent_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "New parent ID or root"
+              },
+              "action_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Stable action ID: letters, digits, underscore or hyphen. Unknown actions are never resent."
+              }
+            },
+            "required": [
+              "file_id",
+              "expected_version",
+              "action_id"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "tools/run",
+            "args": [
+              "drive_update"
+            ],
+            "stdin": "context",
+            "mode": "write",
+            "resource": "file_workspace",
+            "timeout": "90s",
+            "secret_env": {
+              "FILE_ROOT": "{{cred:FILE_ROOT}}",
+              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+              "GOOGLE_WORKSPACE_BINDING": "{{cred:GOOGLE_WORKSPACE_BINDING}}"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

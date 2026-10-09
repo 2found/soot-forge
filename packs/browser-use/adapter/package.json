@@ -8,13 +8,14 @@
     "soot-browser": "browser.mjs"
   },
   "scripts": {
-    "test": "node --test browser.test.mjs"
+    "test": "node --test *.test.mjs"
   },
   "engines": {
     "node": ">=24"
   },
   "dependencies": {
     "agent-browser": "0.38.2",
-    "cloakbrowser": "0.5.10"
+    "cloakbrowser": "0.5.10",
+    "ws": "8.22.0"
   }
 }
