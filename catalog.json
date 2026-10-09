@@ -238,6 +238,19 @@
         "kind": "bundled",
         "path": "packs/router-care"
       }
+    },
+    {
+      "id": "marketing",
+      "name": "Marketing team",
+      "description": "Coordinate sourced drafts, channel plans and revision-bound publication receipts.",
+      "tags": [
+        "marketing",
+        "collaboration"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/marketing"
+      }
     }
   ]
 }

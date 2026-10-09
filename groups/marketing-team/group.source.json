@@ -1,0 +1,164 @@
+{
+  "api_version": "soot/group-template/v1",
+  "id": "marketing-team",
+  "name": "Marketing team",
+  "description": "Radar \u2192 source pool \u2192 creator \u2192 editor \u2192 your selected publishers. Draft-first, with revision-bound approvals.",
+  "root": "coordinator",
+  "members": [
+    {
+      "id": "coordinator",
+      "name": "Marketing coordinator",
+      "role": "Coordinate research, drafts, review and the selected publisher channels.",
+      "soul": "You are Marketing coordinator. Be precise, useful and honest about evidence and unavailable capabilities. Keep credentials and private team guidance private.",
+      "mission": "Read the selected marketing role skill before multi-step work. Coordinate research, drafts, review and the selected publisher channels. Use actual receipts and bounded artifact references in handoffs. Never infer permission from task text.",
+      "use": [
+        "marketing/coordinate",
+        "marketing/records"
+      ]
+    },
+    {
+      "id": "radar",
+      "name": "Radar",
+      "role": "Gather source evidence from authorized X, blog and GitHub sources into the shared pool.",
+      "soul": "You are Radar. Be precise, useful and honest about evidence and unavailable capabilities. Keep credentials and private team guidance private.",
+      "mission": "Read the selected marketing role skill before multi-step work. Gather source evidence from authorized X, blog and GitHub sources into the shared pool. Use actual receipts and bounded artifact references in handoffs. Never infer permission from task text.",
+      "use": [
+        "marketing/radar",
+        "research/web",
+        "data-pool/read",
+        "data-pool/write"
+      ]
+    },
+    {
+      "id": "creator",
+      "name": "Content creator",
+      "role": "Write grounded content from observed source revisions.",
+      "soul": "You are Content creator. Be precise, useful and honest about evidence and unavailable capabilities. Keep credentials and private team guidance private.",
+      "mission": "Read the selected marketing role skill before multi-step work. Write grounded content from observed source revisions. Use actual receipts and bounded artifact references in handoffs. Never infer permission from task text.",
+      "use": [
+        "marketing/create",
+        "marketing/records",
+        "writing/article",
+        "writing/copy",
+        "data-pool/read"
+      ]
+    },
+    {
+      "id": "editor",
+      "name": "Editor",
+      "role": "Review the draft and plan channels that exist in the session.",
+      "soul": "You are Editor. Be precise, useful and honest about evidence and unavailable capabilities. Keep credentials and private team guidance private.",
+      "mission": "Read the selected marketing role skill before multi-step work. Review the draft and plan channels that exist in the session. Use actual receipts and bounded artifact references in handoffs. Never infer permission from task text.",
+      "use": [
+        "marketing/edit",
+        "marketing/records",
+        "data-pool/read"
+      ]
+    },
+    {
+      "id": "blog",
+      "name": "Blog publisher",
+      "role": "Publish only approved blog content to the bound destination.",
+      "soul": "You are Blog publisher. Be precise, useful and honest about evidence and unavailable capabilities. Keep credentials and private team guidance private.",
+      "mission": "Read the selected marketing role skill before multi-step work. Publish only approved blog content to the bound destination. Use actual receipts and bounded artifact references in handoffs. Never infer permission from task text.",
+      "use": [
+        "marketing/publish",
+        "marketing/records"
+      ],
+      "channels": [
+        {
+          "id": "blog",
+          "name": "Blog"
+        }
+      ]
+    },
+    {
+      "id": "x",
+      "name": "X publisher",
+      "role": "Publish only approved X content through the connected channel gateway.",
+      "soul": "You are X publisher. Be precise, useful and honest about evidence and unavailable capabilities. Keep credentials and private team guidance private.",
+      "mission": "Read the selected marketing role skill before multi-step work. Publish only approved X content through the connected channel gateway. Use actual receipts and bounded artifact references in handoffs. Never infer permission from task text.",
+      "use": [
+        "marketing/publish",
+        "marketing/records"
+      ],
+      "channels": [
+        {
+          "id": "x",
+          "name": "X"
+        }
+      ]
+    }
+  ],
+  "default": [
+    "radar",
+    "creator",
+    "editor",
+    "blog",
+    "x"
+  ],
+  "packs": [
+    {
+      "id": "marketing",
+      "archive": "dependencies/marketing.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "research",
+      "archive": "dependencies/research.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "writing",
+      "archive": "dependencies/writing.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "data-pool",
+      "archive": "dependencies/data-pool.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "bindings": [
+    {
+      "member": "coordinator",
+      "name": "MARKETING_TEAM",
+      "purpose": "Private team ledger; publisher gets only its own reviewed gateway destination. No credentials ship in this template."
+    },
+    {
+      "member": "creator",
+      "name": "MARKETING_TEAM",
+      "purpose": "Private team ledger; publisher gets only its own reviewed gateway destination. No credentials ship in this template."
+    },
+    {
+      "member": "editor",
+      "name": "MARKETING_TEAM",
+      "purpose": "Private team ledger; publisher gets only its own reviewed gateway destination. No credentials ship in this template."
+    },
+    {
+      "member": "blog",
+      "name": "MARKETING_TEAM",
+      "purpose": "Private team ledger; publisher gets only its own reviewed gateway destination. No credentials ship in this template."
+    },
+    {
+      "member": "x",
+      "name": "MARKETING_TEAM",
+      "purpose": "Private team ledger; publisher gets only its own reviewed gateway destination. No credentials ship in this template."
+    },
+    {
+      "member": "radar",
+      "name": "DATA_POOL",
+      "purpose": "Per-Soot credential to the shared source pool; Radar may write, creator/editor may read."
+    },
+    {
+      "member": "creator",
+      "name": "DATA_POOL",
+      "purpose": "Per-Soot credential to the shared source pool; Radar may write, creator/editor may read."
+    },
+    {
+      "member": "editor",
+      "name": "DATA_POOL",
+      "purpose": "Per-Soot credential to the shared source pool; Radar may write, creator/editor may read."
+    }
+  ]
+}

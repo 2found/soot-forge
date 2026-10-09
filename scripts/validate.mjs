@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { readCatalog, materialize, run } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
+import { readGroups } from './groups.mjs';
 
 const args = process.argv.slice(2);
 let remote = false, soot = null;
@@ -13,6 +14,7 @@ for (let i = 0; i < args.length; i++) {
 }
 const root = resolve(import.meta.dirname, '..');
 const catalog = await readCatalog(root);
+await readGroups(root);
 const work = await mkdtemp(join(tmpdir(), 'soot-forge-validate-'));
 try {
   const directories = (await readdir(join(root, 'packs'), { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name);

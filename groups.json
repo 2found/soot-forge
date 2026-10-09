@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "repository": "2found/soot-forge",
+  "groups": [
+    {
+      "id": "marketing-team",
+      "name": "Marketing team",
+      "description": "Radar \u2192 source pool \u2192 creator \u2192 editor \u2192 your selected publishers. Draft-first, with revision-bound approvals.",
+      "source": "groups/marketing-team/group.source.json"
+    }
+  ]
+}

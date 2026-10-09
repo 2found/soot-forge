@@ -7,7 +7,7 @@ The public discovery page lives at `trysoot.com/forge`, in the Soot website.
 For finding or installing a pack, follow [USAGE.md](USAGE.md). Read catalog
 metadata first; never infer permissions from a catalog entry or installation.
 
-- `catalog.json` is the only hand-authored catalog. Bundled packs live in `packs/`;
+- `catalog.json` is the hand-authored pack catalog. `groups.json` is the separate group-template catalog; never put identities or group entries in pack v1. Bundled packs live in `packs/`;
   external entries pin a full Git commit and a repository-relative folder.
 - Preserve `soot/v1`. Packs own capabilities, skills and tools; never credentials,
   Soot identity, schedules or automatic grants. Installing never executes scripts.
