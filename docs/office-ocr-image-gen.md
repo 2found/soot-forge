@@ -84,8 +84,43 @@ the three selected files total 9.89 GB. CPU offload alone cannot reduce total
 unified RAM, so disk parameter backing is material here. These runtime features
 are documented by [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp/blob/f89d9b13d730eabeede7314ce49dacd18d3c90c2/docs/performance.md).
 
-Real local model benchmark: **pending preparation/inference**. This entry is
-updated only after an actual generated PNG, visual review and memory evidence.
+Real local model benchmark: **PASS**, two real 512×512 PNG generations through
+the public wrapper. Native runtime is official macOS release
+`master-951-f89d9b1`, source commit `f89d9b13d730eabeede7314ce49dacd18d3c90c2`;
+downloaded archive SHA-256
+`8057dbfb1529b4e0bc07d35eaf68fa821e44bca6852428c539bf70602189bf92`.
+It initialized the M1 Pro Metal backend and ran successfully on macOS 26.5.2.
+All three model files passed their pinned size/hash checks.
+
+| Profile | Inference time | Peak child RSS | Swap used before → after |
+| --- | ---: | ---: | ---: |
+| Initial 6 GiB per-backend budget, prefetch enabled | 159.326s | 4.18 GiB | 3173.19 → 5355.56 MiB |
+| Final Metal 3 GiB / CPU 2 GiB, prefetch disabled | 184.862s | 3.24 GiB | 5355.56 → 5179.56 MiB |
+
+Native `vmmap -summary` sampled the final run's **physical footprint peak at
+4.3 GiB**, including the native process's shared graphics buffers. The `time -l`
+peak-footprint field pertains to the Python wrapper and is not used as a native
+memory result. Both runs used the same prompt, seed 42, Q4_K_M weights, exact
+eight sigmas, CFG=1 and 256-pixel VAE tiles. Their RGBA pixels and complete PNG
+bytes were identical: SHA-256
+`72941472b67801c07bcfa70239dbdc899559b43bd0287ffcf6e723416397dcf5`.
+Visual inspection confirmed the requested red ceramic teapot, wooden table,
+soft window daylight and absence of text.
+
+The final profile is the pack default. It completed without additional net
+system swap usage in this run. The machine already had swap in use, and other
+applications/cache conditions differed between runs; these are practical
+single-draft measurements, not a controlled speed comparison or a zero-swap
+guarantee for every workload. Complex prompts, 2K output, image editing and
+live transparency requests have not been model-benchmarked.
+
+Evidence: `/tmp/soot-forge-qwen-turbo-512-20261010/` (baseline) and
+`/tmp/soot-forge-qwen-turbo-512-optimized-20261010/` (final), with PNG, request,
+receipt, system snapshots, native log and native footprint samples. The
+separate Pillow-only environment is `/tmp/soot-forge-image-gen-python`; weights
+are `/tmp/soot-forge-qwen-models`, outside all pack trees. The deterministic
+pack archive was approximately 37 KiB; the selected model files total 9.89 GB.
+
 Reproduce with the prepared host binding and a new evidence directory:
 
 ```sh

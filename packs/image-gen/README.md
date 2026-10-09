@@ -83,8 +83,11 @@ system memory. Close other heavy model processes before benchmarking. Start at
 
 Receipts include inference seconds and child RSS. RSS is not a measurement of
 all unified memory or other running applications. See the [verification report](../../docs/office-ocr-image-gen.md)
-for actual machine results and limitations; do not call a transport fixture a
-model benchmark. Review prompt fidelity and typography visually after generation.
+for actual machine results and limitations. On the tested M1 Pro 16GB, the
+default profile produced a 512×512 image in 185s with a sampled native physical
+footprint peak of 4.3 GiB and no additional net swap usage. Its PNG was identical
+to the less restricted baseline. This is one draft, not a promise for all prompts.
+Review prompt fidelity and typography visually after generation.
 
 The model inherits the [Qwen Research License](https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo/blob/d65dbc9a7e8f6b5479e33dee6030eaab2a906509/LICENSE).
 It is not an Apache-2.0 model. Read its terms before distribution or commercial use.
