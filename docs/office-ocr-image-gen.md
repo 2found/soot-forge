@@ -63,7 +63,7 @@ from the [official Turbo checkpoint](https://huggingface.co/Qwen/Qwen-Image-2.1-
 Its [scheduler](https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo/blob/d65dbc9a7e8f6b5479e33dee6030eaab2a906509/scheduler/scheduler_config.json)
 uses static shift=1; the native sampler gets these sigmas plus terminal zero.
 
-Hermetic native CLI fixture: **8/8 passed**. Actual PNG publication/receipts,
+Hermetic native CLI fixture: **9/9 passed**. Actual PNG publication/receipts,
 fixed eight-step schedule and CFG, no shell interpolation, pinned hash checks,
 host pixel budget, non-overwrite, lock contention, CLI failure/timeout, malformed
 PNG, wrong dimensions and actual alpha validation are exercised. These tests
@@ -76,8 +76,8 @@ The support-copy gate includes image-gen, and the trusted Python runner lane
 now includes its tests.
 
 The native memory strategy is Q4 diffusion + Q4 encoder, disk-backed parameters,
-CPU encoding/VAE decode, Metal diffusion with a 6 GiB managed buffer budget,
-Flash Attention, FP16 prefix cache, 256-pixel VAE tiles and one shared inference
+CPU encoding/VAE decode, Metal diffusion with 3 GiB Metal / 2 GiB CPU managed buffer budgets,
+Flash Attention, FP16 prefix cache, disabled weight prefetch, 256-pixel VAE tiles and one shared inference
 lock. Default drafts are 512×512; high memory pressure can use 256×256 while
 retaining Q4_K_M and eight steps. Full BF16 weights alone total 32.44 GB;
 the three selected files total 9.89 GB. CPU offload alone cannot reduce total
@@ -95,5 +95,5 @@ Reproduce with the prepared host binding and a new evidence directory:
 ```
 
 Record wall time, child RSS/peak footprint, system memory pressure and swap
-before/after. A 6 GiB managed buffer limit is not a hard total process-memory
+before/after. A managed buffer limit is not a hard total process-memory
 cap. Swap-backed success alone does not establish comfortable physical-RAM fit.

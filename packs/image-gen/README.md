@@ -36,7 +36,8 @@ IMAGE_GEN_BINDING JSON. Example (paths are placeholders):
   "lock_file": "/absolute/host-models/qwen-turbo/inference.lock",
   "backend": "metal",
   "max_pixels": 262144,
-  "max_vram_gib": 6,
+  "max_vram_gib": 3,
+  "max_ram_gib": 2,
   "timeout_sec": 1700
 }
 ```
@@ -67,14 +68,16 @@ nothing. This is path validation, not an OS sandbox.
 Full BF16 weights total **32.44 GB** (diffusion + encoder + VAE), before working
 buffers. This pack uses **4.19 GB diffusion + 5.03 GB encoder + 0.68 GB VAE**,
 disk-backed parameters, CPU text encoding/decoding, Metal diffusion, Flash
-Attention, prefix cache in FP16 and 256-pixel VAE tiles. Defaults limit drafts
+Attention, prefix cache in FP16 and 256-pixel VAE tiles. Graph working budgets
+are 3 GiB for Metal and 2 GiB for CPU; asynchronous weight prefetch is disabled
+to avoid a second segment’s weights being resident at the same time. Defaults limit drafts
 to 512×512, one image, CFG=1 and the checkpoint's **exact 8-step sigma schedule**
 with a terminal zero. Merely setting `--steps 8` would lose that schedule.
 
 Apple Silicon shares CPU/GPU memory: CPU offload by itself does not reduce the
 total RAM required. Disk-backed parameters let the runtime release weights
 between stages/segments. This trades latency for memory; Q4 and tiled VAE can
-also affect quality. Metal budget controls managed inference buffers, not all
+also affect quality. Metal/CPU budgets control managed inference buffers, not all
 system memory. Close other heavy model processes before benchmarking. Start at
 256×256 if memory pressure is high, preserving Q4_K_M and all eight steps.
 
