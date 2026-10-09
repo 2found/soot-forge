@@ -1,7 +1,7 @@
 # Soot browser adapter
 
 Standalone executable implementation for the configuration-only browser-use pack.
-Requires Node.js 24+. Install with `npm install -g ./contrib/adapters/browser-use`.
+Requires Node.js 24+. From the browser-use pack directory, install with `npm install -g ./adapter`.
 The adapter pins agent-browser and CloakBrowser as its own dependencies. Run `npm test` for isolation and
 command-boundary checks. No adapter code is imported into the Soot binary.
 

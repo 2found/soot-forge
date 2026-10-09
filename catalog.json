@@ -226,6 +226,18 @@
         "kind": "bundled",
         "path": "packs/writing"
       }
+    },
+    {
+      "id": "router-care",
+      "name": "Router care",
+      "description": "Interpret 9router release observations and rollout fences through a host-bound status operation.",
+      "tags": [
+        "operations"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/router-care"
+      }
     }
   ]
 }

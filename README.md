@@ -86,4 +86,4 @@ Soot is a 2found product. **Tiny agents. Better together.**
 
 ## Migrated community packs
 
-The catalog also includes artifacts, casework, data-pool, email, live-chat, live-chat-sheets, nest-no-code, research, website and writing. Their source is maintained here. Go runners build from each pack’s `runner/` module; Node owner tools include their public wire codec. Host adapters, SDKs and reviewed application/test snapshots remain in Soot. See [SOURCE.md](SOURCE.md) for provenance.
+The catalog also includes artifacts, casework, data-pool, email, live-chat, live-chat-sheets, nest-no-code, research, router-care, website and writing. Their source is maintained here. Go runners build from each pack’s `runner/` module; Node owner tools include their public wire codec. Host adapters, SDKs and reviewed application/test snapshots remain in Soot. See [SOURCE.md](SOURCE.md) for provenance.
