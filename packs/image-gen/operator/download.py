@@ -12,6 +12,7 @@ model = json.loads((pack / "model.json").read_text())
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--directory", type=Path, required=True)
 parser.add_argument("--check", action="store_true", help="Verify existing files without network access")
+parser.add_argument("--with-vision", action="store_true", help="Also prepare the pinned vision projector for image editing")
 args = parser.parse_args()
 directory = args.directory.resolve()
 if directory.is_relative_to(pack.parent.parent):
@@ -26,7 +27,8 @@ def checksum(p):
     return h.hexdigest()
 
 
-for name, weight in model["weights"].items():
+weights = {**model["weights"], **(model.get("optional_weights", {}) if args.with_vision else {})}
+for name, weight in weights.items():
     file = directory / weight["file"]
     if file.is_file():
         if file.stat().st_size != weight["bytes"] or checksum(file) != weight["sha256"]:

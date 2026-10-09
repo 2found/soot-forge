@@ -35,5 +35,14 @@
       "bytes": 675508656,
       "sha256": "71879ffd5321e6d10c3c87513e2b474b1252efa7f3dec2969214a9bf06a6dd5c"
     }
+  },
+  "optional_weights": {
+    "llm_vision": {
+      "repository": "Qwen/Qwen3-VL-8B-Instruct-GGUF",
+      "revision": "f982a07559d4a2f6c8744d840bf6fccab30eea96",
+      "file": "mmproj-Qwen3VL-8B-Instruct-F16.gguf",
+      "bytes": 1159029824,
+      "sha256": "ca524100ebf825c9a870db1c580d03879e0da0ab2541697e2458e64891cf9d38"
+    }
   }
 }

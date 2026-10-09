@@ -37,12 +37,14 @@ def host_file(value, label, executable=False):
     return p
 
 
-def configuration():
+def configuration(edit=False):
     cfg = binding("IMAGE_GEN_BINDING")
-    fields(cfg, ("sd_cli", "diffusion", "llm", "vae", "lock_file", "backend", "max_pixels", "max_vram_gib", "max_ram_gib", "timeout_sec"),
+    fields(cfg, ("sd_cli", "diffusion", "llm", "vae", "llm_vision", "lock_file", "backend", "max_pixels", "max_vram_gib", "max_ram_gib", "timeout_sec"),
            ("sd_cli", "diffusion", "llm", "vae", "lock_file"))
     host_file(cfg["sd_cli"], "sd-cli", executable=True)
-    for key, weight in MODEL["weights"].items():
+    weights = {**MODEL["weights"], **(MODEL["optional_weights"] if edit else {})}
+    for key, weight in weights.items():
+        require(key in cfg, "host must prepare llm_vision for reference-image editing")
         p = host_file(cfg[key], key)
         require(p.stat().st_size == weight["bytes"] and digest(p) == weight["sha256"],
                 f"{key} does not match pinned Qwen Turbo Q4_K_M weights; prepare the reviewed model.json files")
@@ -95,7 +97,7 @@ def arguments(cfg, args, destination):
     if cfg.get("backend", "metal") == "metal":
         memory_budget = "metal=" + str(cfg.get("max_vram_gib", 3)) + "," + memory_budget
     # No model-controlled argv, model paths, URLs, schedules, extra flags or shell.
-    return [cfg["sd_cli"], "--diffusion-model", cfg["diffusion"], "--llm", cfg["llm"], "--vae", cfg["vae"],
+    argv = [cfg["sd_cli"], "--diffusion-model", cfg["diffusion"], "--llm", cfg["llm"], "--vae", cfg["vae"],
             "--backend", "diffusion=" + cfg.get("backend", "metal") + ",te=cpu,vae=cpu",
             "--params-backend", "disk", "--disable-prefetch", "--max-vram",
             memory_budget,
@@ -104,10 +106,13 @@ def arguments(cfg, args, destination):
             "--sampling-method", "euler", "--steps", "8", "--sigmas", ",".join(map(str, MODEL["sample_sigmas"])),
             "--width", str(args["width"]), "--height", str(args["height"]),
             "--seed", str(args["seed"]), "-p", prompt, "-o", str(destination)]
+    if args.get("reference"):
+        argv += ["--llm_vision", cfg["llm_vision"], "-r", str(args["reference"])]
+    return argv
 
 
 def generate(args):
-    fields(args, ("prompt", "output", "width", "height", "seed", "transparent"), ("prompt", "output"))
+    fields(args, ("prompt", "output", "width", "height", "seed", "transparent", "reference"), ("prompt", "output"))
     string(args["prompt"], "prompt", 4000)
     path(args["output"], existing=False, suffixes={".png"})  # Refuse conflicts before inference.
     args = {"width": 512, "height": 512, "seed": 42, "transparent": False, **args}
@@ -116,7 +121,15 @@ def generate(args):
         require(args[key] % 32 == 0, "dimensions must be multiples of 32")
     integer(args["seed"], "seed", 0, 2147483647)
     require(type(args["transparent"]) is bool, "transparent must be boolean")
-    cfg = configuration()
+    reference = None
+    if "reference" in args:
+        reference = path(args["reference"], suffixes={".png", ".jpg", ".jpeg"}, max_bytes=2*1024*1024)
+        from PIL import Image
+        with Image.open(reference) as im:
+            require(im.format in ("PNG", "JPEG") and im.width*im.height <= 16_000_000
+                    and getattr(im, "n_frames", 1) == 1, "unsupported reference image")
+            im.load()
+    cfg = configuration(edit=reference is not None)
     require(args["width"]*args["height"] <= cfg.get("max_pixels", 512*512), "image exceeds host pixel budget")
     # One inference at a time across Soots using this host model; do not queue
     # another memory-heavy process behind a lock with an unbounded timeout.
@@ -128,7 +141,7 @@ def generate(args):
             raise ToolError("image runtime busy; retry after the current generation finishes") from None
         with tempfile.TemporaryDirectory(prefix="soot-image-") as directory:
             generated = Path(directory) / "image.png"
-            metrics = command(arguments(cfg, args, generated), directory, cfg.get("timeout_sec", 1700))
+            metrics = command(arguments(cfg, {**args, "reference": reference}, generated), directory, cfg.get("timeout_sec", 1700))
             require(generated.is_file() and generated.stat().st_size <= 32*1024*1024, "missing or oversized generated image")
             info = image_info(generated)
             require((info["width"], info["height"]) == (args["width"], args["height"]), "runtime returned wrong dimensions")
@@ -137,7 +150,7 @@ def generate(args):
                 staged.write_bytes(generated.read_bytes())
     return {**receipt(path(args["output"])), **info, **metrics,
             "model": MODEL["model"], "quantization": MODEL["quantization"], "seed": args["seed"],
-            "steps": 8, "cfg": 1, "weights_sha256": {k: v["sha256"] for k, v in MODEL["weights"].items()},
+            "steps": 8, "cfg": 1, "reference": receipt(reference) if reference else None, "weights_sha256": {k: v["sha256"] for k, v in MODEL["weights"].items()},
             "visual_qa": "pending prompt/text/layout review; quantization and tiling may affect quality"}
 
 

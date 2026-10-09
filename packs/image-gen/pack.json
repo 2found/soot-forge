@@ -59,7 +59,7 @@
       "tools": [
         {
           "name": "generate",
-          "description": "Generate one new PNG with the pinned Turbo Q4_K_M model, CFG=1 and its exact 8-step schedule. Never download or install dependencies.",
+          "description": "Generate or edit one PNG with pinned Qwen Image 2.1 Turbo Q4_K_M. Pass the attached image path as reference for edits.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -92,6 +92,12 @@
               },
               "transparent": {
                 "type": "boolean"
+              },
+              "reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "description": "Optional attached PNG/JPEG relative to FILE_ROOT. Apply prompt as an edit; never fetch URLs."
               }
             },
             "required": [

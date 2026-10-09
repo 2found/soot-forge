@@ -10,7 +10,9 @@ test('the widget ships the exact shared 2ui assets recorded at import', async ()
   assert.equal(manifest.package, '@tofound/ui');
   assert.ok(manifest.version);
   assert.deepEqual(Object.keys(manifest.files).sort(), ['agent-behavior.js', 'agent.css']);
-  assert.equal(manifest.composer.version, '0.4.0');
+  const sourcePackage = JSON.parse(await readFile(new URL('../packs/live-chat/widget-src/package.json', import.meta.url), 'utf8'));
+  assert.equal(manifest.version, sourcePackage.dependencies['@tofound/ui']);
+  assert.equal(manifest.composer.version, sourcePackage.dependencies['@tofound/ui']);
   assert.equal(createHash('sha256').update(await readFile(new URL('widget-composer.js', root))).digest('hex'), manifest.composer.sha256);
   for (const [file, hash] of Object.entries(manifest.files)) {
     assert.equal(createHash('sha256').update(await readFile(new URL(file, root))).digest('hex'), hash, file);

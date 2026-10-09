@@ -69,9 +69,14 @@ host pixel budget, non-overwrite, lock contention, CLI failure/timeout, malforme
 PNG, wrong dimensions and actual alpha validation are exercised. These tests
 do not load a model.
 
-Catalog/root Node tests: **19/19 passed**. Catalog validation with the official
-Soot installer passed for **25 bundled packs**, including image-gen (26 catalog
-entries total; the unchanged external 2build entry was not fetched).
+Catalog/root Node tests: **19/19 passed**. Final full catalog validation with
+`--soot /tmp/soot-forge-current-check-20261010 --remote` passed for **all 26
+entries**, including image-gen and the pinned external 2build source. The local
+installer was built from Soot commit `ec7df0e8b2d789cecc083fe597dae43547396f1d`
+with a temporary Go workspace selecting the current 2ai checkout. An earlier
+validation attempt used the older live-journey binary and rejected the existing
+data-pool `resource_fields` metadata; the current installer supports that field
+and passed the complete gate. No pack field was removed to make it pass.
 The support-copy gate includes image-gen, and the trusted Python runner lane
 now includes its tests.
 
