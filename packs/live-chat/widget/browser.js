@@ -370,6 +370,12 @@ export class SootChatSession {
     }
     get client() { return this.#client; }
     get appInfo() { return this.#appInfo; }
+    /** Select the language of future conversations without changing saved work. */
+    setLanguage(language) {
+        if (language !== 'en' && language !== 'vi')
+            throw new TypeError('Invalid conversation language');
+        this.#language = language;
+    }
     readState() {
         const raw = localStorage.getItem(this.#storageKey);
         const parsed = raw ? JSON.parse(raw) : {};
@@ -559,7 +565,20 @@ export class SootChatSession {
             const pending = state.pendingMessage;
             if (!pending)
                 throw new Error('Pending receipt was removed before submission');
-            const receipt = await this.#client.sendMessage(conversationId, pending.id, pending.text);
+            let receipt;
+            try {
+                receipt = await this.#client.sendMessage(conversationId, pending.id, pending.text);
+            }
+            catch (error) {
+                // A validation rejection is definitive: the server admitted no run.
+                // Keep the draft editable. Transport failures and other statuses keep
+                // the original receipt so an explicit retry cannot duplicate work.
+                if (error instanceof SootPublicHTTPError && error.status === 400) {
+                    state.pendingMessage = null;
+                    this.writeState(state);
+                }
+                throw error;
+            }
             state.pendingMessage = null;
             state.draft = '';
             this.writeState(state);

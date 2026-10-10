@@ -80,7 +80,10 @@ and passed the complete gate. No pack field was removed to make it pass.
 The support-copy gate includes image-gen, and the trusted Python runner lane
 now includes its tests.
 
-The native memory strategy is Q4 diffusion + Q4 encoder, disk-backed parameters,
+The early benchmark below used CPU encoder/VAE stages. The current Metal-stage
+default and real-provider Nest measurements are recorded in the final section.
+
+The early native memory strategy was Q4 diffusion + Q4 encoder, disk-backed parameters,
 CPU encoding/VAE decode, Metal diffusion with 3 GiB Metal / 2 GiB CPU managed buffer budgets,
 Flash Attention, FP16 prefix cache, disabled weight prefetch, 256-pixel VAE tiles and one shared inference
 lock. Default drafts are 512×512; high memory pressure can use 256×256 while
@@ -112,12 +115,13 @@ bytes were identical: SHA-256
 Visual inspection confirmed the requested red ceramic teapot, wooden table,
 soft window daylight and absence of text.
 
-The final profile is the pack default. It completed without additional net
+That CPU-stage profile was the earlier pack default. It completed without additional net
 system swap usage in this run. The machine already had swap in use, and other
 applications/cache conditions differed between runs; these are practical
 single-draft measurements, not a controlled speed comparison or a zero-swap
 guarantee for every workload. Complex prompts, 2K output, image editing and
-live transparency requests have not been model-benchmarked.
+live transparency requests have not been model-benchmarked. Reference edits are
+covered by the follow-up below.
 
 Evidence: `/tmp/soot-forge-qwen-turbo-512-20261010/` (baseline) and
 `/tmp/soot-forge-qwen-turbo-512-optimized-20261010/` (final), with PNG, request,
@@ -137,3 +141,109 @@ Reproduce with the prepared host binding and a new evidence directory:
 Record wall time, child RSS/peak footprint, system memory pressure and swap
 before/after. A managed buffer limit is not a hard total process-memory
 cap. Swap-backed success alone does not establish comfortable physical-RAM fit.
+## General media follow-up (2026-10-10)
+
+The General creation preset now explicitly selects Office, OCR and image-gen.
+The real Nest test uploaded a reference PNG, passed its content-addressed
+workspace path directly to `image-gen_generate`, then opened the new PNG in
+the authenticated document panel. The Qwen Q4_K_M edit changed a red teapot to
+cobalt blue. The provider was scripted to test routing, while the image model
+and runtime were real. No OCR was called in this image-edit path.
+
+Reference edits additionally need the pinned Qwen3-VL vision projector in
+`model.json`. The edit uses Q8_0 prefix caching with the same exact eight-step
+Turbo sigma schedule. The Nest edit took 373.5 s and sampled physical footprint
+peaked at 5.6 GiB while other builds/model experiments ran. System swap grew;
+do not extrapolate a no-swap budget from this shared-load run. An earlier FP16
+reference edit took 262.1 s, but the runs were not controlled comparisons.
+
+Real DeepSeek-OCR-2 4-bit recognition through the pack passed on M1 Pro 16 GB:
+the Vietnamese source sentence “Báo cáo tiếng Việt: Tổng ngân sách 1.650.000 đồng.”
+was reproduced exactly, in 7.16 s including cold load. MLX server physical
+footprint peaked at 6.8 GiB and rested at 2.5 GiB. The tested model conversion
+and working single-worker server versions are recorded in `packs/ocr/README.md`.
+The HTTP client now avoids duplicating the chat template's image placeholder
+and accepts a host-owned token limit for bounded output reservations.
+
+Follow-up local evidence is in `/tmp/soot-nest-media-20261010` and
+`/tmp/soot-deepseek-ocr-live-20261010`. The Nest negative case (no attached image)
+asked for the missing image without invoking the tool. The successful browser
+journey had no console errors. All owned browser/runtime/Vite/OCR processes
+were stopped afterward. Forge media tests (58) and image runtime tests (10)
+passed after these changes. The Soot native fresh-Nest lane remains blocked
+until stable Forge release assets for Office/OCR/image-gen are published;
+the local isolated journeys use explicit pack directories/archives.
+
+## Real-provider Nest retest and optimization (2026-10-10)
+
+All three media pack manifests were verified on the remote Forge `main`
+(commit `4204abf845a5005e69999d7885e576f8b966d3e5`). The latest stable release
+`v0.1.0` still lacked the Office/OCR/image-gen archives. New local changes are
+not a published release; fresh General/Nest installation remains dependent on
+publishing those reviewed assets. No source fallback or release gate was bypassed.
+
+This retest uses the authorized host's actual `devin/swe-2` provider and real
+Qwen Q4_K_M inference, not the scripted provider of the earlier transport test.
+Only deployment/conversation state and synthetic operator credentials are
+isolated; provider credentials stay in the existing private host configuration.
+The uploaded red teapot is changed to cobalt blue; the result is opened via
+its authenticated conversation file link in Nest.
+
+| Run, 512×512 | Tool wall time | Sampled native peak physical footprint |
+| --- | ---: | ---: |
+| Real Nest, CPU text encoder/VAE baseline | 277.872 s | 5.7 GiB |
+| Same native prompt/seed/reference, all Metal | 171.95 s | 3.9 GiB |
+| Real Nest after default/alpha/mission changes | 178.740 s | 3.6 GiB |
+
+The paired native comparison preserves the exact prompt extracted from PNG
+metadata, seed 42, reference, model hashes, eight Turbo sigmas, CFG=1, Q8_0 edit
+cache and 256px tiles. All-Metal native inference itself took 165.361 s; weight
+verification took 6.477 s. Text conditioning fell from 52.24 to 12.39 s and
+reference VAE encoding from 10.81 to 4.91 s. RGB mean absolute difference was
+0.37/0.29/0.31 per channel on the 0–255 scale; visual review passed shape,
+cobalt color, tabletop and soft window-light preservation. Outputs are not
+claimed bit-identical. The paired run's system swap declined from 7191 to
+6822.94 MiB, but this is a shared host and not a general no-swap guarantee.
+The real Nest comparison has different agent-authored native prompts and is
+an observed user-flow improvement, not a controlled statistical benchmark.
+
+Text encoding and VAE now default to Metal with Metal diffusion; the host can
+retain CPU stages through bounded `text_backend` / `vae_backend` fields. Disk
+parameters, disabled prefetch and 3 GiB Metal / 2 GiB CPU budgets remain. Ordinary
+PNG requests publish opaque RGB preserving native RGB values and provenance;
+explicit transparency preserves actual alpha. General uses the verified receipt
+and returns the file link rather than repeating checks or re-encoding with shell.
+The baseline used two inspect calls and three post-generation shell calls; the
+optimized edit used none of those. One initial 32 ms shell call prepared its
+output folder, followed by exactly one generation call and a Vietnamese answer.
+No OCR ran in either image-edit journey.
+
+Cancellation regression was reproduced before fixing it: hard-killing the
+Python wrapper left its detached native model alive. A private lifetime-pipe
+guard now terminates its own native process group on parent EOF, including
+SIGKILL, retaining the shared inference lock during cleanup. The real Nest Stop
+case confirmed wrapper, guard and model had all exited, the shared lock was
+available, the conversation remained stopped and no output/success reply was
+published. Regression coverage also exercises a native child ignoring SIGTERM.
+Busy requests now reject before reading/hashing ~11 GB of weights; admitted
+requests still fully verify all pinned hashes after acquiring the lock.
+
+Evidence: `/tmp/soot-nest-image-retest-20261010-evidence/` (real-provider baseline),
+`/tmp/soot-image-all-metal-benchmark-20261010/` (paired experiment), and
+`/tmp/soot-nest-image-optimized-20261010/` (optimized edit and Stop UI). These include
+public events/messages, native metadata, images, loaded-preview screenshots,
+owned-PID checks and native footprint samples. Do not copy private fixture
+credentials into a report or repository.
+
+The final source also passed a real-provider text-only Nest journey: one
+512×512 cobalt mug photo, RGB PNG, 145.008 s tool wall time and 3.5 GiB sampled
+native peak physical footprint. It used one generation, no shell and no OCR;
+its authenticated preview loaded at 512×512 and visual prompt review passed.
+Final Stop verification confirmed the lifetime guard retained the shared lock
+while native inference was running, and wrapper/guard/model all disappeared
+after the UI Stop. No PNG or late success reply was published. Final evidence:
+`/tmp/soot-nest-image-final-20261010/report.json`, `text-preview.png`,
+`text-result.png`, `stopped.png`, `stop-process-check.json`, public events and
+native footprint samples. Final gates passed: 13 image runtime tests, 58 media
+tests, 31 Forge Node tests, all 26 catalog entries with external content, and
+Go race checks for scaffold/app/conversation/operations/conversation HTTP.

@@ -75,6 +75,33 @@ Authorization headers/request bodies from logs. It must be reachable from the
 local and VM Soot hosts using the same HTTPS service URL. For a quick local test,
 render with `--service-url http://127.0.0.1:8091`.
 
+## Ambient `data_pool` resource
+
+A Nest where *every* Soot needs pool tools can attach them ambiently instead of
+writing one credential per Soot. Configure the service with `--host` (additive:
+it emits `bindings/host.json` alongside the per-Soot files), then declare:
+
+```json
+"data_pool": {
+  "binding": {"file": "/private/company-data/bindings/host.json"},
+  "capabilities": "read-write"
+}
+```
+
+`capabilities` may also be an explicit operation list. The host authenticates
+once; every envelope still names its own Soot, and the service derives
+operations and pool grants from the claimed identity's bound roles — the shared
+token cannot widen a reader into a writer, and an identity outside the bound
+set is rejected. Soot identities must come from `--host-config`, explicit
+`--soot`/`--writer`/`--pool-manager` flags or a roster on the service so
+unclaimed names are denied.
+
+A single `pool_create` can seed the audience instead of a follow-up grant:
+`scope:"workspace"` grants every bound Soot, `scope:"group"` plus
+`subject:"<group>"` grants that bound group, both at `level` `read` (default
+`write`); `scope:"own"` (the default) grants only the creator manage. The scope
+is written as ordinary grants, so `grant`/`revoke` later adjusts it.
+
 Alternatively use the executable's own TLS listener, with operator-managed
 certificate renewal:
 

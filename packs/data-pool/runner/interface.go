@@ -74,7 +74,8 @@ func (s *service) view(ctx context.Context, raw json.RawMessage) (any, error) {
 }
 func (s *service) overview() any {
 	return map[string]any{"namespace": s.b.Namespace, "service_identity": hash(s.b.Namespace + "\n" + s.b.Endpoint), "actor": s.actorReference(), "bound_soots": s.b.Soots, "host_managers": s.b.Managers,
-		"limits": map[string]any{"page_size": 20, "inline_content_bytes": 12 << 10, "content_bytes": maxContent, "activity_retention": activityRetention}, "available": true}
+		"groups": s.b.Groups, "default_collection": s.b.Defaults[s.actor], "organization_version": 1,
+		"limits": map[string]any{"collections": maxPools, "collection_depth": maxCollectionDepth, "reference_retention": referenceRetention, "page_size": 20, "inline_content_bytes": 12 << 10, "content_bytes": maxContent, "activity_retention": activityRetention}, "available": true}
 }
 func (s *service) action(ctx context.Context, raw json.RawMessage) (any, error) {
 	var in interfaceInput
@@ -89,7 +90,10 @@ func (s *service) action(ctx context.Context, raw json.RawMessage) (any, error) 
 		if err = decodeStrict(in.Input, &input); err != nil {
 			break
 		}
-		if input.ExpectedRevision == nil || input.Generation == "" {
+		// Generation proves the operator saw the current pool; append names its
+		// own document, so the expected-document-revision check applies only to
+		// actions that address an existing one.
+		if input.Generation == "" || input.Action != "append" && input.ExpectedRevision == nil {
 			err = errors.New("human writes require expected_revision and pool generation")
 			break
 		}

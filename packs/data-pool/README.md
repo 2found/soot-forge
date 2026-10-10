@@ -20,6 +20,14 @@ stable IDs, source URIs, tags, hashes and revisions. Meilisearch provides indexe
 search that tolerates typos and missing Vietnamese accents. Pool grants belong
 to the plugin and are checked before every operation.
 
+## Organize a workspace
+
+Collections contain documents and optional subcollections; groups/Soots receive
+access independently of the tree. Conversations/runs retain provenance references.
+See [collections and permissions](docs/collections.md) for inheritance, private
+boundaries, host-bound groups and default destinations. Existing pool IDs remain
+valid. Upgrade the Pack and Nest Data UI together to expose organization controls.
+
 ## Install the connector
 
 You need Go 1.25+ to build the connector and a Soot workspace. The operator
@@ -73,7 +81,17 @@ get distinct tokens and explicit grants to the same pool. If the operator
 intentionally reuses one identity on both machines, each may have a separate token
 for that identity; they share permissions and request-ID history.
 
-Use separate environment bindings, for example `MANAGER_DATA_POOL`,
+**Ambient binding (multi-Soot Nest).** When the deployment declares a
+`data_pool` block, every Soot in the Nest gets `data-pool_*` tools through one
+shared `@host` credential — pass `--host` to `configure-service.py`, point
+`data_pool.binding` at the emitted `bindings/host.json`, and the envelopes
+still carry each Soot's own identity; the service derives operations and pool
+grants from the bound roles, so a reader cannot become a writer by using the
+shared token. See [the data-pool resource](shared-service.md#data-pool-resource)
+in shared-service.md.
+
+**Per-Soot bindings (direct attach).** Without `data_pool`, use separate
+environment bindings, for example `MANAGER_DATA_POOL`,
 `MARKETING_DATA_POOL` and `SUPPORT_DATA_POOL`, then map each Soot's `DATA_POOL`
 credential to its own variable and selected operations. Never bind a manager's
 token to a reader. The service validates token, Soot identity, operation scope

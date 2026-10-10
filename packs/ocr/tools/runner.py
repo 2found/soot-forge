@@ -97,11 +97,13 @@ def recognize(args):
             model = string(cfg.get("model", "deepseek-ai/DeepSeek-OCR-2"), "OCR model", 200)
             require("deepseek" in model.lower() and "ocr" in model.lower(), "bind a DeepSeek OCR model, not a chat model")
         encoded = base64.b64encode(image_bytes(p, row["page"])).decode()
-        prompt = "<image>\n<|grounding|>Convert the document to markdown."
+        # Chat templates insert the image placeholder from image_url; adding it
+        # in text duplicates the visual token (DeepSeek-OCR-2 rejects 2 != 1).
+        prompt = "<|grounding|>Convert the document to markdown."
         payload = {"model": model, "messages": [{"role": "user", "content": [
             {"type": "text", "text": prompt},
             {"type": "image_url", "image_url": {"url": "data:image/png;base64," + encoded}}]}],
-            "temperature": 0, "max_tokens": 8192, "stream": False}
+            "temperature": 0, "max_tokens": integer(cfg.get("max_tokens", 8192), "host OCR token limit", 1, 8192), "stream": False}
         raw, _ = http(base + "/chat/completions", method="POST", data=payload,
                       token=cfg.get("api_key"), timeout=180, maximum=2*1024*1024)
         response = json_response(raw)

@@ -6,11 +6,14 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output',type=Path,required=True,help='New evidence directory')
 parser.add_argument('--binding-file',type=Path,required=True)
 parser.add_argument('--size',type=int,default=512,choices=[256,384,512])
+parser.add_argument("--reference", type=Path, help="PNG/JPEG to edit using the real model")
+parser.add_argument("--prompt", default="A red ceramic teapot on a wooden table, soft window daylight, simple studio photograph, no text.")
 args=parser.parse_args()
 root=args.output.resolve();root.mkdir()
 repo=Path(__file__).resolve().parent.parent
@@ -29,15 +32,22 @@ def snapshot():
 
 
 call={'api_version':'soot/v1','hook':'tool.call','soot':'image-gen-qa','operation':'image-gen_generate',
-      'input':{'prompt':'A red ceramic teapot on a wooden table, soft window daylight, simple studio photograph, no text.',
+      'input':{'prompt':args.prompt,
                'output':'teapot.png','width':args.size,'height':args.size,'seed':42}}
+if args.reference:
+    import shutil
+    reference = root / ("reference" + args.reference.suffix.lower())
+    shutil.copyfile(args.reference, reference)
+    call["input"]["reference"] = reference.name
 report={'status':'FAIL','request':call,'before':snapshot(),
-        'host_profile':{k:v for k,v in json.loads(binding).items() if k in ('backend','max_pixels','max_vram_gib','max_ram_gib','timeout_sec')}}
+        'host_profile':{k:v for k,v in json.loads(binding).items() if k in ('backend','text_backend','vae_backend','max_pixels','max_vram_gib','max_ram_gib','timeout_sec')}}
 (root/'request.json').write_text(json.dumps(call,indent=2)+'\n')
 try:
     cmd=[str(repo/'packs/image-gen/tools/run'),'generate']
     if sys.platform=='darwin':cmd=['/usr/bin/time','-l',*cmd]
+    started=time.monotonic()
     result=subprocess.run(cmd,input=json.dumps(call),capture_output=True,text=True,env=env,timeout=1800)
+    report['tool_wall_seconds']=round(time.monotonic()-started,3)
     (root/'stdout.json').write_text(result.stdout)
     (root/'stderr.log').write_text(result.stderr)
     report['exit_code']=result.returncode

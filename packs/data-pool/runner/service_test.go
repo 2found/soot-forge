@@ -237,7 +237,7 @@ func TestSharedDataPermissionsRevocationAndRestart(t *testing.T) {
 	invoke(t, s, "manage", manageInput{Action: "revoke", Pool: "company", Soot: "marketing", RequestID: "revoke"})
 	s.actor = "marketing"
 	denied(t, s, "query", queryInput{Action: "search", Pool: "company", Query: "doanh"})
-	pools := invoke(t, s, "pools", poolsInput{}).(map[string]any)["pools"].([]pool)
+	pools := invoke(t, s, "pools", poolsInput{}).(map[string]any)["pools"].([]collectionSummary)
 	if len(pools) != 0 {
 		t.Fatal("revoked pool leaked", pools)
 	}
@@ -434,7 +434,7 @@ func TestPoolRemovalClearsHistoricalGrants(t *testing.T) {
 	for _, actor := range []string{"marketing", "support"} {
 		s.actor = actor
 		pools := invoke(t, s, "pools", poolsInput{}).(map[string]any)
-		if len(pools["pools"].([]pool)) != 0 {
+		if len(pools["pools"].([]collectionSummary)) != 0 {
 			t.Fatal("stale pool membership", actor, pools)
 		}
 		denied(t, s, "query", queryInput{Action: "read", Pool: "company", ID: "new"})

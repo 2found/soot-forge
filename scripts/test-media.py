@@ -310,6 +310,8 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(result["pages"][0]["engine"], "deepseek-ocr")
         request = json.loads(calls[0][2])
         self.assertEqual(calls[0][1], "/v1/chat/completions")
+        self.assertEqual(request["messages"][0]["content"][0]["text"], "<|grounding|>Convert the document to markdown.")
+        self.assertNotIn("<image>", request["messages"][0]["content"][0]["text"])
         data_url = request["messages"][0]["content"][1]["image_url"]["url"]
         self.assertTrue(base64.b64decode(data_url.split(",",1)[1]).startswith(b"\x89PNG"))
         pdf = self.pdf()

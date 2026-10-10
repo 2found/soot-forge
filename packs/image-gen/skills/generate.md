@@ -1,10 +1,19 @@
 # Generate an image
 
-Use `image-gen/generate` only when image creation is authorized. Ask for subject,
-composition and intended text when they are missing; choose one 512×512 draft
+Use `image-gen/generate` when image creation or editing is authorized. Use the
+user’s prompt and attached image directly; choose one 512×512 draft
 and a fixed seed. `generate` accepts prompt, new output PNG, dimensions in
-multiples of 32, seed and optional transparent. The host can restrict pixels
+multiples of 32, seed and optional transparent/reference. The host can restrict pixels
 further. Keep prompts within 4000 characters. Output parents must already exist.
+
+For image edits, pass the exact workspace-relative attachment path as `reference`
+(PNG/JPEG, single frame, at most 2 MiB). Describe the requested change in `prompt`;
+keep details the user asked to preserve. Do not run OCR for an image edit or
+ask the user to attach an image already listed in the current input. The host
+must prepare the pinned `llm_vision` projector; missing vision weights are an
+explicit failure, never a silent text-only generation. Source images remain
+unchanged. Return a Markdown link to the new PNG path for Nest’s authenticated
+workspace preview.
 
 The selected model is Qwen Image 2.1 Turbo, Abiray's Q4_K_M conversion. There is
 no substitute-model fallback. Its checkpoint schedule is eight Euler steps,
@@ -17,6 +26,12 @@ proves the file identity, not image quality. Quantization, 512-pixel drafts and
 VAE tiling can reduce fidelity compared with full precision at 2K resolution.
 `transparent: true` adds the model's RGBA instruction and requires actual
 nonopaque alpha pixels before publishing. It does not promise a perfect mask.
+Ordinary requests publish opaque RGB PNGs; the runner removes the VAE's
+unrequested nearly-opaque alpha while preserving RGB pixels and provenance.
+The receipt already verifies dimensions, decoding, hashes and alpha policy.
+Do not use shell to re-encode an ordinary photo or repeat those same checks.
+Use `inspect` when additional file-property inspection is needed. Keep visual
+quality claims separate from these verified file properties.
 
 Never overwrite or silently retry a completed generation. Use a new output
 path for an authorized revision. A busy runtime means another inference is

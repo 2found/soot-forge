@@ -71,3 +71,51 @@ do not claim that their older custom offline scripts are a REST service.
 
 No universal GPT/Claude accuracy ranking is claimed. Native text first is a
 cost/latency choice; dedicated OCR is justified by the actual document.
+
+## Apple Silicon with 16 GB RAM
+
+The small PDFium/Pillow client does not load the model. For local model inference,
+the tested MLX conversion is
+[mlx-community/DeepSeek-OCR-2-4bit](https://huggingface.co/mlx-community/DeepSeek-OCR-2-4bit)
+at revision `378131e9d1a6fb1fa2e130d2e81e46ada0a2c10d`.
+Its single weight file is 2,559,362,324 bytes with SHA-256
+`607c518dbcff24b4195eea39510d7ed30a99e6cef97878b05a138ea90829c6a9`.
+Prepare it separately, outside `packs_dir`; the client never downloads weights.
+
+One real Vietnamese page on M1 Pro 16 GB completed through this pack in 7.16 s
+(including a cold model load), with server physical footprint peaking at
+6.8 GiB and resting at 2.5 GiB afterward. Weight size is not peak RAM.
+This is a short page, not a throughput or accuracy guarantee for long tables.
+
+The verified server stack was Python 3.12, `mlx-vlm==0.4.0`,
+`mlx-lm==0.31.1`, `mlx==0.32.3` and `mlx-metal==0.32.3`.
+Do not use the yanked `mlx-lm==0.31.0`. The tested `mlx-vlm==0.7.6`
+CLI recognized the same page, but its concurrent HTTP server failed with a
+GPU stream/thread error on this machine. Use the verified single-worker path:
+
+```sh
+# Explicit operator setup in a separate model-server environment:
+uv venv --python 3.12 /absolute/host-runtimes/deepseek-ocr
+uv pip install --python /absolute/host-runtimes/deepseek-ocr/bin/python \
+  mlx-vlm==0.4.0 mlx-lm==0.31.1 mlx==0.32.3 mlx-metal==0.32.3
+# After downloading and verifying the pinned model in the directory below:
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  /absolute/host-runtimes/deepseek-ocr/bin/python -m uvicorn mlx_vlm.server:app \
+  --host 127.0.0.1 --port 8042 --workers 1
+```
+
+Bind `OCR_BINDING` as host JSON, with the actual absolute model directory:
+
+```json
+{"base_url":"http://127.0.0.1:8042/v1","model":"/absolute/host-models/deepseek-ocr-2-4bit","max_tokens":2048}
+```
+
+The directory name must identify DeepSeek OCR. `max_tokens` is a host-owned
+output limit (1..8192), never a model tool argument. Use a smaller reservation
+for short pages; incomplete generations are rejected without publishing an
+output. Long pages may need cropping and a new output path.
+The chat template supplies the image token; the client does not duplicate it.
+
+Keep OCR jobs serial. Stop the model server to release its retained weights
+before image generation on a 16 GB host. Installation and General preset
+selection do not start a model server or reserve GPU memory.

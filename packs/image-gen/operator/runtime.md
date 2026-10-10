@@ -26,7 +26,10 @@ The reviewed CLI must support Qwen Image **2.1**, `--params-backend disk`,
 `--max-vram`, `--sigmas`, and the Qwen prefix-cache configuration. Older Qwen
 Image runtimes are not interchangeable. Use the 2.1 VAE; the older Qwen/Wan VAE
 is incompatible. Q4 encoder weights come from Qwen's official GGUF repository;
-generation does not need the extra vision projector used for image editing.
+text-only generation does not need the extra vision projector. For editing, run
+`operator/download.py --directory /absolute/models --with-vision` and bind
+`llm_vision` to the pinned `mmproj-Qwen3VL-8B-Instruct-F16.gguf`. The tool passes
+`--llm_vision` and `-r` only for a validated workspace reference image.
 
 The pack fixes CFG=1, Euler and the official Turbo sigmas (plus the sampler's
 terminal zero). Upstream checkpoint scheduler has static shift=1, so the saved
@@ -38,6 +41,13 @@ strategy. Offloading to CPU alone still consumes the Mac's shared RAM. Read
 [upstream memory controls](https://github.com/leejet/stable-diffusion.cpp/blob/f89d9b13d730eabeede7314ce49dacd18d3c90c2/docs/performance.md)
 before changing the host budget. Keep one shared lock_file for every Soot using
 this model. Two independent locks would permit two simultaneous model loads.
+The default Metal profile runs text encoding and VAE on Metal too; the host can
+choose `text_backend: "cpu"` / `vae_backend: "cpu"` independently. A paired
+512×512 edit on M1 Pro 16GB measured 165s / 3.9 GiB with Metal stages versus
+278s / 5.7 GiB with CPU stages. Keep the same disk-backed parameters, disabled
+prefetch and bounded budgets; moving a stage to CPU is not a shared-RAM saving
+by itself. The wrapper's private lifetime pipe stops native inference even if
+Soot hard-kills the wrapper; do not replace it with detached native execution.
 
 Benchmark using a fixed prompt/seed and record dimensions, all three weight
 hashes, runtime commit, wall time, child RSS, system memory pressure and swap

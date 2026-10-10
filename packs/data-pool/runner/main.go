@@ -39,17 +39,26 @@ type toolCall struct {
 	Operation   string          `json:"operation"`
 	Input       json.RawMessage `json:"input"`
 	Interaction bool            `json:"interaction,omitempty"`
+	GroupID     string          `json:"group_id,omitempty"`
+	Event       *callEvent      `json:"event,omitempty"`
 }
 
 type binding struct {
-	ServiceURL   string   `json:"service_url,omitempty"`
-	ServiceToken string   `json:"service_token,omitempty"`
-	Endpoint     string   `json:"endpoint"`
-	APIKey       string   `json:"api_key"`
-	Namespace    string   `json:"namespace"`
-	StateDir     string   `json:"state_dir"`
-	Soots        []string `json:"soots"`
-	Managers     []string `json:"managers"`
+	ServiceURL   string              `json:"service_url,omitempty"`
+	ServiceToken string              `json:"service_token,omitempty"`
+	Endpoint     string              `json:"endpoint"`
+	APIKey       string              `json:"api_key"`
+	Namespace    string              `json:"namespace"`
+	StateDir     string              `json:"state_dir"`
+	Soots        []string            `json:"soots"`
+	Managers     []string            `json:"managers"`
+	// Role lists derive a shared host client's per-identity operations. Writers
+	// gain write, pool managers gain manage (and write). Managers own the
+	// namespace and are neither listed here nor grantable on pools.
+	Writers      []string            `json:"writers,omitempty"`
+	PoolManagers []string            `json:"pool_managers,omitempty"`
+	Groups       map[string][]string `json:"groups,omitempty"`
+	Defaults     map[string]string   `json:"defaults,omitempty"`
 }
 
 func decodeStrict(data []byte, into any) error {
@@ -70,11 +79,11 @@ func decodeStrict(data []byte, into any) error {
 
 func loadBinding(raw string) (binding, error) {
 	var b binding
-	if len(raw) > 32<<10 || decodeStrict([]byte(raw), &b) != nil {
+	if len(raw) > 2<<20 || decodeStrict([]byte(raw), &b) != nil {
 		return b, errors.New("invalid DATA_POOL binding")
 	}
 	if b.ServiceURL != "" || b.ServiceToken != "" {
-		if b.Endpoint != "" || b.APIKey != "" || b.Namespace != "" || b.StateDir != "" || len(b.Soots) != 0 || len(b.Managers) != 0 {
+		if b.Endpoint != "" || b.APIKey != "" || b.Namespace != "" || b.StateDir != "" || len(b.Soots) != 0 || len(b.Managers) != 0 || len(b.Groups) != 0 || len(b.Defaults) != 0 {
 			return b, errors.New("remote binding cannot contain local backend or policy fields")
 		}
 		if err := validateEndpoint(b.ServiceURL); err != nil || !validToken(b.ServiceToken) {
@@ -107,6 +116,14 @@ func loadBinding(raw string) (binding, error) {
 		if !seen[s] {
 			return b, errors.New("manager must be a bound Soot")
 		}
+	}
+	for _, s := range append(append([]string{}, b.Writers...), b.PoolManagers...) {
+		if !seen[s] {
+			return b, errors.New("writer/pool manager must be a bound Soot")
+		}
+	}
+	if err := validateOrganization(b); err != nil {
+		return b, err
 	}
 	b.Endpoint = strings.TrimRight(b.Endpoint, "/")
 	b.StateDir = filepath.Clean(b.StateDir)
@@ -146,6 +163,7 @@ func execute(ctx context.Context, args []string, stdin io.Reader, stdout io.Writ
 	defer s.close()
 	// Only separate, explicitly granted UI operations may claim human provenance.
 	s.human = call.Interaction && (args[0] == "view" || args[0] == "action")
+	s.origin = s.callOrigin(call)
 	result, err := s.dispatch(ctx, args[0], call.Input)
 	if err != nil {
 		return err

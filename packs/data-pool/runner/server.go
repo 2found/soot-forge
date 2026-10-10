@@ -18,10 +18,15 @@ import (
 
 var operations = []string{"pools", "query", "write", "manage", "status", "view", "action"}
 
+const hostClient = "@host"
+
 type serviceClient struct {
+	// Soot "@host" shares one credential across the whole bound Soot set: the
+	// envelope's host-stamped soot picks the identity and role-derived
+	// operations. A named Soot binds this credential to that identity only.
 	Soot        string   `json:"soot"`
 	TokenSHA256 string   `json:"token_sha256"`
-	Operations  []string `json:"operations"`
+	Operations  []string `json:"operations,omitempty"`
 }
 
 type serverConfig struct {
@@ -30,6 +35,22 @@ type serverConfig struct {
 	TLSKey  string          `json:"tls_key,omitempty"`
 	Storage binding         `json:"storage"`
 	Clients []serviceClient `json:"clients"`
+}
+
+// roleOperations derives a claimed identity's operation set under a shared host
+// credential: namespace managers manage and see the configuration surface,
+// pool managers manage, writers write, everyone else reads.
+func roleOperations(b binding, soot string) []string {
+	ops := []string{"pools", "query", "status"}
+	switch {
+	case slices.Contains(b.Managers, soot):
+		ops = append(ops, "write", "manage", "view", "action")
+	case slices.Contains(b.PoolManagers, soot):
+		ops = append(ops, "write", "manage")
+	case slices.Contains(b.Writers, soot):
+		ops = append(ops, "write")
+	}
+	return ops
 }
 
 func validateServerConfig(c serverConfig) error {
@@ -49,6 +70,15 @@ func validateServerConfig(c serverConfig) error {
 	seen := map[string]bool{}
 	for _, client := range c.Clients {
 		digest, e := hex.DecodeString(client.TokenSHA256)
+		if client.Soot == hostClient {
+			// A shared host credential lists no operations; they are derived per
+			// claimed identity at request time from the bound roles.
+			if e != nil || len(digest) != 32 || strings.ToLower(client.TokenSHA256) != client.TokenSHA256 || seen[client.TokenSHA256] || len(client.Operations) != 0 {
+				return errors.New("invalid or duplicate host credential")
+			}
+			seen[client.TokenSHA256] = true
+			continue
+		}
 		if e != nil || len(digest) != 32 || strings.ToLower(client.TokenSHA256) != client.TokenSHA256 || seen[client.TokenSHA256] || !slices.Contains(b.Soots, client.Soot) || len(client.Operations) == 0 || len(client.Operations) > len(operations) {
 			return errors.New("invalid or duplicate client credential")
 		}
@@ -121,17 +151,39 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxInput))
 	var call toolCall
-	if err != nil || decodeStrict(data, &call) != nil || call.APIVersion != "soot/v1" || call.Hook != "tool.call" || call.Soot != principal.Soot {
+	if err != nil || decodeStrict(data, &call) != nil || call.APIVersion != "soot/v1" || call.Hook != "tool.call" {
+		http.Error(w, "invalid tool context", 400)
+		return
+	}
+	allowed := principal.Operations
+	actor := principal.Soot
+	if principal.Soot == hostClient {
+		// The host asserts its Soot identity in the envelope; the service bounds
+		// the claim to the bound set and derives operations from bound roles.
+		if !slices.Contains(g.base.b.Soots, call.Soot) {
+			http.Error(w, "access denied", 403)
+			return
+		}
+		actor = call.Soot
+		allowed = roleOperations(g.base.b, call.Soot)
+	} else if call.Soot != principal.Soot {
 		http.Error(w, "invalid tool context", 400)
 		return
 	}
 	op := strings.TrimPrefix(call.Operation, "data-pool_")
-	if call.Operation != "data-pool_"+op || !slices.Contains(principal.Operations, op) {
+	if call.Operation != "data-pool_"+op || !slices.Contains(allowed, op) {
 		http.Error(w, "access denied", 403)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
+	if op == "write" {
+		var in writeInput
+		if decodeStrict(call.Input, &in) == nil && in.Pool == "" && g.base.b.Defaults[actor] != "" {
+			in.Pool = g.base.b.Defaults[actor]
+			call.Input, _ = json.Marshal(in)
+		}
+	}
 	release, err := g.admit(ctx, op, call)
 	if err != nil {
 		http.Error(w, "service busy; inspect original request before retrying", 503)
@@ -142,8 +194,9 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s := *g.base
-	s.actor = principal.Soot // Identity is credential-bound, never model-selected.
+	s.actor = actor // Identity is credential-bound, never model-selected.
 	s.human = call.Interaction && (op == "view" || op == "action")
+	s.origin = s.callOrigin(call)
 	result, err := s.dispatch(ctx, op, call.Input)
 	if err != nil {
 		var invalid inputError

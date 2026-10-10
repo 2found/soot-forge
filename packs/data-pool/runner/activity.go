@@ -20,17 +20,18 @@ type revisionRef struct {
 	Revision int    `json:"revision"`
 }
 type activity struct {
-	Sequence   uint64        `json:"sequence"`
-	At         string        `json:"at"`
-	Pool       string        `json:"pool"`
-	Generation string        `json:"generation"`
-	Actor      actorRef      `json:"actor"`
-	Action     string        `json:"action"`
-	Status     string        `json:"status"`
-	RequestID  string        `json:"request_id,omitempty"`
-	Documents  []revisionRef `json:"documents,omitempty"`
-	TargetSoot string        `json:"target_soot,omitempty"`
-	Level      string        `json:"level,omitempty"`
+	Sequence    uint64        `json:"sequence"`
+	At          string        `json:"at"`
+	Pool        string        `json:"pool"`
+	Generation  string        `json:"generation"`
+	Actor       actorRef      `json:"actor"`
+	Action      string        `json:"action"`
+	Status      string        `json:"status"`
+	RequestID   string        `json:"request_id,omitempty"`
+	Documents   []revisionRef `json:"documents,omitempty"`
+	TargetSoot  string        `json:"target_soot,omitempty"`
+	TargetGroup string        `json:"target_group,omitempty"`
+	Level       string        `json:"level,omitempty"`
 }
 
 func (s *service) actorReference() *actorRef {
@@ -98,7 +99,17 @@ func (s *service) recordQuery(in queryInput, result any) error {
 			a.Documents = append(a.Documents, revisionRef{ID: d.ID, Revision: d.Revision})
 		}
 	}
-	return s.db.Update(func(tx *bolt.Tx) error { return appendActivity(tx, a) })
+	return s.db.Update(func(tx *bolt.Tx) error {
+		if err := appendActivity(tx, a); err != nil {
+			return err
+		}
+		if in.Action == "read" {
+			if d, ok := v["document"].(document); ok {
+				return appendReference(tx, s.origin, in.Pool, generation, "read", &d)
+			}
+		}
+		return nil
+	})
 }
 
 type activityInput struct {

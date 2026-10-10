@@ -14,7 +14,7 @@
       "tools": [
         {
           "name": "pools",
-          "description": "List only granted company data pools or inspect one pool; bounded pages.",
+          "description": "Discover accessible collections and subcollections in this workspace. Returns paths and paginated results. Existing pool IDs are collection IDs.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -30,6 +30,10 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 20
+              },
+              "parent": {
+                "type": "string",
+                "description": "List immediate subcollections of this ID; empty string lists roots. Omit to discover all accessible collections."
               }
             },
             "required": [],
@@ -52,7 +56,7 @@
         },
         {
           "name": "query",
-          "description": "List, read or search company documents in a granted pool. Search tolerates typos and missing Vietnamese accents. Returns source and revision citations.",
+          "description": "Read/search collection documents, or inspect bounded conversation/run references. Permissions are always rechecked.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -61,12 +65,14 @@
                 "enum": [
                   "list",
                   "read",
-                  "search"
+                  "search",
+                  "references"
                 ]
               },
               "pool": {
                 "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$",
+                "description": "Collection ID, required for list/read/search; optional collection filter for references."
               },
               "id": {
                 "type": "string",
@@ -89,11 +95,20 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 131072
+              },
+              "conversation_id": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "For references: host conversation ID. Returns your own permitted read/write references; workspace managers can inspect team references."
+              },
+              "run_id": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "Optional run filter for references."
               }
             },
             "required": [
-              "action",
-              "pool"
+              "action"
             ],
             "additionalProperties": false
           },
@@ -180,7 +195,8 @@
               },
               "pool": {
                 "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$",
+                "description": "Collection ID. Omit only to use the operator-configured default for this Soot; this never grants access."
               },
               "id": {
                 "type": "string",
@@ -226,7 +242,6 @@
             },
             "required": [
               "action",
-              "pool",
               "request_id"
             ],
             "additionalProperties": false
@@ -265,7 +280,7 @@
       "tools": [
         {
           "name": "manage",
-          "description": "Create/remove company data pools and explicitly grant/revoke a bound Soot read, write or manage access. Requires delegated management permission.",
+          "description": "Manage collections: create, rename/move, set inheritance, grant/revoke a bound Soot or group. Removing a collection with children is rejected.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -275,7 +290,8 @@
                   "pool_create",
                   "pool_remove",
                   "grant",
-                  "revoke"
+                  "revoke",
+                  "pool_update"
                 ]
               },
               "pool": {
@@ -310,6 +326,31 @@
               "expected_policy_revision": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "parent": {
+                "type": "string",
+                "description": "Parent collection ID; empty string creates or moves to workspace root."
+              },
+              "inherit": {
+                "type": "boolean",
+                "description": "Inherit access from parent; false is a private boundary. New collections default true; legacy roots retain old privacy."
+              },
+              "group": {
+                "type": "string",
+                "description": "Operator-bound group ID for grant/revoke, mutually exclusive with soot. Cannot create groups or change their membership."
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "own",
+                  "group",
+                  "workspace"
+                ],
+                "description": "pool_create audience shortcut: own grants only the creator; group requires subject, the bound group; workspace grants every bound Soot. Defaults to own."
+              },
+              "subject": {
+                "type": "string",
+                "description": "Bound group ID when scope is group."
               }
             },
             "required": [

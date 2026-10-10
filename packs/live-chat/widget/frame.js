@@ -3,7 +3,6 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
 
 (() => {
   const params = new URLSearchParams(location.search);
-  const app = params.get('app');
   const parentOrigin = params.get('parent');
   const $ = id => document.getElementById(id);
 
@@ -11,6 +10,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   let cursor = 0;
   let timer = null;
   let closed = false;
+  let opened = false;
   let pending = null;
   let sending = false;
   let resetting = false;
@@ -28,6 +28,9 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       connected: 'Sẵn sàng hỗ trợ',
       queued: 'Đã nhận · Đang chờ',
       working: 'Soot đang hỗ trợ…',
+      running: 'Soot đang hỗ trợ…',
+      active: 'Sẵn sàng hỗ trợ',
+      idle: 'Sẵn sàng hỗ trợ',
       waiting_input: 'Soot đang chờ bạn',
       waiting_human: 'Đang chờ nhân viên',
       blocked: 'Cần nhân viên hỗ trợ',
@@ -71,6 +74,9 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       connected: 'Ready to help',
       queued: 'Received · Queued',
       working: 'Soot is responding…',
+      running: 'Soot is responding…',
+      active: 'Ready to help',
+      idle: 'Ready to help',
       waiting_input: 'Soot is waiting for you',
       waiting_human: 'Waiting for staff',
       blocked: 'Staff assistance needed',
@@ -127,16 +133,20 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   });
 
   function expanded(value) {
+    const changed = opened !== value;
+    opened = value;
     $('chat').hidden = !value;
     $('launcher').hidden = value;
     $('launcher').setAttribute('aria-expanded', String(value));
     if (!value) {
+      clearTimeout(timer);
       $('options').open = false;
       $('reset-confirm').hidden = true;
     }
     post(value ? 'open' : 'close');
-    (value ? $('chat') : $('launcher')).focus({ preventScroll: true });
+    if (changed) (value ? $('chat') : $('launcher')).focus({ preventScroll: true });
     if (value && follow) bottom();
+    if (changed && value) requestSync();
   }
 
   function error(value = '', kind = '', retry = '') {
@@ -157,8 +167,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       emptyLabel:language==='vi'?'Chưa có mục phù hợp trong phiên này.':'No matching items in this conversation.',
       mobile:document.documentElement.dataset.layout==='mobile'});
     $('retry').disabled = sending || resetting;
-    $('reset').disabled = resetting;
-    $('confirm-reset').disabled = resetting;
+    $('reset').disabled = resetting || sending;
+    $('confirm-reset').disabled = resetting || sending;
     $('keep').disabled = resetting;
     for (const b of $('quick').children) {
       b.disabled = locked || !!$('text').value.trim();
@@ -227,6 +237,16 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       pending = { id: crypto.randomUUID(), text: value };
     }
 
+    // The loader drops every frame message whose nonce does not match its own,
+    // so a send posted before 'init' arrives is silently discarded while
+    // 'sending' would stay stuck. Hold the input as pending and flush it once
+    // init supplies the nonce.
+    if (!nonce) {
+      $('activity').textContent = t('connecting');
+      controls();
+      return;
+    }
+
     sending = true;
     controls();
     error();
@@ -235,7 +255,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   }
 
   function reset() {
-    if (resetting) return;
+    if (resetting || sending) return;
     resetting = true;
     controls();
     $('activity').textContent = t('connecting');
@@ -317,9 +337,12 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   }
 
   function requestSync() {
-    if (closed || resetting) return;
     clearTimeout(timer);
+    if (closed || !opened || resetting || sending || document.visibilityState === 'hidden') return;
     post('sync', { after: cursor });
+    // Schedule independently of the response: a dropped read must not stop
+    // recovery. Collapsed and background documents never drain this API.
+    timer = setTimeout(requestSync, 3000);
   }
 
   // DOM Event Handlers
@@ -336,7 +359,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   transcriptResize.observe($('composer'));
   $('retry').onclick = () => {
     if (errorKind === 'reset') reset();
-    else if (errorKind === 'connection' || errorKind === 'expired') post('retry-connect');
+    else if (errorKind === 'expired') $('reset').click();
+    else if (errorKind === 'connection') post('retry-connect');
     else if (pending) submit();
     else requestSync();
   };
@@ -366,6 +390,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   document.addEventListener('click', e => {
     if (!$('options').contains(e.target)) $('options').open = false;
   });
+  document.addEventListener('visibilitychange', requestSync);
 
   // RPC Message Listener from Parent
   addEventListener('message', event => {
@@ -383,10 +408,18 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       if (typeof msg.draft === 'string' && !$('text').value) {
         composer.setValue(msg.draft);
       }
+      if (msg.pendingMessage) pending = msg.pendingMessage;
+      if (errorKind === 'connection') error();
       $('activity').textContent = t('connected');
       controls();
       requestSync();
+      // Flush a send the user queued before the nonce arrived (submit() held
+      // it as pending rather than posting a message the loader would drop).
+      if (pending && !sending) submit();
     } else if (msg.type === 'sync' && msg.nonce === nonce) {
+      // Only a submission response can settle the foreground send. An older
+      // background read contains no evidence that its message was accepted.
+      if (sending && !msg.submission) return;
       sending = false;
       let added = false;
       if (Array.isArray(msg.messages)) {
@@ -412,7 +445,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
           composer.setValue('');
           bottom();
         }
-        $('activity').textContent = sending ? t('sending') : t(msg.activity || 'connected');
+        $('activity').textContent = t(dict[language]?.[msg.activity] ? msg.activity : 'connected');
       }
 
       if (msg.error) {
@@ -422,7 +455,10 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         } else if (msg.error.kind === 'rate') {
           error(t('rate_error'), 'rate', t('retry'));
         } else if (msg.error.kind === 'expired') {
-          error(t('expired_error'), 'expired');
+          error(t('expired_error'), 'expired', t('new_conversation'));
+        } else if (msg.error.kind === 'connection') {
+          $('activity').textContent = t('reconnecting');
+          error(t('connect_error'), 'connection', t('reconnect'));
         } else if (msg.error.kind === 'validation') {
           pending = null;
           error(t('send_validation_error'), 'validation');
@@ -431,12 +467,12 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         }
       } else if (msg.pendingMessage) {
         error(t('send_error'), 'send', t('resend'));
-      } else if (errorKind === 'send' || errorKind === 'rate') {
+      } else if (errorKind === 'send' || errorKind === 'rate' || errorKind === 'connection') {
         error();
       }
 
       controls();
-      if (!closed && !resetting) {
+      if (!closed && opened && !resetting && document.visibilityState !== 'hidden') {
         clearTimeout(timer);
         timer = setTimeout(requestSync, 3000);
       }
@@ -457,10 +493,15 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       requestSync();
     } else if (msg.type === 'unavailable' && typeof msg.nonce === 'string' && (!nonce || msg.nonce === nonce)) {
       nonce = msg.nonce;
+      applyLanguage(msg.language);
+      if (typeof msg.draft === 'string' && !$('text').value) composer.setValue(msg.draft);
       $('activity').textContent = t('cannot_connect');
-      error(t('connect_error'), 'connection', t('reconnect'));
+      error(msg.error?.kind === 'expired' ? t('expired_error') : t('connect_error'),
+        msg.error?.kind === 'expired' ? 'expired' : 'connection',
+        msg.error?.kind === 'expired' ? t('new_conversation') : t('reconnect'));
       controls();
     } else if (msg.nonce === nonce) {
+      if (msg.type === 'language') { applyLanguage(msg.language); controls(); }
       if (msg.type === 'open') expanded(true);
       if (msg.type === 'close') expanded(false);
       if (msg.type === 'reset') reset();

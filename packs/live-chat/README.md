@@ -42,6 +42,16 @@ Host websites can programmatically control the widget via `window.SootChat[appKe
 
 The browser SDK source belongs to Soot's `contrib/sdk/typescript/src/browser.ts`; do not hand-edit the compiled `browser.js`. Build the SDK, then synchronize these canonical assets into Soot with `node scripts/sync-public-widget.mjs --source ../soot-forge/packs/live-chat/widget`. Soot serves the iframe at `/public/widget/frame/{appKey}?parent={exactOrigin}`; there is no `frame.html` route or Node gateway.
 
+Loading appearance or opening a fresh widget does not create a visitor session.
+The first explicit Send obtains any required proof and creates the session;
+saved visitors reconcile their existing receipts. History polling runs only
+while the chat is open and the page is visible. Changing the page language
+updates the same widget without replacing its identity or unresolved work.
+Read failures offer Reconnect and preserve editable drafts. An expired session
+offers an explicit new-conversation confirmation before any state is cleared.
+Only a foreground submission result acknowledges its draft; a delayed read
+cannot clear a message still being sent.
+
 ### Shared agent UI
 
 The widget uses the released `@tofound/ui@0.5.0` AgentComposer as a controlled React island, plus the shared agent styles and transcript behavior. The frame still owns draft acknowledgements, validation and retry receipts. Double Escape clears only editable text; pending requests stay locked. `@` filters a bounded set of files linked in the visitor's delivered messages. Anonymous visitors receive no private skill catalog. `widget/ui-manifest.json` records the imported
@@ -52,6 +62,7 @@ package version and SHA-256 hashes, including the composer bundle; never edit ge
 (cd packs/live-chat/widget-src && pnpm install --frozen-lockfile && pnpm build)
 node scripts/sync-widget-ui.mjs --package /absolute/path/to/installed/@tofound/ui
 node --test scripts/widget-assets.test.mjs
+node --test scripts/widget-loader.test.mjs scripts/widget-state.test.mjs
 node scripts/widget-preview.mjs
 ```
 

@@ -19,7 +19,7 @@ addEventListener('message',e=>{if(e.source!==frame.contentWindow||e.origin!==loc
 if(m.type==='ready'){post('init',{language:'vi',config:config()});post('open');post('layout',{mobile:innerWidth<700});window.fixture.ready=true;}
 if(m.type==='sync')sync(pending?{pendingMessage:pending}:{});
 if(m.type==='draft')window.fixture.draft=m.text;
-if(m.type==='send'){window.fixture.sent.push(m);if(fail){pending={id:m.id,text:m.text};fail=false;sync({pendingMessage:pending,error:{kind:'send'}});}else{pending=null;messages.push({id:String(messages.length+1),role:'user',text:m.text,created:new Date().toISOString()},{id:String(messages.length+2),role:'assistant',text:'Đã nhận yêu cầu. Mình sẽ giữ các bước rõ ràng và báo lại nếu cần bạn quyết định.',created:new Date().toISOString()});sync();}}
+if(m.type==='send'){window.fixture.sent.push(m);if(fail){pending={id:m.id,text:m.text};fail=false;sync({submission:true,pendingMessage:pending,error:{kind:'send'}});}else{pending=null;messages.push({id:String(messages.length+1),role:'user',text:m.text,created:new Date().toISOString()},{id:String(messages.length+2),role:'assistant',text:'Đã nhận yêu cầu. Mình sẽ giữ các bước rõ ràng và báo lại nếu cần bạn quyết định.',created:new Date().toISOString()});sync({submission:true});}}
 if(m.type==='reset'){messages=[];pending=null;post('reset-done');}
 });
 document.getElementById('fail').onclick=()=>{fail=true};

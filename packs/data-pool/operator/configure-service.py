@@ -18,6 +18,8 @@ def main():
     ap.add_argument('--listen', default='127.0.0.1:8091')
     ap.add_argument('--tls-cert')
     ap.add_argument('--tls-key')
+    ap.add_argument('--host-config', type=Path, help='Soot deployment.json supplying bound soots and group rosters')
+    ap.add_argument('--host', action='store_true', help='Also issue one shared @host client credential (bindings/host.json); ambient data_pool bindings use it so every bound Soot claims its own identity')
     ap.add_argument('--writer', action='append', default=[])
     ap.add_argument('--pool-manager', action='append', default=[])
     ap.add_argument('--configurator', action='append', default=[], help='Namespace manager with a separate human-only Nest binding')
@@ -32,11 +34,35 @@ def main():
     if args.backend_config.stat().st_mode & 0o077:
         ap.error('backend config must have mode 0600')
     storage = json.loads(args.backend_config.read_text())
+    if args.host_config is not None:
+        # The host's own configuration is the roster source of truth: bound
+        # Soots mirror the host's Soot ids and group rosters mirror host
+        # groups, so membership is never declared twice.
+        host = json.loads(args.host_config.read_text())
+        raw_soots = host.get('soot_ids')
+        if raw_soots is None:
+            # deployment.json lists Soot definition paths
+            # (soots/<dir>/soot.json); the bound identity is the file's id,
+            # never a path fragment — dir names and file stems differ from it.
+            raw_soots = []
+            for entry in host.get('soots', []):
+                if not isinstance(entry, str):
+                    raw_soots.append(entry.get('id'))
+                    continue
+                definition = args.host_config.parent / entry
+                try:
+                    raw_soots.append(json.loads(definition.read_text()).get('id'))
+                except (OSError, json.JSONDecodeError):
+                    ap.error(f'cannot read Soot identity from {entry}')
+        storage['soots'] = sorted(set(raw_soots))
+        storage['groups'] = {g: sorted(set(v.get('members', {}).keys()) | set(v.get('entries', []))) for g, v in host.get('groups', {}).items()}
     soots = storage.get('soots', [])
     managers = storage.get('managers', [])
+    storage['writers'] = sorted(set(storage.get('writers', [])) | set(args.writer))
+    storage['pool_managers'] = sorted(set(storage.get('pool_managers', [])) | set(args.pool_manager))
     if (not 1 <= len(soots) <= 4096 or not 1 <= len(managers) <= 16 or len(set(soots)) != len(soots)
             or any(not isinstance(s, str) or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}', s) for s in soots)
-            or any(s not in soots for s in managers + args.writer + args.pool_manager)
+            or any(s not in soots for s in managers + storage['writers'] + storage['pool_managers'])
             or any(s not in managers for s in args.configurator) or storage.get('service_url')):
         ap.error('backend config requires distinct Soot identities and bound managers/writers/pool managers')
     config = {'listen': args.listen, 'storage': storage, 'clients': []}
@@ -53,12 +79,20 @@ def main():
         with os.fdopen(fd, 'w') as file:
             json.dump(obj, file, indent=2, ensure_ascii=False)
             file.write('\n')
+    if args.host:
+        # Ambient deployments point data_pool.binding at this one file: the
+        # host authenticates once, each envelope still names its own Soot, and
+        # the service derives operations from the bound roles. Emitted alongside
+        # per-Soot bindings, not instead of them.
+        token = secrets.token_urlsafe(32)
+        config['clients'].append({'soot': '@host', 'token_sha256': hashlib.sha256(token.encode()).hexdigest()})
+        private_json(bindings / 'host.json', {'service_url': args.service_url.rstrip('/'), 'service_token': token})
     for soot in soots:
         token = secrets.token_urlsafe(32)
         operations = ['pools', 'query', 'status']
-        if soot in managers or soot in args.writer or soot in args.pool_manager:
+        if soot in managers or soot in storage['writers'] or soot in storage['pool_managers']:
             operations += ['write']
-        if soot in managers or soot in args.pool_manager:
+        if soot in managers or soot in storage['pool_managers']:
             operations += ['manage']
         config['clients'].append({'soot': soot, 'token_sha256': hashlib.sha256(token.encode()).hexdigest(), 'operations': operations})
         private_json(bindings / (soot + '.json'), {'service_url': args.service_url.rstrip('/'), 'service_token': token})
@@ -67,7 +101,8 @@ def main():
             config['clients'].append({'soot': soot, 'token_sha256': hashlib.sha256(ui_token.encode()).hexdigest(), 'operations': ['view', 'action']})
             private_json(bindings / (soot + '.ui.json'), {'service_url': args.service_url.rstrip('/'), 'service_token': ui_token})
     private_json(args.output_dir / 'service.json', config)
-    print(f'Created private config and {len(soots)} client bindings. No service installed or started.')
+    count = len(soots) + (1 if args.host else 0)
+    print(f'Created private config and {count} client bindings. No service installed or started.')
 
 
 if __name__ == '__main__':

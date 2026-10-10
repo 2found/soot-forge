@@ -21,17 +21,25 @@ type pool struct {
 	CreatedAt      string `json:"created_at"`
 	Generation     string `json:"generation"`
 	PolicyRevision uint64 `json:"policy_revision"`
+	Parent         string `json:"parent,omitempty"`
+	Inherit        bool   `json:"inherit"`
+	// Scope declares the intended audience at creation: workspace (every bound
+	// Soot), group (members of Subject), or own (the creating Soot). Realized
+	// through grants, so later grant/revoke adjusts it like any other pool.
+	Scope   string `json:"scope,omitempty"`
+	Subject string `json:"subject,omitempty"`
 }
 
 type document struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Source    string    `json:"source"`
-	Tags      []string  `json:"tags"`
-	SHA256    string    `json:"sha256"`
-	Revision  int       `json:"revision"`
-	UpdatedAt string    `json:"updated_at"`
-	Writer    *actorRef `json:"writer,omitempty"`
+	ID        string     `json:"id"`
+	Title     string     `json:"title"`
+	Source    string     `json:"source"`
+	Tags      []string   `json:"tags"`
+	SHA256    string     `json:"sha256"`
+	Revision  int        `json:"revision"`
+	UpdatedAt string     `json:"updated_at"`
+	Writer    *actorRef  `json:"writer,omitempty"`
+	Origin    *originRef `json:"origin,omitempty"`
 }
 
 type storedDocument struct {
@@ -43,28 +51,33 @@ type storedDocument struct {
 }
 
 type receipt struct {
-	ID             string    `json:"request_id"`
-	Owner          string    `json:"owner"`
-	Pool           string    `json:"pool"`
-	PoolGeneration string    `json:"pool_generation"`
-	Action         string    `json:"action"`
-	Fingerprint    string    `json:"fingerprint"`
-	Status         string    `json:"status"`
-	Task           *int64    `json:"task,omitempty"`
-	Document       *document `json:"document,omitempty"`
-	Reason         string    `json:"reason,omitempty"`
-	NewDocument    bool      `json:"new_document,omitempty"`
-	Actor          *actorRef `json:"actor,omitempty"`
-	Replay         bool      `json:"replay,omitempty"`
+	ID             string     `json:"request_id"`
+	Owner          string     `json:"owner"`
+	Pool           string     `json:"pool"`
+	PoolGeneration string     `json:"pool_generation"`
+	Action         string     `json:"action"`
+	Fingerprint    string     `json:"fingerprint"`
+	Status         string     `json:"status"`
+	Task           *int64     `json:"task,omitempty"`
+	Document       *document  `json:"document,omitempty"`
+	Reason         string     `json:"reason,omitempty"`
+	NewDocument    bool       `json:"new_document,omitempty"`
+	Actor          *actorRef  `json:"actor,omitempty"`
+	Replay         bool       `json:"replay,omitempty"`
+	Origin         *originRef `json:"origin,omitempty"`
 }
 
 type service struct {
-	b       binding
-	actor   string
-	db      *bolt.DB
-	backend *backend
-	fetch   func(string) (string, error)
-	human   bool
+	b          binding
+	actor      string
+	db         *bolt.DB
+	backend    *backend
+	fetch      func(string) (string, error)
+	human      bool
+	origin     *originRef
+	membership []string
+	groupsFor  string
+	perms      map[string]string
 }
 
 func hash(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
@@ -78,9 +91,9 @@ func openService(b binding, actor string) (*service, error) {
 	if err != nil {
 		return nil, errors.New("plugin state unavailable or busy; inspect the original request before retrying a mutation")
 	}
-	s := &service{b: b, actor: actor, db: db, backend: newBackend(b)}
+	s := &service{b: b, actor: actor, db: db, backend: newBackend(b), membership: actorGroups(b, actor), groupsFor: actor, perms: map[string]string{}}
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, name := range []string{"config", "pools", "grants", "by-soot", "documents", "receipts", "fences", "activity"} {
+		for _, name := range []string{"config", "pools", "grants", "by-soot", "documents", "receipts", "fences", "activity", "children", "effective", "by-group", "references"} {
 			if _, e := tx.CreateBucketIfNotExists([]byte(name)); e != nil {
 				return e
 			}
@@ -90,7 +103,10 @@ func openService(b binding, actor string) (*service, error) {
 		if old := c.Get([]byte("identity")); old != nil && string(old) != identity {
 			return errors.New("state is already bound to another namespace or backend")
 		}
-		return c.Put([]byte("identity"), []byte(identity))
+		if err := c.Put([]byte("identity"), []byte(identity)); err != nil {
+			return err
+		}
+		return s.initializeCollections(tx)
 	})
 	if err != nil {
 		db.Close()
@@ -128,10 +144,7 @@ func putJSON(b *bolt.Bucket, key string, v any) error {
 	return b.Put([]byte(key), data)
 }
 func (s *service) allowed(tx *bolt.Tx, id, level string) bool {
-	if !identifier.MatchString(id) || tx.Bucket([]byte("pools")).Get([]byte(id)) == nil {
-		return false
-	}
-	return s.manager() || rank(string(tx.Bucket([]byte("grants")).Get([]byte(id+"/"+s.actor)))) >= rank(level)
+	return rank(s.permission(tx, id)) >= rank(level) && rank(level) > 0
 }
 func (s *service) authorize(id, level string) error {
 	return s.db.View(func(tx *bolt.Tx) error {
@@ -259,6 +272,9 @@ func (s *service) finish(r receipt, status string) (receipt, error) {
 			}
 		}
 		if status == "succeeded" {
+			if err := appendReference(tx, r.Origin, r.Pool, r.PoolGeneration, r.Action, r.Document); err != nil {
+				return err
+			}
 			switch r.Action {
 			case "upsert", "append":
 				b := docsBucket(tx, r.Pool)
@@ -284,6 +300,9 @@ func (s *service) finish(r receipt, status string) (receipt, error) {
 					return err
 				}
 			case "pool_remove":
+				if err := s.removeCollectionIndexes(tx, r.Pool); err != nil {
+					return err
+				}
 				if tx.Bucket([]byte("activity")).Bucket([]byte(r.Pool)) != nil {
 					if err := tx.Bucket([]byte("activity")).DeleteBucket([]byte(r.Pool)); err != nil {
 						return err
@@ -347,7 +366,7 @@ func (s *service) replay(id, fingerprint string) (receipt, bool, error) {
 		if s.authorizeReceipt(r, "manage") != nil {
 			return r, true, errors.New("access denied")
 		}
-	} else if err := s.authorizeReceipt(r, map[string]string{"upsert": "write", "append": "write", "remove": "write", "grant": "manage", "revoke": "manage"}[r.Action]); err != nil {
+	} else if err := s.authorizeReceipt(r, map[string]string{"upsert": "write", "append": "write", "remove": "write", "grant": "manage", "revoke": "manage", "pool_update": "manage"}[r.Action]); err != nil {
 		return r, true, err
 	}
 	r.Replay = true

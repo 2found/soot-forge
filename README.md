@@ -79,8 +79,15 @@ to turn a catalog entry into an installation command.
 
 The General Soot installs default pack archives from a stable Forge release;
 its 2build pack still resolves the latest stable 2build release from upstream.
-Keep a Forge release containing `toolbox`, `soot`, `browser-use`, `soot-nest`
-and `vibe_cf` available before releasing that Soot default. Update `package.json` and its lockfile to the reviewed stable release version,
+Keep a Forge release containing `toolbox`, `soot`, `browser-use`, `soot-nest`,
+`vibe_cf`, `office`, `ocr` and `image-gen` available before releasing that Soot
+default. Source on `main` alone does not make those archives available to a fresh
+Nest installation: the installer resolves the latest published stable release.
+The selected browser capability also needs the host preparation in
+[Browser use](packs/browser-use/README.md): Node.js 24+ and the standalone
+`soot-browser` executable on the Soot host's PATH. Pack installation does not
+install that executable or its browser dependencies.
+Update `package.json` and both version fields in `package-lock.json` to the reviewed stable release version,
 then push `main`. A single workflow validates catalog content and runner tests,
 creates `v<version>` after those checks, builds the pack archives, and publishes
 a complete release with catalog, docs, download instructions and checksums.

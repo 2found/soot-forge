@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -15,18 +14,21 @@ import (
 )
 
 type poolsInput struct {
-	Pool  string `json:"pool,omitempty"`
-	After string `json:"after,omitempty"`
-	Limit int    `json:"limit,omitempty"`
+	Pool   string  `json:"pool,omitempty"`
+	After  string  `json:"after,omitempty"`
+	Limit  int     `json:"limit,omitempty"`
+	Parent *string `json:"parent,omitempty"`
 }
 type queryInput struct {
-	Action string `json:"action"`
-	Pool   string `json:"pool"`
-	ID     string `json:"id,omitempty"`
-	Query  string `json:"query,omitempty"`
-	After  string `json:"after,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
-	Offset int    `json:"offset,omitempty"`
+	Action       string `json:"action"`
+	Pool         string `json:"pool"`
+	ID           string `json:"id,omitempty"`
+	Query        string `json:"query,omitempty"`
+	After        string `json:"after,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+	Offset       int    `json:"offset,omitempty"`
+	Conversation string `json:"conversation_id,omitempty"`
+	Run          string `json:"run_id,omitempty"`
 }
 type manageInput struct {
 	Action                 string  `json:"action"`
@@ -37,6 +39,14 @@ type manageInput struct {
 	Level                  string  `json:"level,omitempty"`
 	Generation             string  `json:"generation,omitempty"`
 	ExpectedPolicyRevision *uint64 `json:"expected_policy_revision,omitempty"`
+	Parent                 *string `json:"parent,omitempty"`
+	Inherit                *bool   `json:"inherit,omitempty"`
+	Group                  string  `json:"group,omitempty"`
+	// Scope/Subject are pool_create shortcuts for the matching grant: workspace
+	// writes @workspace=write, group writes @group/<subject>=write, own writes
+	// the creator =manage (the default when scope is omitted).
+	Scope   string `json:"scope,omitempty"`
+	Subject string `json:"subject,omitempty"`
 }
 type writeInput struct {
 	Action           string   `json:"action"`
@@ -82,7 +92,7 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 			return nil, err
 		}
 		result, err := s.query(ctx, in)
-		if err == nil {
+		if err == nil && in.Action != "references" {
 			err = s.recordQuery(in, result)
 		}
 		return result, err
@@ -90,6 +100,9 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 		var in writeInput
 		if err := decodeStrict(raw, &in); err != nil {
 			return nil, err
+		}
+		if in.Pool == "" {
+			in.Pool = s.b.Defaults[s.actor]
 		}
 		return s.write(ctx, in)
 	case "manage":
@@ -132,17 +145,45 @@ func (s *service) pools(in poolsInput) (any, error) {
 		var count uint64
 		var level string
 		grants := map[string]string{}
+		effective := map[string]string{}
+		effectiveGroups := map[string]string{}
+		var path []collectionCrumb
 		err = s.db.View(func(tx *bolt.Tx) error {
 			if err := getJSON(tx.Bucket([]byte("pools")), in.Pool, &p); err != nil {
 				return err
 			}
 			count = docsBucket(tx, in.Pool).Sequence()
-			level = string(tx.Bucket([]byte("grants")).Get([]byte(in.Pool + "/" + s.actor)))
+			path = s.collectionPath(tx, in.Pool)
+			level = s.permission(tx, in.Pool)
 			if s.manager() {
 				level = "manage"
 			}
 			if level == "manage" {
+				for group := range s.b.Groups {
+					effectiveGroups[group] = string(tx.Bucket([]byte("by-group")).Get([]byte(group + "/" + in.Pool)))
+				}
+				// The 'effective' bucket already stores this collection's
+				// resolved subject→level map (inheritance included); expand it
+				// instead of re-running permission() per bound Soot.
+				resolved := map[string]string{}
+				if err := getJSON(tx.Bucket([]byte("effective")), in.Pool, &resolved); err != nil {
+					return err
+				}
+				all := groupMembership(s.b)
 				for _, actor := range s.b.Soots {
+					level := resolved[actor]
+					if other := resolved["@workspace"]; rank(other) > rank(level) {
+						level = other
+					}
+					for _, g := range all[actor] {
+						if other := resolved["@group/"+g]; rank(other) > rank(level) {
+							level = other
+						}
+					}
+					if slices.Contains(s.b.Managers, actor) {
+						level = "manage"
+					}
+					effective[actor] = level
 					permission := string(tx.Bucket([]byte("grants")).Get([]byte(in.Pool + "/" + actor)))
 					if slices.Contains(s.b.Managers, actor) {
 						permission = "manage"
@@ -154,46 +195,29 @@ func (s *service) pools(in poolsInput) (any, error) {
 			}
 			return nil
 		})
-		result := map[string]any{"pool": p, "documents": count, "permission": level}
+		result := map[string]any{"pool": p, "documents": count, "permission": level, "path": path}
 		if level == "manage" {
 			result["grants"] = grants
+			result["effective_permissions"] = effective
+			result["effective_group_grants"] = effectiveGroups
 			result["host_managers"] = s.b.Managers
 			result["bound_soots"] = s.b.Soots
+			result["groups"] = s.b.Groups
+			result["group_grants"], result["inherited_grants"] = s.collectionGrantDetails(in.Pool)
 		}
 		return result, err
 	}
-	items := []pool{}
-	next := ""
-	err = s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("pools"))
-		prefix := ""
-		if !s.manager() {
-			b = tx.Bucket([]byte("by-soot"))
-			prefix = s.actor + "/"
-		}
-		c := b.Cursor()
-		start := prefix + in.After
-		for k, _ := c.Seek([]byte(start)); k != nil && strings.HasPrefix(string(k), prefix); k, _ = c.Next() {
-			id := strings.TrimPrefix(string(k), prefix)
-			if id <= in.After {
-				continue
-			}
-			if len(items) == limit {
-				next = items[len(items)-1].ID
-				break
-			}
-			var p pool
-			if err := getJSON(tx.Bucket([]byte("pools")), id, &p); err != nil {
-				return err
-			}
-			items = append(items, p)
-		}
-		return nil
-	})
-	return map[string]any{"pools": items, "next": next}, err
+	return s.collectionPage(in, limit)
+
 }
 
 func (s *service) query(ctx context.Context, in queryInput) (any, error) {
+	if in.Action == "references" {
+		return s.references(in)
+	}
+	if in.Conversation != "" || in.Run != "" {
+		return nil, errors.New("correlation filters require references action")
+	}
 	if err := s.authorize(in.Pool, "read"); err != nil {
 		return nil, err
 	}
@@ -296,127 +320,43 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 }
 
 func (s *service) manage(ctx context.Context, in manageInput) (any, error) {
-	if !identifier.MatchString(in.Pool) || !identifier.MatchString(in.RequestID) {
-		return nil, errors.New("invalid pool or request_id")
+	if in.Action != "pool_remove" {
+		return s.manageCollection(in)
 	}
-	if !slices.Contains([]string{"pool_create", "pool_remove", "grant", "revoke"}, in.Action) {
-		return nil, errors.New("invalid management action")
-	}
-	if in.Action == "pool_create" {
-		if !s.manager() {
-			return nil, errors.New("access denied")
-		}
-		if strings.TrimSpace(in.Name) == "" || !validText(in.Name, 128) || in.Soot != "" || in.Level != "" {
-			return nil, errors.New("pool_create requires only a name")
-		}
-	} else {
-		if in.Name != "" {
-			return nil, errors.New("name is only used when creating a pool")
-		}
-		if in.Action == "pool_remove" && (in.Soot != "" || in.Level != "") {
-			return nil, errors.New("invalid pool_remove fields")
-		}
-		if in.Action == "grant" || in.Action == "revoke" {
-			if slices.Contains(s.b.Managers, in.Soot) {
-				return nil, errors.New("host administrator access is configured by the host")
-			}
-			if !slices.Contains(s.b.Soots, in.Soot) || (in.Action == "grant" && rank(in.Level) == 0) || (in.Action == "revoke" && in.Level != "") {
-				return nil, errors.New("target Soot/permission is not allowed by host binding")
-			}
-		}
+	if !identifier.MatchString(in.Pool) || !identifier.MatchString(in.RequestID) || in.Parent != nil || in.Inherit != nil || in.Name != "" || in.Soot != "" || in.Group != "" || in.Level != "" {
+		return nil, errors.New("invalid collection removal")
 	}
 	fp := fingerprint(in)
 	if r, exists, err := s.replay(in.RequestID, fp); exists || err != nil {
 		return r, err
 	}
-	if in.Action != "pool_create" {
-		if err := s.authorize(in.Pool, "manage"); err != nil {
-			return nil, err
-		}
-		if err := s.checkPolicyRevision(in); err != nil {
-			return nil, err
-		}
+	if err := s.authorize(in.Pool, "manage"); err != nil {
+		return nil, err
 	}
-	r := receipt{ID: in.RequestID, Owner: s.actor, Actor: s.actorReference(), Pool: in.Pool, Action: in.Action, Fingerprint: fp, Status: "succeeded"}
-	if in.Action == "pool_create" {
-		r.PoolGeneration = rand.Text()
-	} else {
-		var err error
-		r.PoolGeneration, err = s.poolGeneration(in.Pool)
-		if err != nil {
+	if err := s.checkPolicyRevision(in); err != nil {
+		return nil, err
+	}
+	if err := s.requireLeaf(in.Pool); err != nil {
+		return nil, err
+	}
+	generation, err := s.poolGeneration(in.Pool)
+	if err != nil {
+		return nil, err
+	}
+	r := receipt{ID: in.RequestID, Owner: s.actor, Actor: s.actorReference(), Pool: in.Pool, PoolGeneration: generation, Action: in.Action, Fingerprint: fp, Status: "uncertain"}
+	var probe any
+	err = s.backend.call(ctx, "GET", "/indexes/"+s.index(in.Pool), nil, &probe)
+	var be backendError
+	if errors.As(err, &be) && be.status == 404 {
+		if err := s.begin(r); err != nil {
 			return nil, err
 		}
+		return s.finish(r, "succeeded")
 	}
-	if in.Action == "pool_remove" {
-		r.Status = "uncertain"
-		// A never-populated pool has no index. Its local removal is provable.
-		var probe any
-		err := s.backend.call(ctx, "GET", "/indexes/"+s.index(in.Pool), nil, &probe)
-		var be backendError
-		if errors.As(err, &be) && be.status == 404 {
-			if err := s.begin(r); err != nil {
-				return nil, err
-			}
-			return s.finish(r, "succeeded")
-		}
-		if err != nil {
-			return nil, err
-		}
-		return s.submit(ctx, r, "DELETE", "/indexes/"+s.index(in.Pool), nil)
+	if err != nil {
+		return nil, err
 	}
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		switch in.Action {
-		case "pool_create":
-			b := tx.Bucket([]byte("pools"))
-			if b.Get([]byte(in.Pool)) != nil {
-				return errors.New("pool already exists; use its existing ID")
-			}
-			if b.Sequence() >= maxPools {
-				return errors.New("pool limit reached")
-			}
-			if err := putJSON(b, in.Pool, pool{ID: in.Pool, Name: in.Name, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Generation: r.PoolGeneration}); err != nil {
-				return err
-			}
-			if err := b.SetSequence(b.Sequence() + 1); err != nil {
-				return err
-			}
-			if _, err := tx.Bucket([]byte("documents")).CreateBucket([]byte(in.Pool)); err != nil {
-				return err
-			}
-		case "grant":
-			if err := tx.Bucket([]byte("grants")).Put([]byte(in.Pool+"/"+in.Soot), []byte(in.Level)); err != nil {
-				return err
-			}
-			if err := tx.Bucket([]byte("by-soot")).Put([]byte(in.Soot+"/"+in.Pool), []byte(in.Level)); err != nil {
-				return err
-			}
-		case "revoke":
-			if err := tx.Bucket([]byte("grants")).Delete([]byte(in.Pool + "/" + in.Soot)); err != nil {
-				return err
-			}
-			if err := tx.Bucket([]byte("by-soot")).Delete([]byte(in.Soot + "/" + in.Pool)); err != nil {
-				return err
-			}
-		}
-		if in.Action == "grant" || in.Action == "revoke" {
-			var p pool
-			if err := getJSON(tx.Bucket([]byte("pools")), in.Pool, &p); err != nil {
-				return err
-			}
-			p.PolicyRevision++
-			if err := putJSON(tx.Bucket([]byte("pools")), in.Pool, p); err != nil {
-				return err
-			}
-		}
-		event := activityForReceipt(r)
-		event.TargetSoot = in.Soot
-		event.Level = in.Level
-		if err := appendActivity(tx, event); err != nil {
-			return err
-		}
-		return putJSON(tx.Bucket([]byte("receipts")), s.requestKey(in.RequestID), r)
-	})
-	return r, err
+	return s.submit(ctx, r, "DELETE", "/indexes/"+s.index(in.Pool), nil)
 }
 
 func (s *service) write(ctx context.Context, in writeInput) (any, error) {
@@ -489,7 +429,7 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 	if err := s.checkDocumentRevision(in, old); err != nil {
 		return nil, err
 	}
-	r := receipt{ID: in.RequestID, Owner: s.actor, Actor: s.actorReference(), Pool: in.Pool, Action: in.Action, Fingerprint: fp, Status: "uncertain"}
+	r := receipt{ID: in.RequestID, Owner: s.actor, Actor: s.actorReference(), Pool: in.Pool, Action: in.Action, Fingerprint: fp, Status: "uncertain", Origin: s.origin}
 	var err error
 	r.PoolGeneration, err = s.poolGeneration(in.Pool)
 	if err != nil {
@@ -525,7 +465,7 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 	if source == "" {
 		source = "soot://" + s.b.Namespace + "/" + in.Pool + "/" + in.ID
 	}
-	meta := document{ID: in.ID, Title: in.Title, Source: source, Tags: in.Tags, SHA256: hash(content), Revision: old.Revision + 1, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano), Writer: s.actorReference()}
+	meta := document{ID: in.ID, Title: in.Title, Source: source, Tags: in.Tags, SHA256: hash(content), Revision: old.Revision + 1, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano), Writer: s.actorReference(), Origin: s.origin}
 	if oldErr == nil && old.SHA256 == meta.SHA256 && old.Title == meta.Title && old.Source == meta.Source && slices.Equal(old.Tags, meta.Tags) {
 		r.Document = &old
 		r.Status = "succeeded"
@@ -533,7 +473,10 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 			if err := putJSON(tx.Bucket([]byte("receipts")), s.requestKey(r.ID), r); err != nil {
 				return err
 			}
-			return appendActivity(tx, activityForReceipt(r))
+			if err := appendActivity(tx, activityForReceipt(r)); err != nil {
+				return err
+			}
+			return appendReference(tx, r.Origin, r.Pool, r.PoolGeneration, r.Action, r.Document)
 		})
 	}
 	r.Document = &meta

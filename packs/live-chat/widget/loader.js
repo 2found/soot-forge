@@ -32,9 +32,17 @@
 
   const nonce = crypto.randomUUID();
   let session = null;
+  let sessionPromise = null;
+  let initializedSession = null;
+  let epoch = 0;
+  let syncing = false;
   const scopeStorage=`soot.widget.scope.v1:${base}:${app}`;
   let selection=null;
-  try{selection=JSON.parse(localStorage.getItem(scopeStorage)||'null');}catch{}
+  try {
+    const saved = JSON.parse(localStorage.getItem(scopeStorage) || 'null');
+    if (saved && typeof saved.soot === 'string' && typeof saved.nonce === 'string' &&
+        (saved.group === undefined || typeof saved.group === 'string')) selection = saved;
+  } catch {}
   let scopeChoices=[];
   let switching=false;
   let submitting=false;
@@ -43,7 +51,8 @@
   let position = 'right';
   let scrollLock = null;
 
-  const detectedLanguage = document.documentElement.lang?.toLowerCase().startsWith('vi') ? 'vi' : 'en';
+  const detectLanguage = () => document.documentElement.lang?.toLowerCase().startsWith('vi') ? 'vi' : 'en';
+  let detectedLanguage = detectLanguage();
 
   const send = (type, extra = {}) => {
     frame.contentWindow?.postMessage({ soot_chat: 1, type, nonce, ...extra }, base);
@@ -100,18 +109,25 @@
     if (!window.turnstile) {
       await new Promise((resolve, reject) => {
         const existing = document.querySelector('script[src*="turnstile/v0/api.js"]');
-        if (existing) {
-          existing.addEventListener('load', () => resolve(), { once: true });
-          existing.addEventListener('error', () => reject(new Error('Turnstile script load error')), { once: true });
-          return;
+        const s = existing || document.createElement('script');
+        const finish = error => {
+          clearTimeout(timeout);
+          s.removeEventListener('load', loaded);
+          s.removeEventListener('error', failed);
+          if (error) { if (!existing) s.remove(); reject(error); }
+          else resolve();
+        };
+        const loaded = () => finish(window.turnstile ? undefined : new Error('Turnstile unavailable'));
+        const failed = () => finish(new Error('Failed to load Turnstile script'));
+        const timeout = setTimeout(() => finish(new Error('Turnstile script load timed out')), 15000);
+        s.addEventListener('load', loaded, { once: true });
+        s.addEventListener('error', failed, { once: true });
+        if (!existing) {
+          s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+          s.async = true;
+          s.defer = true;
+          document.head.appendChild(s);
         }
-        const s = document.createElement('script');
-        s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-        s.async = true;
-        s.defer = true;
-        s.onload = () => resolve();
-        s.onerror = () => reject(new Error('Failed to load Turnstile script'));
-        document.head.appendChild(s);
       });
     }
 
@@ -119,55 +135,69 @@
       const container = document.createElement('div');
       container.style.cssText = 'position:fixed;right:16px;bottom:96px;max-width:calc(100vw - 32px);z-index:2147483001;';
       document.body.appendChild(container);
+      let widgetId;
+      let settled = false;
+      const finish = (error, token) => {
+        if (settled) return;
+        settled = true;
+        if (widgetId !== undefined) { try { window.turnstile.remove(widgetId); } catch {} }
+        container.remove();
+        if (error) reject(error);
+        else resolve(token);
+      };
       try {
-        const widgetId = window.turnstile.render(container, {
+        widgetId = window.turnstile.render(container, {
           sitekey: challenge.site_key,
           action: challenge.action || 'chat',
-          callback: token => {
-            try { window.turnstile.remove(widgetId); } catch {}
-            container.remove();
-            resolve(token);
-          },
-          'error-callback': err => {
-            try { window.turnstile.remove(widgetId); } catch {}
-            container.remove();
-            reject(new Error('Turnstile challenge failed: ' + err));
-          },
-          'expired-callback': () => {
-            try { window.turnstile.remove(widgetId); } catch {}
-            container.remove();
-            reject(new Error('Turnstile token expired'));
-          },
+          language: detectedLanguage,
+          appearance: 'interaction-only',
+          callback: token => finish(undefined, token),
+          'error-callback': () => finish(new Error('Turnstile challenge failed')),
+          'expired-callback': () => finish(new Error('Turnstile token expired')),
+          'timeout-callback': () => finish(new Error('Turnstile challenge timed out')),
         });
+        // Test transports and cached providers may finish during render.
+        if (settled) { try { window.turnstile.remove(widgetId); } catch {} }
       } catch (err) {
-        container.remove();
-        reject(err);
+        finish(err);
       }
     });
   }
 
   async function getSessionInstance() {
     if (session) return session;
-    const sdk = await import(`${base}/public/widget/browser.js`);
-    session = new sdk.SootChatSession({
+    if (sessionPromise) return sessionPromise;
+    sessionPromise = import(`${base}/public/widget/browser.js`).then(sdk => new sdk.SootChatSession({
       baseUrl: base,
       appKey: app,
       language: detectedLanguage,
       ...(selection?{sootId:selection.soot,groupId:selection.group,storageKey:`${scopeStorage}:${selection.nonce}`} : {}),
       proofProvider: acquireTurnstileProof,
-    });
-    return session;
+    })).then(value => (session = value)).finally(() => { sessionPromise = null; });
+    return sessionPromise;
   }
 
   async function connect() {
     if (!ready) return;
+    const version = epoch;
+    let s;
     try {
-      const s = await getSessionInstance();
-      const { appInfo, state } = await s.init();
-      if(session!==s)return;
+      s = await getSessionInstance();
+      let state = s.readState();
+      // Read appearance without minting a visitor identity or asking every
+      // page visitor for proof. First Send creates a session; saved visitors
+      // still reconcile their durable receipts on load.
+      let appInfo;
+      if (state.session) {
+        ({ appInfo, state } = await s.init());
+        initializedSession = s;
+      } else {
+        appInfo = await s.client.getAppInfo();
+      }
+      if(session!==s || epoch!==version)return false;
       scopeChoices=appInfo.soots.flatMap(soot=>(soot.automatic_groups&&appInfo.capabilities?.includes('groups.auto.v1')?[{id:'auto',default:true}]:soot.groups?.length?soot.groups:[undefined]).map(group=>({value:JSON.stringify([soot.id,group?.id||'']),label:[soot.name||soot.id,group?.name].filter(Boolean).join(' · '),soot:soot.id,group:group?.id,default:group?.default})));
       const activeConversation=state.conversationId?await s.client.getConversation(state.conversationId):null;
-      if(session!==s)return;
+      if(session!==s || epoch!==version)return false;
       if(activeConversation&&!scopeChoices.some(x=>x.soot===activeConversation.soot&&(x.group||'')===(activeConversation.group_id||''))){
         const soot=appInfo.soots.find(x=>x.id===activeConversation.soot);
         if(soot){const group=soot.groups?.find(g=>g.id===activeConversation.group_id);scopeChoices.push({value:JSON.stringify([soot.id,activeConversation.group_id||'']),label:[soot.name||soot.id,group?.name].filter(Boolean).join(' · '),soot:soot.id,group:activeConversation.group_id});}
@@ -180,24 +210,33 @@
         scopes:scopeChoices.map(({value,label})=>({value,label})),scopeValue:chosen?.value,scopeName:chosen?.label,scopeRequired:scopeChoices.length>1&&!chosen,
         language: detectedLanguage,
         draft: state.draft,
+        pendingMessage: state.pendingMessage,
       });
       if (expanded) send('open');
       return true;
     } catch (err) {
-      send('unavailable');
+      if (epoch !== version || (s && session !== s)) return false;
+      let draft;
+      try { draft = s?.readState().draft; } catch {}
+      send('unavailable', { language: detectedLanguage, draft,
+        error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
       resize();
       if (expanded) send('open');
       return false;
     }
   }
 
-  async function syncMessages(after) {
+  async function syncMessages(after, submission = false) {
+    if (!submission && (syncing || submitting || switching || !expanded || document.visibilityState === 'hidden')) return;
+    const version = epoch;
     let source;
+    syncing = true;
     try {
       const s = await getSessionInstance();
       source=s;
-      const state = await s.reconcile();
-      if(session!==s)return;
+      const saved = s.readState();
+      const state = saved.session ? await s.reconcile() : saved;
+      if(session!==s || epoch!==version)return;
       let messages = [];
       let next_after = after;
       let activity = 'connected';
@@ -210,23 +249,24 @@
           messages = page.messages || [];
           next_after = page.next_after || after;
         } catch (err) {
-          if(session!==s)return;
-          send('sync', { error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
+          if(session!==s || epoch!==version)return;
+          send('sync', { submission, error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
           return;
         }
       }
 
-      if(session!==s)return;
+      if(session!==s || epoch!==version)return;
       send('sync', {
+        submission,
         messages,
         next_after,
         activity,
         pendingMessage: state.pendingMessage,
       });
-    } catch {
-      if(source && session!==source)return;
-      send('sync', { error: { kind: 'connection' } });
-    }
+    } catch (err) {
+      if(epoch!==version || (source && session!==source))return;
+      send('sync', { submission, error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
+    } finally { syncing = false; }
   }
 
   const api = {
@@ -249,6 +289,14 @@
   window.visualViewport?.addEventListener('resize', resize);
   window.visualViewport?.addEventListener('scroll', resize);
   addEventListener('pagehide', unlock);
+  const languageObserver = new MutationObserver(() => {
+    const next = detectLanguage();
+    if (next === detectedLanguage) return;
+    detectedLanguage = next;
+    session?.setLanguage(next);
+    send('language', { language: next });
+  });
+  languageObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
 
   addEventListener('message', async event => {
     if (event.origin !== base || event.source !== frame.contentWindow || event.data?.soot_chat !== 1) return;
@@ -274,7 +322,7 @@
         const old=await getSessionInstance();const state=old.readState();
         if(state.pendingMessage||state.pendingCreate)throw new Error('Reconcile before changing scope');
         const next={soot:chosen.soot,group:chosen.group,nonce:crypto.randomUUID()};
-        localStorage.setItem(scopeStorage,JSON.stringify(next));selection=next;session=null;
+        localStorage.setItem(scopeStorage,JSON.stringify(next));epoch++;selection=next;session=null;initializedSession=null;
         if(!await connect())throw new Error('Scope connection failed');send('reset-done');
       }catch{selection=previousSelection;session=oldSession;try{if(selection)localStorage.setItem(scopeStorage,JSON.stringify(selection));else localStorage.removeItem(scopeStorage);}catch{}send('sync',{error:{kind:'reset'}});}finally{switching=false;}
       return;
@@ -299,20 +347,25 @@
     } else if (msg.type === 'send') {
       if(submitting)return;
       submitting=true;
+      epoch++;
       try {
         const s = await getSessionInstance();
+        if (initializedSession !== s) { await s.init(); initializedSession = s; }
         await s.sendMessage(msg.text);
         if(session!==s)return;
-        await syncMessages(0);
+        await syncMessages(0, true);
       } catch (err) {
         const kind = err?.status === 429 ? 'rate' : err?.status === 400 ? 'validation' : err?.status === 401 ? 'expired' : 'send';
-        send('sync', { error: { kind } });
+        send('sync', { submission: true, error: { kind } });
       } finally {submitting=false;}
     } else if (msg.type === 'reset') {
+      if (submitting || switching) { send('sync', { error: { kind: 'reset' } }); return; }
+      epoch++;
       try {
         const s = await getSessionInstance();
         await s.reset();
-        await s.init();
+        initializedSession = null;
+        await connect();
         send('reset-done');
       } catch {
         send('sync', { error: { kind: 'reset' } });
