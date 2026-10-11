@@ -82,13 +82,13 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 	switch op {
 	case "pools":
 		var in poolsInput
-		if err := decodeStrict(raw, &in); err != nil {
+		if err := decodeInput(raw, &in); err != nil {
 			return nil, err
 		}
 		return s.pools(in)
 	case "query":
 		var in queryInput
-		if err := decodeStrict(raw, &in); err != nil {
+		if err := decodeInput(raw, &in); err != nil {
 			return nil, err
 		}
 		result, err := s.query(ctx, in)
@@ -98,7 +98,7 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 		return result, err
 	case "write":
 		var in writeInput
-		if err := decodeStrict(raw, &in); err != nil {
+		if err := decodeInput(raw, &in); err != nil {
 			return nil, err
 		}
 		if in.Pool == "" {
@@ -107,13 +107,13 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 		return s.write(ctx, in)
 	case "manage":
 		var in manageInput
-		if err := decodeStrict(raw, &in); err != nil {
+		if err := decodeInput(raw, &in); err != nil {
 			return nil, err
 		}
 		return s.manage(ctx, in)
 	case "status":
 		var in statusInput
-		if err := decodeStrict(raw, &in); err != nil {
+		if err := decodeInput(raw, &in); err != nil {
 			return nil, err
 		}
 		return s.status(ctx, in)
@@ -492,7 +492,7 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 
 func (s *service) status(ctx context.Context, in statusInput) (any, error) {
 	if !identifier.MatchString(in.RequestID) || in.Owner != "" && !identifier.MatchString(in.Owner) {
-		return nil, errors.New("invalid request status identity")
+		return nil, inputError{"status needs the request_id the write or manage call returned"}
 	}
 	owner := in.Owner
 	if owner == "" {

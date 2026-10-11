@@ -83,6 +83,19 @@ func TestGatewaySharesPolicyAcrossClientsAndRestarts(t *testing.T) {
 			t.Fatal("forged identity/operation/input accepted")
 		}
 	}
+	// A malformed input names what to fix over the service, as it does locally.
+	for _, test := range []struct {
+		op    string
+		input any
+		want  string
+	}{
+		{"query", map[string]any{"action": "read", "pool": "company", "id": "handbook", "bogus": 1}, "check the tool's parameters"},
+		{"status", map[string]any{}, "request_id"},
+	} {
+		if _, e := remoteCall(t, server.URL, vmToken, "support", test.op, test.input); e == nil || !strings.Contains(e.Error(), test.want) {
+			t.Fatalf("%s: invalid input not explained: %v", test.op, e)
+		}
+	}
 	server.Close()
 	g.base.close()
 	g, err = newGateway(config)

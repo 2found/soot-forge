@@ -183,3 +183,12 @@ func (g *gateway) peekReceipt(owner, id string) (receipt, bool) {
 type inputError struct{ message string }
 
 func (e inputError) Error() string { return e.message }
+
+// decodeInput reports a malformed tool input as an inputError, so a remote
+// caller learns what to fix exactly as a local one does from stderr.
+func decodeInput(raw json.RawMessage, into any) error {
+	if err := decodeStrict(raw, into); err != nil {
+		return inputError{err.Error() + "; check the tool's parameters"}
+	}
+	return nil
+}
