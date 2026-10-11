@@ -30,7 +30,15 @@ valid. Upgrade the Pack and Nest Data UI together to expose organization control
 
 ## Install the connector
 
-You need Go 1.25+ to build the connector and a Soot workspace. The operator
+Connecting to a data-pool service needs no build. Every tool runs through
+`soot tool-forward`, which sends a service binding's calls to the service over
+HTTPS. That is also the only form that fits a packaged runtime image (soot, sh
+and timeout only), such as a Soot on a 2server VM. Install the Pack as it is
+and skip to [the shared pool](#connect-local-and-vm-soots-to-one-shared-pool).
+The runtime must include `soot tool-forward`.
+
+Direct mode, where the Soot host itself talks to Meilisearch, needs the built
+runner. You need Go 1.25+ to build the connector and a Soot workspace. The operator
 installs and runs the search infrastructure separately: see the [Meilisearch
 Docker and VM guide](docs/meilisearch.md). Meilisearch Community Edition
 v1.54.3 is the tested backend. The Pack never installs or starts Meilisearch,

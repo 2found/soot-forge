@@ -40,10 +40,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "bin/soot-data-pool",
-            "args": [
-              "pools"
-            ],
+            "program": "soot",
+            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "pools"],
             "stdin": "context",
             "mode": "read",
             "resource": "data_pool",
@@ -113,10 +111,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "bin/soot-data-pool",
-            "args": [
-              "query"
-            ],
+            "program": "soot",
+            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "query"],
             "stdin": "context",
             "mode": "read",
             "resource": "data_pool",
@@ -154,10 +150,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "bin/soot-data-pool",
-            "args": [
-              "status"
-            ],
+            "program": "soot",
+            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "status"],
             "stdin": "context",
             "mode": "read",
             "resource": "data_pool",
@@ -247,10 +241,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "bin/soot-data-pool",
-            "args": [
-              "write"
-            ],
+            "program": "soot",
+            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "write"],
             "stdin": "context",
             "mode": "write",
             "resource": "data_pool",
@@ -361,10 +353,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "bin/soot-data-pool",
-            "args": [
-              "manage"
-            ],
+            "program": "soot",
+            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "manage"],
             "stdin": "context",
             "mode": "write",
             "resource": "data_pool",
@@ -407,10 +397,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "bin/soot-data-pool",
-            "args": [
-              "view"
-            ],
+            "program": "soot",
+            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "view"],
             "stdin": "context",
             "mode": "read",
             "resource": "data_pool",
@@ -445,10 +433,8 @@
             "additionalProperties": false
           },
           "run": {
-            "program": "bin/soot-data-pool",
-            "args": [
-              "action"
-            ],
+            "program": "soot",
+            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "action"],
             "stdin": "context",
             "mode": "write",
             "resource": "data_pool",
