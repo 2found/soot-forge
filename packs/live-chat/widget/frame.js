@@ -181,6 +181,66 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     $('jump').hidden = true;
   }
 
+  // Soot answers in light markdown. It is built from DOM nodes only, so model or
+  // staff text never becomes markup, and a link must be an absolute https URL.
+  function inline(parent, text) {
+    let at = 0;
+    for (const m of text.matchAll(/\*\*([^*\n]+)\*\*|`([^`\n]+)`|\[([^\]\n]+)\]\(([^\s)]+)\)|https:\/\/[^\s<>()]*[^\s<>().,;:!?'"*]/g)) {
+      if (m.index > at) parent.append(text.slice(at, m.index));
+      at = m.index + m[0].length;
+      let node, url = null;
+      if (m[1] || m[2]) {
+        node = document.createElement(m[1] ? 'strong' : 'code');
+        node.textContent = m[1] || m[2];
+      } else {
+        try { url = new URL(m[4] || m[0]); } catch {}
+        if (!url || url.protocol !== 'https:' || url.username || url.password) { parent.append(m[0]); continue; }
+        node = document.createElement('a');
+        node.href = url.href;
+        node.target = '_blank';
+        node.rel = 'noopener noreferrer nofollow';
+        node.textContent = m[3] || m[0];
+      }
+      parent.append(node);
+    }
+    if (at < text.length) parent.append(text.slice(at));
+  }
+
+  function prose(text) {
+    const body = document.createElement('div');
+    body.className = 'prose';
+    let block = null, kind = '';
+    for (const line of text.split('\n')) {
+      const item = /^\s*(?:[-*\u2022]|(\d{1,3})[.)])\s+(.*)$/.exec(line), heading = /^#{1,4}\s+(.*)$/.exec(line);
+      if (!line.trim()) {
+        kind = '';
+      } else if (item) {
+        const list = item[1] ? 'ol' : 'ul';
+        if (kind !== list) {
+          block = document.createElement(list);
+          if (item[1] && item[1] !== '1') block.start = Number(item[1]);
+          body.append(block);
+          kind = list;
+        }
+        const li = document.createElement('li');
+        inline(li, item[2]);
+        block.append(li);
+      } else if (heading) {
+        block = document.createElement('p');
+        const strong = document.createElement('strong');
+        inline(strong, heading[1]);
+        block.append(strong);
+        body.append(block);
+        kind = '';
+      } else {
+        if (kind === 'p') block.append('\n');
+        else { block = document.createElement('p'); body.append(block); kind = 'p'; }
+        inline(block, line);
+      }
+    }
+    return body;
+  }
+
   function render(message) {
     const role = message.role === 'user' ? (message.actor_role === 'member' ? 'member' : 'customer') : message.role;
     if (
@@ -197,8 +257,14 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     article.className = 'message ui-agent-message ' + role;
     article.dataset.agentRole = role === 'customer' ? 'user' : 'assistant';
     article.dataset.message = String(message.id);
-    const body = document.createElement('p');
-    body.textContent = message.text;
+    // A visitor's own words stay verbatim; replies from Soot or staff are prose.
+    let body;
+    if (role === 'customer') {
+      body = document.createElement('p');
+      body.textContent = message.text;
+    } else {
+      body = prose(String(message.text || ''));
+    }
     const meta = document.createElement('small');
     meta.className = 'ui-agent-message-label';
     meta.id = 'message-label-' + String(message.id);

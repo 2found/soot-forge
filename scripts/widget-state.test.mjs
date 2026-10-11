@@ -21,12 +21,12 @@ function frameFixture() {
   }
   const element = id => { if (!elements.has(id)) elements.set(id, new Element(id)); return elements.get(id); };
   const document = { getElementById: element, documentElement: { dataset: {} },
-    visibilityState: 'visible', querySelector: () => null, createElement: () => new Element(),
+    visibilityState: 'visible', querySelector: () => null, createElement: tag => Object.assign(new Element(), { tagName: tag }),
     addEventListener: (type, fn) => handlers.set('document:' + type, fn) };
   const parent = { postMessage: message => posted.push(message) };
   const composer = { props: {}, update(props) { Object.assign(this.props, props); },
     setValue(value) { element('text').value = value; }, destroy() {} };
-  const context = { document, parent, location: { search: '?parent=https://site.example' }, URLSearchParams,
+  const context = { document, parent, location: { search: '?parent=https://site.example' }, URLSearchParams, URL,
     createWidgetComposer: (_container, submit) => { composer.submit = submit; return composer; }, isAgentTranscriptAtEnd: () => true,
     TextEncoder, crypto: { randomUUID: () => 'frame-message-id' }, CSS: { escape: v => v },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
@@ -113,4 +113,24 @@ test('a send before init is held and flushed once the nonce arrives', () => {
   assert.ok(send);
   assert.equal(send.nonce, 'fixture-nonce');
   assert.equal(send.text, 'Queued before connect');
+});
+
+test('replies render light markdown as DOM nodes, never as markup or unsafe links', () => {
+  const f = frameFixture(); f.init(); f.receive('open');
+  const text = '**Nest** is the app.\n\n- one [docs](https://trysoot.com/docs)\n- two `soot spawn`\n\n[x](javascript:alert(1)) <img src=x onerror=alert(1)> http://plain.example';
+  f.receive('sync', { messages: [{ id: 1, role: 'assistant', text, created: '' }, { id: 2, role: 'user', actor_role: 'customer', text: '**mine**', created: '' }], next_after: 2, activity: 'connected' });
+  const [reply, mine] = f.element('transcript').children;
+  const prose = reply.children[1], [lead, list, tail] = prose.children;
+  assert.equal(prose.className, 'prose');
+  assert.equal(lead.children[0].tagName, 'strong');
+  assert.equal(lead.children[0].textContent, 'Nest');
+  assert.equal(list.tagName, 'ul');
+  assert.equal(list.children.length, 2);
+  const link = list.children[0].children.find(n => n.tagName === 'a');
+  assert.equal(link.href, 'https://trysoot.com/docs');
+  assert.equal(link.rel, 'noopener noreferrer nofollow');
+  assert.equal(list.children[1].children.find(n => n.tagName === 'code').textContent, 'soot spawn');
+  assert.ok(tail.children.every(n => typeof n === 'string'), 'unsafe link, html and http stay plain text');
+  assert.equal(tail.children.join(''), '[x](javascript:alert(1)) <img src=x onerror=alert(1)> http://plain.example');
+  assert.equal(mine.children[1].textContent, '**mine**');
 });

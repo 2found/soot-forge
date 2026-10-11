@@ -34,6 +34,12 @@ summary::-webkit-details-marker{display:none}
 #quick button{font-size:13px;border-radius:var(--radius-full);text-align:left}
 .message{margin:0 0 16px;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
 .message p{margin:0;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+.prose{display:flex;flex-direction:column;gap:8px;min-width:0;max-width:100%}
+.prose ul,.prose ol{margin:0;padding-left:20px;line-height:1.6;overflow-wrap:anywhere}
+.prose li+li{margin-top:2px}
+.prose a{color:var(--color-accent);text-decoration:underline;text-underline-offset:2px}
+.prose a:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+.prose code{font-size:.9em;padding:1px 4px;border-radius:var(--radius-sm);background:var(--color-surface-2)}
 .message.customer{align-items:flex-end}
 .customer p{max-width:88%;background:var(--color-surface-2);padding:8px 12px;border-radius:var(--radius-md)}
 .message small{font-size:11px;color:var(--color-muted);line-height:1.5}

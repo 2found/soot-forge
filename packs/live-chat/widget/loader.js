@@ -13,7 +13,8 @@
   const frame = document.createElement('iframe');
   frame.title = 'Soot Live chat';
   frame.src = `${base}/public/widget/frame/${encodeURIComponent(app)}?parent=${encodeURIComponent(location.origin)}`;
-  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
+  // Popups let a reply's https link open in a normal, unsandboxed tab.
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
   frame.referrerPolicy = 'no-referrer';
   frame.loading = 'lazy';
   Object.assign(frame.style, {
