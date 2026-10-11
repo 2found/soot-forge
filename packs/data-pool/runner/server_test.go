@@ -96,6 +96,20 @@ func TestGatewaySharesPolicyAcrossClientsAndRestarts(t *testing.T) {
 			t.Fatalf("%s: invalid input not explained: %v", test.op, e)
 		}
 	}
+	// A guessed collection ID points the agent at discovery and creation, with
+	// one answer for missing and forbidden so it is no existence oracle.
+	mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_create", Pool: "private", Name: "Private", RequestID: "create-private"})
+	var answers []string
+	for _, pool := range []string{"ghost", "private"} {
+		_, e := remoteCall(t, server.URL, vmToken, "support", "pools", poolsInput{Pool: pool})
+		if e == nil || !strings.Contains(e.Error(), "data-pool_pools without a pool argument") {
+			t.Fatalf("%s: inaccessible collection not explained: %v", pool, e)
+		}
+		answers = append(answers, strings.Replace(e.Error(), pool, "ID", 1))
+	}
+	if answers[0] != answers[1] {
+		t.Fatalf("missing and forbidden collections answer differently: %q vs %q", answers[0], answers[1])
+	}
 	server.Close()
 	g.base.close()
 	g, err = newGateway(config)

@@ -149,7 +149,9 @@ func (s *service) allowed(tx *bolt.Tx, id, level string) bool {
 func (s *service) authorize(id, level string) error {
 	return s.db.View(func(tx *bolt.Tx) error {
 		if !s.allowed(tx, id, level) {
-			return errors.New("access denied or pool unavailable")
+			// One answer for missing and forbidden, so it is no existence oracle,
+			// but actionable: a model that guessed an ID must list or create one.
+			return inputError{"collection " + safeID(id) + " is not available to this Soot at " + level + " level (missing or not granted); list accessible collections with data-pool_pools without a pool argument, or create one with data-pool_manage pool_create if you manage pools"}
 		}
 		return nil
 	})
@@ -375,4 +377,11 @@ func (s *service) replay(id, fingerprint string) (receipt, bool, error) {
 
 func receiptToken(s *service, r receipt) string {
 	return hash(fmt.Sprintf("%s/%s/%s/%s/%s", s.b.Namespace, r.PoolGeneration, r.Owner, r.ID, r.Fingerprint))
+}
+
+func safeID(id string) string {
+	if identifier.MatchString(id) {
+		return id
+	}
+	return "(invalid ID)"
 }

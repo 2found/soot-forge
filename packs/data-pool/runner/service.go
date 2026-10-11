@@ -132,11 +132,11 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 func (s *service) pools(in poolsInput) (any, error) {
 	limit, err := pageSize(in.Limit)
 	if err != nil || !cursorValid(in.After) {
-		return nil, errors.New("invalid pool page")
+		return nil, inputError{"invalid pool page: limit is 1..20 and after must be a returned cursor"}
 	}
 	if in.Pool != "" {
 		if in.After != "" || in.Limit != 0 {
-			return nil, errors.New("pool detail does not accept pagination")
+			return nil, inputError{"pool detail does not accept after or limit; omit pool to page the collection list"}
 		}
 		if err = s.authorize(in.Pool, "read"); err != nil {
 			return nil, err
