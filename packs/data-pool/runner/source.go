@@ -64,26 +64,49 @@ func publicURL(raw string) (*url.URL, error) {
 	return u, nil
 }
 
-func sourceDial(ctx context.Context, network, address string, lookup func(context.Context, string, string) ([]netip.Addr, error), dial func(context.Context, string, string) (net.Conn, error)) (net.Conn, error) {
+// privateAddress admits only RFC 1918, ULA and loopback answers: never
+// link-local (cloud metadata) or anything publicly routable.
+func privateAddress(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	return ip.IsLoopback() || ip.IsPrivate()
+}
+
+type lookupFunc func(context.Context, string, string) ([]netip.Addr, error)
+type dialFunc func(context.Context, string, string) (net.Conn, error)
+
+func sourceDial(ctx context.Context, network, address string, lookup lookupFunc, dial dialFunc) (net.Conn, error) {
+	return guardedDial(ctx, network, address, publicAddress, lookup, dial)
+}
+
+// guardedDial resolves once, requires every answer to pass allow, then dials
+// the validated IP so a second resolution cannot rebind it.
+func guardedDial(ctx context.Context, network, address string, allow func(netip.Addr) bool, lookup lookupFunc, dial dialFunc) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
-		return nil, errors.New("invalid source address")
+		return nil, errors.New("invalid address")
 	}
 	ips, err := lookup(ctx, "ip", host)
 	if err != nil || len(ips) == 0 {
-		return nil, errors.New("source resolution failed")
+		return nil, errors.New("address resolution failed")
 	}
 	for _, ip := range ips {
-		if !publicAddress(ip) {
-			return nil, errors.New("source resolved to a non-public address")
+		if !allow(ip) {
+			return nil, errors.New("address resolved outside the allowed network")
 		}
 	}
-	return dial(ctx, network, net.JoinHostPort(ips[0].String(), port))
+	return dial(ctx, network, net.JoinHostPort(ips[0].Unmap().String(), port))
 }
 
 func sourceRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) > 3 {
 		return errors.New("too many source redirects")
+	}
+	// Once a chain is HTTPS it never continues in cleartext, where an on-path
+	// party could substitute the imported content.
+	for _, prior := range via {
+		if prior != nil && prior.URL != nil && prior.URL.Scheme == "https" && req.URL.Scheme != "https" {
+			return errors.New("source redirect downgrades HTTPS")
+		}
 	}
 	_, err := publicURL(req.URL.String())
 	return err
@@ -135,6 +158,27 @@ func fetchPage(ctx context.Context, raw string) (string, error) {
 	return htmlText(string(data))
 }
 
+// Text a reader never sees must not become stored reference material: it is
+// where pages hide prompt injection and SEO filler.
+func hiddenElement(n *html.Node) bool {
+	for _, a := range n.Attr {
+		switch strings.ToLower(a.Key) {
+		case "hidden":
+			return true
+		case "aria-hidden":
+			if strings.EqualFold(strings.TrimSpace(a.Val), "true") {
+				return true
+			}
+		case "style":
+			style := strings.ToLower(strings.Join(strings.Fields(a.Val), ""))
+			if strings.Contains(style, "display:none") || strings.Contains(style, "visibility:hidden") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func htmlText(data string) (string, error) {
 	root, err := html.Parse(strings.NewReader(data))
 	if err != nil {
@@ -145,13 +189,11 @@ func htmlText(data string) (string, error) {
 	visit = func(n *html.Node) {
 		if n.Type == html.ElementNode {
 			switch n.Data {
-			case "script", "style", "head", "nav", "footer", "form", "noscript", "svg":
+			case "script", "style", "head", "nav", "footer", "form", "noscript", "svg", "template":
 				return
 			}
-			for _, a := range n.Attr {
-				if a.Key == "hidden" || a.Key == "aria-hidden" && a.Val == "true" {
-					return
-				}
+			if hiddenElement(n) {
+				return
 			}
 		}
 		if n.Type == html.TextNode {

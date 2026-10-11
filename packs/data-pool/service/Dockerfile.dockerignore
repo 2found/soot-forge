@@ -1,0 +1,6 @@
+# Only sources reach the build; never local state, dumps or binaries.
+*
+!go.mod
+!go.sum
+!*.go
+*_test.go

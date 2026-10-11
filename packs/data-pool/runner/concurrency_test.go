@@ -14,7 +14,8 @@ import (
 )
 
 func TestGatewayParallelAppendAndSameIntentReplay(t *testing.T) {
-	const n = 24
+	// One principal may hold perPrincipal requests at once; fill exactly that.
+	const n = perPrincipal
 	fake, _ := newFake(t)
 	arrived := make(chan struct{})
 	var once sync.Once

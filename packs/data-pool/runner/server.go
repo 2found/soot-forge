@@ -5,47 +5,72 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 var operations = []string{"pools", "query", "write", "manage", "status", "view", "action"}
 
-const hostClient = "@host"
+const (
+	hostClient   = "@host"
+	perPrincipal = 16 // concurrent requests per token + claimed Soot
+	maxConfig    = 2 << 20
+)
+
+var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,127}$`)
 
 type serviceClient struct {
-	// Soot "@host" shares one credential across the whole bound Soot set: the
-	// envelope's host-stamped soot picks the identity and role-derived
-	// operations. A named Soot binds this credential to that identity only.
+	// Soot "@host" is one machine's credential: Name identifies it (and its
+	// revocation), Soots bounds which identities its envelopes may claim. A
+	// named Soot binds the credential to that identity only.
 	Soot        string   `json:"soot"`
+	Name        string   `json:"name,omitempty"`
+	Soots       []string `json:"soots,omitempty"`
 	TokenSHA256 string   `json:"token_sha256"`
 	Operations  []string `json:"operations,omitempty"`
 }
 
-type serverConfig struct {
-	Listen  string          `json:"listen"`
-	TLSCert string          `json:"tls_cert,omitempty"`
-	TLSKey  string          `json:"tls_key,omitempty"`
-	Storage binding         `json:"storage"`
-	Clients []serviceClient `json:"clients"`
+func (c serviceClient) kind() string {
+	switch {
+	case c.Soot == hostClient:
+		return "host:" + c.Name
+	case slices.Contains(c.Operations, "view") || slices.Contains(c.Operations, "action"):
+		return "ui"
+	}
+	return "soot"
 }
 
-// roleOperations derives a claimed identity's operation set under a shared host
-// credential: namespace managers manage and see the configuration surface,
-// pool managers manage, writers write, everyone else reads.
+type serverConfig struct {
+	Listen  string `json:"listen"`
+	TLSCert string `json:"tls_cert,omitempty"`
+	TLSKey  string `json:"tls_key,omitempty"`
+	// PrivateNetwork is the container opt-in: cleartext behind a TLS-terminating
+	// proxy, and an http:// backend that resolves only to private addresses.
+	PrivateNetwork bool            `json:"private_network,omitempty"`
+	Storage        binding         `json:"storage"`
+	Clients        []serviceClient `json:"clients"`
+}
+
+// roleOperations derives what a host credential may do for one claimed
+// identity: managers and pool managers manage, writers write, others read.
+// A machine credential never reaches the human view/action surface.
 func roleOperations(b binding, soot string) []string {
 	ops := []string{"pools", "query", "status"}
 	switch {
-	case slices.Contains(b.Managers, soot):
-		ops = append(ops, "write", "manage", "view", "action")
-	case slices.Contains(b.PoolManagers, soot):
+	case slices.Contains(b.Managers, soot), slices.Contains(b.PoolManagers, soot):
 		ops = append(ops, "write", "manage")
 	case slices.Contains(b.Writers, soot):
 		ops = append(ops, "write")
@@ -53,36 +78,57 @@ func roleOperations(b binding, soot string) []string {
 	return ops
 }
 
-func validateServerConfig(c serverConfig) error {
+func (c serverConfig) storage() (binding, error) {
 	data, _ := json.Marshal(c.Storage)
-	b, err := loadBinding(string(data))
-	if err != nil || b.ServiceURL != "" {
-		return errors.New("service requires local authoritative storage configuration")
+	b, err := parseBinding(string(data), c.PrivateNetwork)
+	if err == nil && b.ServiceURL != "" {
+		err = errors.New("service requires local authoritative storage configuration")
+	}
+	return b, err
+}
+
+func validateServerConfig(c serverConfig) error {
+	b, err := c.storage()
+	if err != nil {
+		return err
 	}
 	host, _, err := net.SplitHostPort(c.Listen)
 	ip := net.ParseIP(host)
-	if err != nil || (c.TLSCert == "") != (c.TLSKey == "") || (c.TLSCert == "" && (ip == nil || !ip.IsLoopback())) {
-		return errors.New("listen must be an explicit loopback address or use TLS certificate and key")
+	if err != nil || (c.TLSCert == "") != (c.TLSKey == "") || (c.TLSCert == "" && (ip == nil || !ip.IsLoopback() && !c.PrivateNetwork)) {
+		return errors.New("listen must be an explicit loopback address, use TLS certificate and key, or set private_network behind a TLS proxy")
 	}
 	if len(c.Clients) == 0 || len(c.Clients) > 4096 {
 		return errors.New("bind between 1 and 4096 service clients")
 	}
-	seen := map[string]bool{}
+	seen, names := map[string]bool{}, map[string]bool{}
 	for _, client := range c.Clients {
 		digest, e := hex.DecodeString(client.TokenSHA256)
-		if client.Soot == hostClient {
-			// A shared host credential lists no operations; they are derived per
-			// claimed identity at request time from the bound roles.
-			if e != nil || len(digest) != 32 || strings.ToLower(client.TokenSHA256) != client.TokenSHA256 || seen[client.TokenSHA256] || len(client.Operations) != 0 {
-				return errors.New("invalid or duplicate host credential")
-			}
-			seen[client.TokenSHA256] = true
-			continue
-		}
-		if e != nil || len(digest) != 32 || strings.ToLower(client.TokenSHA256) != client.TokenSHA256 || seen[client.TokenSHA256] || !slices.Contains(b.Soots, client.Soot) || len(client.Operations) == 0 || len(client.Operations) > len(operations) {
+		if e != nil || len(digest) != 32 || strings.ToLower(client.TokenSHA256) != client.TokenSHA256 || seen[client.TokenSHA256] {
 			return errors.New("invalid or duplicate client credential")
 		}
 		seen[client.TokenSHA256] = true
+		if client.Soot == hostClient {
+			// Operations are derived per claimed identity at request time; the
+			// allowlist is what keeps one machine's token off the other's Soots.
+			if !identifier.MatchString(client.Name) || names[client.Name] || len(client.Operations) != 0 {
+				return errors.New("each @host client needs a distinct identifier name and no operations")
+			}
+			names[client.Name] = true
+			if len(client.Soots) == 0 {
+				return fmt.Errorf("@host client %q needs a non-empty \"soots\" allowlist of bound Soots it may act as", client.Name)
+			}
+			allow := map[string]bool{}
+			for _, s := range client.Soots {
+				if !slices.Contains(b.Soots, s) || allow[s] {
+					return fmt.Errorf("@host client %q soots must be distinct bound Soots", client.Name)
+				}
+				allow[s] = true
+			}
+			continue
+		}
+		if client.Name != "" || len(client.Soots) != 0 || !slices.Contains(b.Soots, client.Soot) || len(client.Operations) == 0 || len(client.Operations) > len(operations) {
+			return errors.New("invalid client credential")
+		}
 		opSeen := map[string]bool{}
 		for _, op := range client.Operations {
 			if !slices.Contains(operations, op) || opSeen[op] {
@@ -95,19 +141,25 @@ func validateServerConfig(c serverConfig) error {
 }
 
 type gateway struct {
-	base    *service
-	clients map[string]serviceClient
-	policy  policyGate
-	keys    keyedGate
-	slots   chan struct{}
+	base      *service
+	clients   map[string]serviceClient
+	policy    policyGate
+	keys      keyedGate
+	slots     chan struct{}
+	mu        sync.Mutex
+	active    map[string]int
+	accessLog io.Writer
+	logMu     sync.Mutex
+	readyMu   sync.Mutex
+	readyAt   time.Time
+	readyOK   bool
 }
 
 func newGateway(c serverConfig) (*gateway, error) {
 	if err := validateServerConfig(c); err != nil {
 		return nil, err
 	}
-	data, _ := json.Marshal(c.Storage)
-	b, _ := loadBinding(string(data))
+	b, _ := c.storage()
 	s, err := openService(b, "") // Lifetime DB ownership prevents competing servers.
 	if err != nil {
 		return nil, err
@@ -116,31 +168,128 @@ func newGateway(c serverConfig) (*gateway, error) {
 	for _, client := range c.Clients {
 		clients[client.TokenSHA256] = client
 	}
-	return &gateway{base: s, clients: clients, slots: make(chan struct{}, 256)}, nil
+	return &gateway{base: s, clients: clients, slots: make(chan struct{}, 256), active: map[string]int{}}, nil
 }
+
+// session gives each request its own service view. The permission memo and
+// group list are per-actor request state; sharing the base map races.
+func (g *gateway) session(actor string) *service {
+	s := *g.base
+	s.actor, s.perms = actor, map[string]string{}
+	s.membership, s.groupsFor = actorGroups(s.b, actor), actor
+	s.human, s.origin = false, nil
+	return &s
+}
+
+// enter caps one principal's concurrent work so a single caller spamming
+// requests cannot hold all global slots.
+func (g *gateway) enter(key string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.active[key] >= perPrincipal {
+		return false
+	}
+	g.active[key]++
+	return true
+}
+func (g *gateway) leave(key string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.active[key]--; g.active[key] <= 0 {
+		delete(g.active, key)
+	}
+}
+
+// One line per tool request. Never tokens, bodies, queries, document ids or
+// content: only the claimed identity, credential kind and outcome.
+type accessEntry struct {
+	Time     string `json:"time"`
+	Soot     string `json:"soot,omitempty"`
+	Client   string `json:"client"`
+	Op       string `json:"op,omitempty"`
+	Status   int    `json:"status"`
+	Duration int64  `json:"duration_ms"`
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+	wrote  bool
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	if !w.wrote {
+		w.status, w.wrote = code, true
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+func (w *statusWriter) Write(b []byte) (int, error) {
+	w.wrote = true
+	return w.ResponseWriter.Write(b)
+}
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if r.Method == http.MethodGet && r.URL.Path == "/healthz" {
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/healthz":
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, "{\"status\":\"available\"}\n")
-		return
-	}
-	if r.Method != http.MethodPost || r.URL.Path != "/v1/tool" {
+	case r.Method == http.MethodGet && r.URL.Path == "/readyz":
+		w.Header().Set("Content-Type", "application/json")
+		if !g.ready(r.Context()) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			io.WriteString(w, "{\"status\":\"unavailable\"}\n")
+			return
+		}
+		io.WriteString(w, "{\"status\":\"ready\"}\n")
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/tool":
+		start := time.Now()
+		rec := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		entry := accessEntry{Client: "unauthenticated"}
+		g.tool(rec, r, &entry)
+		if g.accessLog != nil {
+			entry.Time, entry.Status, entry.Duration = start.UTC().Format(time.RFC3339Nano), rec.status, time.Since(start).Milliseconds()
+			line, _ := json.Marshal(entry)
+			g.logMu.Lock()
+			g.accessLog.Write(append(line, '\n'))
+			g.logMu.Unlock()
+		}
+	default:
 		http.NotFound(w, r)
-		return
 	}
+}
+
+// ready checks the policy DB and the backend. Results are reused for a second
+// so an unauthenticated probe flood cannot fan out into backend traffic.
+func (g *gateway) ready(ctx context.Context) bool {
+	g.readyMu.Lock()
+	defer g.readyMu.Unlock()
+	if time.Since(g.readyAt) < time.Second {
+		return g.readyOK
+	}
+	ok := g.base.db.View(func(*bolt.Tx) error { return nil }) == nil
+	if ok {
+		check, cancel := context.WithTimeout(ctx, 2*time.Second)
+		ok = g.base.backend.call(check, "GET", "/health", nil, nil) == nil
+		cancel()
+	}
+	g.readyAt, g.readyOK = time.Now(), ok
+	return ok
+}
+
+func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntry) {
 	auth := r.Header.Get("Authorization")
 	if !strings.HasPrefix(auth, "Bearer ") || !validToken(strings.TrimPrefix(auth, "Bearer ")) {
 		http.Error(w, "access denied", 401)
 		return
 	}
-	digest := hash(strings.TrimPrefix(auth, "Bearer "))
-	principal, authorized := g.clients[digest]
+	principal, authorized := g.clients[hash(strings.TrimPrefix(auth, "Bearer "))]
 	if !authorized {
 		http.Error(w, "access denied", 401)
 		return
 	}
+	entry.Client = principal.kind()
 	// Bound memory and waiting work before reading authenticated request bodies.
 	select {
 	case g.slots <- struct{}{}:
@@ -155,12 +304,20 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid tool context", 400)
 		return
 	}
+	if identifier.MatchString(call.Soot) {
+		entry.Soot = call.Soot
+	}
+	op := strings.TrimPrefix(call.Operation, "data-pool_")
+	if call.Operation == "data-pool_"+op && slices.Contains(operations, op) {
+		entry.Op = op
+	}
 	allowed := principal.Operations
 	actor := principal.Soot
 	if principal.Soot == hostClient {
 		// The host asserts its Soot identity in the envelope; the service bounds
-		// the claim to the bound set and derives operations from bound roles.
-		if !slices.Contains(g.base.b.Soots, call.Soot) {
+		// the claim to this machine's allowlist. Human UI needs the separate UI
+		// token, so a machine credential never carries the interaction marker.
+		if call.Interaction || !slices.Contains(principal.Soots, call.Soot) {
 			http.Error(w, "access denied", 403)
 			return
 		}
@@ -170,9 +327,14 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid tool context", 400)
 		return
 	}
-	op := strings.TrimPrefix(call.Operation, "data-pool_")
-	if call.Operation != "data-pool_"+op || !slices.Contains(allowed, op) {
+	if entry.Op == "" || !slices.Contains(allowed, op) {
 		http.Error(w, "access denied", 403)
+		return
+	}
+	if key := principal.TokenSHA256 + "/" + actor; g.enter(key) {
+		defer g.leave(key)
+	} else {
+		http.Error(w, "too many concurrent requests; inspect original request before retrying", 429)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
@@ -184,17 +346,17 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			call.Input, _ = json.Marshal(in)
 		}
 	}
-	release, err := g.admit(ctx, op, call)
+	release, err := g.admit(ctx, op, actor, call)
 	if err != nil {
 		http.Error(w, "service busy; inspect original request before retrying", 503)
 		return
 	}
 	defer release()
 	if ctx.Err() != nil {
+		http.Error(w, "service busy; inspect original request before retrying", 503)
 		return
 	}
-	s := *g.base
-	s.actor = actor // Identity is credential-bound, never model-selected.
+	s := g.session(actor) // Identity is credential-bound, never model-selected.
 	s.human = call.Interaction && (op == "view" || op == "action")
 	s.origin = s.callOrigin(call)
 	result, err := s.dispatch(ctx, op, call.Input)
@@ -223,32 +385,58 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.NewResponseController(w).Flush()
 }
 
+// readServiceConfig loads the private JSON config from a mode-0600 file or,
+// for containers, an environment variable. Both use the same strict decode.
+func readServiceConfig(args []string) (serverConfig, error) {
+	var c serverConfig
+	var data []byte
+	switch {
+	case len(args) == 2 && args[0] == "--config":
+		f, err := os.Open(args[1])
+		if err != nil {
+			return c, errors.New("cannot open private service config")
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+			return c, errors.New("service config must be a private regular file (mode 0600)")
+		}
+		if data, err = io.ReadAll(io.LimitReader(f, maxConfig+1)); err != nil {
+			return c, errors.New("invalid service config")
+		}
+	case len(args) == 2 && args[0] == "--config-env" && envName.MatchString(args[1]):
+		raw, ok := os.LookupEnv(args[1])
+		if !ok || strings.TrimSpace(raw) == "" {
+			return c, errors.New("service config environment variable is unset or empty")
+		}
+		data = []byte(raw)
+	default:
+		return c, errors.New("usage: soot-data-pool serve --config PRIVATE_JSON | --config-env VARIABLE")
+	}
+	if len(data) > maxConfig || decodeStrict(data, &c) != nil {
+		return c, errors.New("invalid service config")
+	}
+	return c, nil
+}
+
 // This operator command is not an installed Pack tool and never provisions Meili.
 func serveCommand(args []string) error {
-	if len(args) != 2 || args[0] != "--config" {
-		return errors.New("usage: soot-data-pool serve --config PRIVATE_JSON")
-	}
-	f, err := os.Open(args[1])
+	c, err := readServiceConfig(args)
 	if err != nil {
-		return errors.New("cannot open private service config")
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
-		return errors.New("service config must be a private regular file (mode 0600)")
-	}
-	data, err := io.ReadAll(io.LimitReader(f, 2<<20+1))
-	var c serverConfig
-	if err != nil || len(data) > 2<<20 || decodeStrict(data, &c) != nil {
-		return errors.New("invalid service config")
+		return err
 	}
 	g, err := newGateway(c)
 	if err != nil {
 		return err
 	}
+	g.accessLog = os.Stderr
 	defer func() {
-		release, _ := g.policy.acquire(context.Background(), true)
-		defer release()
+		// Bounded so close still fits a 30s container stop grace period.
+		wait, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if release, err := g.policy.acquire(wait, true); err == nil {
+			defer release()
+		}
 		g.base.close()
 	}()
 	listener, err := net.Listen("tcp", c.Listen)
@@ -256,7 +444,7 @@ func serveCommand(args []string) error {
 		return errors.New("cannot listen for data-pool requests")
 	}
 	defer listener.Close()
-	server := &http.Server{Handler: g, ReadTimeout: 5 * time.Second, WriteTimeout: 20 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
+	server := &http.Server{Handler: g, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 20 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	done := make(chan error, 1)
@@ -270,7 +458,9 @@ func serveCommand(args []string) error {
 	select {
 	case err = <-done:
 	case <-ctx.Done():
-		shutdown, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		// Requests run at most 15s (+flush); 20s drain plus 5s close stays
+		// inside Docker's stop_grace_period: 30s before SIGKILL.
+		shutdown, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		if server.Shutdown(shutdown) != nil {
 			server.Close()
@@ -279,6 +469,32 @@ func serveCommand(args []string) error {
 	}
 	if err != nil && err != http.ErrServerClosed {
 		return errors.New("data-pool service stopped unexpectedly")
+	}
+	return nil
+}
+
+// healthcheck lets distroless images (no curl) probe liveness.
+func healthcheck(args []string) error {
+	target := "http://127.0.0.1:8091/healthz"
+	if len(args) > 1 {
+		return errors.New("usage: soot-data-pool healthcheck [URL]")
+	}
+	if len(args) == 1 {
+		target = args[0]
+	}
+	u, err := url.Parse(target)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+		return errors.New("healthcheck URL must be http(s) without credentials")
+	}
+	client := &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Get(u.String())
+	if err != nil {
+		return errors.New("unhealthy: no response")
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unhealthy: HTTP %d", resp.StatusCode)
 	}
 	return nil
 }

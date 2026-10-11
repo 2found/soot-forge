@@ -12,6 +12,10 @@ import (
 
 const maxCollectionDepth = 8
 
+// workspaceSubject is the grant subject covering every bound Soot. Managers
+// grant and revoke it as group "@workspace"; group IDs never contain '@'.
+const workspaceSubject = "@workspace"
+
 // Membership is operator configuration, not an assertion in model input or a
 // tool envelope. Group grants never let a caller add itself to a group.
 func validateOrganization(b binding) error {
@@ -42,6 +46,7 @@ func validateOrganization(b binding) error {
 	}
 	return nil
 }
+
 // actorGroups lists the bound groups containing actor. Only the calling
 // actor's list is ever consulted, so build just that one: a full
 // actor→groups map costs O(groups × members) per short-lived invocation.
@@ -112,7 +117,7 @@ func principalIndex(tx *bolt.Tx, subject, id string) (*bolt.Bucket, []byte) {
 	if strings.HasPrefix(subject, "@group/") {
 		return tx.Bucket([]byte("by-group")), []byte(strings.TrimPrefix(subject, "@group/") + "/" + id)
 	}
-	if subject == "@workspace" {
+	if subject == workspaceSubject {
 		// Pseudo-group covering every bound Soot; its key cannot collide with a
 		// real group entry because group IDs never contain '@'.
 		return tx.Bucket([]byte("by-group")), []byte("@workspace/" + id)
@@ -343,11 +348,16 @@ func (s *service) manageCollection(in manageInput) (any, error) {
 		if (in.Soot == "") == (in.Group == "") || in.Parent != nil || in.Inherit != nil || in.Name != "" {
 			return nil, errors.New("grant requires one Soot or group")
 		}
-		if in.Group != "" && len(s.b.Groups[in.Group]) == 0 || in.Soot != "" && (!slices.Contains(s.b.Soots, in.Soot) || slices.Contains(s.b.Managers, in.Soot)) {
+		if in.Group != "" && in.Group != workspaceSubject && len(s.b.Groups[in.Group]) == 0 || in.Soot != "" && (!slices.Contains(s.b.Soots, in.Soot) || slices.Contains(s.b.Managers, in.Soot)) {
 			return nil, errors.New("target is not an allowed bound principal")
 		}
 		if in.Action == "grant" && rank(in.Level) == 0 || in.Action == "revoke" && in.Level != "" {
 			return nil, errors.New("invalid permission")
+		}
+		// Everyone-may-administer is never one call away: managing stays with
+		// named Soots and groups.
+		if in.Group == workspaceSubject && in.Level == "manage" {
+			return nil, errors.New("workspace grants are limited to read or write")
 		}
 	}
 	if in.Action == "pool_create" || in.Action == "pool_update" {
@@ -367,11 +377,13 @@ func (s *service) manageCollection(in manageInput) (any, error) {
 				return nil, errors.New("own collections carry no level or subject")
 			}
 		} else {
+			// A shared audience starts read-only unless write is asked for;
+			// manage is never seeded to a whole group or the workspace.
 			if in.Level == "" {
-				in.Level = "write"
+				in.Level = "read"
 			}
-			if rank(in.Level) == 0 {
-				return nil, errors.New("invalid collection scope permission")
+			if in.Level != "read" && in.Level != "write" {
+				return nil, errors.New("collection scope level must be read or write")
 			}
 		}
 		if in.Scope == "group" {
@@ -494,7 +506,7 @@ func (s *service) manageCollection(in manageInput) (any, error) {
 			// later adjusts the audience without special cases.
 			switch in.Scope {
 			case "workspace":
-				if err := tx.Bucket([]byte("grants")).Put([]byte(p.ID+"/@workspace"), []byte(in.Level)); err != nil {
+				if err := tx.Bucket([]byte("grants")).Put([]byte(p.ID+"/"+workspaceSubject), []byte(in.Level)); err != nil {
 					return err
 				}
 			case "group":
@@ -507,7 +519,9 @@ func (s *service) manageCollection(in manageInput) (any, error) {
 		}
 		if in.Action == "grant" || in.Action == "revoke" {
 			subject := in.Soot
-			if in.Group != "" {
+			if in.Group == workspaceSubject {
+				subject = workspaceSubject
+			} else if in.Group != "" {
 				subject = "@group/" + in.Group
 			}
 			// Scope describes how the collection was created; once a manager
@@ -516,7 +530,7 @@ func (s *service) manageCollection(in manageInput) (any, error) {
 			scopeSubject := ""
 			switch p.Scope {
 			case "workspace":
-				scopeSubject = "@workspace"
+				scopeSubject = workspaceSubject
 			case "group":
 				scopeSubject = "@group/" + p.Subject
 			}

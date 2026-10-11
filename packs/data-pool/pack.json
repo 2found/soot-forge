@@ -280,7 +280,7 @@
       "tools": [
         {
           "name": "manage",
-          "description": "Manage collections: create, rename/move, set inheritance, grant/revoke a bound Soot or group. Removing a collection with children is rejected.",
+          "description": "Manage collections: create, rename/move, set inheritance, grant/revoke a bound Soot, group or the whole workspace (group \"@workspace\"). Removing a collection with children is rejected.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -337,7 +337,7 @@
               },
               "group": {
                 "type": "string",
-                "description": "Operator-bound group ID for grant/revoke, mutually exclusive with soot. Cannot create groups or change their membership."
+                "description": "Operator-bound group ID for grant/revoke, mutually exclusive with soot; \"@workspace\" targets every bound Soot (read or write only). Cannot create groups or change their membership."
               },
               "scope": {
                 "type": "string",
@@ -346,7 +346,7 @@
                   "group",
                   "workspace"
                 ],
-                "description": "pool_create audience shortcut: own grants only the creator; group requires subject, the bound group; workspace grants every bound Soot. Defaults to own."
+                "description": "pool_create audience shortcut: own grants only the creator; group requires subject, the bound group; workspace grants every bound Soot (grant subject @workspace). Group/workspace use level read (default) or write. Defaults to own."
               },
               "subject": {
                 "type": "string",

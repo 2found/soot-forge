@@ -80,6 +80,10 @@ func (f *fakeBackend) serve(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if r.URL.Path == "/health" {
+		fmt.Fprint(w, `{"status":"available"}`)
+		return
+	}
 	if len(parts) == 2 && parts[0] == "tasks" {
 		id, _ := strconv.ParseInt(parts[1], 10, 64)
 		if task := f.tasks[id]; task != nil {

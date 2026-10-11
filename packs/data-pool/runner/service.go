@@ -43,8 +43,8 @@ type manageInput struct {
 	Inherit                *bool   `json:"inherit,omitempty"`
 	Group                  string  `json:"group,omitempty"`
 	// Scope/Subject are pool_create shortcuts for the matching grant: workspace
-	// writes @workspace=write, group writes @group/<subject>=write, own writes
-	// the creator =manage (the default when scope is omitted).
+	// writes @workspace=level, group writes @group/<subject>=level (level read
+	// by default, at most write), own writes the creator =manage (the default).
 	Scope   string `json:"scope,omitempty"`
 	Subject string `json:"subject,omitempty"`
 }
@@ -172,7 +172,7 @@ func (s *service) pools(in poolsInput) (any, error) {
 				all := groupMembership(s.b)
 				for _, actor := range s.b.Soots {
 					level := resolved[actor]
-					if other := resolved["@workspace"]; rank(other) > rank(level) {
+					if other := resolved[workspaceSubject]; rank(other) > rank(level) {
 						level = other
 					}
 					for _, g := range all[actor] {
@@ -191,6 +191,11 @@ func (s *service) pools(in poolsInput) (any, error) {
 					if permission != "" {
 						grants[actor] = permission
 					}
+				}
+				// The workspace subject is a grant like any Soot's: visible here,
+				// revocable with group "@workspace".
+				if level := string(tx.Bucket([]byte("grants")).Get([]byte(in.Pool + "/" + workspaceSubject))); level != "" {
+					grants[workspaceSubject] = level
 				}
 			}
 			return nil

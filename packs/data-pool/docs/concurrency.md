@@ -4,12 +4,18 @@ Use the shared service for many Soots. Direct mode still takes the policy DB's
 single-process lock per connector call and is intended for one host's small
 workloads. Shared mode supports up to 4,096 bound Soots/client tokens and admits
 at most 256 active requests; overload returns 503 without retrying mutations.
+One principal — a token plus the Soot it claims — may hold at most 16 of those
+at once; the 17th gets a generic 429, so one caller cannot occupy every slot.
 These are bounds, not a promised production capacity.
 
-Independent document writes and queries share policy admission and can reach
-Meilisearch concurrently. Requests targeting one document serialize; identical
-request IDs for one Soot serialize before checking the saved receipt. Management,
-status reconciliation and human UI operations retain exclusive policy admission.
+Independent document writes, queries and `status` share policy admission and
+can reach Meilisearch concurrently. Requests targeting one document serialize;
+identical request IDs for one Soot serialize before checking the saved receipt.
+`status` takes the same request key as the original write, then that write's
+document key, so a reconciliation can never commit a receipt while its own
+submission is still running. Reconciling an unresolved `pool_remove` rewrites
+policy and therefore still takes exclusive admission. Management and human UI
+operations retain exclusive policy admission.
 A waiting revoke blocks new admissions and completes only after earlier responses
 are flushed. Slow backend work is bounded by existing request deadlines; different
 documents do not wait behind a namespace-wide write mutex.
@@ -62,7 +68,8 @@ team lane uses actual Soot delegation, forks and Pack tools; its live lane uses
 Devin or Codex explicitly. Those measurements use disposable local infrastructure,
 not hundreds of simultaneous paid model calls or a production capacity claim.
 
-Unit tests hold 24 real gateway submissions at a transport rendezvous; a global
+Unit tests hold 16 (one principal's cap) real gateway submissions at a
+transport rendezvous; a global
 write mutex fails that test. Competing guarded writes to one document admit
 exactly one expected revision. Existing loss/restart/revocation tests remain.
 

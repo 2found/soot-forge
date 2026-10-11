@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -44,17 +45,17 @@ type toolCall struct {
 }
 
 type binding struct {
-	ServiceURL   string              `json:"service_url,omitempty"`
-	ServiceToken string              `json:"service_token,omitempty"`
-	Endpoint     string              `json:"endpoint"`
-	APIKey       string              `json:"api_key"`
-	Namespace    string              `json:"namespace"`
-	StateDir     string              `json:"state_dir"`
-	Soots        []string            `json:"soots"`
-	Managers     []string            `json:"managers"`
-	// Role lists derive a shared host client's per-identity operations. Writers
-	// gain write, pool managers gain manage (and write). Managers own the
-	// namespace and are neither listed here nor grantable on pools.
+	ServiceURL   string   `json:"service_url,omitempty"`
+	ServiceToken string   `json:"service_token,omitempty"`
+	Endpoint     string   `json:"endpoint"`
+	APIKey       string   `json:"api_key"`
+	Namespace    string   `json:"namespace"`
+	StateDir     string   `json:"state_dir"`
+	Soots        []string `json:"soots"`
+	Managers     []string `json:"managers"`
+	// Role lists derive a host client's operations for each identity in its
+	// allowlist. Writers gain write, pool managers gain manage (and write).
+	// Managers own the namespace and are neither listed here nor grantable.
 	Writers      []string            `json:"writers,omitempty"`
 	PoolManagers []string            `json:"pool_managers,omitempty"`
 	Groups       map[string][]string `json:"groups,omitempty"`
@@ -77,7 +78,11 @@ func decodeStrict(data []byte, into any) error {
 	return nil
 }
 
-func loadBinding(raw string) (binding, error) {
+func loadBinding(raw string) (binding, error) { return parseBinding(raw, false) }
+
+// privateNetwork additionally admits an http:// backend by name; every
+// cleartext backend dial then checks its answers are private (newBackend).
+func parseBinding(raw string, privateNetwork bool) (binding, error) {
 	var b binding
 	if len(raw) > 2<<20 || decodeStrict([]byte(raw), &b) != nil {
 		return b, errors.New("invalid DATA_POOL binding")
@@ -97,7 +102,10 @@ func loadBinding(raw string) (binding, error) {
 		return b, errors.New("invalid backend endpoint")
 	}
 	if u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "127.0.0.1" || u.Hostname() == "::1" || u.Hostname() == "localhost")) {
-		return b, errors.New("backend requires HTTPS or loopback HTTP")
+		ip, notIP := netip.ParseAddr(u.Hostname())
+		if u.Scheme != "http" || !privateNetwork || notIP == nil && !privateAddress(ip) {
+			return b, errors.New("backend requires HTTPS, loopback HTTP, or private_network with a private HTTP address")
+		}
 	}
 	if !identifier.MatchString(b.Namespace) || !filepath.IsAbs(b.StateDir) || len(b.APIKey) < 16 || len(b.APIKey) > 4096 || strings.ContainsAny(b.APIKey, "\r\n") {
 		return b, errors.New("invalid namespace, state directory or backend credential")
@@ -175,8 +183,12 @@ func execute(ctx context.Context, args []string, stdin io.Reader, stdout io.Writ
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "serve" {
-		if err := serveCommand(os.Args[2:]); err != nil {
+	if len(os.Args) > 1 && (os.Args[1] == "serve" || os.Args[1] == "healthcheck") {
+		command := serveCommand
+		if os.Args[1] == "healthcheck" {
+			command = healthcheck
+		}
+		if err := command(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

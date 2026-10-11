@@ -54,8 +54,13 @@ added. Model input and envelope `group_id` never grant membership.
 {"action":"grant","pool":"launch-alpha","group":"marketing","level":"read","request_id":"grant-team"}
 ```
 
-Target exactly one `group` or `soot`. The highest applicable `read`, `write` or
-`manage` grant wins across direct, group and inherited permissions. `revoke`
+Target exactly one `group` or `soot`. `"group":"@workspace"` targets every
+bound Soot; it is what `pool_create` with `scope:"workspace"` writes, appears in
+pool detail `grants` as `"@workspace"`, and is limited to `read` or `write`
+(scope seeding defaults to `read`). Bound group IDs cannot start with `@`, so the
+spelling never collides with a real group. The highest applicable `read`,
+`write` or `manage` grant wins across direct, workspace, group and inherited
+permissions. `revoke`
 removes that explicit grant; another group or ancestor may still grant access.
 `inherit:false` cuts ancestor grants while keeping local grants. Workspace
 administrators remain host-owned. Grants never install tools or add members.

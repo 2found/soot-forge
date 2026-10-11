@@ -28,7 +28,8 @@ Prepare a mode-0600 `/private/backend.json` outside Git:
 ```
 
 If the separately installed backend is on this same host, the endpoint may be
-`http://127.0.0.1:7700`. Other backend addresses require HTTPS. The namespace and
+`http://127.0.0.1:7700`. Other backend addresses require HTTPS, except under the
+explicit [`private_network`](#private-network-containers) opt-in. The namespace and
 backend address are durable identities; do not change them on existing state.
 The service must own its state directory. One service process opens a given
 policy database; a second process with the same directory fails closed.
@@ -78,29 +79,71 @@ render with `--service-url http://127.0.0.1:8091`.
 ## Ambient `data_pool` resource
 
 A Nest where *every* Soot needs pool tools can attach them ambiently instead of
-writing one credential per Soot. Configure the service with `--host` (additive:
-it emits `bindings/host.json` alongside the per-Soot files), then declare:
+writing one credential per Soot. Issue one **host credential per machine**,
+each listing exactly the Soots that machine runs (additive: per-Soot bindings
+are still emitted):
+
+```sh
+python3 packs/data-pool/operator/configure-service.py \
+  --backend-config /private/backend.json \
+  --service-url https://company-data.example.com \
+  --host mac=data-manager,marketing-local \
+  --host vm=marketing-vm,support \
+  --output-dir /private/company-data
+```
+
+This writes `bindings/host-mac.json` and `bindings/host-vm.json`, and service
+client entries `{"soot":"@host","name":"mac","soots":[…],"token_sha256":…}`.
+Copy each file only to its own machine and declare there:
 
 ```json
 "data_pool": {
-  "binding": {"file": "/private/company-data/bindings/host.json"},
+  "binding": {"file": "/private/company-data/bindings/host-mac.json"},
   "capabilities": "read-write"
 }
 ```
 
-`capabilities` may also be an explicit operation list. The host authenticates
-once; every envelope still names its own Soot, and the service derives
-operations and pool grants from the claimed identity's bound roles — the shared
-token cannot widen a reader into a writer, and an identity outside the bound
-set is rejected. Soot identities must come from `--host-config`, explicit
-`--soot`/`--writer`/`--pool-manager` flags or a roster on the service so
-unclaimed names are denied.
+`capabilities` may also be an explicit operation list. What a host credential
+can and cannot do:
+
+- Each envelope names a Soot. A claim outside **that host's** `soots` allowlist
+  is denied (403), so the VM's credential cannot act as a Soot listed only on the
+  Mac, and vice versa. The service refuses to start if an `@host` entry has no
+  `name` or an empty `soots` list.
+- Operations follow the claimed identity's bound role: namespace managers and
+  `pool_managers` get write+manage, `writers` get write, everyone else
+  pools/query/status. Pool grants still apply on top.
+- It never derives `view`/`action` and rejects any envelope marked
+  `interaction: true`; human configuration needs the separate `--configurator`
+  UI token.
+- **It is a credential for every identity in its allowlist.** Any process that
+  can read the binding file can act as each listed Soot, including a namespace
+  manager if one is listed. Keep the file mode 0600 for the Soot runtime's
+  account only, list only Soots that machine actually runs, and never put a
+  public or untrusted Soot (for example a public chat Soot) in a host allowlist;
+  give such a Soot no data-pool credential, or its own per-Soot read binding.
+- Revoke one machine by deleting its client entry and restarting; the other
+  host keeps working. Distinct hosts may list the same Soot when a Soot
+  intentionally runs on both; they then share its permissions and request IDs.
+
+Host and Soot names are validated, and every output file is planned before
+writing: a Soot whose ID would collide with a host binding (for example a Soot
+named `host-mac` beside `--host mac=…`) is an error, and output is rendered into
+a temporary sibling directory then renamed, so a failed run leaves nothing.
 
 A single `pool_create` can seed the audience instead of a follow-up grant:
 `scope:"workspace"` grants every bound Soot, `scope:"group"` plus
-`subject:"<group>"` grants that bound group, both at `level` `read` (default
-`write`); `scope:"own"` (the default) grants only the creator manage. The scope
-is written as ordinary grants, so `grant`/`revoke` later adjusts it.
+`subject:"<group>"` grants that bound group, at `level` `read` (the default) or
+`write`; `manage` is rejected for a scope. `scope:"own"` (the default) grants
+only the creator manage. The scope is written as an ordinary grant, so it shows
+in the pool detail's `grants` (`"@workspace": "read"`) or `group_grants`, and
+`grant`/`revoke` adjust it. The workspace subject is spelled as a group:
+
+```json
+{"action":"revoke","pool":"handbook","group":"@workspace","request_id":"close-handbook"}
+```
+
+A workspace grant is likewise limited to `read` or `write`.
 
 Alternatively use the executable's own TLS listener, with operator-managed
 certificate renewal:
@@ -114,7 +157,8 @@ python3 packs/data-pool/operator/configure-service.py \
   --output-dir /private/company-data-tls
 ```
 
-Cleartext listening outside loopback is rejected. Certificates/keys must be
+Cleartext listening outside loopback is rejected unless `private_network` is
+set (see below). Certificates/keys must be
 readable only as required by the service account. Restart after certificate or
 client configuration changes. For continuous operation use your normal process
 manager, for example this operator-authored systemd unit:
@@ -141,7 +185,39 @@ WantedBy=multi-user.target
 Create that account and give it access to the private config and state directory.
 Use paths appropriate to your host. This is an installation guide; no Soot tool
 creates accounts, starts systemd, provisions a VM or executes a deployment.
-`GET /healthz` reports service liveness only. Verify end-to-end through Soot next.
+`GET /healthz` reports process liveness only and never touches the backend.
+`GET /readyz` additionally checks that the policy database is open and the
+backend answers its `/health` (2-second bound, result reused for one second),
+and returns a generic `{"status":"ready"}` or a 503. `soot-data-pool
+healthcheck [URL]` probes `/healthz` (default `http://127.0.0.1:8091/healthz`,
+3-second timeout, exit 0/1) for images without curl. Each `/v1/tool` request
+writes one JSON line to stderr — time, claimed Soot, client kind (`soot`,
+`host:NAME` or `ui`), operation, HTTP status and duration — and never tokens,
+bodies, queries, document IDs or content. On SIGTERM the service drains for up
+to 20 seconds and closes its database within 5 more, so a 30-second stop grace
+(`TimeoutStopSec=30`, compose `stop_grace_period: 30s`) is enough.
+Verify end-to-end through Soot next.
+
+## Private network (containers)
+
+For a container on a private Docker network behind a TLS-terminating proxy
+(Caddy, for example), set `"private_network": true` at the top level of the
+service config, or pass `--private-network` to `configure-service.py`. Without
+it, behaviour is unchanged. With it:
+
+- `listen` may be any IP address in cleartext, for example `0.0.0.0:8091`.
+  Only the proxy may reach that port: publish it to nothing or to loopback, and
+  give Soot hosts only the proxy's HTTPS URL. Tokens cross the private network
+  unencrypted between proxy and container.
+- `storage.endpoint` may be `http://` with a hostname such as
+  `http://meilisearch:7700`. At **every dial** the name is resolved and all
+  answers must be private: RFC 1918 (`10/8`, `172.16/12`, `192.168/16`), IPv6
+  ULA (`fc00::/7`) or loopback. If any answer is public, link-local (for
+  example `169.254.169.254`) or CGNAT, the dial is refused. A literal public IP
+  is rejected at startup. HTTPS endpoints are unaffected.
+
+Direct-mode bindings (`DATA_POOL` in a Soot host) never accept this flag. See
+[container.md](container.md) for the image and a complete deployment.
 
 ## Connect each Soot host
 
@@ -187,8 +263,9 @@ soot run --soot marketing-local "Search acme for company policy and cite source 
 
 Use `marketing-vm` on its host. A revoked grant blocks subsequent reads on both
 hosts when they use the same identity. Distinct identities require distinct
-revocations. Tokens bind exact identity and allowed operations; a token cannot
-impersonate another Soot. Pool grants remain an additional independent check.
+revocations. A per-Soot token binds exact identity and allowed operations and
+cannot impersonate another Soot; a host token can act as each Soot in its own
+allowlist and no other. Pool grants remain an additional independent check.
 This is Soot identity isolation, not per-user isolation within a shared Soot.
 
 ## State, recovery and rotation
@@ -201,10 +278,13 @@ of failure. Inspect `data-pool_status` using the original request ID, never
 blindly retry with a new ID. HTTP transport never automatically retries writes.
 
 To rotate/remove a service token, update `clients` in the private service config
-and restart, then update the owning host's binding. A client entry contains
-`soot`, `token_sha256` and allowed `operations` (pools/query/status/write/manage, or separate human view/action scopes).
-Multiple distinct tokens may deliberately bind one Soot identity. Removing
-capabilities or a pool grant is separate from invalidating its service token.
+and restart, then update the owning host's binding. A per-Soot client entry
+contains `soot`, `token_sha256` and allowed `operations`
+(pools/query/status/write/manage, or separate human view/action scopes). A host
+client entry contains `"soot":"@host"`, a unique `name`, its `soots` allowlist
+and `token_sha256`, and no `operations`. Multiple distinct tokens may
+deliberately bind one Soot identity. Removing capabilities or a pool grant is
+separate from invalidating its service token.
 
 To move an existing direct-mode pool, stop all direct-mode callers, copy the
 entire policy directory to the central service host and retain the exact

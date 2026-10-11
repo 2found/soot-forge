@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,9 +23,18 @@ type backendError struct{ status int }
 func (e backendError) Error() string { return fmt.Sprintf("backend rejected request (%d)", e.status) }
 
 func newBackend(b binding) *backend {
+	tr := &http.Transport{Proxy: nil, MaxIdleConns: 256, MaxIdleConnsPerHost: 128, MaxConnsPerHost: 256, IdleConnTimeout: 30 * time.Second}
+	if strings.HasPrefix(b.Endpoint, "http://") {
+		// Cleartext carries the backend key, so it may only reach loopback or
+		// a private network; every dial re-resolves and checks all answers.
+		dialer := &net.Dialer{Timeout: 3 * time.Second}
+		tr.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			return guardedDial(ctx, network, address, privateAddress, net.DefaultResolver.LookupNetIP, dialer.DialContext)
+		}
+	}
 	return &backend{endpoint: b.Endpoint, key: b.APIKey, client: &http.Client{
 		Timeout:       5 * time.Second,
-		Transport:     &http.Transport{Proxy: nil, MaxIdleConns: 256, MaxIdleConnsPerHost: 128, MaxConnsPerHost: 256, IdleConnTimeout: 30 * time.Second},
+		Transport:     tr,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}}
 }

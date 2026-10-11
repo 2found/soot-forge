@@ -82,3 +82,23 @@ func TestSourceDNSPinsValidatedAddressAndRedirects(t *testing.T) {
 		t.Fatal("redirect bound ignored")
 	}
 }
+
+func TestSourceRejectsDowngradesAndHiddenText(t *testing.T) {
+	https, _ := http.NewRequest("GET", "https://company.example/start", nil)
+	plain, _ := http.NewRequest("GET", "http://company.example/next", nil)
+	if sourceRedirect(plain, []*http.Request{https}) == nil {
+		t.Fatal("https to http redirect accepted")
+	}
+	if sourceRedirect(https, []*http.Request{plain}) != nil {
+		t.Fatal("http to https upgrade rejected")
+	}
+	text, err := htmlText(`<body><p>Visible.</p>
+		<div style="display: none">display-none</div>
+		<span style="color:red;VISIBILITY:hidden !important">visibility-hidden</span>
+		<p aria-hidden="TRUE">aria-hidden</p><p hidden="">hidden-attr</p>
+		<template><p>template-text</p></template><noscript>noscript-text</noscript>
+		<p style="display:block">Shown too.</p><p aria-hidden="false">Also shown.</p></body>`)
+	if err != nil || text != "Visible. Shown too. Also shown." {
+		t.Fatal(text, err)
+	}
+}

@@ -173,11 +173,10 @@ func TestGatewayRevokeWaitsForReadPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer g.base.close()
-	s := *g.base
-	s.actor = "manager"
-	create(t, &s, "company")
-	grant(t, &s, "company", "marketing", "read")
-	writeDoc(t, &s, "company", "doc", "import", "Saved content")
+	s := g.session("manager")
+	create(t, s, "company")
+	grant(t, s, "company", "marketing", "read")
+	writeDoc(t, s, "company", "doc", "import", "Saved content")
 	input, _ := json.Marshal(queryInput{Action: "read", Pool: "company", ID: "doc"})
 	data, _ := json.Marshal(toolCall{APIVersion: "soot/v1", Hook: "tool.call", Soot: "marketing", Operation: "data-pool_query", Input: input})
 	req := httptest.NewRequest("POST", "/v1/tool", bytes.NewReader(data))

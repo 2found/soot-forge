@@ -1,12 +1,15 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"sync"
+
+	bolt "go.etcd.io/bbolt"
 )
 
-// Policy changes take exclusive admission; document operations share it.
+// Policy changes take exclusive admission; document operations and status share it.
 // A queued revoke blocks new readers, and leases extend through response Flush.
 type policyGate struct {
 	mu               sync.Mutex
@@ -110,50 +113,70 @@ func (g *keyedGate) acquire(ctx context.Context, key string) (func(), error) {
 	}
 }
 func appendID(actor, request string) string { return "entry_" + hash(actor + "/" + request)[:40] }
-func (g *gateway) admit(ctx context.Context, op string, call toolCall) (func(), error) {
-	// Reconciliation/UI retain exclusive admission. Ingestion/read hot paths no
-	// longer hold a namespace mutex across backend network calls.
-	if op != "write" && op != "query" && op != "pools" {
-		return g.policy.acquire(ctx, true)
-	}
+func (g *gateway) admit(ctx context.Context, op, actor string, call toolCall) (func(), error) {
+	// UI and management retain exclusive admission. Ingestion, reads and status
+	// share it; per-key locks order work on one request or document.
+	exclusive := op != "write" && op != "query" && op != "pools" && op != "status"
 	var input struct {
-		Action, Pool, ID string
-		RequestID        string `json:"request_id"`
+		Action, Pool, ID, Owner string
+		RequestID               string `json:"request_id"`
 	}
-	if err := json.Unmarshal(call.Input, &input); err != nil {
-		return nil, err
+	keys := []string{}
+	// Malformed input admits with no keys; dispatch's strict decode rejects it
+	// before any mutation, so it never needs ordering.
+	if !exclusive && json.Unmarshal(call.Input, &input) == nil {
+		switch op {
+		case "write":
+			if input.Action == "append" {
+				input.ID = appendID(actor, input.RequestID)
+			}
+			keys = append(keys, "request/"+actor+"/"+input.RequestID, "document/"+input.Pool+"/"+input.ID)
+		case "status":
+			// Reconciling may commit the receipt: serialize with its original
+			// write (same request key, then document key, the write's order).
+			// An unresolved pool removal rewrites policy, so it stays exclusive.
+			owner := cmp.Or(input.Owner, actor)
+			keys = append(keys, "request/"+owner+"/"+input.RequestID)
+			if r, ok := g.peekReceipt(owner, input.RequestID); ok && r.Status != "succeeded" && r.Status != "failed" {
+				if r.Document == nil {
+					exclusive, keys = true, nil
+				} else {
+					keys = append(keys, "document/"+r.Pool+"/"+r.Document.ID)
+				}
+			}
+		}
 	}
-	var releaseRequest, releaseDocument func()
-	if op == "write" {
-		var err error
-		releaseRequest, err = g.keys.acquire(ctx, "request/"+call.Soot+"/"+input.RequestID)
+	held := []func(){}
+	release := func() {
+		for i := len(held) - 1; i >= 0; i-- {
+			held[i]()
+		}
+	}
+	for _, key := range keys {
+		r, err := g.keys.acquire(ctx, key)
 		if err != nil {
+			release()
 			return nil, err
 		}
-		if input.Action == "append" {
-			input.ID = appendID(call.Soot, input.RequestID)
-		}
-		releaseDocument, err = g.keys.acquire(ctx, "document/"+input.Pool+"/"+input.ID)
-		if err != nil {
-			releaseRequest()
-			return nil, err
-		}
+		held = append(held, r)
 	}
-	releasePolicy, err := g.policy.acquire(ctx, false)
+	r, err := g.policy.acquire(ctx, exclusive)
 	if err != nil {
-		if releaseDocument != nil {
-			releaseDocument()
-			releaseRequest()
-		}
+		release()
 		return nil, err
 	}
-	return func() {
-		releasePolicy()
-		if releaseDocument != nil {
-			releaseDocument()
-			releaseRequest()
-		}
-	}, nil
+	held = append(held, r)
+	return release, nil
+}
+
+// peekReceipt reads only lock-ordering facts; authorization happens later.
+func (g *gateway) peekReceipt(owner, id string) (receipt, bool) {
+	var r receipt
+	if !identifier.MatchString(owner) || !identifier.MatchString(id) {
+		return r, false
+	}
+	err := g.base.db.View(func(tx *bolt.Tx) error { return getJSON(tx.Bucket([]byte("receipts")), owner+"/"+id, &r) })
+	return r, err == nil
 }
 
 // Only static pre-submission validation messages use this public error type.

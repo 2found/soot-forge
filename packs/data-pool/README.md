@@ -83,12 +83,22 @@ for that identity; they share permissions and request-ID history.
 
 **Ambient binding (multi-Soot Nest).** When the deployment declares a
 `data_pool` block, every Soot in the Nest gets `data-pool_*` tools through one
-shared `@host` credential — pass `--host` to `configure-service.py`, point
-`data_pool.binding` at the emitted `bindings/host.json`, and the envelopes
-still carry each Soot's own identity; the service derives operations and pool
-grants from the bound roles, so a reader cannot become a writer by using the
-shared token. See [the data-pool resource](shared-service.md#data-pool-resource)
-in shared-service.md.
+host credential per machine — pass `--host mac=data-manager,marketing-local`
+(repeat per machine) to `configure-service.py` and point that machine's
+`data_pool.binding` at its own `bindings/host-mac.json`. Each envelope names
+its Soot; the service accepts only Soots in that host's `soots` allowlist and
+derives operations from the claimed Soot's bound role (managers and pool
+managers manage, writers write, others read), with pool grants applied on top.
+A host credential never reaches the human `view`/`action` surface. It is still
+a credential for **every** identity in its allowlist: any process that can read
+the binding file can act as each listed Soot, including a listed manager. So
+list only the Soots that machine runs, keep the file private to the Soot
+runtime, and never list a public or untrusted Soot. See [the data-pool
+resource](docs/shared-service.md#ambient-data_pool-resource).
+
+To run the service as a container behind an HTTPS proxy next to a private
+Meilisearch, see [container.md](docs/container.md) and the `private_network`
+opt-in in [shared-service.md](docs/shared-service.md#private-network-containers).
 
 **Per-Soot bindings (direct attach).** Without `data_pool`, use separate
 environment bindings, for example `MANAGER_DATA_POOL`,
@@ -215,7 +225,7 @@ Tools available to selected capabilities:
 | write | `data-pool_write`: action=upsert, pool, id, title, content OR url, source/tags, request_id | Import/update receipt |
 | write | `data-pool_write`: action=remove, pool, id, request_id | Removal receipt |
 | manage | `data-pool_manage`: action=pool_create, pool, name, request_id | Create an empty private pool |
-| manage | `data-pool_manage`: action=grant/revoke, pool, soot, level (grant only), request_id | Explicit access change |
+| manage | `data-pool_manage`: action=grant/revoke, pool, soot or group (`@workspace` = every bound Soot, read/write only), level (grant only), request_id | Explicit access change |
 | manage | `data-pool_manage`: action=pool_remove, pool, request_id | Delete a pool and its documents |
 
 Permissions: read < write < manage. Only host managers create pools; a delegated
@@ -230,10 +240,12 @@ namespace audit access.
 Inline Markdown/plain text is limited to 12 KiB UTF-8. The host also limits
 serialized tool JSON to 16 KiB; escape-heavy text may need smaller sections
 or a public URL import. Public webpage responses
-are limited to 2 MiB, extracted text to 128 KiB. Scripts, navigation and hidden
-HTML are excluded; extracted data is reference material, not trusted
-instructions. SSRF guards validate addresses at each dial/redirect and do not
-inherit an HTTP proxy. No arbitrary server-path import is accepted. Larger
+are limited to 2 MiB, extracted text to 128 KiB. Scripts, navigation, forms,
+`<template>`/`<noscript>` and elements hidden from readers (`hidden`,
+`aria-hidden="true"`, inline `display:none`/`visibility:hidden`) are excluded;
+extracted data is reference material, not trusted instructions. SSRF guards
+validate addresses at each dial/redirect and do not inherit an HTTP proxy; a
+redirect from HTTPS to HTTP is refused. No arbitrary server-path import is accepted. Larger
 documents can be supplied as separate named sections; OCR/PDF/SaaS sync are not
 part of this connector.
 
