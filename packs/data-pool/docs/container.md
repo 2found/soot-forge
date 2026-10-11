@@ -1,5 +1,33 @@
 # Run the shared service as a container
 
+On a single machine, `operator/local-docker.py` does all of this for you:
+
+```sh
+python3 packs/data-pool/operator/local-docker.py install --soots general --manager general
+python3 packs/data-pool/operator/local-docker.py status
+python3 packs/data-pool/operator/local-docker.py upgrade            # rebuild service, keep data
+python3 packs/data-pool/operator/local-docker.py uninstall [--purge]
+```
+
+It builds the service image from this checkout, runs Meilisearch on an
+internal Docker network (no host port, no outbound route), creates a backend
+key restricted to `soot_*` indexes, renders bindings into `~/.soot/data-pool`
+(mode 0700, or `--home`), and publishes the service only on `127.0.0.1:8091`.
+Both containers drop all capabilities; the service runs read-only as 65532.
+Every resource is labeled `io.soot.data-pool=local`, so `uninstall --purge`
+can prove nothing is left. The bound Soot list is fixed when bindings are
+rendered; adding a Soot means `uninstall --purge` and a fresh install (new
+tokens for every host). Point a Soot host at the result:
+
+```json
+{
+  "data_pool": {"binding": {"file": "/Users/you/.soot/data-pool/service/bindings/host-local.json"}, "capabilities": "read-write"},
+  "credentials": {"general": {"DATA_POOL_UI": {"file": "/Users/you/.soot/data-pool/service/bindings/general.ui.json", "operations": ["data-pool_view", "data-pool_action"]}}}
+}
+```
+
+The rest of this page is the manual, multi-host version.
+
 This runs the [shared data-pool service](shared-service.md) as one container on
 a VM, next to a Meilisearch container on the same private Docker network, behind
 an HTTPS reverse proxy such as Caddy. Soot hosts (a local Mac, a VM Soot host)
