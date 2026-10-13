@@ -218,7 +218,8 @@ For real company data supply your own selected URL or Markdown/plain text.
 Public URLs are imported on request and saved as snapshots. Questions search
 the saved pool; they do not recrawl the website. Ask the curator to refresh the
 same document ID when the source changes. Identical content/metadata keeps its
-revision. Stable IDs let all Soots cite the same document.
+revision. Stable IDs let all Soots read the same document; answers cite it by
+title and source link, and show IDs or revisions only when asked.
 
 Tools available to selected capabilities:
 
