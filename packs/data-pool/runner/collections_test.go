@@ -379,9 +379,18 @@ func TestRefusedWritesSayWhy(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "document missing is not in collection company") {
 		t.Errorf("read missing: err = %v", err)
 	}
-	_, err = remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(`{"action":"read","pool":"company","id":"brief","query":"x"}`))
-	if err == nil || !strings.Contains(err.Error(), "read: takes pool and id only") {
-		t.Errorf("bad read: err = %v", err)
+	// The shapes a lite model actually sends: every optional field filled in.
+	for _, body := range []string{
+		`{"action":"upsert","pool":"company","id":"radar-2026-10-14","request_id":"radar-1","title":"Brief","content":"x","source":"","url":"","tags":[],"generation":"","expected_revision":0}`,
+		`{"action":"append","pool":"company","id":"","request_id":"note-1","title":"Note","content":"x","source":"","url":"","tags":[],"generation":"","expected_revision":0}`,
+	} {
+		if err := write(body); err != nil {
+			t.Errorf("placeholder %s: %v", body, err)
+		}
+	}
+	out, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(`{"action":"read","after":"0","conversation_id":"","id":"brief","limit":8192,"offset":0,"pool":"company","query":"","run_id":""}`))
+	if err != nil || !strings.Contains(string(out), `"complete":true`) {
+		t.Errorf("placeholder read: %s %v", out, err)
 	}
 	for body, want := range map[string]string{
 		`{"action":"read","pool":"company","id":"brief","limit":20000}`: "read: limit is 20000 bytes; use 4 to 8192",

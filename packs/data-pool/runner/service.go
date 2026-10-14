@@ -82,6 +82,9 @@ func cursorValid(s string) bool { return s == "" || identifier.MatchString(s) }
 // queryShape names the one field a list, read or search got wrong. A refusal
 // that lists every rule at once gets repeated back by the model as the cause,
 // whichever rule actually failed, and the Soot retries the same input.
+// Fields an action has no use for are ignored, not refused: smaller models
+// fill every optional field with a placeholder ("after":"0" on a read), and
+// refusing that only teaches them to loop.
 func queryShape(in queryInput) error {
 	bad := func(format string, args ...any) error {
 		return inputError{in.Action + ": " + fmt.Sprintf(format, args...)}
@@ -119,16 +122,9 @@ func queryShape(in queryInput) error {
 		if !cursorValid(in.After) {
 			return bad("after %q is not a document ID; pass next from the previous page", in.After)
 		}
-	case "read":
-		if in.Query != "" || in.After != "" {
-			return bad("takes pool and id only (optionally offset and limit); drop query and after")
-		}
 	case "search":
 		if strings.TrimSpace(in.Query) == "" || !validText(in.Query, 512) {
 			return bad("query is required, up to 512 characters")
-		}
-		if in.After != "" {
-			return bad("after is not used; page with offset")
 		}
 		if in.Offset < 0 || in.Offset > 980 {
 			return bad("offset is %d; use 0 to 980", in.Offset)
@@ -428,6 +424,9 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 	// Duplicate content is allowed across append intents; retrying one intent
 	// preserves its generated ID and cannot overwrite another document.
 	if in.Action == "append" {
+		if in.ExpectedRevision != nil && *in.ExpectedRevision == 0 {
+			in.ExpectedRevision = nil // a filled-in placeholder, not a precondition
+		}
 		if in.ID != "" || in.ExpectedRevision != nil {
 			return nil, inputError{"append chooses its own document ID and does not accept expected_revision"}
 		}
