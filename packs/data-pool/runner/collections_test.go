@@ -392,6 +392,14 @@ func TestRefusedWritesSayWhy(t *testing.T) {
 	if out, err := remoteCall(t, server.URL, readerToken, "marketing", "pools", json.RawMessage(`{"after":"0","limit":20,"parent":"","pool":"company"}`)); err != nil || !strings.Contains(string(out), `"company"`) {
 		t.Errorf("placeholder pool detail: %s %v", out, err)
 	}
+	for _, body := range []string{
+		`{"action":"search","after":"0","conversation_id":"","id":"0","limit":20,"offset":0,"pool":"company","query":"brief","run_id":""}`,
+		`{"action":"list","after":"0","conversation_id":"","id":"0","limit":20,"offset":0,"pool":"company","query":"","run_id":""}`,
+	} {
+		if _, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(body)); err != nil {
+			t.Errorf("placeholder %s: %v", body, err)
+		}
+	}
 	out, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(`{"action":"read","after":"0","conversation_id":"","id":"brief","limit":8192,"offset":0,"pool":"company","query":"","run_id":""}`))
 	if err != nil || !strings.Contains(string(out), `"complete":true`) {
 		t.Errorf("placeholder read: %s %v", out, err)

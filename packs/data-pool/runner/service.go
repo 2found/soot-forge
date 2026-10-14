@@ -86,9 +86,9 @@ var generationShape = regexp.MustCompile(`^[A-Z2-7]{26}$`)
 // queryShape names the one field a list, read or search got wrong. A refusal
 // that lists every rule at once gets repeated back by the model as the cause,
 // whichever rule actually failed, and the Soot retries the same input.
-// Fields an action has no use for are ignored, not refused: smaller models
-// fill every optional field with a placeholder ("after":"0" on a read), and
-// refusing that only teaches them to loop.
+// Fields an action has no use for are ignored, not refused: models of every
+// tier fill each optional field with a placeholder ("after":"0" on a read,
+// "id":"0" on a list), and refusing that only teaches them to loop.
 func queryShape(in queryInput) error {
 	bad := func(format string, args ...any) error {
 		return inputError{in.Action + ": " + fmt.Sprintf(format, args...)}
@@ -98,12 +98,12 @@ func queryShape(in queryInput) error {
 		if in.Limit < 0 || in.Limit > 20 {
 			return bad("limit is %d; use 1 to 20, or omit it for 10", in.Limit)
 		}
-		if in.ID != "" {
-			return bad("id is not a filter here; read the document with action read")
-		}
 	case "read":
 		if in.ID == "" {
 			return bad("id is required; list the collection to find it")
+		}
+		if !identifier.MatchString(in.ID) {
+			return bad("id %q is not a document ID (letters, digits, - and _, up to 64)", in.ID)
 		}
 		if in.Limit < 0 || in.Limit > 8192 {
 			return bad("limit is %d bytes; use 4 to 8192, or omit it for 4096", in.Limit)
@@ -111,9 +111,6 @@ func queryShape(in queryInput) error {
 		if in.Offset < 0 || in.Offset > maxContent {
 			return bad("offset is %d; start at 0 and pass next_offset from the previous read", in.Offset)
 		}
-	}
-	if in.ID != "" && !identifier.MatchString(in.ID) {
-		return bad("id %q is not a document ID (letters, digits, - and _, up to 64)", in.ID)
 	}
 	switch in.Action {
 	case "list":
