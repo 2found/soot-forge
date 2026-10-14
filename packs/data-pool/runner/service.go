@@ -465,7 +465,7 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 		source = in.URL
 	}
 	if !validText(content, maxContent) || strings.TrimSpace(content) == "" {
-		return nil, errors.New("document content is empty, malformed or too large")
+		return nil, inputError{"document content is empty, not UTF-8 text, or over 128 KiB; shorten or split it"}
 	}
 	if source == "" {
 		source = "soot://" + s.b.Namespace + "/" + in.Pool + "/" + in.ID

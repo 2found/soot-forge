@@ -350,3 +350,27 @@ func TestGrantToUnboundSootSaysWhatToChange(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// A write refused before any mutation tells the Soot what to change; a
+// managing Soot used to get only "denied or failed" and gave up on its brief.
+func TestRefusedWritesSayWhy(t *testing.T) {
+	_, server, _ := organizationFixture(t)
+	orgCreate(t, server, "company", "", nil)
+	orgManage(t, server, manageInput{Action: "grant", Pool: "company", Soot: "marketing", Level: "write", RequestID: "g"})
+	write := func(body string) error {
+		_, err := remoteCall(t, server.URL, readerToken, "marketing", "write", json.RawMessage(body))
+		return err
+	}
+	if err := write(`{"action":"upsert","pool":"company","id":"brief","content":"first","request_id":"brief-1"}`); err != nil {
+		t.Fatal(err)
+	}
+	for body, want := range map[string]string{
+		`{"action":"upsert","pool":"company","id":"brief","content":"second","request_id":"brief-1"}`:                       "a new intent needs a new request_id",
+		`{"action":"upsert","pool":"company","id":"brief","content":"second","expected_revision":7,"request_id":"brief-2"}`: "revision conflict: the document or collection changed",
+		`{"action":"upsert","pool":"company","id":"brief","content":"   ","request_id":"brief-3"}`:                          "over 128 KiB; shorten or split it",
+	} {
+		if err := write(body); err == nil || !strings.Contains(err.Error(), "no mutation submitted: ") || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v", body, err)
+		}
+	}
+}

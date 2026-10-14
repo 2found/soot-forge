@@ -362,7 +362,7 @@ func (s *service) replay(id, fingerprint string) (receipt, bool, error) {
 		return r, true, errors.New("request state unavailable")
 	}
 	if r.Fingerprint != fingerprint {
-		return r, true, errors.New("request_id already used with different input")
+		return r, true, inputError{"request_id already used with different input; a new intent needs a new request_id"}
 	}
 	if r.Action == "pool_create" || r.Action == "pool_remove" {
 		if s.authorizeReceipt(r, "manage") != nil {
