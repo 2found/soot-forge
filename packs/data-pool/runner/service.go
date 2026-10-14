@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"slices"
 	"strings"
@@ -262,7 +263,8 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 		}
 		meta, err := s.doc(in.Pool, in.ID)
 		if err != nil {
-			return nil, err
+			// Read access is already checked, so absence is not a leak.
+			return nil, inputError{fmt.Sprintf("document %s is not in collection %s; list the collection to find it, or create it with an upsert that omits expected_revision", in.ID, in.Pool)}
 		}
 		var d storedDocument
 		if err = s.backend.call(ctx, "GET", "/indexes/"+s.index(in.Pool)+"/documents/"+in.ID, nil, &d); err != nil {
@@ -431,6 +433,9 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 		return nil, err
 	}
 	old, oldErr := s.doc(in.Pool, in.ID)
+	if oldErr != nil && in.Action == "upsert" && in.ExpectedRevision != nil && *in.ExpectedRevision != 0 {
+		return nil, inputError{fmt.Sprintf("document %s does not exist yet; omit expected_revision to create it", in.ID)}
+	}
 	if err := s.checkDocumentRevision(in, old); err != nil {
 		return nil, err
 	}

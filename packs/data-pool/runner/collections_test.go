@@ -368,9 +368,14 @@ func TestRefusedWritesSayWhy(t *testing.T) {
 		`{"action":"upsert","pool":"company","id":"brief","content":"second","request_id":"brief-1"}`:                       "a new intent needs a new request_id",
 		`{"action":"upsert","pool":"company","id":"brief","content":"second","expected_revision":7,"request_id":"brief-2"}`: "revision conflict: the document or collection changed",
 		`{"action":"upsert","pool":"company","id":"brief","content":"   ","request_id":"brief-3"}`:                          "over 128 KiB; shorten or split it",
+		`{"action":"upsert","pool":"company","id":"fresh","content":"new","expected_revision":1,"request_id":"fresh-1"}`:    "document fresh does not exist yet; omit expected_revision to create it",
 	} {
 		if err := write(body); err == nil || !strings.Contains(err.Error(), "no mutation submitted: ") || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: err = %v", body, err)
 		}
+	}
+	_, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(`{"action":"read","pool":"company","id":"missing"}`))
+	if err == nil || !strings.Contains(err.Error(), "document missing is not in collection company") {
+		t.Errorf("read missing: err = %v", err)
 	}
 }

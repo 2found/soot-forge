@@ -210,11 +210,13 @@
               },
               "source": {
                 "type": "string",
-                "maxLength": 2048
+                "maxLength": 2048,
+                "description": "Where written content came from, as a URI (https://… or soot://…). Provenance only; nothing is fetched."
               },
               "url": {
                 "type": "string",
-                "maxLength": 2048
+                "maxLength": 2048,
+                "description": "Import: fetch this public page and store its text instead of content. Omit when you supply content."
               },
               "tags": {
                 "type": "array",
@@ -231,7 +233,8 @@
               },
               "expected_revision": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "description": "Revision you last read, to refuse a stale overwrite. Omit to create a new document or to overwrite regardless."
               }
             },
             "required": [
