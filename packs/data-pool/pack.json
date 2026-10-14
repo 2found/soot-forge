@@ -87,12 +87,14 @@
               "limit": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 8192
+                "maximum": 8192,
+                "description": "list/search: results per page, 1-20 (default 10). read: bytes of content, 4-8192 (default 4096)."
               },
               "offset": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 131072
+                "maximum": 131072,
+                "description": "read: byte offset, start at 0 and pass next_offset. search: result offset up to 980. list pages with after instead."
               },
               "conversation_id": {
                 "type": "string",

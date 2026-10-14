@@ -380,7 +380,19 @@ func TestRefusedWritesSayWhy(t *testing.T) {
 		t.Errorf("read missing: err = %v", err)
 	}
 	_, err = remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(`{"action":"read","pool":"company","id":"brief","query":"x"}`))
-	if err == nil || !strings.Contains(err.Error(), "read takes pool and id") {
+	if err == nil || !strings.Contains(err.Error(), "read: takes pool and id only") {
 		t.Errorf("bad read: err = %v", err)
+	}
+	for body, want := range map[string]string{
+		`{"action":"read","pool":"company","id":"brief","limit":20000}`: "read: limit is 20000 bytes; use 4 to 8192",
+		`{"action":"read","pool":"company"}`:                            "read: id is required",
+		`{"action":"list","pool":"company","limit":50}`:                 "list: limit is 50; use 1 to 20",
+		`{"action":"list","pool":"company","query":"x"}`:                "list: query belongs to action search",
+		`{"action":"search","pool":"company"}`:                          "search: query is required",
+	} {
+		_, err = remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(body))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v", body, err)
+		}
 	}
 }

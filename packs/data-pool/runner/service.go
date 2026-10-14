@@ -79,6 +79,64 @@ func pageSize(n int) (int, error) {
 }
 func cursorValid(s string) bool { return s == "" || identifier.MatchString(s) }
 
+// queryShape names the one field a list, read or search got wrong. A refusal
+// that lists every rule at once gets repeated back by the model as the cause,
+// whichever rule actually failed, and the Soot retries the same input.
+func queryShape(in queryInput) error {
+	bad := func(format string, args ...any) error {
+		return inputError{in.Action + ": " + fmt.Sprintf(format, args...)}
+	}
+	switch in.Action {
+	case "list", "search":
+		if in.Limit < 0 || in.Limit > 20 {
+			return bad("limit is %d; use 1 to 20, or omit it for 10", in.Limit)
+		}
+		if in.ID != "" {
+			return bad("id is not a filter here; read the document with action read")
+		}
+	case "read":
+		if in.ID == "" {
+			return bad("id is required; list the collection to find it")
+		}
+		if in.Limit < 0 || in.Limit > 8192 {
+			return bad("limit is %d bytes; use 4 to 8192, or omit it for 4096", in.Limit)
+		}
+		if in.Offset < 0 || in.Offset > maxContent {
+			return bad("offset is %d; start at 0 and pass next_offset from the previous read", in.Offset)
+		}
+	}
+	if in.ID != "" && !identifier.MatchString(in.ID) {
+		return bad("id %q is not a document ID (letters, digits, - and _, up to 64)", in.ID)
+	}
+	switch in.Action {
+	case "list":
+		if in.Query != "" {
+			return bad("query belongs to action search")
+		}
+		if in.Offset != 0 {
+			return bad("offset is not used; page with after set to the previous next")
+		}
+		if !cursorValid(in.After) {
+			return bad("after %q is not a document ID; pass next from the previous page", in.After)
+		}
+	case "read":
+		if in.Query != "" || in.After != "" {
+			return bad("takes pool and id only (optionally offset and limit); drop query and after")
+		}
+	case "search":
+		if strings.TrimSpace(in.Query) == "" || !validText(in.Query, 512) {
+			return bad("query is required, up to 512 characters")
+		}
+		if in.After != "" {
+			return bad("after is not used; page with offset")
+		}
+		if in.Offset < 0 || in.Offset > 980 {
+			return bad("offset is %d; use 0 to 980", in.Offset)
+		}
+	}
+	return nil
+}
+
 func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) (any, error) {
 	switch op {
 	case "pools":
@@ -229,13 +287,13 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 	}
 	switch in.Action {
 	case "list":
-		limit, err := pageSize(in.Limit)
-		if err != nil || !cursorValid(in.After) || in.ID != "" || in.Query != "" || in.Offset != 0 {
-			return nil, errors.New("invalid document page")
+		if err := queryShape(in); err != nil {
+			return nil, err
 		}
+		limit, _ := pageSize(in.Limit)
 		items := []document{}
 		next := ""
-		err = s.db.View(func(tx *bolt.Tx) error {
+		err := s.db.View(func(tx *bolt.Tx) error {
 			c := docsBucket(tx, in.Pool).Cursor()
 			for k, v := c.Seek([]byte(in.After)); k != nil; k, v = c.Next() {
 				if string(k) <= in.After {
@@ -255,8 +313,8 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 		})
 		return map[string]any{"documents": items, "next": next}, err
 	case "read":
-		if !identifier.MatchString(in.ID) || in.After != "" || in.Query != "" || in.Offset < 0 || in.Offset > maxContent || in.Limit < 0 || in.Limit > 8192 {
-			return nil, inputError{"read takes pool and id, optionally offset and limit up to 8192; it does not take after or query (use action list or search for those)"}
+		if err := queryShape(in); err != nil {
+			return nil, err
 		}
 		if in.Limit == 0 {
 			in.Limit = 4096
@@ -285,15 +343,15 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 		}
 		return map[string]any{"document": meta, "content": d.Content[in.Offset:end], "next_offset": end, "complete": end == len(d.Content)}, nil
 	case "search":
-		limit, err := pageSize(in.Limit)
-		if err != nil || !validText(in.Query, 512) || strings.TrimSpace(in.Query) == "" || in.After != "" || in.ID != "" || in.Offset < 0 || in.Offset > 980 {
-			return nil, errors.New("invalid search query or page")
+		if err := queryShape(in); err != nil {
+			return nil, err
 		}
+		limit, _ := pageSize(in.Limit)
 		var result struct {
 			Hits []storedDocument `json:"hits"`
 		}
 		body := map[string]any{"q": normalize(in.Query), "limit": limit, "offset": in.Offset, "attributesToRetrieve": []string{"id", "title", "source", "tags", "sha256", "revision", "updated_at", "content", "writer"}}
-		err = s.backend.call(ctx, "POST", "/indexes/"+s.index(in.Pool)+"/search", body, &result)
+		err := s.backend.call(ctx, "POST", "/indexes/"+s.index(in.Pool)+"/search", body, &result)
 		var be backendError
 		if errors.As(err, &be) && be.status == 404 {
 			var count uint64
