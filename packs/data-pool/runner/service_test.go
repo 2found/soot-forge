@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -538,5 +539,30 @@ func TestReplacementPoolCannotExposeHistoricalReceipts(t *testing.T) {
 	denied(t, s, "write", writeInput{Action: "upsert", Pool: "company", ID: "handbook", RequestID: "old-import", Title: "Company handbook", Content: "Old private company data", Source: "urn:company:handbook", Tags: []string{"brand"}})
 	if writeDoc(t, s, "company", "handbook", "new-import", "New company data").PoolGeneration != fresh.PoolGeneration {
 		t.Fatal("wrong receipt generation")
+	}
+}
+
+// status is a read: a request_id the caller cannot see says what to do instead,
+// in one sentence for missing and for another Soot's, so it is no oracle.
+func TestStatusOfAnInvisibleRequestIsActionableAndNoOracle(t *testing.T) {
+	_, srv := newFake(t)
+	s := testService(t, srv.URL)
+	create(t, s, "company")
+	grant(t, s, "company", "writer", "write")
+	s.actor = "writer"
+	writeDoc(t, s, "company", "handbook", "import-1", "Doanh nghiệp Việt Nam.")
+	s.actor = "marketing"
+	var answers []string
+	for _, id := range []string{"import-1", "never-sent"} {
+		raw, _ := json.Marshal(statusInput{RequestID: id})
+		_, err := s.dispatch(context.Background(), "status", raw)
+		var invalid inputError
+		if !errors.As(err, &invalid) || !strings.Contains(err.Error(), "Nothing was changed") {
+			t.Fatalf("status %s: %v", id, err)
+		}
+		answers = append(answers, strings.Replace(err.Error(), id, "<id>", 1))
+	}
+	if answers[0] != answers[1] {
+		t.Fatalf("another Soot's request reads differently from a missing one:\n%s\n%s", answers[0], answers[1])
 	}
 }

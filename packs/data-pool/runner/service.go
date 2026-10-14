@@ -573,19 +573,22 @@ func (s *service) status(ctx context.Context, in statusInput) (any, error) {
 	if owner == "" {
 		owner = s.actor
 	}
+	// One answer for missing, someone else's and no-longer-granted, so it is no
+	// existence oracle, but actionable: status is a read and changed nothing.
+	unavailable := inputError{"request " + safeID(in.RequestID) + " is not visible to this Soot (never submitted by it, submitted by another Soot, or its collection is no longer granted); status only checks a request_id that your own data-pool_write or data-pool_manage call returned. Nothing was changed; to inspect data, read or list the collection instead"}
 	var r receipt
 	if err := s.db.View(func(tx *bolt.Tx) error { return getJSON(tx.Bucket([]byte("receipts")), owner+"/"+in.RequestID, &r) }); err != nil {
-		return nil, errors.New("request unavailable")
+		return nil, unavailable
 	}
 	if r.Owner != owner {
-		return nil, errors.New("request identity mismatch")
+		return nil, unavailable
 	}
 	level := "read"
 	if owner != s.actor {
 		level = "manage"
 	}
 	if err := s.authorizeReceipt(r, level); err != nil {
-		return nil, errors.New("request unavailable")
+		return nil, unavailable
 	}
 	// Reconciliation keeps the original owner's receipt key, even when an
 	// explicitly authorized pool manager checks a revoked writer's request.
