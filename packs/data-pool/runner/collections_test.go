@@ -365,11 +365,11 @@ func TestRefusedWritesSayWhy(t *testing.T) {
 		t.Fatal(err)
 	}
 	for body, want := range map[string]string{
-		`{"action":"upsert","pool":"company","id":"brief","content":"second","request_id":"brief-1"}`:                       "a new intent needs a new request_id",
-		`{"action":"upsert","pool":"company","id":"brief","content":"second","expected_revision":7,"request_id":"brief-2"}`: "revision conflict: document brief is at revision 1, not 7; read it again",
-		`{"action":"upsert","pool":"company","id":"brief","content":"   ","request_id":"brief-3"}`:                          "over 128 KiB; shorten or split it",
-		`{"action":"upsert","pool":"company","id":"fresh","content":"new","generation":"made-up","request_id":"fresh-2"}`:   "collection company is not at generation made-up; omit generation",
-		`{"action":"upsert","pool":"company","id":"fresh","content":"new","expected_revision":1,"request_id":"fresh-1"}`:    "document fresh does not exist yet; omit expected_revision to create it",
+		`{"action":"upsert","pool":"company","id":"brief","content":"second","request_id":"brief-1"}`:                                        "a new intent needs a new request_id",
+		`{"action":"upsert","pool":"company","id":"brief","content":"second","expected_revision":7,"request_id":"brief-2"}`:                  "revision conflict: document brief is at revision 1, not 7; read it again",
+		`{"action":"upsert","pool":"company","id":"brief","content":"   ","request_id":"brief-3"}`:                                           "over 128 KiB; shorten or split it",
+		`{"action":"upsert","pool":"company","id":"fresh","content":"new","generation":"AAAAAAAAAAAAAAAAAAAAAAAAAA","request_id":"fresh-2"}`: "collection company is not at generation AAAAAAAAAAAAAAAAAAAAAAAAAA; omit generation",
+		`{"action":"upsert","pool":"company","id":"fresh","content":"new","expected_revision":1,"request_id":"fresh-1"}`:                     "document fresh does not exist yet; omit expected_revision to create it",
 	} {
 		if err := write(body); err == nil || !strings.Contains(err.Error(), "no mutation submitted: ") || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: err = %v", body, err)
@@ -383,10 +383,14 @@ func TestRefusedWritesSayWhy(t *testing.T) {
 	for _, body := range []string{
 		`{"action":"upsert","pool":"company","id":"radar-2026-10-14","request_id":"radar-1","title":"Brief","content":"x","source":"","url":"","tags":[],"generation":"","expected_revision":0}`,
 		`{"action":"append","pool":"company","id":"","request_id":"note-1","title":"Note","content":"x","source":"","url":"","tags":[],"generation":"","expected_revision":0}`,
+		`{"action":"upsert","content":"probe","expected_revision":0,"generation":"probe-radar-v1","id":"probe-radar","pool":"company","request_id":"probe-radar-20261014-01","source":"operator probe","tags":[],"title":"probe","url":""}`,
 	} {
 		if err := write(body); err != nil {
 			t.Errorf("placeholder %s: %v", body, err)
 		}
+	}
+	if out, err := remoteCall(t, server.URL, readerToken, "marketing", "pools", json.RawMessage(`{"after":"0","limit":20,"parent":"","pool":"company"}`)); err != nil || !strings.Contains(string(out), `"company"`) {
+		t.Errorf("placeholder pool detail: %s %v", out, err)
 	}
 	out, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(`{"action":"read","after":"0","conversation_id":"","id":"brief","limit":8192,"offset":0,"pool":"company","query":"","run_id":""}`))
 	if err != nil || !strings.Contains(string(out), `"complete":true`) {

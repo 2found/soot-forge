@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -78,6 +79,9 @@ func pageSize(n int) (int, error) {
 	return n, nil
 }
 func cursorValid(s string) bool { return s == "" || identifier.MatchString(s) }
+
+// generationShape is what rand.Text gives a collection when it is created.
+var generationShape = regexp.MustCompile(`^[A-Z2-7]{26}$`)
 
 // queryShape names the one field a list, read or search got wrong. A refusal
 // that lists every rule at once gets repeated back by the model as the cause,
@@ -190,9 +194,8 @@ func (s *service) pools(in poolsInput) (any, error) {
 		return nil, inputError{"invalid pool page: limit is 1..20 and after must be a returned cursor"}
 	}
 	if in.Pool != "" {
-		if in.After != "" || in.Limit != 0 {
-			return nil, inputError{"pool detail does not accept after or limit; omit pool to page the collection list"}
-		}
+		// after and limit page the collection list; a detail has no pages, so
+		// placeholders a model filled in ("after":"0","limit":20) are ignored.
 		if err = s.authorize(in.Pool, "read"); err != nil {
 			return nil, err
 		}
@@ -423,6 +426,19 @@ func (s *service) manage(ctx context.Context, in manageInput) (any, error) {
 func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 	// Duplicate content is allowed across append intents; retrying one intent
 	// preserves its generated ID and cannot overwrite another document.
+	// Smaller models fill every optional field. Values that cannot be what the
+	// field means are placeholders, dropped before the fingerprint so a retry
+	// replays: a generation is only ever copied from data-pool_pools, and a
+	// source is provenance only as a URI ("operator probe" is neither). A
+	// well-formed stale generation, or a URI carrying credentials, still refuses.
+	if in.Generation != "" && !generationShape.MatchString(in.Generation) {
+		in.Generation = ""
+	}
+	if in.Source != "" {
+		if u, err := url.Parse(in.Source); err != nil || u.Scheme == "" {
+			in.Source = ""
+		}
+	}
 	if in.Action == "append" {
 		if in.ExpectedRevision != nil && *in.ExpectedRevision == 0 {
 			in.ExpectedRevision = nil // a filled-in placeholder, not a precondition
