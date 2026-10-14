@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -348,8 +349,21 @@ func (s *service) manageCollection(in manageInput) (any, error) {
 		if (in.Soot == "") == (in.Group == "") || in.Parent != nil || in.Inherit != nil || in.Name != "" {
 			return nil, errors.New("grant requires one Soot or group")
 		}
-		if in.Group != "" && in.Group != workspaceSubject && len(s.b.Groups[in.Group]) == 0 || in.Soot != "" && (!slices.Contains(s.b.Soots, in.Soot) || slices.Contains(s.b.Managers, in.Soot)) {
-			return nil, errors.New("target is not an allowed bound principal")
+		// Refused before any mutation, so the reason reaches the caller (a
+		// model or Nest) as invalid input; IDs are echoed only when well formed.
+		if in.Soot != "" && !identifier.MatchString(in.Soot) || in.Group != "" && in.Group != workspaceSubject && !identifier.MatchString(in.Group) {
+			return nil, inputError{"grant target must be a bound Soot or group ID"}
+		}
+		if in.Group != "" && in.Group != workspaceSubject && len(s.b.Groups[in.Group]) == 0 {
+			return nil, inputError{fmt.Sprintf("group %s has no members bound to this data service; list it under groups in the service storage config", in.Group)}
+		}
+		if in.Soot != "" && slices.Contains(s.b.Managers, in.Soot) {
+			return nil, inputError{fmt.Sprintf("%s manages this namespace already; a pool grant cannot change that", in.Soot)}
+		}
+		// Turning the pool on for a Soot in Nest is the host half; the
+		// service must also accept that identity, or every grant fails here.
+		if in.Soot != "" && !slices.Contains(s.b.Soots, in.Soot) {
+			return nil, inputError{fmt.Sprintf("%s is not bound to this data service; add it to storage.soots (and to the host client's soots) in the service config, restart the service, then grant again", in.Soot)}
 		}
 		if in.Action == "grant" && rank(in.Level) == 0 || in.Action == "revoke" && in.Level != "" {
 			return nil, errors.New("invalid permission")
