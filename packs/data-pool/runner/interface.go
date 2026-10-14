@@ -4,11 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	bolt "go.etcd.io/bbolt"
 )
 
 var errConflict = errors.New("revision conflict: reload current data while preserving your draft")
+
+// conflictError says which revision went stale; it still matches errConflict.
+type conflictError struct{ detail string }
+
+func (e conflictError) Error() string        { return "revision conflict: " + e.detail }
+func (e conflictError) Is(target error) bool { return target == errConflict }
 
 // All callers hold the namespace policy lock through execution/publication:
 // a local executable owns the DB lifetime, a gateway holds its policy mutex.
@@ -19,14 +26,14 @@ func (s *service) checkPolicyRevision(in manageInput) error {
 			return err
 		}
 		if in.Generation != "" && in.Generation != p.Generation || in.ExpectedPolicyRevision != nil && *in.ExpectedPolicyRevision != p.PolicyRevision {
-			return errConflict
+			return conflictError{fmt.Sprintf("collection %s changed since it was read; read it again and retry with a new request_id", in.Pool)}
 		}
 		return nil
 	})
 }
 func (s *service) checkDocumentRevision(in writeInput, old document) error {
 	if in.ExpectedRevision != nil && (*in.ExpectedRevision < 0 || *in.ExpectedRevision != old.Revision) {
-		return errConflict
+		return conflictError{fmt.Sprintf("document %s is at revision %d, not %d; read it again, merge, and retry with a new request_id", in.ID, old.Revision, *in.ExpectedRevision)}
 	}
 	if in.Generation != "" {
 		generation, err := s.poolGeneration(in.Pool)
@@ -34,7 +41,7 @@ func (s *service) checkDocumentRevision(in writeInput, old document) error {
 			return err
 		}
 		if generation != in.Generation {
-			return errConflict
+			return conflictError{fmt.Sprintf("collection %s is not at generation %s; omit generation, or copy it from data-pool_pools", in.Pool, in.Generation)}
 		}
 	}
 	return nil

@@ -364,7 +364,7 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 		var invalid inputError
 		if errors.Is(err, errConflict) {
 			// Stale expected_revision or generation: nothing was written.
-			invalid = inputError{"revision conflict: the document or collection changed; read it again, then retry with a new request_id"}
+			invalid = inputError{err.Error()}
 		}
 		if invalid.message != "" || errors.As(err, &invalid) {
 			w.Header().Set("Content-Type", "application/json")

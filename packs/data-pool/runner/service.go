@@ -256,7 +256,7 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 		return map[string]any{"documents": items, "next": next}, err
 	case "read":
 		if !identifier.MatchString(in.ID) || in.After != "" || in.Query != "" || in.Offset < 0 || in.Offset > maxContent || in.Limit < 0 || in.Limit > 8192 {
-			return nil, errors.New("invalid document read")
+			return nil, inputError{"read takes pool and id, optionally offset and limit up to 8192; it does not take after or query (use action list or search for those)"}
 		}
 		if in.Limit == 0 {
 			in.Limit = 4096
