@@ -22,6 +22,9 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   let removeThemeListener = () => {};
   const sharedFiles = new Map();
   const holding = new Map();
+  // The visitor's latest question, so a run that ended without a reply can be
+  // asked again in one tap.
+  let lastAsked = '';
 
   const dict = {
     vi: {
@@ -55,6 +58,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       send_validation_error: 'Tin chưa hợp lệ. Hãy sửa nội dung rồi gửi lại.',
       rate_error: 'Bạn đang gửi quá nhanh. Chờ một chút rồi thử lại.',
       send_error: 'Chưa xác nhận tin đã gửi. Nội dung vẫn được giữ lại.',
+      reply_error: 'Mình chưa trả lời được tin vừa rồi. Bạn bấm Gửi lại, hoặc hỏi theo cách khác nhé.',
       expired_error: 'Phiên chat đã hết hạn. Bắt đầu cuộc trò chuyện mới để tiếp tục.',
       connect_error: 'Hỗ trợ đang mất kết nối. Bạn có thể thử lại sau.',
       reset_error: 'Chưa xác nhận đã đóng phiên. Thử lại để tránh tạo hai phiên.',
@@ -102,6 +106,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       send_validation_error: 'Message invalid. Please adjust and resend.',
       rate_error: 'You are sending too quickly. Please wait a moment.',
       send_error: 'Message receipt unconfirmed. Draft preserved.',
+      reply_error: 'I couldn\'t answer your last message. Tap Resend, or ask it another way.',
       expired_error: 'Chat session expired. Start a new conversation to continue.',
       connect_error: 'Live chat is currently unavailable. Please try again later.',
       reset_error: 'Failed to confirm session closure. Retry to avoid duplicate sessions.',
@@ -337,6 +342,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     if (role === 'customer') {
       body = document.createElement('p');
       body.textContent = message.text;
+      lastAsked = String(message.text || '');
     } else {
       body = prose(String(message.text || ''));
     }
@@ -513,6 +519,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     if (errorKind === 'reset') reset();
     else if (errorKind === 'expired') $('reset').click();
     else if (errorKind === 'connection') post('retry-connect');
+    else if (errorKind === 'reply' && !pending && lastAsked) { pending = { id: crypto.randomUUID(), text: lastAsked, resend: true }; submit(); }
     else if (pending) submit();
     else requestSync();
   };
@@ -592,9 +599,10 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         $('activity').textContent = t('pending_send');
       } else {
         if (pending && !msg.error) {
-          // Successfully completed previous pending send
+          // Successfully completed previous pending send. A resend never came
+          // from the composer, so whatever the visitor is typing stays.
+          if (!pending.resend) composer.setValue('');
           pending = null;
-          composer.setValue('');
           bottom();
         }
         $('activity').textContent = t(dict[language]?.[msg.activity] ? msg.activity : 'connected');
@@ -619,7 +627,13 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         }
       } else if (msg.pendingMessage) {
         error(t('send_error'), 'send', t('resend'));
-      } else if (errorKind === 'send' || errorKind === 'rate' || errorKind === 'connection') {
+      } else if (msg.activity === 'failed' && !sending && lastAsked) {
+        // The run ended without an answer. Its "checking, one moment" no longer
+        // holds, and the visitor gets a way forward instead of a silent stop.
+        for (const article of holding.values()) article.remove();
+        holding.clear();
+        error(t('reply_error'), 'reply', t('resend'));
+      } else if (errorKind === 'send' || errorKind === 'rate' || errorKind === 'connection' || errorKind === 'reply') {
         error();
       }
 

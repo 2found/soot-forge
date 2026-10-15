@@ -187,6 +187,36 @@ test('the holding message gives way to its run\'s reply', () => {
   assert.equal(ack2.removed, undefined, 'another run is still working');
 });
 
+test('a run that ends without a reply drops its holding message and offers to ask again', () => {
+  const f = frameFixture(); f.init(); f.receive('open');
+  f.receive('sync', { messages: [
+    { id: 1, role: 'user', actor_role: 'customer', text: 'How do I deploy?', created: '', run: 'r1' },
+    { id: 2, role: 'assistant', intent: 'acknowledgement', text: 'Checking…', created: '', run: 'r1' },
+  ], next_after: 2, activity: 'running' });
+  const [, ack] = f.element('transcript').children;
+  assert.equal(f.element('error').textContent, '');
+  f.receive('sync', { messages: [], next_after: 2, activity: 'failed' });
+  assert.equal(ack.removed, true);
+  assert.match(f.element('error').textContent, /couldn't answer/);
+  assert.equal(f.element('retry').textContent, 'Resend');
+  // Resending asks the same question again and leaves a half-typed draft alone.
+  f.element('text').value = 'A draft';
+  f.element('retry').click();
+  const sent = f.posted.filter(m => m.type === 'send');
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].text, 'How do I deploy?');
+  f.receive('sync', { submission: true, messages: [], next_after: 2, activity: 'queued' });
+  assert.equal(f.element('text').value, 'A draft');
+  assert.equal(f.element('error-bar').hidden, true);
+  assert.equal(f.element('error').textContent, '');
+});
+
+test('a failed conversation with nothing asked yet shows no resend', () => {
+  const f = frameFixture(); f.init(); f.receive('open');
+  f.receive('sync', { messages: [], next_after: 0, activity: 'failed' });
+  assert.equal(f.element('error').textContent, '');
+});
+
 test('a markdown table reads row by row, each value labelled by its header', () => {
   const f = frameFixture(); f.init(); f.receive('open');
   const text = 'Plans:\n\n| Plan | Vietnam | Includes |\n| --- | ---: | --- |\n| **Pro** | 150,000 VND | BYOK, [docs](https://2novel.app/en/pricing) |\n| Free | 0 | |\nAfter.\n\n| not | a table |\nstill prose';
