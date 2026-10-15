@@ -21,6 +21,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   let scopes=[],scopeValue='',scopeName='',scopeRequired=false;
   let removeThemeListener = () => {};
   const sharedFiles = new Map();
+  const holding = new Map();
 
   const dict = {
     vi: {
@@ -318,6 +319,12 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       meta.append(' · ', time);
     }
     article.append(meta, body);
+    // "Checking, one moment" only covers the wait: the run's reply replaces it,
+    // so a long chat is not a column of holding messages.
+    if (role === 'assistant' && message.run) {
+      if (message.intent === 'acknowledgement') holding.set(message.run, article);
+      else { holding.get(message.run)?.remove(); holding.delete(message.run); }
+    }
     $('transcript').append(article);
     return true;
   }
@@ -591,6 +598,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       sharedFiles.clear();
       composer.setValue('');
       $('transcript').querySelectorAll('.message').forEach(x => x.remove());
+      holding.clear();
       $('welcome').hidden = false;
       $('reset-confirm').hidden = true;
       $('activity').textContent = t('connected');

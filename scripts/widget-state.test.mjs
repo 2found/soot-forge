@@ -18,6 +18,7 @@ function frameFixture() {
     focus() {}
     contains(target) { return target === this; }
     click() { this.onclick?.(); }
+    remove() { this.removed = true; }
   }
   const element = id => { if (!elements.has(id)) elements.set(id, new Element(id)); return elements.get(id); };
   const document = { getElementById: element, documentElement: { dataset: {} },
@@ -170,4 +171,18 @@ test('a fenced command renders verbatim in a copyable block, not as markdown', a
   await copy.onclick();
   assert.equal(copied, 'soot spawn my-work\nsoot run "**not bold**" <b>x</b>');
   assert.equal(copy.textContent, 'Copied');
+});
+
+test('the holding message gives way to its run\'s reply', () => {
+  const f = frameFixture(); f.init(); f.receive('open');
+  f.receive('sync', { messages: [
+    { id: 1, role: 'user', actor_role: 'customer', text: 'Hi', created: '', run: 'r1' },
+    { id: 2, role: 'assistant', intent: 'acknowledgement', text: 'Checking…', created: '', run: 'r1' },
+    { id: 3, role: 'assistant', intent: 'acknowledgement', text: 'Checking…', created: '', run: 'r2' },
+  ], next_after: 3, activity: 'running' });
+  const [, ack1, ack2] = f.element('transcript').children;
+  assert.equal(ack1.removed, undefined);
+  f.receive('sync', { messages: [{ id: 4, role: 'assistant', text: 'Answer', created: '', run: 'r1' }], next_after: 4, activity: 'connected' });
+  assert.equal(ack1.removed, true);
+  assert.equal(ack2.removed, undefined, 'another run is still working');
 });
