@@ -352,8 +352,14 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     }
   }
 
-  function applyConfig(cfg) {
-    if (!cfg) return;
+  // The page's language picks the greeting and suggestions; the chrome follows it too.
+  let lastConfig = null;
+  const localized = cfg => ({ ...cfg, ...Object.fromEntries(Object.entries(cfg.translations?.[language] || {}).filter(([, v]) => v && v.length)) });
+
+  function applyConfig(raw) {
+    if (!raw) return;
+    lastConfig = raw;
+    const cfg = localized(raw);
     $('name').textContent = cfg.name || 'Soot';
     $('launcher').setAttribute('aria-label', t('open_label') + (cfg.name || 'Soot'));
     $('greeting').textContent = cfg.greeting || '';
@@ -567,7 +573,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         msg.error?.kind === 'expired' ? t('new_conversation') : t('reconnect'));
       controls();
     } else if (msg.nonce === nonce) {
-      if (msg.type === 'language') { applyLanguage(msg.language); controls(); }
+      if (msg.type === 'language') { applyLanguage(msg.language); applyConfig(lastConfig); controls(); }
       if (msg.type === 'open') expanded(true);
       if (msg.type === 'close') expanded(false);
       if (msg.type === 'reset') reset();
