@@ -113,3 +113,10 @@ test('a timed-out proof unlocks the send and retries without admitting earlier w
   f.proofOptions().callback('fixture-proof'); await retry;
   assert.equal(f.counters.sessions, 1); assert.equal(f.counters.messages, 1);
 });
+
+test('screen readers hear the site\'s chat, named once the widget config arrives', async () => {
+  const f = fixture();
+  assert.equal(f.frame.title, 'Support chat');
+  await f.receive('ready'); await tick();
+  assert.equal(f.frame.title, 'Support chat · Support');
+});

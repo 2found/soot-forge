@@ -84,6 +84,11 @@ footer{text-align:center;padding:0 12px 12px;color:var(--color-muted);font-size:
 #composer .ui-agent-composer-action { min-width:44px; min-height:44px; width:44px; height:44px; }
 #composer .ui-agent-composer-tools button { font-size:12px; }
 #composer .ui-agent-composer-completions { background:var(--color-surface); }
+/* Nothing to pick: the send button sits beside the text, not on a row of its own. */
+#composer .ui-agent-composer-surface:not(:has(.ui-agent-composer-controls,.ui-agent-composer-tools)) { flex-flow:row wrap; align-items:flex-end; gap:8px; }
+#composer .ui-agent-composer-surface:not(:has(.ui-agent-composer-controls,.ui-agent-composer-tools)) > * { flex:1 1 0; min-width:0; }
+#composer .ui-agent-composer-surface:not(:has(.ui-agent-composer-controls,.ui-agent-composer-tools)) > .ui-agent-composer-toolbar { flex:none; }
+#composer .ui-agent-composer-surface > .ui-agent-composer-completions,#composer .ui-agent-composer-surface > .ui-agent-composer-attachments { flex-basis:100%; }
 
 /* Portable styling for the shared 2ui Select (the iframe does not run Tailwind). */
 #composer .ui-agent-composer-controls { grid-column:1; flex:1; }

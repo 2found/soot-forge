@@ -11,7 +11,9 @@
   if (instances[app]) return;
 
   const frame = document.createElement('iframe');
-  frame.title = 'Soot Live chat';
+  // Screen readers announce the frame by this title: name the site's chat, not the vendor.
+  const frameTitle = name => (document.documentElement.lang?.toLowerCase().startsWith('vi') ? 'Chat hỗ trợ' : 'Support chat') + (name ? ' · ' + name : '');
+  frame.title = frameTitle();
   frame.src = `${base}/public/widget/frame/${encodeURIComponent(app)}?parent=${encodeURIComponent(location.origin)}`;
   // Popups let a reply's https link open in a normal, unsandboxed tab.
   frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
@@ -205,6 +207,7 @@
       }
       const chosen=activeConversation?scopeChoices.find(x=>x.soot===activeConversation.soot&&(x.group||'')===(activeConversation.group_id||'')):selection?scopeChoices.find(x=>x.soot===selection.soot&&(x.group||'')===(selection.group||'')):scopeChoices.find(x=>x.default)||(scopeChoices.length===1?scopeChoices[0]:undefined);
       if (appInfo.widget?.position) position = appInfo.widget.position;
+      frame.title = frameTitle(appInfo.widget?.name);
       resize();
       send('init', {
         config: appInfo.widget,
