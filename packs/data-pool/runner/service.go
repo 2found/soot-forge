@@ -523,6 +523,23 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 			in.Title = in.Title[:len(in.Title)-size]
 		}
 	}
+	if in.Pool == "" {
+		// No default for this Soot: name the collections it may write, so the
+		// next call can succeed without a detour through data-pool_pools.
+		var writable []string
+		s.db.View(func(tx *bolt.Tx) error {
+			return tx.Bucket([]byte("pools")).ForEach(func(k, _ []byte) error {
+				if len(writable) < 8 && s.allowed(tx, string(k), "write") {
+					writable = append(writable, string(k))
+				}
+				return nil
+			})
+		})
+		if len(writable) == 0 {
+			return nil, fieldError{"pool", inputError{in.Action + ": pool is required, and this Soot may write to no collection; ask the operator to grant one"}}
+		}
+		return nil, fieldError{"pool", inputError{in.Action + ": pool is required (this Soot has no default); it may write to: " + strings.Join(writable, ", ")}}
+	}
 	if err := writeShape(in); err != nil {
 		return nil, err
 	}

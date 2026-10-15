@@ -131,6 +131,11 @@ func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
 	if w := toolRequest(t, g, vmHostToken, "support", "write", false, bad); w.Code != 400 || !strings.Contains(w.Body.String(), `id \"leaky id\" is not a document ID`) || strings.Contains(w.Body.String(), "pool") {
 		t.Fatal("refusal does not name the bad field", w.Code, w.Body.String())
 	}
+	// Without a pool or a default, the refusal names the collections it may write.
+	bad.ID, bad.Pool, bad.RequestID = "handbook-doc", "", "write-3"
+	if w := toolRequest(t, g, vmHostToken, "support", "write", false, bad); w.Code != 400 || !strings.Contains(w.Body.String(), "it may write to: company") {
+		t.Fatal("missing pool does not name the writable collections", w.Code, w.Body.String())
+	}
 	// The access log names the client and outcome, never secrets or data.
 	text := log.String()
 	if !strings.Contains(text, `"op":"write","status":400,`) || !strings.Contains(text, `"refused":"write.id"`) {
