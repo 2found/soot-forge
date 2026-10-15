@@ -186,3 +186,23 @@ test('the holding message gives way to its run\'s reply', () => {
   assert.equal(ack1.removed, true);
   assert.equal(ack2.removed, undefined, 'another run is still working');
 });
+
+test('a markdown table reads row by row, each value labelled by its header', () => {
+  const f = frameFixture(); f.init(); f.receive('open');
+  const text = 'Plans:\n\n| Plan | Vietnam | Includes |\n| --- | ---: | --- |\n| **Pro** | 150,000 VND | BYOK, [docs](https://2novel.app/en/pricing) |\n| Free | 0 | |\nAfter.\n\n| not | a table |\nstill prose';
+  f.receive('sync', { messages: [{ id: 1, role: 'assistant', text, created: '' }], next_after: 1, activity: 'connected' });
+  const [lead, table, after, plain] = f.element('transcript').children[0].children[1].children;
+  assert.equal(lead.children.join(''), 'Plans:');
+  assert.equal(table.className, 'table');
+  const [pro, free] = table.children;
+  const [title, pairs] = pro.children;
+  assert.equal(title.children[0].tagName, 'strong');
+  assert.equal(title.children[0].textContent, 'Pro');
+  assert.deepEqual(pairs.children.map(n => n.tagName), ['dt', 'dd', 'dt', 'dd']);
+  assert.equal(pairs.children[0].children.join(''), 'Vietnam');
+  assert.equal(pairs.children[1].children.join(''), '150,000 VND');
+  assert.equal(pairs.children[3].children.find(n => n.tagName === 'a').href, 'https://2novel.app/en/pricing');
+  assert.equal(free.children[1].children.length, 2, 'an empty cell is left out');
+  assert.equal(after.children.join(''), 'After.');
+  assert.equal(plain.children.join(''), '| not | a table |\nstill prose', 'pipes without a header rule stay text');
+});

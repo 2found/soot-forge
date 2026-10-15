@@ -236,11 +236,41 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     return { figure, code };
   }
 
+  const cells = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+  const tableRow = line => /^\s*\|.*\|\s*$/.test(line);
+  const tableRule = line => line.includes('---') && cells(line).every(c => /^:?-{3,}:?$/.test(c));
+
+  // A chat is too narrow for columns, so a markdown table is read row by row:
+  // the first cell names the row, every other cell is labelled by its header.
+  function table(head, rows) {
+    const out = document.createElement('div');
+    out.className = 'table';
+    for (const row of rows) {
+      const item = document.createElement('div');
+      item.className = 'row';
+      const title = document.createElement('strong');
+      inline(title, row[0] || '');
+      const pairs = document.createElement('dl');
+      for (let i = 1; i < row.length; i++) {
+        if (!row[i]) continue;
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        inline(dt, head[i] || '');
+        inline(dd, row[i]);
+        pairs.append(dt, dd);
+      }
+      item.append(title, pairs);
+      out.append(item);
+    }
+    return out;
+  }
+
   function prose(text) {
     const body = document.createElement('div');
     body.className = 'prose';
     let block = null, kind = '', code = null;
-    for (const line of text.split('\n')) {
+    const lines = text.split('\n');
+    for (let n = 0; n < lines.length; n++) {
+      const line = lines[n];
       // A fenced block is a command or config to copy: keep it verbatim, never as markup.
       if (/^\s*```/.test(line)) {
         if (code) { code = null; kind = ''; continue; }
@@ -248,6 +278,14 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         continue;
       }
       if (code) { code.textContent += (code.textContent ? '\n' : '') + line; continue; }
+      if (tableRow(line) && tableRule(lines[n + 1] || '')) {
+        const head = cells(line), rows = [];
+        for (n += 2; n < lines.length && tableRow(lines[n]); n++) rows.push(cells(lines[n]));
+        n--;
+        body.append(table(head, rows));
+        kind = '';
+        continue;
+      }
       const item = /^\s*(?:[-*\u2022]|(\d{1,3})[.)])\s+(.*)$/.exec(line), heading = /^#{1,4}\s+(.*)$/.exec(line);
       if (!line.trim()) {
         kind = '';
