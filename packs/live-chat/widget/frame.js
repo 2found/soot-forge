@@ -68,6 +68,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       close_label: 'Thu gọn chat',
       transcript: 'Lịch sử trò chuyện', message: 'Tin nhắn', suggestions: 'Gợi ý bắt đầu',
       composer_hint: 'Enter để gửi · Shift + Enter để xuống dòng · Esc hai lần xóa text',
+      copy: 'Sao chép', copied: 'Đã chép', copy_select: 'Đã chọn — nhấn Ctrl/⌘ + C',
     },
     en: {
       connecting: 'Connecting…',
@@ -114,6 +115,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       close_label: 'Close chat',
       transcript: 'Conversation history', message: 'Message', suggestions: 'Suggested messages',
       composer_hint: 'Enter to send · Shift + Enter for a new line · Double Esc to clear',
+      copy: 'Copy', copied: 'Copied', copy_select: 'Selected — press Ctrl/⌘ + C',
     },
   };
 
@@ -206,11 +208,45 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     if (at < text.length) parent.append(text.slice(at));
   }
 
+  function codeBlock() {
+    const figure = document.createElement('div');
+    figure.className = 'code-block';
+    const pre = document.createElement('pre'), code = document.createElement('code');
+    pre.append(code);
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'copy-code';
+    copy.textContent = t('copy');
+    copy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(code.textContent);
+        copy.textContent = t('copied');
+      } catch {
+        // No clipboard permission: select the text so the visitor can copy it.
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        getSelection()?.removeAllRanges();
+        getSelection()?.addRange(range);
+        copy.textContent = t('copy_select');
+      }
+      setTimeout(() => { copy.textContent = t('copy'); }, 2000);
+    };
+    figure.append(pre, copy);
+    return { figure, code };
+  }
+
   function prose(text) {
     const body = document.createElement('div');
     body.className = 'prose';
-    let block = null, kind = '';
+    let block = null, kind = '', code = null;
     for (const line of text.split('\n')) {
+      // A fenced block is a command or config to copy: keep it verbatim, never as markup.
+      if (/^\s*```/.test(line)) {
+        if (code) { code = null; kind = ''; continue; }
+        const fenced = codeBlock(); code = fenced.code; body.append(fenced.figure); kind = 'code';
+        continue;
+      }
+      if (code) { code.textContent += (code.textContent ? '\n' : '') + line; continue; }
       const item = /^\s*(?:[-*\u2022]|(\d{1,3})[.)])\s+(.*)$/.exec(line), heading = /^#{1,4}\s+(.*)$/.exec(line);
       if (!line.trim()) {
         kind = '';

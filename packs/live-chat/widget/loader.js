@@ -18,6 +18,8 @@
   // Popups let a reply's https link open in a normal, unsandboxed tab.
   frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
   frame.referrerPolicy = 'no-referrer';
+  // A reply's command can be copied with one tap.
+  frame.allow = 'clipboard-write';
   frame.loading = 'lazy';
   Object.assign(frame.style, {
     position: 'fixed',

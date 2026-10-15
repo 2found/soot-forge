@@ -117,6 +117,7 @@ test('a timed-out proof unlocks the send and retries without admitting earlier w
 test('screen readers hear the site\'s chat, named once the widget config arrives', async () => {
   const f = fixture();
   assert.equal(f.frame.title, 'Support chat');
+  assert.equal(f.frame.allow, 'clipboard-write');
   await f.receive('ready'); await tick();
   assert.equal(f.frame.title, 'Support chat · Support');
 });

@@ -152,3 +152,22 @@ test('a suggestion chip asks its question in one tap and never replaces a draft'
   assert.equal(sent.length, 1);
   assert.equal(sent[0].text, 'What does 2found do?');
 });
+
+test('a fenced command renders verbatim in a copyable block, not as markdown', async () => {
+  const f = frameFixture(); f.init(); f.receive('open');
+  let copied = '';
+  f.context.navigator = { clipboard: { writeText: async text => { copied = text; } } };
+  const text = 'Run:\n```sh\nsoot spawn my-work\nsoot run "**not bold**" <b>x</b>\n```\nThen open Nest.';
+  f.receive('sync', { messages: [{ id: 1, role: 'assistant', text, created: '' }], next_after: 1, activity: 'connected' });
+  const prose = f.element('transcript').children[0].children[1];
+  const [lead, figure, tail] = prose.children;
+  assert.equal(lead.children.join(''), 'Run:');
+  assert.equal(figure.className, 'code-block');
+  const [pre, copy] = figure.children, code = pre.children[0];
+  assert.equal(code.tagName, 'code');
+  assert.equal(code.textContent, 'soot spawn my-work\nsoot run "**not bold**" <b>x</b>');
+  assert.equal(tail.children.join(''), 'Then open Nest.');
+  await copy.onclick();
+  assert.equal(copied, 'soot spawn my-work\nsoot run "**not bold**" <b>x</b>');
+  assert.equal(copy.textContent, 'Copied');
+});

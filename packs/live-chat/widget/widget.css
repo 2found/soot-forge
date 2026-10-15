@@ -40,6 +40,11 @@ summary::-webkit-details-marker{display:none}
 .prose a{color:var(--color-accent);text-decoration:underline;text-underline-offset:2px}
 .prose a:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
 .prose code{font-size:.9em;padding:1px 4px;border-radius:var(--radius-sm);background:var(--color-surface-2)}
+.code-block{position:relative;min-width:0;max-width:100%}
+.code-block pre{margin:0;padding:10px 12px;padding-right:72px;overflow-x:auto;border-radius:var(--radius-md);background:var(--color-surface-2);line-height:1.5}
+.code-block pre code{padding:0;background:transparent;font-size:12px;white-space:pre}
+.code-block .copy-code{position:absolute;top:4px;right:4px;min-width:44px;min-height:32px;padding:4px 8px;font-size:12px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text);cursor:pointer}
+.code-block .copy-code:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
 .message.customer{align-items:flex-end}
 .customer p{max-width:88%;background:var(--color-surface-2);padding:8px 12px;border-radius:var(--radius-md)}
 .message small{font-size:11px;color:var(--color-muted);line-height:1.5}
