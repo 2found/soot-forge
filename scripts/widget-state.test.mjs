@@ -86,7 +86,10 @@ test('a background read cannot acknowledge an in-flight send', () => {
 test('runtime status uses localized copy without leaking internal state names', () => {
   const f = frameFixture(); f.init();
   f.receive('sync', { activity: 'running' });
-  assert.equal(f.element('activity').textContent, 'Soot is responding…');
+  // The header already names the site's brand; a status naming Soot reads as a second party.
+  assert.equal(f.element('activity').textContent, 'Replying…');
+  f.receive('sync', { activity: 'waiting_input' });
+  assert.equal(f.element('activity').textContent, 'Waiting for your reply');
   f.receive('sync', { activity: 'idle' });
   assert.equal(f.element('activity').textContent, 'Ready to help');
   f.receive('sync', { activity: 'some-future-state' });

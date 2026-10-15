@@ -83,7 +83,6 @@ footer{text-align:center;padding:0 12px 12px;color:var(--color-muted);font-size:
 #composer .ui-agent-composer-send { display:grid; place-items:center; background:var(--color-action); color:var(--color-action-ink); border-color:var(--color-action); }
 #composer .ui-agent-composer-action { min-width:44px; min-height:44px; width:44px; height:44px; }
 #composer .ui-agent-composer-tools button { font-size:12px; }
-.widget-composer-name { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #composer .ui-agent-composer-completions { background:var(--color-surface); }
 
 /* Portable styling for the shared 2ui Select (the iframe does not run Tailwind). */
