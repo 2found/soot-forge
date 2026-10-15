@@ -53,3 +53,12 @@ test('missing stream is unavailable and a view never waits on an agent command l
   assert.equal(result.status,0,result.stderr);assert.equal(JSON.parse(result.stdout).resource.state,'unavailable');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+test('state lives in the host-kept Pack state directory, not the working directory',()=>{
+ const state=mkdtempSync(join(tmpdir(),'soot-browser-state-')), cwd=mkdtempSync(join(tmpdir(),'soot-browser-revision-'));
+ try {
+  const session=join(state,'.browser','sessions',call.event.subject);mkdirSync(session,{recursive:true});writeFileSync(join(session,'closed'),'closed');
+  const result=spawnSync(process.execPath,[fileURLToPath(new URL('./cli.mjs',import.meta.url)),'view'],{cwd,input:JSON.stringify({...call,input:{}}),env:{PATH:'/nonexistent',SOOT_PACK_STATE:state},encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);assert.equal(JSON.parse(result.stdout).resource.state,'closed');
+  assert.equal(existsSync(join(cwd,'.browser')),false);
+ }finally{rmSync(state,{recursive:true,force:true});rmSync(cwd,{recursive:true,force:true});}
+});

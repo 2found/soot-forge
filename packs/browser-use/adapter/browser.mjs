@@ -6,9 +6,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
-// The executable's cwd is the declaring pack, so installations and deployments
-// never share profiles merely because they use the same adapter binary.
-const root = process.cwd();
+// Profiles, daemon names and session files live in the Pack's state directory,
+// which the host keeps across configuration revisions; the working directory
+// is a revision's execution cache, replaced on every activation, so state kept
+// there loses the conversation's login and orphans its browser. A host without
+// SOOT_PACK_STATE runs the Pack from its install, which is then the root.
+// Installations never share profiles merely because they share this binary.
+const root = process.env.SOOT_PACK_STATE || process.cwd();
 export function identity(call, packRoot = root) {
   const id = call?.event?.subject;
   if (call?.api_version !== 'soot/v1' || call?.hook !== 'tool.call' || call?.event?.source !== 'conversation' || !/^[a-zA-Z0-9_-]{1,128}$/.test(id || '')) throw new Error('A host conversation context is required');

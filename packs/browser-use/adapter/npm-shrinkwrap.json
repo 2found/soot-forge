@@ -1,12 +1,12 @@
 {
   "name": "soot-browser",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "soot-browser",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "agent-browser": "0.38.2",
         "cloakbrowser": "0.5.10",
