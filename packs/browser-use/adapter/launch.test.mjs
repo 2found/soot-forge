@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,readFile,chmod,rm,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {launchSettings,boundedJSON} from './launch.mjs';
-import {agentInvocation} from './agent.mjs';
+import {launchSettings,boundedJSON,lock} from './launch.mjs';
+import {agentInvocation,agent,useBundledAgent} from './agent.mjs';
 
 test('launch cache avoids repeated resolution and refreshes stale, oversized or missing executable state',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'browser-launch-'));let resolutions=0;
@@ -37,4 +37,23 @@ test('pinned executable selection preserves argv and falls back to its own wrapp
   await chmod(native,0o600);
   assert.deepEqual(agentInvocation(args,{directory,platform:'darwin',arch:'arm64',musl:false}),{program:process.execPath,args:[join(directory,'agent-browser.js'),...args]});
  }finally{await rm(directory,{recursive:true,force:true});}
+});
+test('one first-use download at a time, and a dead holder never blocks it',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'browser-install-'));
+ try {
+  const release=await lock(dir);
+  await assert.rejects(lock(dir,{attempts:2,busy:'still downloading'}),/still downloading/);
+  await release();
+  await (await lock(dir,{attempts:2}))();
+  await writeFile(join(dir,'lock'),'999999999');
+  await (await lock(dir,{attempts:3}))();
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+test('the single-file build runs the agent-browser shipped beside it',{skip:process.platform==='win32'},async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'browser-bundled-'));
+ try {
+  const program=join(dir,'agent-browser');await writeFile(program,'#!/bin/sh\nprintf "%s|" "$@"\n',{mode:0o700});
+  useBundledAgent(program);
+  assert.equal((await agent(['open','literal $() text'])).stdout,'open|literal $() text|');
+ }finally{useBundledAgent(undefined);await rm(dir,{recursive:true,force:true});}
 });

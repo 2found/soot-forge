@@ -2,6 +2,11 @@
 
 Standalone executable implementation for the configuration-only browser-use pack.
 Requires Node.js 24+. From the browser-use pack directory, install with `npm install -g --install-links ./adapter`.
+Soot publishes `bundle.mjs` compiled into one executable (`bun build --compile
+--external playwright-core`) with the matching pinned `agent-browser` binary
+beside it; `soot browser install` (or Nest's button) downloads that pair, so it
+needs neither Node nor this install. `soot-browser prepare` downloads Chromium
+ahead of first use; a host-wide lock keeps it to one download.
 The adapter pins agent-browser and CloakBrowser as its own dependencies. Run `npm test` for isolation and
 command-boundary checks (for source development, first run `npm ci --ignore-scripts` in `adapter/`). No adapter code is imported into the Soot binary.
 

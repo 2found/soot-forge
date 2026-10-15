@@ -16,7 +16,11 @@ export function agentInvocation(args, {directory=bin, platform=process.platform,
   }
   return {program:process.execPath,args:[join(directory,'agent-browser.js'),...args]};
 }
+// The single-file adapter that `soot browser install` downloads carries no node_modules; its
+// build places the same pinned agent-browser binary beside it.
+let bundled;
+export function useBundledAgent(program) { bundled = program; }
 export function agent(args, options) {
-  const call = agentInvocation(args);
+  const call = bundled ? {program:bundled,args} : agentInvocation(args);
   return exec(call.program, call.args, {...options, windowsHide:true});
 }

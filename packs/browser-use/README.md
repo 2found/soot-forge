@@ -5,11 +5,22 @@ adapter, which drives [agent-browser](https://github.com/vercel-labs/agent-brows
 with [CloakBrowser](https://github.com/CloakHQ/cloakbrowser).
 The standalone adapter source is bundled in `adapter/`; it runs separately from Soot. No desktop UI lives in this pack.
 
-Install on the Soot server (Node.js 24+):
+The simplest install needs nothing but Soot: click **Cài trình duyệt** in
+Nest's browser panel, or run `soot browser install` on the host that runs the
+Soot. Either downloads a prebuilt single-file `soot-browser` and the pinned
+`agent-browser` (about 30 MB, checksum-pinned by the runtime) into the Soot
+home, then Chromium (about 140 MB). Neither the app nor the CLI carries them,
+so nobody pays for a browser they never open.
+
+Or install it yourself with Node.js 24+:
 
 ```sh
 npm install -g --install-links ./adapter
 ```
+
+A `soot-browser` on PATH wins over the downloaded one. Until either exists, a
+browser tool answers that the browser is not installed and how to install it;
+nothing else about the Soot changes.
 
 `soot spawn` selects browser-use for the general Soot from the latest stable Forge release.
 Nest selects both browser-use and soot-nest. Existing customized Soot definitions

@@ -1,19 +1,19 @@
 {
   "name": "soot-browser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "soot-browser",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "agent-browser": "0.38.2",
         "cloakbrowser": "0.5.10",
         "ws": "8.22.0"
       },
       "bin": {
-        "soot-browser": "browser.mjs"
+        "soot-browser": "cli.mjs"
       },
       "engines": {
         "node": ">=24"

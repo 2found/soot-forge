@@ -63,7 +63,7 @@ test('real soot/v1 executable sends all Unicode input through the bounded transp
   const state=join(root,'.browser/sessions/fixture');await mkdir(state,{recursive:true});
   await writeFile(join(state,'stream.json'),JSON.stringify({url}));
   const text='Nhập tiếng Việt 😀 e\u0301';
-  const child=promisify(execFile)(process.execPath,[fileURLToPath(new URL('./browser.mjs',import.meta.url)),'control'],{cwd:root,timeout:5000,maxBuffer:32768});
+  const child=promisify(execFile)(process.execPath,[fileURLToPath(new URL('./cli.mjs',import.meta.url)),'control'],{cwd:root,timeout:5000,maxBuffer:32768});
   child.child.stdin.end(JSON.stringify({api_version:'soot/v1',hook:'tool.call',soot:'fixture',operation:'browser-use_control',interaction:true,event:{source:'conversation',subject:'fixture'},input:{action:'text',text,tab:'t1'}}));
   const result=JSON.parse((await child).stdout);assert.equal(result.result.accepted,true);
   assert.equal(received.map(e=>e.text).join(''),text);assert.equal(received.length,Array.from(text).length);

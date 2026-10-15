@@ -1,9 +1,7 @@
-#!/usr/bin/env node
-import { realpathSync } from 'node:fs';
 import { agent } from './agent.mjs';
 import { sendInput, textEvents } from './input.mjs';
-import { launchSettings, boundedJSON } from './launch.mjs';
-import { mkdir, readFile, writeFile, rm, open, access } from 'node:fs/promises';
+import { launchSettings, boundedJSON, lock, resolveBrowser } from './launch.mjs';
+import { readFile, writeFile, rm, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -53,20 +51,14 @@ export function validateInput(input) {
   }
   return input;
 }
-async function lock(dir) {
-  await mkdir(dir,{recursive:true,mode:0o700});
-  const path=join(dir,'lock');
-  for(let n=0;n<600;n++) {
-    try {const f=await open(path,'wx',0o600);await f.writeFile(String(process.pid));await f.close();return ()=>rm(path,{force:true});}
-    catch(e) {
-      if(e.code!=='EEXIST') throw e;
-      try {const pid=Number(await readFile(path,'utf8'));if(pid>0) {try{process.kill(pid,0);}catch(e){if(e.code==='ESRCH')await rm(path,{force:true});}}}catch{}
-      await new Promise(r=>setTimeout(r,100));
-    }
+export async function main() {
+  if(process.argv[2]==='prepare') {
+    // Host warm-up only: no conversation, no session, nothing launched.
+    console.log=console.info=console.warn=console.error=()=>{};
+    await resolveBrowser();
+    process.stdout.write(JSON.stringify({ready:true}));
+    return;
   }
-  throw new Error('Browser is busy; try again after the current command finishes');
-}
-async function main() {
   let text='';for await(const chunk of process.stdin){text+=chunk;if(text.length>131072)throw new Error('Envelope too large');}
   const call=JSON.parse(text), ident=identity(call), input=call.input||{};
   const readonly=process.argv[2]==='view';
@@ -213,4 +205,4 @@ async function main() {
     process.stdout.write(JSON.stringify({session:ident.id,result,resource:{state:input.action==='close'?'closed':'active'}}));
   } finally {await unlock();}
 }
-if(process.argv[1] && realpathSync(process.argv[1])===fileURLToPath(import.meta.url)) main().catch(e=>{process.stderr.write(e.message+'\n');process.exitCode=e.uncertain?2:1;});
+export function run() { main().catch(e=>{process.stderr.write(e.message+'\n');process.exitCode=e.uncertain?2:1;}); }

@@ -52,9 +52,13 @@ failed mutation as permission to repeat it: inspect current state first.
 Credentials belong to the user's site session or operator-approved secret source.
 Never guess credentials or bypass authorization.
 
-Dependencies: Node.js 24+ and `npm install -g --install-links ./adapter` from the installed browser-use pack directory. CloakBrowser
-downloads its Chromium on first use. Missing dependencies should be reported with
-these setup steps. The browser runs headless because desktop displays its actual
+Dependencies: `soot browser install` on the host (Nest's browser panel has a
+**Cài trình duyệt** button for it), or Node.js 24+ and
+`npm install -g --install-links ./adapter` from the installed browser-use pack
+directory. If a tool says the browser is not installed, ask the user to install
+it that way; do not try to install it yourself. CloakBrowser downloads its Chromium on first use; if a command says the
+browser is still downloading, wait a minute and retry once. Report other missing
+dependencies with these setup steps. The browser runs headless because desktop displays its actual
 frames and sends input to the same browser; no independent webview session.
 
 For OAuth, let the user operate the live browser and its popup tabs. Do not ask

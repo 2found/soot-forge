@@ -18,7 +18,7 @@ test('all browser action inputs are validated before launching or changing a ses
 test('invalid control action does not create state or require browser dependencies',()=>{
  const dir=mkdtempSync(join(tmpdir(),'soot-browser-invalid-'));
  try {
-  const result=spawnSync(process.execPath,[fileURLToPath(new URL('./browser.mjs',import.meta.url)),'control'],{cwd:dir,input:JSON.stringify({...call,operation:'browser-use_control',input:{action:'click',x:-1,y:0}}),env:{PATH:'/nonexistent'},encoding:'utf8'});
+  const result=spawnSync(process.execPath,[fileURLToPath(new URL('./cli.mjs',import.meta.url)),'control'],{cwd:dir,input:JSON.stringify({...call,operation:'browser-use_control',input:{action:'click',x:-1,y:0}}),env:{PATH:'/nonexistent'},encoding:'utf8'});
   assert.equal(result.status,1);assert.match(result.stderr,/Invalid x/);assert.equal(result.stdout,'');
   assert.equal(existsSync(join(dir,'.browser')),false);
  }finally{rmSync(dir,{recursive:true,force:true});}
@@ -41,7 +41,7 @@ test('view after explicit close never starts a browser even if daemon listing is
  const dir=mkdtempSync(join(tmpdir(),'soot-browser-closed-'));
  try {
   const state=join(dir,'.browser','sessions',call.event.subject);mkdirSync(state,{recursive:true});writeFileSync(join(state,'closed'),'closed');
-  const result=spawnSync(process.execPath,[fileURLToPath(new URL('./browser.mjs',import.meta.url)),'view'],{cwd:dir,input:JSON.stringify({...call,input:{}}),env:{PATH:'/nonexistent'},encoding:'utf8'});
+  const result=spawnSync(process.execPath,[fileURLToPath(new URL('./cli.mjs',import.meta.url)),'view'],{cwd:dir,input:JSON.stringify({...call,input:{}}),env:{PATH:'/nonexistent'},encoding:'utf8'});
   assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),{session:call.event.subject,tabs:[],closed:true,resource:{state:'closed'}});
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
@@ -49,7 +49,7 @@ test('missing stream is unavailable and a view never waits on an agent command l
  const dir=mkdtempSync(join(tmpdir(),'soot-browser-probe-'));
  try {
   const state=join(dir,'.browser','sessions',call.event.subject);mkdirSync(state,{recursive:true});writeFileSync(join(state,'lock'),String(process.pid));
-  const result=spawnSync(process.execPath,[fileURLToPath(new URL('./browser.mjs',import.meta.url)),'view'],{cwd:dir,input:JSON.stringify({...call,input:{}}),env:{PATH:'/nonexistent'},encoding:'utf8',timeout:2500});
+  const result=spawnSync(process.execPath,[fileURLToPath(new URL('./cli.mjs',import.meta.url)),'view'],{cwd:dir,input:JSON.stringify({...call,input:{}}),env:{PATH:'/nonexistent'},encoding:'utf8',timeout:2500});
   assert.equal(result.status,0,result.stderr);assert.equal(JSON.parse(result.stdout).resource.state,'unavailable');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
