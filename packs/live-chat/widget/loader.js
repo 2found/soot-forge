@@ -107,7 +107,23 @@
     send('layout', { mobile });
   }
 
+  // A failed or unanswered challenge means nothing was sent: the send says so
+  // (kind 'challenge'), not that a receipt is unconfirmed. Nothing is admitted
+  // before the proof, so one quiet second attempt cannot duplicate work.
   async function acquireTurnstileProof(challenge) {
+    try {
+      return await turnstileProof(challenge);
+    } catch (err) {
+      if (!err?.retryable) throw Object.assign(err instanceof Error ? err : new Error(String(err)), { challenge: true });
+      try {
+        return await turnstileProof(challenge);
+      } catch (again) {
+        throw Object.assign(again instanceof Error ? again : new Error(String(again)), { challenge: true });
+      }
+    }
+  }
+
+  async function turnstileProof(challenge) {
     if (!challenge || !challenge.required) return undefined;
     if (!challenge.site_key) throw new Error('Missing Turnstile site key');
 
@@ -157,9 +173,9 @@
           language: detectedLanguage,
           appearance: 'interaction-only',
           callback: token => finish(undefined, token),
-          'error-callback': () => finish(new Error('Turnstile challenge failed')),
-          'expired-callback': () => finish(new Error('Turnstile token expired')),
-          'timeout-callback': () => finish(new Error('Turnstile challenge timed out')),
+          'error-callback': () => finish(Object.assign(new Error('Turnstile challenge failed'), { retryable: true })),
+          'expired-callback': () => finish(Object.assign(new Error('Turnstile token expired'), { retryable: true })),
+          'timeout-callback': () => finish(Object.assign(new Error('Turnstile challenge timed out'), { retryable: true })),
         });
         // Test transports and cached providers may finish during render.
         if (settled) { try { window.turnstile.remove(widgetId); } catch {} }
@@ -361,7 +377,7 @@
         if(session!==s)return;
         await syncMessages(0, true);
       } catch (err) {
-        const kind = err?.status === 429 ? 'rate' : err?.status === 400 ? 'validation' : err?.status === 401 ? 'expired' : 'send';
+        const kind = err?.challenge ? 'challenge' : err?.status === 429 ? 'rate' : err?.status === 400 ? 'validation' : err?.status === 401 ? 'expired' : 'send';
         send('sync', { submission: true, error: { kind } });
       } finally {submitting=false;}
     } else if (msg.type === 'reset') {

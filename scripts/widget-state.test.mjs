@@ -258,3 +258,12 @@ test('a markdown table reads row by row, each value labelled by its header', () 
   assert.equal(after.children.join(''), 'After.');
   assert.equal(plain.children.join(''), '| not | a table |\nstill prose', 'pipes without a header rule stay text');
 });
+
+test('an unverified browser is told nothing was sent and can resend', () => {
+  const f = frameFixture(); f.init(); f.element('text').value = 'Keep my question';
+  f.receive('sync', { submission: true, error: { kind: 'challenge' } });
+  assert.match(f.element('error').textContent, /nothing was sent/i);
+  assert.doesNotMatch(f.element('error').textContent, /unconfirmed/i);
+  assert.equal(f.element('retry').textContent, 'Resend');
+  assert.equal(f.element('text').value, 'Keep my question');
+});

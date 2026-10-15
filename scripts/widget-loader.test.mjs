@@ -105,13 +105,27 @@ test('a timed-out proof unlocks the send and retries without admitting earlier w
   assert.equal(f.proofOptions(), undefined);
   const sending = f.receive('send', { text: 'Hello' }); await tick();
   assert.equal(f.proofOptions().language, 'en');
+  const first = f.proofOptions();
+  first['timeout-callback'](); await tick();
+  // Nothing was admitted yet, so the challenge is asked once more quietly.
+  assert.notEqual(f.proofOptions(), first);
   f.proofOptions()['timeout-callback'](); await sending;
   assert.equal(f.counters.sessions, 0); assert.equal(f.counters.messages, 0);
   assert.equal(f.posted.at(-1).submission, true);
-  assert.equal(f.posted.at(-1).error.kind, 'send');
+  // The visitor hears that nothing was sent, not that a receipt is unconfirmed.
+  assert.equal(f.posted.at(-1).error.kind, 'challenge');
   const retry = f.receive('send', { text: 'Hello' }); await tick();
   f.proofOptions().callback('fixture-proof'); await retry;
   assert.equal(f.counters.sessions, 1); assert.equal(f.counters.messages, 1);
+});
+
+test('a challenge that fails once is retried before the visitor sees an error', async () => {
+  const f = fixture({ challenge: true }); await f.receive('ready'); await tick();
+  const sending = f.receive('send', { text: 'Hello' }); await tick();
+  f.proofOptions()['error-callback'](); await tick();
+  f.proofOptions().callback('fixture-proof'); await sending;
+  assert.equal(f.counters.sessions, 1); assert.equal(f.counters.messages, 1);
+  assert.equal(f.posted.some(m => m.error), false);
 });
 
 test('screen readers hear the site\'s chat, named once the widget config arrives', async () => {

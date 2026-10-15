@@ -66,6 +66,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       send_validation_error: 'Tin chưa hợp lệ. Hãy sửa nội dung rồi gửi lại.',
       rate_error: 'Bạn đang gửi quá nhanh. Chờ một chút rồi thử lại.',
       send_error: 'Chưa xác nhận tin đã gửi. Nội dung vẫn được giữ lại.',
+      challenge_error: 'Chưa xác minh được trình duyệt nên tin chưa được gửi. Nội dung vẫn được giữ lại.',
       reply_error: 'Mình chưa trả lời được tin vừa rồi. Bạn bấm Gửi lại, hoặc hỏi theo cách khác nhé.',
       expired_error: 'Phiên chat đã hết hạn. Bắt đầu cuộc trò chuyện mới để tiếp tục.',
       connect_error: 'Hỗ trợ đang mất kết nối. Bạn có thể thử lại sau.',
@@ -114,6 +115,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       send_validation_error: 'Message invalid. Please adjust and resend.',
       rate_error: 'You are sending too quickly. Please wait a moment.',
       send_error: 'Message receipt unconfirmed. Draft preserved.',
+      challenge_error: 'This browser could not be verified, so nothing was sent. Your message is kept.',
       reply_error: 'I couldn\'t answer your last message. Tap Resend, or ask it another way.',
       expired_error: 'Chat session expired. Start a new conversation to continue.',
       connect_error: 'Live chat is currently unavailable. Please try again later.',
@@ -632,6 +634,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         } else if (msg.error.kind === 'connection') {
           $('activity').textContent = t('reconnecting');
           error(t('connect_error'), 'connection', t('reconnect'));
+        } else if (msg.error.kind === 'challenge') {
+          error(t('challenge_error'), 'send', t('resend'));
         } else if (msg.error.kind === 'validation') {
           pending = null;
           error(t('send_validation_error'), 'validation');
