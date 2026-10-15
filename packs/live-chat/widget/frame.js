@@ -22,6 +22,14 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   let removeThemeListener = () => {};
   const sharedFiles = new Map();
   const holding = new Map();
+  // Runs whose holding message has given way; a later read of the same
+  // history must not bring it back.
+  const settled = new Set();
+  // Conversation states in which no run is working, so no holding message holds.
+  const idleStates = new Set(['active', 'idle', 'completed', 'failed', 'stopped']);
+  function dropHolding(run) {
+    holding.get(run)?.remove(); holding.delete(run); settled.add(run);
+  }
   // The visitor's latest question, so a run that ended without a reply can be
   // asked again in one tap.
   let lastAsked = '';
@@ -163,7 +171,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     $('error-bar').hidden = !value;
     $('retry').hidden = !retry;
     $('retry').textContent = retry || t('retry');
-    composer.update({invalid:kind === 'validation',error:!!value});
+    // A reply that never came is not the draft's fault, so the composer is not marked.
+    composer.update({invalid:kind === 'validation',error:!!value && kind !== 'reply'});
   }
 
   function controls() {
@@ -325,6 +334,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     const role = message.role === 'user' ? (message.actor_role === 'member' ? 'member' : 'customer') : message.role;
     if (
       !['customer', 'assistant', 'member'].includes(role) ||
+      (message.intent === 'acknowledgement' && settled.has(message.run)) ||
       document.querySelector('[data-message="' + CSS.escape(String(message.id)) + '"]')
     ) {
       return false;
@@ -367,7 +377,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     // so a long chat is not a column of holding messages.
     if (role === 'assistant' && message.run) {
       if (message.intent === 'acknowledgement') holding.set(message.run, article);
-      else { holding.get(message.run)?.remove(); holding.delete(message.run); }
+      else dropHolding(message.run);
     }
     $('transcript').append(article);
     return true;
@@ -589,6 +599,9 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       if (typeof msg.next_after === 'number') {
         cursor = Math.max(cursor, msg.next_after);
       }
+      // The run behind a holding message ended without replying (or the page
+      // was reloaded long after): when nothing is working, nothing is "checking".
+      if (idleStates.has(msg.activity)) for (const run of [...holding.keys()]) dropHolding(run);
       if (added) {
         $('welcome').hidden = true;
         if (follow) bottom();
@@ -630,8 +643,6 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       } else if (msg.activity === 'failed' && !sending && lastAsked) {
         // The run ended without an answer. Its "checking, one moment" no longer
         // holds, and the visitor gets a way forward instead of a silent stop.
-        for (const article of holding.values()) article.remove();
-        holding.clear();
         error(t('reply_error'), 'reply', t('resend'));
       } else if (errorKind === 'send' || errorKind === 'rate' || errorKind === 'connection' || errorKind === 'reply') {
         error();
@@ -651,6 +662,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       composer.setValue('');
       $('transcript').querySelectorAll('.message').forEach(x => x.remove());
       holding.clear();
+      settled.clear();
       $('welcome').hidden = false;
       $('reset-confirm').hidden = true;
       $('activity').textContent = t('connected');

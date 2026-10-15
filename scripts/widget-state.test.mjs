@@ -199,6 +199,7 @@ test('a run that ends without a reply drops its holding message and offers to as
   assert.equal(ack.removed, true);
   assert.match(f.element('error').textContent, /couldn't answer/);
   assert.equal(f.element('retry').textContent, 'Resend');
+  assert.equal(f.composer.props.error, false, 'the draft did nothing wrong');
   // Resending asks the same question again and leaves a half-typed draft alone.
   f.element('text').value = 'A draft';
   f.element('retry').click();
@@ -209,6 +210,27 @@ test('a run that ends without a reply drops its holding message and offers to as
   assert.equal(f.element('text').value, 'A draft');
   assert.equal(f.element('error-bar').hidden, true);
   assert.equal(f.element('error').textContent, '');
+});
+
+test('a holding message that gave way never comes back, and a reload drops one nothing is working on', () => {
+  const history = [
+    { id: 1, role: 'user', actor_role: 'customer', text: 'Hi', created: '', run: 'r1' },
+    { id: 2, role: 'assistant', intent: 'acknowledgement', text: 'Checking…', created: '', run: 'r1' },
+  ];
+  const f = frameFixture(); f.init(); f.receive('open');
+  f.receive('sync', { messages: history, next_after: 2, activity: 'failed' });
+  // Live holding messages (the fixture DOM does not dedupe by id, so count only the ack).
+  const holds = x => x.element('transcript').children.filter(a => a.dataset.message === '2' && !a.removed).length;
+  assert.equal(holds(f), 0);
+  // A read that returns the same history again (reopen, cursor reset) must not revive it.
+  f.receive('sync', { messages: history, next_after: 2, activity: 'failed' });
+  assert.equal(holds(f), 0);
+  const reload = frameFixture(); reload.init(); reload.receive('open');
+  reload.receive('sync', { messages: history, next_after: 2, activity: 'completed' });
+  assert.equal(holds(reload), 0);
+  const working = frameFixture(); working.init(); working.receive('open');
+  working.receive('sync', { messages: history, next_after: 2, activity: 'running' });
+  assert.equal(holds(working), 1, 'still checking');
 });
 
 test('a failed conversation with nothing asked yet shows no resend', () => {
