@@ -420,6 +420,62 @@ func (s *service) manage(ctx context.Context, in manageInput) (any, error) {
 	return s.submit(ctx, r, "DELETE", "/indexes/"+s.index(in.Pool), nil)
 }
 
+// writeShape names the one field a write got wrong, as queryShape does for
+// reads: "invalid action, pool, document or request_id" sent a Soot to list
+// pools when its document ID was the problem.
+func writeShape(in writeInput) error {
+	bad := func(field, format string, args ...any) error {
+		return fieldError{field, inputError{in.Action + ": " + fmt.Sprintf(format, args...)}}
+	}
+	switch {
+	case !slices.Contains([]string{"upsert", "append", "remove"}, in.Action):
+		return fieldError{"action", inputError{fmt.Sprintf("action %q is not upsert, append or remove", in.Action)}}
+	case in.Pool == "":
+		return bad("pool", "pool is required; list collections with data-pool_pools")
+	case !identifier.MatchString(in.Pool):
+		return bad("pool", "pool %q is not a collection ID; copy one from data-pool_pools", in.Pool)
+	case in.ID == "":
+		return bad("id", "id is required; choose a stable document ID such as note-2026-10-15")
+	case !identifier.MatchString(in.ID):
+		return bad("id", "id %q is not a document ID (letters, digits, - and _, up to 64)", in.ID)
+	case in.RequestID == "":
+		return bad("request_id", "request_id is required; one per intent, e.g. the id plus -1")
+	case !identifier.MatchString(in.RequestID):
+		return bad("request_id", "request_id %q is not an ID (letters, digits, - and _, up to 64)", in.RequestID)
+	}
+	if in.Action == "remove" {
+		if in.Title != "" || in.Content != "" || in.Source != "" || in.URL != "" || len(in.Tags) > 0 {
+			return bad("content", "remove accepts only document identity")
+		}
+		return nil
+	}
+	switch {
+	case (in.Content == "") == (in.URL == ""):
+		return bad("content", "content is required, or an import url instead")
+	case !validText(in.Content, 12<<10):
+		return bad("content", "content must be UTF-8 text under 12 KiB (this is %d bytes); split it into several documents", len(in.Content))
+	case strings.TrimSpace(in.Title) == "" || !validText(in.Title, 256):
+		return bad("title", "title must be text")
+	case len(in.Tags) > 16:
+		return bad("tags", "%d tags; use at most 16", len(in.Tags))
+	case !validText(in.Source, 2048):
+		return bad("source", "source is over 2048 bytes")
+	case in.URL != "" && in.Source != "":
+		return bad("source", "URL imports use the fetched URL as source; omit source")
+	}
+	for _, tag := range in.Tags {
+		if strings.TrimSpace(tag) == "" || !validText(tag, 64) {
+			return bad("tags", "tag %q is empty or over 64 bytes", tag)
+		}
+	}
+	if in.Source != "" {
+		if u, err := url.Parse(in.Source); err != nil || u.Scheme == "" || u.User != nil {
+			return bad("source", "source must be a URI without credentials")
+		}
+	}
+	return nil
+}
+
 func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 	// Duplicate content is allowed across append intents; retrying one intent
 	// preserves its generated ID and cannot overwrite another document.
@@ -467,33 +523,11 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 			in.Title = in.Title[:len(in.Title)-size]
 		}
 	}
-	if !identifier.MatchString(in.Pool) || !identifier.MatchString(in.ID) || !identifier.MatchString(in.RequestID) || !slices.Contains([]string{"upsert", "append", "remove"}, in.Action) {
-		return nil, inputError{"invalid write action, pool, document or request_id"}
+	if err := writeShape(in); err != nil {
+		return nil, err
 	}
 	if err := s.authorize(in.Pool, "write"); err != nil {
 		return nil, err
-	}
-	if in.Action == "remove" && (in.Title != "" || in.Content != "" || in.Source != "" || in.URL != "" || len(in.Tags) > 0) {
-		return nil, inputError{"remove accepts only document identity"}
-	}
-	if in.Action == "upsert" || in.Action == "append" {
-		if strings.TrimSpace(in.Title) == "" || !validText(in.Title, 256) || len(in.Tags) > 16 || !validText(in.Content, 12<<10) || (in.Content == "") == (in.URL == "") || !validText(in.Source, 2048) {
-			return nil, inputError{"write needs content or an import url, within the documented bounds"}
-		}
-		for _, tag := range in.Tags {
-			if strings.TrimSpace(tag) == "" || !validText(tag, 64) {
-				return nil, inputError{"invalid document tag"}
-			}
-		}
-		if in.URL != "" && in.Source != "" {
-			return nil, inputError{"URL imports use the fetched URL as source"}
-		}
-		if in.Source != "" {
-			u, err := url.Parse(in.Source)
-			if err != nil || u.Scheme == "" || u.User != nil {
-				return nil, inputError{"source must be a URI without credentials"}
-			}
-		}
 	}
 	fp := fingerprint(in)
 	if r, exists, err := s.replay(in.RequestID, fp); exists || err != nil {

@@ -125,9 +125,18 @@ func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
 	if code := call(macHostToken, "marketing", "query", false, queryInput{Action: "search", Pool: "company", Query: "confidential"}); code != 200 {
 		t.Fatal("workspace read through mac host", code)
 	}
+	// A refused write names the one field it got wrong, to the Soot and in the log.
+	bad := secret
+	bad.ID, bad.RequestID = "leaky id", "write-2"
+	if w := toolRequest(t, g, vmHostToken, "support", "write", false, bad); w.Code != 400 || !strings.Contains(w.Body.String(), `id \"leaky id\" is not a document ID`) || strings.Contains(w.Body.String(), "pool") {
+		t.Fatal("refusal does not name the bad field", w.Code, w.Body.String())
+	}
 	// The access log names the client and outcome, never secrets or data.
 	text := log.String()
-	for _, leak := range []string{macHostToken, vmHostToken, "confidential", "handbook-doc", hash(macHostToken)} {
+	if !strings.Contains(text, `"op":"write","status":400,`) || !strings.Contains(text, `"refused":"write.id"`) {
+		t.Fatal("refused rule not logged", text)
+	}
+	for _, leak := range []string{macHostToken, vmHostToken, "confidential", "handbook-doc", "leaky", hash(macHostToken)} {
 		if strings.Contains(text, leak) {
 			t.Fatal("access log leaked", leak)
 		}

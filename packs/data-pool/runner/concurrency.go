@@ -184,6 +184,21 @@ type inputError struct{ message string }
 
 func (e inputError) Error() string { return e.message }
 
+// fieldError is an inputError that names the field it refuses, so the access
+// log records which rule failed without the caller's values.
+type fieldError struct {
+	field string
+	inputError
+}
+
+func (e fieldError) As(target any) bool {
+	if p, ok := target.(*inputError); ok {
+		*p = e.inputError
+		return true
+	}
+	return false
+}
+
 // decodeInput reports a malformed tool input as an inputError, so a remote
 // caller learns what to fix exactly as a local one does from stderr.
 func decodeInput(raw json.RawMessage, into any) error {

@@ -209,6 +209,8 @@ type accessEntry struct {
 	Op       string `json:"op,omitempty"`
 	Status   int    `json:"status"`
 	Duration int64  `json:"duration_ms"`
+	// Refused names the input rule a 400 failed ("write.id"), never a value.
+	Refused string `json:"refused,omitempty"`
 }
 
 type statusWriter struct {
@@ -367,6 +369,10 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 			invalid = inputError{err.Error()}
 		}
 		if invalid.message != "" || errors.As(err, &invalid) {
+			entry.Refused = op + ".input"
+			if field := (fieldError{}); errors.As(err, &field) {
+				entry.Refused = op + "." + field.field
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(400)
 			json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": "invalid_input", "message": invalid.Error()}})
