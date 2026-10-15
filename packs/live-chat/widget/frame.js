@@ -392,13 +392,12 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         const b = document.createElement('button');
         b.type = 'button';
         b.textContent = title;
+        // A suggestion is a question the visitor picked: ask it. A draft they
+        // are typing is never replaced (the chips are disabled meanwhile).
         b.onclick = () => {
-          if (pending || resetting || $('text').value.trim()) return;
+          if (pending || resetting || sending || $('text').value.trim()) return;
           composer.setValue(title);
-          controls();
-          post('draft', { text: title });
-          $('text').focus();
-          $('text').setSelectionRange(title.length, title.length);
+          submit();
         };
         $('quick').append(b);
       }

@@ -88,6 +88,8 @@ footer{text-align:center;padding:0 12px 12px;color:var(--color-muted);font-size:
 #composer .ui-agent-composer-surface:not(:has(.ui-agent-composer-controls,.ui-agent-composer-tools)) { flex-flow:row wrap; align-items:flex-end; gap:8px; }
 #composer .ui-agent-composer-surface:not(:has(.ui-agent-composer-controls,.ui-agent-composer-tools)) > * { flex:1 1 0; min-width:0; }
 #composer .ui-agent-composer-surface:not(:has(.ui-agent-composer-controls,.ui-agent-composer-tools)) > .ui-agent-composer-toolbar { flex:none; }
+#composer .ui-agent-composer-surface:not(:has(.ui-agent-composer-controls,.ui-agent-composer-tools)) > :not(.ui-agent-composer-toolbar,.ui-agent-composer-completions,.ui-agent-composer-attachments) { min-height:44px; display:flex; flex-direction:column; justify-content:center; }
+#composer .ui-agent-composer-surface:not(:has(.ui-agent-composer-controls,.ui-agent-composer-tools)) .ui-agent-composer-field { min-height:22px; }
 #composer .ui-agent-composer-surface > .ui-agent-composer-completions,#composer .ui-agent-composer-surface > .ui-agent-composer-attachments { flex-basis:100%; }
 
 /* Portable styling for the shared 2ui Select (the iframe does not run Tailwind). */

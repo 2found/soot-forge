@@ -137,3 +137,18 @@ test('replies render light markdown as DOM nodes, never as markup or unsafe link
   assert.equal(tail.children.join(''), '[x](javascript:alert(1)) <img src=x onerror=alert(1)> http://plain.example');
   assert.equal(mine.children[1].textContent, '**mine**');
 });
+
+test('a suggestion chip asks its question in one tap and never replaces a draft', () => {
+  const f = frameFixture();
+  f.receive('init', { language: 'en', config: { name: 'Support', quick_replies: ['What does 2found do?'] } });
+  const chip = f.element('quick').children[0];
+  f.element('text').value = 'My own words';
+  chip.click();
+  assert.equal(f.element('text').value, 'My own words');
+  assert.equal(f.posted.filter(m => m.type === 'send').length, 0);
+  f.element('text').value = '';
+  chip.click();
+  const sent = f.posted.filter(m => m.type === 'send');
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].text, 'What does 2found do?');
+});
