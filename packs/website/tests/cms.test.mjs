@@ -17,8 +17,10 @@ test('strict request/credential/envelope scope; host targets never come from mod
   for(const bad of [{...input,slug:'../escape'},{...input,requestId:'not-uuid'},{...input,expectedRevision:-1},{...input,title:''},{...input,title:'x'.repeat(201)},{...input,summary:'x'.repeat(501)},{...input,bodyMarkdown:'é'.repeat(20001)},{...input,bodyMarkdown:'\ud800'},{...input,status:'deleted'}])assert.throws(()=>validateInput('save',bad));
   assert.doesNotThrow(()=>validateInput('save',{...input,title:'😀'.repeat(200),summary:'😀'.repeat(500),bodyMarkdown:'é'.repeat(20000)}));
   for(const bad of ['bad','{}',JSON.stringify({origin:'http://remote.test',site:'soot',token:'synthetic'}),JSON.stringify({origin:'https://user:pass@2found.dev',site:'soot',token:'synthetic'}),JSON.stringify({origin:'https://2found.dev/path',site:'soot',token:'synthetic'}),JSON.stringify({origin:'https://2found.dev',site:'soot',token:'bad\nheader'}),JSON.stringify({origin:'https://2found.dev',site:'soot',token:'synthetic',extra:true})])assert.throws(()=>validateCredential(bad));
-  for(const bad of [{...call(),soot:'caro-player'},{...call(),soot:'website-keeper'},{...call(),operation:'website_publish'},{...call(),api_version:'soot/v2'},{...call(),hook:'other'}])await assert.rejects(callCms('save',bad,credential));
+  for(const bad of [{...call(),soot:''},{...call(),soot:7},{...call(),soot:undefined},{...call(),operation:'website_publish'},{...call(),api_version:'soot/v2'},{...call(),hook:'other'}])await assert.rejects(callCms('save',bad,credential));
   assert.throws(()=>validateInput('inspect',{slug:input.slug,site:'other'}));
+  // Any Soot the host granted website/cms may call it; the host pins the site in the credential.
+  await assert.doesNotReject(callCms('inspect',{...call('inspect',{slug:input.slug}),soot:'acme-editor'},credential,{fetcher:async()=>new Response(null,{status:404})}));
   await assert.rejects(readEnvelope(Readable.from([Buffer.from([0xff])])));
   await assert.rejects(readEnvelope(Readable.from([Buffer.alloc(MAX_STDIN_BYTES+1)])));
   await assert.rejects(readEnvelope(Readable.from([Buffer.from('{} trailing')])));
@@ -92,8 +94,8 @@ test('local HTTP fixture: lost PUT is not replayed; inspect, explicit identical 
     assert.equal((await callCms('save',call('save',archive),local)).post.status,'archived');
   } finally {for(const s of sockets)s.destroy();await new Promise(r=>server.close(r));}
 });
-test('real executable rejects wrong Soot/malformed stdin without leaking credential',async()=>{
-  for(const data of [JSON.stringify({...call(),soot:'caro-player'}),Buffer.from([0xff])]) {
+test('real executable rejects an unnamed Soot/malformed stdin without leaking credential',async()=>{
+  for(const data of [JSON.stringify({...call(),soot:''}),Buffer.from([0xff])]) {
     const child=spawn(process.execPath,['tools/cms.mjs','save'],{cwd:new URL('..',import.meta.url),env:{WEBSITE_CMS:credential}});
     let output='';child.stdout.on('data',c=>output+=c);child.stderr.on('data',c=>output+=c);child.stdin.end(data);
     const code=await new Promise(r=>child.on('close',r));assert.equal(code,1);assert.ok(!output.includes('synthetic-secret'));assert.match(output,/uncertain/);

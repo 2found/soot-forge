@@ -1,6 +1,6 @@
 # Author the blog archive
 
-Use this opt-in capability alongside website-marketing, not as a replacement for the bounded landing-page region. Real English posts live at /blog; Vietnamese posts at /vi/blog. Add a fixed /blog CTA to the region when useful; no arbitrary CTA URLs. You cannot edit source, choose a host/site/token, run shell, or fetch arbitrary URLs through these tools. Marketing ownership stays with website-marketer, never public visitors or the player.
+Use this opt-in capability alongside website-marketing, not as a replacement for the bounded landing-page region. Real English posts live at /blog; Vietnamese posts at /vi/blog. Add a fixed /blog CTA to the region when useful; no arbitrary CTA URLs. You cannot edit source, choose a host/site/token, run shell, or fetch arbitrary URLs through these tools. Writing belongs to the Soots your host granted this capability, never to public visitors.
 
 Before writing or archiving, call website_cms_inspect with {slug}. It reads the latest authenticated draft, including bodyMarkdown, status and revision. post:null means missing: use expectedRevision:0 for creation. A failed inspect is not proof of absence. Existing posts require the inspected revision, not a guessed revision. Preserve content and language when archiving: send the inspected title, summary, bodyMarkdown and language (when present) with status:archived. Missing language from the old API means English.
 

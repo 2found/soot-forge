@@ -63,8 +63,9 @@ export async function readEnvelope(stream) {
   return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks)));
 }
 // Dependency overrides are fixture-only, never model input or executable argv.
+// Which Soot may call this is the host's grant; the envelope only has to name one.
 export async function callCms(action, call, raw, {fetcher=fetch,timeoutMs=5000}={}) {
-  if (!call || Array.isArray(call) || call.api_version !== 'soot/v1' || call.hook !== 'tool.call' || call.soot !== 'website-marketer' || call.operation !== `website_cms_${action}`) invalid();
+  if (!call || Array.isArray(call) || call.api_version !== 'soot/v1' || call.hook !== 'tool.call' || typeof call.soot !== 'string' || !call.soot || call.operation !== `website_cms_${action}`) invalid();
   const input=validateInput(action,call.input), credential=validateCredential(raw);
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) invalid();
   const url=`${credential.origin}/api/cms/v1/sites/${credential.site}/${action === 'inspect' ? 'drafts' : 'posts'}/${input.slug}`;
