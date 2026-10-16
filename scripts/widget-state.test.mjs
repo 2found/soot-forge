@@ -6,14 +6,15 @@ import { runInNewContext } from 'node:vm';
 // Run the shipped frame state machine. Only its DOM, composer and clock are
 // substituted; transport stays at the same postMessage boundary as the iframe.
 function frameFixture() {
-  const elements = new Map(), handlers = new Map(), posted = [], timers = new Map();
+  const elements = new Map(), handlers = new Map(), posted = [], timers = new Map(), delays = new Map(), intervals = new Map();
   let timerID = 0;
   class Element {
     constructor(id = '') { this.id = id; this.hidden = false; this.value = ''; this.children = []; this.dataset = {}; this.style = {}; this.textContent = ''; }
     setAttribute(key, value) { this[key] = value; }
     querySelector(selector) { return element(this.id + ':' + selector); }
     querySelectorAll() { return []; }
-    append(...items) { this.children.push(...items); }
+    append(...items) { for (const item of items) { this.children = this.children.filter(c => c !== item); this.children.push(item); } }
+    insertBefore(item, before) { this.children = this.children.filter(c => c !== item); const at = this.children.indexOf(before); this.children.splice(at < 0 ? this.children.length : at, 0, item); }
     replaceChildren(...items) { this.children = items; }
     focus() {}
     contains(target) { return target === this; }
@@ -32,14 +33,15 @@ function frameFixture() {
     TextEncoder, crypto: { randomUUID: () => 'frame-message-id' }, CSS: { escape: v => v },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
     ResizeObserver: class { observe() {} disconnect() {} },
-    setTimeout: fn => { timers.set(++timerID, fn); return timerID; }, clearTimeout: id => timers.delete(id),
+    setTimeout: (fn, ms) => { timers.set(++timerID, fn); delays.set(timerID, ms); return timerID; }, clearTimeout: id => timers.delete(id),
+    setInterval: fn => { intervals.set(++timerID, fn); return timerID; }, clearInterval: id => intervals.delete(id),
     addEventListener: (type, fn) => handlers.set(type, fn) };
   const source = readFileSync(new URL('../packs/live-chat/widget/frame.js', import.meta.url), 'utf8');
   runInNewContext(source.replace(/^import .*;\n/gm, ''), context);
   const receive = (type, extra = {}) => handlers.get('message')({ source: parent, origin: 'https://site.example',
     data: { soot_chat: 1, nonce: 'fixture-nonce', type, ...extra } });
   const init = () => receive('init', { language: 'en', config: { name: 'Support' } });
-  return { element, receive, init, posted, timers, composer, context };
+  return { element, receive, init, posted, timers, delays, intervals, composer, context };
 }
 
 test('a collapsed chat does not poll; opening resumes and closing stops', () => {
@@ -266,4 +268,43 @@ test('an unverified browser is told nothing was sent and can resend', () => {
   assert.doesNotMatch(f.element('error').textContent, /unconfirmed/i);
   assert.equal(f.element('retry').textContent, 'Resend');
   assert.equal(f.element('text').value, 'Keep my question');
+});
+
+test('a reply in progress shows its phase, step count and wait, and nothing of the work itself', () => {
+  const f = frameFixture(); f.init(); f.receive('open');
+  const since = new Date(Date.now() - 12_000).toISOString();
+  f.receive('sync', { messages: [], activity: 'running', progress: { run: 'r1', phase: 'thinking', steps: 0, since } });
+  assert.equal(f.element('working').hidden, false);
+  assert.equal(f.element('working-label').textContent, 'Thinking…');
+  assert.equal(f.element('working-meta').textContent, ' · 12s');
+  assert.equal(f.element('activity').textContent, 'Thinking…');
+  assert.equal([...f.delays.entries()].find(([id]) => f.timers.has(id))[1], 2000, 'a working reply is polled a little closer');
+  f.receive('sync', { messages: [], activity: 'running', progress: { run: 'r1', phase: 'working', steps: 2, since, tool: 'knowledge_search' } });
+  assert.equal(f.element('working-label').textContent, 'Looking things up…');
+  assert.match(f.element('working-meta').textContent, /^ · step 2 · 1[23]s$/);
+  assert.doesNotMatch(f.element('working').textContent + f.element('working-meta').textContent, /knowledge/);
+  // The reply lands above the working row, then the row goes when the run ends.
+  f.receive('sync', { messages: [{ id: 3, role: 'assistant', run: 'r1', text: 'Here you go', created: new Date().toISOString() }], next_after: 3, activity: 'running',
+    progress: { run: 'r1', phase: 'writing', steps: 2, since } });
+  const log = f.element('transcript').children;
+  assert.equal(log.at(-1), f.element('working'));
+  assert.equal(log.at(-2).dataset.message, '3');
+  f.receive('sync', { messages: [], next_after: 3, activity: 'completed' });
+  assert.equal(f.element('working').hidden, true);
+  assert.equal(f.element('activity').textContent, 'Ready to help');
+  assert.equal(f.intervals.size, 0, 'no clock keeps ticking once the reply is done');
+  assert.equal([...f.delays.entries()].find(([id]) => f.timers.has(id))[1], 3000);
+});
+
+test('a skewed visitor clock never shows a negative or hour-long wait, and a failed read keeps the phase', () => {
+  const f = frameFixture(); f.init(); f.receive('open');
+  f.receive('sync', { messages: [], activity: 'queued', progress: { run: 'r2', phase: 'queued', steps: 0, since: new Date(Date.now() + 60_000).toISOString() } });
+  assert.equal(f.element('working-label').textContent, 'Got your message…');
+  assert.equal(f.element('working-meta').textContent, '');
+  f.receive('sync', { error: { kind: 'connection' } });
+  assert.equal(f.element('working').hidden, false);
+  f.receive('sync', { messages: [], activity: 'running', progress: { run: 'r3', phase: 'thinking', steps: 0, since: new Date(Date.now() - 3_600_000).toISOString() } });
+  assert.equal(f.element('working-meta').textContent, ' · 600s');
+  f.receive('sync', { error: { kind: 'expired' } });
+  assert.equal(f.element('working').hidden, true);
 });

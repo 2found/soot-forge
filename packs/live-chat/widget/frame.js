@@ -33,6 +33,36 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   // The visitor's latest question, so a run that ended without a reply can be
   // asked again in one tap.
   let lastAsked = '';
+  // What the run is doing now: a phase and a count from the server, never a
+  // tool name or text. The seconds tick here so a long lookup still looks alive.
+  let progress = null;
+  let progressTimer = null;
+  function showProgress(next) {
+    const phase = next && ['queued', 'thinking', 'working', 'writing'].includes(next.phase) ? next.phase : '';
+    const box = $('working');
+    clearInterval(progressTimer);
+    if (!phase) { progress = null; box.hidden = true; return; }
+    // The run's own start time, read once against this device's clock so a
+    // skewed clock neither shows a negative wait nor an hour-long one.
+    const started = progress?.run === next.run ? progress.started
+      : Date.now() - Math.min(Math.max(0, Date.now() - (Date.parse(next.since) || Date.now())), 600000);
+    progress = { run: next.run, phase, steps: Number(next.steps) || 0, started };
+    $('working-label').textContent = t('phase_' + phase) + '…';
+    box.dataset.phase = phase;
+    const tick = () => {
+      const seconds = Math.round((Date.now() - progress.started) / 1000);
+      const meta = [];
+      if (progress.steps > 0) meta.push(t('phase_step')(progress.steps));
+      if (seconds >= 3) meta.push(t('phase_seconds')(seconds));
+      $('working-meta').textContent = meta.length ? ' · ' + meta.join(' · ') : '';
+    };
+    tick();
+    progressTimer = setInterval(tick, 1000);
+    const appeared = box.hidden;
+    box.hidden = false;
+    $('transcript').append(box);
+    if (appeared) { if (follow) bottom(); else $('jump').hidden = false; }
+  }
 
   const dict = {
     vi: {
@@ -83,6 +113,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       transcript: 'Lịch sử trò chuyện', message: 'Tin nhắn', suggestions: 'Gợi ý bắt đầu',
       composer_hint: 'Enter để gửi · Shift + Enter để xuống dòng · Esc hai lần xóa text',
       copy: 'Sao chép', copied: 'Đã chép', copy_select: 'Đã chọn — nhấn Ctrl/⌘ + C',
+      phase_queued: 'Đã nhận tin, sắp trả lời', phase_thinking: 'Đang suy nghĩ', phase_working: 'Đang tra cứu', phase_writing: 'Đang soạn câu trả lời',
+      phase_step: n => 'bước ' + n, phase_seconds: n => n + ' giây',
     },
     en: {
       connecting: 'Connecting…',
@@ -132,6 +164,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       transcript: 'Conversation history', message: 'Message', suggestions: 'Suggested messages',
       composer_hint: 'Enter to send · Shift + Enter for a new line · Double Esc to clear',
       copy: 'Copy', copied: 'Copied', copy_select: 'Selected — press Ctrl/⌘ + C',
+      phase_queued: 'Got your message', phase_thinking: 'Thinking', phase_working: 'Looking things up', phase_writing: 'Writing a reply',
+      phase_step: n => 'step ' + n, phase_seconds: n => n + 's',
     },
   };
 
@@ -381,7 +415,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       if (message.intent === 'acknowledgement') holding.set(message.run, article);
       else dropHolding(message.run);
     }
-    $('transcript').append(article);
+    $('transcript').insertBefore(article, $('working'));
     return true;
   }
 
@@ -442,6 +476,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     if (resetP) resetP.textContent = t('reset_desc');
     $('keep').textContent = t('keep_chat');
     $('confirm-reset').textContent = t('confirm_reset');
+    if (progress) $('working-label').textContent = t('phase_' + progress.phase) + '…';
     const footer = $('chat').querySelector('footer');
     if (footer) footer.textContent = t('powered_by');
     const jump = $('jump');
@@ -620,8 +655,13 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
           pending = null;
           bottom();
         }
-        $('activity').textContent = t(dict[language]?.[msg.activity] ? msg.activity : 'connected');
+        $('activity').textContent = msg.progress?.phase && dict[language]?.['phase_' + msg.progress.phase]
+          ? t('phase_' + msg.progress.phase) + '…'
+          : t(dict[language]?.[msg.activity] ? msg.activity : 'connected');
       }
+      // A failed read leaves the last known phase on screen; a closed session clears it.
+      if (!msg.error) showProgress(msg.progress);
+      else if (msg.error.kind === 'expired' || msg.error.kind === 'reset') showProgress(null);
 
       if (msg.error) {
         if (msg.error.kind === 'reset') {
@@ -655,7 +695,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       controls();
       if (!closed && opened && !resetting && document.visibilityState !== 'hidden') {
         clearTimeout(timer);
-        timer = setTimeout(requestSync, 3000);
+        // A reply in progress is watched a little closer.
+        timer = setTimeout(requestSync, progress ? 2000 : 3000);
       }
     } else if (msg.type === 'reset-done' && msg.nonce === nonce) {
       resetting = false;
@@ -665,6 +706,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       sharedFiles.clear();
       composer.setValue('');
       $('transcript').querySelectorAll('.message').forEach(x => x.remove());
+      showProgress(null);
       holding.clear();
       settled.clear();
       $('welcome').hidden = false;
@@ -702,6 +744,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     transcriptResize.disconnect();
     removeThemeListener();
     clearTimeout(timer);
+    clearInterval(progressTimer);
   });
 
   // Handshake to parent on load

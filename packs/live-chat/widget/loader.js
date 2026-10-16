@@ -262,14 +262,21 @@
       let messages = [];
       let next_after = after;
       let activity = 'connected';
+      let progress = null;
 
       if (state.conversationId) {
         try {
           const conv = await s.client.getConversation(state.conversationId);
           if (conv.state) activity = conv.state;
-          const page = await s.client.getMessages(state.conversationId, { after, limit: 50 });
-          messages = page.messages || [];
-          next_after = page.next_after || after;
+          if (conv.progress) progress = { run: conv.progress.run, phase: conv.progress.phase, steps: conv.progress.steps, since: conv.progress.since };
+          // A visitor's reads are rate limited, so the transcript is read only
+          // when it holds something past the frame's cursor.
+          const unchanged = after > 0 && typeof conv.message_cursor === 'number' && conv.message_cursor <= after;
+          if (submission || !unchanged) {
+            const page = await s.client.getMessages(state.conversationId, { after, limit: 50 });
+            messages = page.messages || [];
+            next_after = page.next_after || after;
+          }
         } catch (err) {
           if(session!==s || epoch!==version)return;
           send('sync', { submission, error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
@@ -283,6 +290,7 @@
         messages,
         next_after,
         activity,
+        progress,
         pendingMessage: state.pendingMessage,
       });
     } catch (err) {

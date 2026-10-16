@@ -7,22 +7,28 @@ const assets=resolve('packs/live-chat/widget');
 const files=new Set(['frame.html','frame.js','widget.css','theme.css','agent.css','agent-behavior.js','widget-composer.js']);
 const host=`<!doctype html><html lang="vi"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Soot widget review</title>
 <link rel="stylesheet" href="/public/widget/theme.css"><style>body{margin:0;background:var(--color-bg);color:var(--color-text);font:14px var(--font-sans)}iframe{display:block;width:min(100%,420px);height:calc(100dvh - 48px);margin:auto;border:0}nav{min-height:48px;display:flex;justify-content:center;align-items:center;gap:8px}button{font:inherit;padding:6px 8px;color:var(--color-text);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm)}</style>
-<nav><button id="fail">Fail next send</button><button id="nores">Fail next reply</button><button id="history">Add history</button><button id="theme">Toggle theme</button></nav>
+<nav><button id="fail">Fail next send</button><button id="nores">Fail next reply</button><button id="slow">Slow reply</button><button id="history">Add history</button><button id="theme">Toggle theme</button></nav>
 <iframe title="Soot support" id="widget"></iframe><script>
 const frame=document.getElementById('widget'),nonce='local-agent-ui-review';
-let messages=[],pending=null,fail=false,noReply=false,activity='connected',dark=false;
+let messages=[],pending=null,fail=false,noReply=false,slow=false,progress=null,activity='connected',dark=false;
 window.fixture={sent:[],draft:'',ready:false};
 const config=()=>({name:'Soot',greeting:'Bạn muốn cùng Soot giải quyết việc gì hôm nay?',quick_replies:['Lên kế hoạch cho dự án','Kiểm tra khả năng tiếp cận'],theme:dark?'dark':'light'});
 function post(type,extra={}){frame.contentWindow.postMessage({soot_chat:1,type,nonce,...extra},location.origin)}
-function sync(extra={}){post('sync',{messages,next_after:messages.length,activity,...extra})}
+function sync(extra={}){post('sync',{messages,next_after:messages.length,activity,progress,...extra})}
 addEventListener('message',e=>{if(e.source!==frame.contentWindow||e.origin!==location.origin||e.data?.soot_chat!==1)return;const m=e.data;
 if(m.type==='ready'){post('init',{language:'vi',config:config()});post('open');post('layout',{mobile:innerWidth<700});window.fixture.ready=true;}
 if(m.type==='sync')sync(pending?{pendingMessage:pending}:{});
 if(m.type==='draft')window.fixture.draft=m.text;
-if(m.type==='send'){window.fixture.sent.push(m);if(fail){pending={id:m.id,text:m.text};fail=false;sync({submission:true,pendingMessage:pending,error:{kind:'send'}});}else if(noReply){noReply=false;pending=null;const run='r'+messages.length;messages.push({id:String(messages.length+1),role:'user',text:m.text,created:new Date().toISOString(),run},{id:String(messages.length+2),role:'assistant',intent:'acknowledgement',text:'Mình đang kiểm tra, chờ mình một chút nhé.',created:new Date().toISOString(),run});activity='failed';sync({submission:true});}else{pending=null;activity='connected';messages.push({id:String(messages.length+1),role:'user',text:m.text,created:new Date().toISOString()},{id:String(messages.length+2),role:'assistant',text:'Đã nhận yêu cầu. Mình sẽ giữ các bước rõ ràng và báo lại nếu cần bạn quyết định.',created:new Date().toISOString()});sync({submission:true});}}
+if(m.type==='send'){window.fixture.sent.push(m);if(slow){slow=false;pending=null;const run='r'+messages.length,since=new Date().toISOString();messages.push({id:String(messages.length+1),role:'user',text:m.text,created:since,run});activity='running';
+// The phases a real run reports: queued, thinking, two lookups, then the reply being written.
+const steps=[['queued',0],['thinking',0],['working',1],['thinking',1],['working',2],['writing',2]];progress={run,phase:'queued',steps:0,since};sync({submission:true});
+steps.forEach(([phase,n],i)=>setTimeout(()=>{progress={run,phase,steps:n,since};if(i===1)messages.push({id:String(messages.length+1),role:'assistant',intent:'acknowledgement',text:'Mình đang kiểm tra thông tin, bạn chờ một chút nhé.',created:new Date().toISOString(),run});},1500*i));
+setTimeout(()=>{progress=null;activity='completed';messages.push({id:String(messages.length+1),role:'assistant',run,text:'Gói **Pro** là 150.000₫/tháng, gồm 3 luồng dịch song song.',created:new Date().toISOString()});},1500*steps.length+800);}else if(fail){pending={id:m.id,text:m.text};fail=false;sync({submission:true,pendingMessage:pending,error:{kind:'send'}});}else if(noReply){noReply=false;pending=null;const run='r'+messages.length;messages.push({id:String(messages.length+1),role:'user',text:m.text,created:new Date().toISOString(),run},{id:String(messages.length+2),role:'assistant',intent:'acknowledgement',text:'Mình đang kiểm tra, chờ mình một chút nhé.',created:new Date().toISOString(),run});activity='failed';sync({submission:true});}else{pending=null;activity='connected';messages.push({id:String(messages.length+1),role:'user',text:m.text,created:new Date().toISOString()},{id:String(messages.length+2),role:'assistant',text:'Đã nhận yêu cầu. Mình sẽ giữ các bước rõ ràng và báo lại nếu cần bạn quyết định.',created:new Date().toISOString()});sync({submission:true});}}
 if(m.type==='reset'){messages=[];pending=null;post('reset-done');}
 });
 document.getElementById('fail').onclick=()=>{fail=true};
+// The next message is answered like a real run: its phases show while it works.
+document.getElementById('slow').onclick=()=>{slow=true};
 // The run behind the next message ends without a reply: its holding message stays in history and the conversation reads failed.
 document.getElementById('nores').onclick=()=>{noReply=true};
 document.getElementById('history').onclick=()=>{for(let i=0;i<12;i++)messages.push({id:String(messages.length+1),role:'assistant',text:'Bước '+(i+1)+': Kiểm tra các trạng thái kết nối, lựa chọn và khôi phục bản nháp. Nội dung dài giúp xác nhận rằng người đọc có thể xem lại lịch sử mà không bị kéo xuống cuối.',created:new Date().toISOString()});sync();};

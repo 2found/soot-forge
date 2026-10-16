@@ -10,7 +10,7 @@ function fixture({ saved = false, challenge = false } = {}) {
   const storage = new Map();
   const state = { session: saved ? { token: 'fixture' } : null, conversationId: saved ? 'saved-chat' : null,
     draft: '', pendingMessage: null, pendingCreate: null };
-  let holdRead, languageCallback, proofOptions;
+  let holdRead, languageCallback, proofOptions, conversation = { id: 'saved-chat', soot: 'support', state: 'completed' };
   const style = () => {
     const values = new Map([['overflow', ['auto', 'important']]]);
     return { getPropertyValue: key => values.get(key)?.[0] || '', getPropertyPriority: key => values.get(key)?.[1] || '',
@@ -24,7 +24,7 @@ function fixture({ saved = false, challenge = false } = {}) {
   class SootChatSession {
     constructor(options) { counters.constructed++; this.proof = options.proofProvider; }
     client = { getAppInfo: async () => appInfo,
-      getConversation: async () => ({ id: 'saved-chat', soot: 'support', state: 'completed' }),
+      getConversation: async () => ({ ...conversation }),
       getMessages: async () => { counters.reads++; return holdRead ? await holdRead : { messages: [], next_after: 0 }; } };
     readState() { return { ...state }; }
     async init() { if (!state.session) { if (challenge) await this.proof({ required: true, site_key: 'fixture-sitekey' }); counters.sessions++; state.session = { token: 'fixture' }; } return { appInfo, state: this.readState() }; }
@@ -48,7 +48,7 @@ function fixture({ saved = false, challenge = false } = {}) {
   const receive = (type, extra = {}, origin = 'https://runtime.example') => handlers.get('message')({
     origin, source: frame.contentWindow, data: { soot_chat: 1, nonce: 'test-nonce', type, ...extra } });
   return { counters, posted, context, frame, receive, state, languageCallback: () => languageCallback(),
-    holdRead: promise => { holdRead = promise; }, proofOptions: () => proofOptions };
+    holdRead: promise => { holdRead = promise; }, proofOptions: () => proofOptions, conversation: next => { conversation = next; } };
 }
 
 test('branding and opening the widget do not create anonymous sessions; first Send does', async () => {
@@ -134,4 +134,22 @@ test('screen readers hear the site\'s chat, named once the widget config arrives
   assert.equal(f.frame.allow, 'clipboard-write');
   await f.receive('ready'); await tick();
   assert.equal(f.frame.title, 'Support chat · Support');
+});
+
+test('the frame hears what the run is doing, and the transcript is read only when it has something new', async () => {
+  const f = fixture({ saved: true }); await f.receive('ready'); await tick(); await f.receive('open');
+  const since = new Date().toISOString();
+  f.conversation({ id: 'saved-chat', soot: 'support', state: 'running', message_cursor: 4,
+    progress: { run: 'r1', phase: 'working', steps: 1, since } });
+  await f.receive('sync', { after: 0 });
+  assert.equal(f.counters.reads, 1, 'a first read always reads the transcript');
+  await f.receive('sync', { after: 4 });
+  assert.equal(f.counters.reads, 1, 'nothing past the cursor: no transcript read');
+  const sync = f.posted.filter(m => m.type === 'sync').at(-1);
+  assert.deepEqual({ ...sync.progress }, { run: 'r1', phase: 'working', steps: 1, since });
+  assert.equal(sync.activity, 'running');
+  f.conversation({ id: 'saved-chat', soot: 'support', state: 'completed', message_cursor: 6 });
+  await f.receive('sync', { after: 4 });
+  assert.equal(f.counters.reads, 2, 'a new message is read');
+  assert.equal(f.posted.filter(m => m.type === 'sync').at(-1).progress, null);
 });

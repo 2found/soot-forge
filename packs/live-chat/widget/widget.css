@@ -53,6 +53,18 @@ summary::-webkit-details-marker{display:none}
 .message.customer{align-items:flex-end}
 .customer p{max-width:88%;background:var(--color-surface-2);padding:8px 12px;border-radius:var(--radius-md)}
 .message small{font-size:11px;color:var(--color-muted);line-height:1.5}
+/* What Soot is doing while a reply is on its way. The header status says the
+   same thing to assistive technology, so this row is presentational. */
+.working{display:flex;align-items:center;gap:8px;width:fit-content;max-width:100%;margin:0 0 16px;padding:8px 12px;border-radius:var(--radius-md);background:var(--color-surface-2);color:var(--color-muted);font-size:13px;line-height:1.4;animation:working-in .2s var(--ease-enter)}
+.working-label{color:var(--color-text)}
+.working-meta{font-variant-numeric:tabular-nums}
+.working-dots{display:inline-flex;gap:3px;flex-shrink:0}
+.working-dots i{width:6px;height:6px;border-radius:var(--radius-full);background:currentColor;opacity:.3;animation:working-dot 1.2s ease-in-out infinite}
+.working-dots i:nth-child(2){animation-delay:.15s}
+.working-dots i:nth-child(3){animation-delay:.3s}
+.working[data-phase="working"] .working-dots,.working[data-phase="writing"] .working-dots{color:var(--color-accent)}
+@keyframes working-dot{0%,80%,100%{opacity:.3;transform:none}40%{opacity:1;transform:translateY(-2px)}}
+@keyframes working-in{from{opacity:0;transform:translateY(4px)}}
 #jump{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;border-radius:var(--radius-full);white-space:nowrap}
 #error-bar{padding:8px 12px;background:var(--color-surface-2);display:flex;align-items:center;gap:8px;flex-shrink:0}
 #error{flex:1;color:var(--color-error);margin:0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
@@ -67,7 +79,7 @@ footer{text-align:center;padding:0 12px 12px;color:var(--color-muted);font-size:
 [data-layout="mobile"] header{padding-top:max(8px,env(safe-area-inset-top));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
 [data-layout="mobile"] #composer{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
 [data-layout="mobile"] footer{padding-bottom:max(12px,env(safe-area-inset-bottom))}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}.working,.working-dots i{animation:none}.working-dots i{opacity:.6}}
 
 /* Bridge 2ui to the canonical Soot theme without a second palette. */
 :root {

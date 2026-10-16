@@ -47,7 +47,12 @@ The first explicit Send obtains any required proof and creates the session;
 saved visitors reconcile their existing receipts. History polling runs only
 while the chat is open and the page is visible. Changing the page language
 updates the same widget without replacing its identity or unresolved work.
-Read failures offer Reconnect and preserve editable drafts. An expired session
+While a reply is on its way the transcript ends with one line saying what Soot
+is doing — received, thinking, looking things up (with the step count) or writing
+— and how long the visitor has waited. It comes from the conversation's
+`progress`, which carries a phase and a count and never a tool name or text; the
+transcript itself is read only when the conversation's `message_cursor` is past
+the frame's cursor. Read failures offer Reconnect and preserve editable drafts. An expired session
 offers an explicit new-conversation confirmation before any state is cleared.
 Only a foreground submission result acknowledges its draft; a delayed read
 cannot clear a message still being sent.
