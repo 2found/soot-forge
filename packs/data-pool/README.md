@@ -227,7 +227,7 @@ Tools available to selected capabilities:
 | --- | --- | --- |
 | read | `data-pool_pools`: optional pool; otherwise after/limit | Granted pools or detail; managers also see effective grants |
 | read | `data-pool_query`: action=list, pool, after/limit | Paginated metadata |
-| read | `data-pool_query`: action=search, pool, query, offset/limit | Indexed matches, bounded snippets and source/revision metadata |
+| read | `data-pool_query`: action=search, pool, query, offset/limit | Indexed matches, bounded snippets (768 bytes around the query's rarest words; the opening when that is where they are) and source/revision metadata |
 | read | `data-pool_query`: action=read, pool, id, offset/limit | Verified original text page with next_offset and complete |
 | read | `data-pool_status`: request_id, optional owner | Reconcile a saved mutation; inspecting another owner requires pool manage |
 | write | `data-pool_write`: action=append, pool, title, content OR url, source/tags, request_id (omit id) | New independent entry; duplicate content accepted, same-intent retry idempotent |

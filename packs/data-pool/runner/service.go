@@ -365,11 +365,7 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 			if err != nil || !sameDocument(meta, d.document) || !validText(d.Content, maxContent) || hash(d.Content) != meta.SHA256 {
 				continue
 			}
-			end := min(len(d.Content), 768)
-			for end < len(d.Content) && end > 0 && !utf8.RuneStart(d.Content[end]) {
-				end--
-			}
-			hits = append(hits, map[string]any{"document": meta, "snippet": d.Content[:end]})
+			hits = append(hits, map[string]any{"document": meta, "snippet": snippet(d.Content, in.Query)})
 		}
 		next := 0
 		if len(result.Hits) >= limit && in.Offset+limit <= 980 {
