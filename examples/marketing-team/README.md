@@ -37,6 +37,15 @@ claims something your site does not say.
 
 ## Set it up
 
+Steps 3 and 4 use the `soot` CLI, which is still a preview available only to
+people with access to the 2agent repository; the Nest desktop app does not
+install it. With Nest alone, build the same team by hand from these files:
+install the Forge packs under **Pack**, create the four Soots with these
+missions and souls, then the group and the two schedules (see
+[orchestration](https://trysoot.com/docs/orchestration/index.md)), and paste
+the five skills into the editor's and teammates' instructions or a pack of
+your own.
+
 1. **Copy and rename.** Copy `soot-source/` into your repository. Replace the
    prefix `acme` everywhere (file names and contents) with your own short id:
    Soot, group, pool and schedule ids are shared by the whole runtime.
