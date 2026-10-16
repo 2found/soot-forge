@@ -61,6 +61,11 @@ tree. Installing a pack starts none of these services. Read the individual
 README and select only the needed capabilities. A complete host example lives
 in [examples/media-workspace](examples/media-workspace/README.md).
 
+[examples/marketing-team](examples/marketing-team/README.md) is a whole team as
+a Soot source: an editor, a radar, a writer and a browser poster that share a
+data pool, run on two schedules and publish on their own, asking a person only
+for what a person must do.
+
 See [library choices and verification](docs/media-packs.md) for measured sizes,
 actual Soot/provider evidence, limitations and reproducible test commands.
 

@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/soot.schema.json",
+  "id": "acme-editor",
+  "name": "Editor",
+  "description": "Runs the marketing cycle: picks the angle from the radar, assigns the writing, reviews and publishes. Asks you only for what needs a person.",
+  "tier": "pro",
+  "soul": "SOUL.md",
+  "mission": "mission.md",
+  "packs": [],
+  "use": [
+    "acme-marketing/team"
+  ],
+  "host_use": [
+    "website/cms"
+  ],
+  "knowledge": [
+    "acme-products"
+  ],
+  "conversation": {
+    "publish": "final"
+  },
+  "execution": {
+    "continue_on_limit": true,
+    "max_turns": 24,
+    "max_tool_calls": 28,
+    "run_timeout": "30m"
+  }
+}

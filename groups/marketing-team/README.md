@@ -16,3 +16,9 @@ Review `required-bindings.json`, build the data-pool runner explicitly, grant pe
 Run `soot check --config ./acme-marketing/deployment.json --show --secrets` before explicitly starting or importing this configuration through your host settings. A missing provider, data-pool binary, binding or channel adapter remains a setup blocker. Source templates use zero placeholder digests; only the release builder resolves these to real pack archive hashes. Never install the source JSON as a verified release.
 
 A plan row is not a scheduled job. Automatic publication and host schedules require separate explicit host configuration. QA uses local fixture gateways and never posts to real accounts.
+
+This template gates every publication on an operator approval of the exact
+revision. For a team that reviews and publishes on its own and asks a person
+only for hand-offs and real decisions, start from
+[examples/marketing-team](../../examples/marketing-team/README.md) instead; a
+host can still gate its tools with an approval policy.

@@ -1,0 +1,17 @@
+{
+  "$schema": "../../schemas/pack.schema.json",
+  "api_version": "soot/v1",
+  "id": "acme-marketing",
+  "use": ["team"],
+  "capabilities": {
+    "team": {
+      "skills": [
+        {"name": "acme-workspace", "file": "skills/workspace.md", "description": "Read FIRST in any marketing task. How the team shares work through the marketing data pool: document IDs, tags and status for briefs, article drafts and social posts, and how to write a document safely (revision, request_id)."},
+        {"name": "acme-radar", "file": "skills/radar.md", "description": "Read before a scan. How to read the sources your mission lists with web_search/web_fetch, keep few items, and merge them into today's brief in the acme-marketing pool."},
+        {"name": "acme-write", "file": "skills/write.md", "description": "Read before writing. Turn a chosen angle into an article draft and channel-native social posts in the acme-marketing pool, with every product claim checked against knowledge_search."},
+        {"name": "acme-review-publish", "file": "skills/review-publish.md", "description": "Read before reviewing or publishing. The review checklist, how each channel goes live, when to stop and ask a person, and how to hand off what only a person can post."},
+        {"name": "acme-post", "file": "skills/post.md", "description": "Read before posting from the browser. Post exactly the ready text of one social post on the account that is already logged in, then record the URL."}
+      ]
+    }
+  }
+}

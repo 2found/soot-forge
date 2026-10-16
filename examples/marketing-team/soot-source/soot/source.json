@@ -1,0 +1,51 @@
+{
+  "$schema": "schemas/source.schema.json",
+  "id": "acme",
+  "name": "Acme marketing team",
+  "knowledge": {
+    "pool": "acme-products",
+    "refresh": "6h",
+    "sources": [
+      {"id": "acme-site", "url": "https://acme.example/llms.txt"}
+    ]
+  },
+  "packs_dir": "packs",
+  "soots": [
+    "soots/acme-editor/soot.json",
+    "soots/acme-radar/soot.json",
+    "soots/acme-writer/soot.json",
+    "soots/acme-poster/soot.json"
+  ],
+  "groups": {
+    "acme-marketing": {
+      "name": "Acme marketing",
+      "description": "Radar → writer → editor reviews and publishes. You hear only about what needs a person: a post to make by hand, or a decision outside the team's authority.",
+      "entries": ["acme-editor", "acme-radar"],
+      "members": {"acme-editor": {}, "acme-radar": {}, "acme-writer": {}, "acme-poster": {}},
+      "limits": {"max_delegations": 8, "max_depth": 2, "max_concurrent": 2, "max_model_calls": 120}
+    }
+  },
+  "public_web_apps": {},
+  "schedules": [
+    {
+      "id": "acme-marketing-morning",
+      "name": "Morning marketing cycle",
+      "soot": "acme-editor",
+      "group": "acme-marketing",
+      "every": "24h",
+      "at": "08:00",
+      "timezone": "UTC",
+      "text": "Morning marketing cycle: follow \"One cycle\" in your mission, from the radar to the report."
+    },
+    {
+      "id": "acme-radar-afternoon",
+      "name": "Afternoon radar",
+      "soot": "acme-radar",
+      "group": "acme-marketing",
+      "every": "24h",
+      "at": "15:00",
+      "timezone": "UTC",
+      "text": "Afternoon scan: update today's brief following the acme-radar skill. If an angle cannot wait for tomorrow, say so at the end."
+    }
+  ]
+}

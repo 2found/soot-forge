@@ -1,0 +1,25 @@
+{
+  "$schema": "../../schemas/soot.schema.json",
+  "id": "acme-radar",
+  "name": "Radar",
+  "description": "Reads the forums, blogs and searches your audience uses and writes a short daily brief of what is worth writing.",
+  "tier": "flash",
+  "soul": "SOUL.md",
+  "mission": "mission.md",
+  "packs": [],
+  "use": [
+    "acme-marketing/team"
+  ],
+  "host_use": [
+    "research/web"
+  ],
+  "conversation": {
+    "publish": "final"
+  },
+  "execution": {
+    "continue_on_limit": true,
+    "max_turns": 24,
+    "max_tool_calls": 28,
+    "run_timeout": "20m"
+  }
+}
