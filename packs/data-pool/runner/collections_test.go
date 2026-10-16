@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -415,5 +416,60 @@ func TestRefusedWritesSayWhy(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: err = %v", body, err)
 		}
+	}
+}
+
+// A digest reads the day's documents in one call: id and ids together, a
+// placeholder or repeat dropped, an absent one reported instead of failing the
+// read, and the content held to one budget so the page fits the tool output.
+func TestBatchReadReturnsSeveralDocuments(t *testing.T) {
+	_, server, _ := organizationFixture(t)
+	orgCreate(t, server, "company", "", nil)
+	orgManage(t, server, manageInput{Action: "grant", Pool: "company", Soot: "marketing", Level: "write", RequestID: "g"})
+	long := strings.Repeat("phản hồi ", 900)
+	for id, content := range map[string]string{"fb-1": "first", "fb-2": "second", "fb-3": long} {
+		body, _ := json.Marshal(writeInput{Action: "upsert", Pool: "company", ID: id, Content: content, RequestID: "w-" + id})
+		if _, err := remoteCall(t, server.URL, readerToken, "marketing", "write", json.RawMessage(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(`{"action":"read","pool":"company","id":"fb-1","ids":["fb-2","fb-1","","fb-3","gone"],"limit":8192,"offset":0}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Documents []readPage
+		Missing   []string
+	}
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Documents) != 3 || got.Documents[0].Content != "first" || got.Documents[1].Content != "second" || !got.Documents[0].Complete {
+		t.Fatalf("documents = %s", out)
+	}
+	if third := got.Documents[2]; third.Complete || len(third.Content) > batchContentBytes/4 || third.NextOffset != len(third.Content) {
+		t.Fatalf("long document page: complete=%v len=%d next=%d", third.Complete, len(third.Content), third.NextOffset)
+	}
+	if !slices.Equal(got.Missing, []string{"gone"}) {
+		t.Fatalf("missing = %v", got.Missing)
+	}
+	// The rest of a long document continues alone from its next_offset.
+	if _, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(fmt.Sprintf(`{"action":"read","pool":"company","ids":["fb-3"],"offset":%d}`, got.Documents[2].NextOffset))); err != nil {
+		t.Fatal(err)
+	}
+	for body, want := range map[string]string{
+		`{"action":"read","pool":"company","ids":["a","b","c","d","e","f","g","h","i"]}`: "read: ids names 9 documents; read at most 8 per call",
+		`{"action":"read","pool":"company","ids":["fb-1","fb-2"],"offset":5}`:            "read: offset continues one document",
+		`{"action":"read","pool":"company","ids":["fb 1"]}`:                              `read: id "fb 1" is not a document ID`,
+		`{"action":"read","pool":"company","ids":["gone"]}`:                              "document gone is not in collection company",
+	} {
+		_, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(body))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v", body, err)
+		}
+	}
+	// A list or search ignores ids a model filled in.
+	if _, err := remoteCall(t, server.URL, readerToken, "marketing", "query", json.RawMessage(`{"action":"list","pool":"company","ids":["0"]}`)); err != nil {
+		t.Error(err)
 	}
 }

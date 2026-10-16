@@ -22,15 +22,16 @@ type poolsInput struct {
 	Parent *string `json:"parent,omitempty"`
 }
 type queryInput struct {
-	Action       string `json:"action"`
-	Pool         string `json:"pool"`
-	ID           string `json:"id,omitempty"`
-	Query        string `json:"query,omitempty"`
-	After        string `json:"after,omitempty"`
-	Limit        int    `json:"limit,omitempty"`
-	Offset       int    `json:"offset,omitempty"`
-	Conversation string `json:"conversation_id,omitempty"`
-	Run          string `json:"run_id,omitempty"`
+	Action       string   `json:"action"`
+	Pool         string   `json:"pool"`
+	ID           string   `json:"id,omitempty"`
+	IDs          []string `json:"ids,omitempty"`
+	Query        string   `json:"query,omitempty"`
+	After        string   `json:"after,omitempty"`
+	Limit        int      `json:"limit,omitempty"`
+	Offset       int      `json:"offset,omitempty"`
+	Conversation string   `json:"conversation_id,omitempty"`
+	Run          string   `json:"run_id,omitempty"`
 }
 type manageInput struct {
 	Action                 string  `json:"action"`
@@ -80,6 +81,26 @@ func pageSize(n int) (int, error) {
 }
 func cursorValid(s string) bool { return s == "" || identifier.MatchString(s) }
 
+// A batch read returns several documents in one call, so a digest of a day's
+// documents is one list and one read instead of a call per document. Its
+// content shares one byte budget so the page fits the tool's output bound.
+const (
+	maxBatchRead      = 8
+	batchContentBytes = 48 << 10
+)
+
+// readTargets is id followed by ids, without blanks or repeats. A model may put
+// the first document in id and the rest in ids, or fill ids with a placeholder.
+func readTargets(in queryInput) []string {
+	targets := []string{}
+	for _, id := range append([]string{in.ID}, in.IDs...) {
+		if id != "" && !slices.Contains(targets, id) {
+			targets = append(targets, id)
+		}
+	}
+	return targets
+}
+
 // generationShape is what rand.Text gives a collection when it is created.
 var generationShape = regexp.MustCompile(`^[A-Z2-7]{26}$`)
 
@@ -99,11 +120,20 @@ func queryShape(in queryInput) error {
 			return bad("limit is %d; use 1 to 20, or omit it for 10", in.Limit)
 		}
 	case "read":
-		if in.ID == "" {
+		targets := readTargets(in)
+		if len(targets) == 0 {
 			return bad("id is required; list the collection to find it")
 		}
-		if !identifier.MatchString(in.ID) {
-			return bad("id %q is not a document ID (letters, digits, - and _, up to 64)", in.ID)
+		if len(targets) > maxBatchRead {
+			return bad("ids names %d documents; read at most %d per call", len(targets), maxBatchRead)
+		}
+		for _, id := range targets {
+			if !identifier.MatchString(id) {
+				return bad("id %q is not a document ID (letters, digits, - and _, up to 64)", id)
+			}
+		}
+		if len(targets) > 1 && in.Offset != 0 {
+			return bad("offset continues one document; read it alone with id and that offset")
 		}
 		if in.Limit < 0 || in.Limit > 8192 {
 			return bad("limit is %d bytes; use 4 to 8192, or omit it for 4096", in.Limit)
@@ -315,29 +345,44 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 		if in.Limit == 0 {
 			in.Limit = 4096
 		}
-		meta, err := s.doc(in.Pool, in.ID)
-		if err != nil {
-			// Read access is already checked, so absence is not a leak.
-			return nil, inputError{fmt.Sprintf("document %s is not in collection %s; list the collection to find it, or create it with an upsert that omits expected_revision", in.ID, in.Pool)}
+		targets := readTargets(in)
+		if len(targets) == 1 {
+			page, err := s.readPage(ctx, in.Pool, targets[0], in.Offset, in.Limit)
+			if errors.Is(err, errNotInPool) {
+				// Read access is already checked, so absence is not a leak.
+				return nil, inputError{fmt.Sprintf("document %s is not in collection %s; list the collection to find it, or create it with an upsert that omits expected_revision", targets[0], in.Pool)}
+			}
+			if errors.Is(err, errChanging) {
+				return nil, errors.New("document is changing or backend integrity check failed; inspect its request status")
+			}
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"document": page.Document, "content": page.Content, "next_offset": page.NextOffset, "complete": page.Complete}, nil
 		}
-		var d storedDocument
-		if err = s.backend.call(ctx, "GET", "/indexes/"+s.index(in.Pool)+"/documents/"+in.ID, nil, &d); err != nil {
-			return nil, err
+		limit := min(in.Limit, batchContentBytes/len(targets))
+		pages, missing, changing := []readPage{}, []string{}, []string{}
+		for _, id := range targets {
+			page, err := s.readPage(ctx, in.Pool, id, 0, limit)
+			switch {
+			case errors.Is(err, errNotInPool):
+				missing = append(missing, id)
+			case errors.Is(err, errChanging):
+				changing = append(changing, id)
+			case err != nil:
+				return nil, err
+			default:
+				pages = append(pages, page)
+			}
 		}
-		if !sameDocument(meta, d.document) || hash(d.Content) != meta.SHA256 || !validText(d.Content, maxContent) {
-			return nil, errors.New("document is changing or backend integrity check failed; inspect its request status")
+		out := map[string]any{"documents": pages}
+		if len(missing) > 0 {
+			out["missing"] = missing
 		}
-		if in.Offset > len(d.Content) || in.Offset < len(d.Content) && !utf8.RuneStart(d.Content[in.Offset]) {
-			return nil, errors.New("offset must be a valid UTF-8 content boundary")
+		if len(changing) > 0 {
+			out["changing"] = changing
 		}
-		end := min(len(d.Content), in.Offset+in.Limit)
-		for end < len(d.Content) && end > in.Offset && !utf8.RuneStart(d.Content[end]) {
-			end--
-		}
-		if end == in.Offset && end < len(d.Content) {
-			return nil, errors.New("read limit must fit the next UTF-8 character; use at least 4 bytes")
-		}
-		return map[string]any{"document": meta, "content": d.Content[in.Offset:end], "next_offset": end, "complete": end == len(d.Content)}, nil
+		return out, nil
 	case "search":
 		if err := queryShape(in); err != nil {
 			return nil, err
@@ -374,6 +419,44 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 		return map[string]any{"hits": hits, "next_offset": next}, nil
 	}
 	return nil, errors.New("query action must be list, read or search")
+}
+
+type readPage struct {
+	Document   document `json:"document"`
+	Content    string   `json:"content"`
+	NextOffset int      `json:"next_offset"`
+	Complete   bool     `json:"complete"`
+}
+
+var (
+	errNotInPool = errors.New("document is not in the collection")
+	errChanging  = errors.New("document is changing")
+)
+
+// readPage reads limit bytes of a document's verified text from offset.
+func (s *service) readPage(ctx context.Context, pool, id string, offset, limit int) (readPage, error) {
+	meta, err := s.doc(pool, id)
+	if err != nil {
+		return readPage{}, errNotInPool
+	}
+	var d storedDocument
+	if err = s.backend.call(ctx, "GET", "/indexes/"+s.index(pool)+"/documents/"+id, nil, &d); err != nil {
+		return readPage{}, err
+	}
+	if !sameDocument(meta, d.document) || hash(d.Content) != meta.SHA256 || !validText(d.Content, maxContent) {
+		return readPage{}, errChanging
+	}
+	if offset > len(d.Content) || offset < len(d.Content) && !utf8.RuneStart(d.Content[offset]) {
+		return readPage{}, errors.New("offset must be a valid UTF-8 content boundary")
+	}
+	end := min(len(d.Content), offset+limit)
+	for end < len(d.Content) && end > offset && !utf8.RuneStart(d.Content[end]) {
+		end--
+	}
+	if end == offset && end < len(d.Content) {
+		return readPage{}, errors.New("read limit must fit the next UTF-8 character; use at least 4 bytes")
+	}
+	return readPage{meta, d.Content[offset:end], end, end == len(d.Content)}, nil
 }
 
 func (s *service) manage(ctx context.Context, in manageInput) (any, error) {

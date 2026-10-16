@@ -76,6 +76,15 @@
                 "type": "string",
                 "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
               },
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+                },
+                "maxItems": 8,
+                "description": "read: up to 8 document IDs read in one call (with id, if set), e.g. the documents a list returned. Each comes back as its first page; missing names IDs not in the collection."
+              },
               "query": {
                 "type": "string",
                 "maxLength": 512
@@ -88,13 +97,13 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 8192,
-                "description": "list/search: results per page, 1-20 (default 10). read: bytes of content, 4-8192 (default 4096)."
+                "description": "list/search: results per page, 1-20 (default 10). read: bytes of content per document, 4-8192 (default 4096); several documents share 48 KiB."
               },
               "offset": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 131072,
-                "description": "read: byte offset, start at 0 and pass next_offset. search: result offset up to 980. list pages with after instead."
+                "description": "read: byte offset into one document, start at 0 and pass next_offset. search: result offset up to 980. list pages with after instead."
               },
               "conversation_id": {
                 "type": "string",

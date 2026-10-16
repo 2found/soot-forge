@@ -93,6 +93,16 @@ func (s *service) recordQuery(in queryInput, result any) error {
 			a.Documents = append(a.Documents, revisionRef{ID: d.ID, Revision: d.Revision})
 		}
 	}
+	read := []document{}
+	if d, ok := v["document"].(document); ok {
+		read = append(read, d)
+	}
+	if pages, ok := v["documents"].([]readPage); ok {
+		for _, p := range pages {
+			a.Documents = append(a.Documents, revisionRef{ID: p.Document.ID, Revision: p.Document.Revision})
+			read = append(read, p.Document)
+		}
+	}
 	if hits, ok := v["hits"].([]any); ok {
 		for _, hit := range hits {
 			d := hit.(map[string]any)["document"].(document)
@@ -104,8 +114,10 @@ func (s *service) recordQuery(in queryInput, result any) error {
 			return err
 		}
 		if in.Action == "read" {
-			if d, ok := v["document"].(document); ok {
-				return appendReference(tx, s.origin, in.Pool, generation, "read", &d)
+			for _, d := range read {
+				if err := appendReference(tx, s.origin, in.Pool, generation, "read", &d); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

@@ -229,6 +229,7 @@ Tools available to selected capabilities:
 | read | `data-pool_query`: action=list, pool, after/limit | Paginated metadata |
 | read | `data-pool_query`: action=search, pool, query, offset/limit | Indexed matches, bounded snippets (768 bytes around the query's rarest words; the opening when that is where they are) and source/revision metadata |
 | read | `data-pool_query`: action=read, pool, id, offset/limit | Verified original text page with next_offset and complete |
+| read | `data-pool_query`: action=read, pool, ids (up to 8), limit | One verified first page per document, sharing 48 KiB; `missing` lists IDs not in the collection |
 | read | `data-pool_status`: request_id, optional owner | Reconcile a saved mutation; inspecting another owner requires pool manage |
 | write | `data-pool_write`: action=append, pool, title, content OR url, source/tags, request_id (omit id) | New independent entry; duplicate content accepted, same-intent retry idempotent |
 | write | `data-pool_write`: action=upsert, pool, id, title, content OR url, source/tags, request_id | Import/update receipt |
@@ -259,7 +260,8 @@ documents can be supplied as separate named sections; OCR/PDF/SaaS sync are not
 part of this connector.
 
 Lists/search return at most 20 items; search offsets stop at 980. Reads return
-4096 bytes by default, at most 8192, and next_offset preserves UTF-8 boundaries. A limit too small to fit the next
+4096 bytes by default, at most 8192, and next_offset preserves UTF-8 boundaries. A read of up to 8 `ids` returns each
+document's first page within 48 KiB in total, so a digest of a day's documents is one list and one read. A limit too small to fit the next
 character returns an error; use at least 4 bytes for any UTF-8 character.
 There are at most 256 pools and 10,000 documents per pool. Direct-mode operations serialize through a private state lock. Shared-service
 queries and independent document writes run concurrently; same-document writes
