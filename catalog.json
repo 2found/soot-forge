@@ -253,6 +253,20 @@
       }
     },
     {
+      "id": "micro-fish",
+      "name": "Micro Fish",
+      "description": "Run persona crowds and expert panels on a feature, product, video or campaign, with deterministic tallies.",
+      "tags": [
+        "research",
+        "marketing",
+        "collaboration"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/micro-fish"
+      }
+    },
+    {
       "id": "office",
       "name": "Office",
       "description": "Read, create and edit Word, Excel, PowerPoint and PDF files with bounded local tools.",

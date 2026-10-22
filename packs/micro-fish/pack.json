@@ -1,0 +1,836 @@
+{
+  "api_version": "soot/v1",
+  "id": "micro-fish",
+  "use": [],
+  "capabilities": {
+    "records": {
+      "tools": [
+        {
+          "name": "status",
+          "description": "List this conversation's simulations, or show one simulation's stimuli, population mix and round progress.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "status"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "read",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        },
+        {
+          "name": "packet",
+          "description": "Read the brief, stimuli and, for each listed persona, its card, memory of earlier rounds, stimulus order and social feed. An empty persona list returns only the brief and stimuli.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "round": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "personas": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+                },
+                "maxItems": 12
+              }
+            },
+            "required": [
+              "sim",
+              "round",
+              "personas"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "packet"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "read",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        },
+        {
+          "name": "profile",
+          "description": "Read one persona with every reaction, post and feed it saw, to interview it in character.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "persona": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              }
+            },
+            "required": [
+              "sim",
+              "persona"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "profile"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "read",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        }
+      ]
+    },
+    "coordinate": {
+      "skills": [
+        {
+          "name": "micro-fish-coordinate",
+          "description": "Run a simulated society end to end: brief, population, rounds, expert panel, report and interviews.",
+          "file": "skills/coordinate.md"
+        },
+        {
+          "name": "micro-fish-product",
+          "description": "Design a simulation that evaluates a product, feature or price.",
+          "file": "skills/product.md"
+        },
+        {
+          "name": "micro-fish-media",
+          "description": "Design a simulation that evaluates a video, ad, campaign or marketing strategy.",
+          "file": "skills/media.md"
+        }
+      ],
+      "tools": [
+        {
+          "name": "create",
+          "description": "Create a simulation from a brief: goal, kind, markets, questions, number of social rounds, feed size and up to 4 short stimuli to evaluate (A/B allowed). Add a long stimulus separately with micro-fish_stimulus.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "goal": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "product",
+                  "feature",
+                  "video",
+                  "marketing",
+                  "pricing",
+                  "other"
+                ]
+              },
+              "language": {
+                "type": "string",
+                "maxLength": 20
+              },
+              "markets": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "maxItems": 6
+              },
+              "audience": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "stimuli": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+                    },
+                    "label": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "content": {
+                      "type": "string",
+                      "maxLength": 3000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "content"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 4
+              },
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "maxItems": 8
+              },
+              "rounds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "feed_size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8
+              }
+            },
+            "required": [
+              "sim",
+              "goal",
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "create"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "write",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        },
+        {
+          "name": "stimulus",
+          "description": "Add or replace one stimulus (up to 3000 characters: a feature, landing copy, price table, video script or campaign) before round 0.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "stimulus": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 3000
+                  }
+                },
+                "required": [
+                  "id",
+                  "label",
+                  "content"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "sim",
+              "stimulus"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "stimulus"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "write",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        },
+        {
+          "name": "plan_round",
+          "description": "Return the persona batches that still need to react in a round. A social round waits until the previous round is complete.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "round": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "batch_size": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              }
+            },
+            "required": [
+              "sim",
+              "round"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "plan_round"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "read",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        }
+      ]
+    },
+    "populate": {
+      "skills": [
+        {
+          "name": "micro-fish-populate",
+          "description": "Build a diverse, realistic population of personas for the brief's markets.",
+          "file": "skills/populate.md"
+        }
+      ],
+      "tools": [
+        {
+          "name": "add_personas",
+          "description": "Add up to 10 personas to a simulation. The population is fixed once round 0 starts.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "personas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+                    },
+                    "name": {
+                      "type": "string",
+                      "maxLength": 60
+                    },
+                    "segment": {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    "market": {
+                      "type": "string",
+                      "maxLength": 40
+                    },
+                    "age": {
+                      "type": "integer",
+                      "minimum": 13,
+                      "maximum": 99
+                    },
+                    "gender": {
+                      "type": "string",
+                      "maxLength": 30
+                    },
+                    "occupation": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "income": {
+                      "type": "string",
+                      "maxLength": 60
+                    },
+                    "traits": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "maxItems": 6
+                    },
+                    "values": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "maxItems": 6
+                    },
+                    "media": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "maxItems": 6
+                    },
+                    "context": {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "stance": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "influence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "skepticism": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "bio": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "segment",
+                    "market",
+                    "bio"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 10
+              },
+              "replace": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "sim",
+              "personas"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "add_personas"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "write",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        }
+      ]
+    },
+    "crowd": {
+      "skills": [
+        {
+          "name": "micro-fish-crowd",
+          "description": "Voice a batch of personas honestly for one round and record their reactions.",
+          "file": "skills/crowd.md"
+        }
+      ],
+      "tools": [
+        {
+          "name": "react",
+          "description": "Record one round's reactions for up to 6 personas: 1–5 scores per stimulus, sentiment, objections, a quote in the persona's voice, an optional public post, share and what changed their mind.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "round": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "reactions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "persona": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+                    },
+                    "stimuli": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "stimulus": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+                          },
+                          "attention": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "appeal": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "clarity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "trust": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "intent": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "price_ok": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
+                          "watch_through": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "sentiment": {
+                            "type": "integer",
+                            "minimum": -2,
+                            "maximum": 2
+                          },
+                          "emotions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "maxItems": 3
+                          },
+                          "objections": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "maxItems": 4
+                          },
+                          "quote": {
+                            "type": "string",
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "stimulus",
+                          "attention",
+                          "appeal",
+                          "clarity",
+                          "trust",
+                          "intent",
+                          "sentiment",
+                          "quote"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 4
+                    },
+                    "preferred": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "post": {
+                      "type": "string",
+                      "maxLength": 240
+                    },
+                    "share": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "influenced_by": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "maxItems": 3
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "change_reason": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "persona",
+                    "stimuli"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 6
+              }
+            },
+            "required": [
+              "sim",
+              "round",
+              "reactions"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "react"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "write",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        }
+      ]
+    },
+    "panel": {
+      "skills": [
+        {
+          "name": "micro-fish-expert",
+          "description": "Review the stimuli as a named domain expert with a severity-ranked rubric and verdict.",
+          "file": "skills/expert.md"
+        }
+      ],
+      "tools": [
+        {
+          "name": "expert",
+          "description": "Record one expert review: lens, GO/ITERATE/NO_GO verdict, 0–10 overall and dimension scores, P0–P3 findings with evidence and fix, strengths and coverage.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "expert": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "lens": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "GO",
+                  "ITERATE",
+                  "NO_GO"
+                ]
+              },
+              "overall": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "scores": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10
+                },
+                "maxProperties": 12
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "P0",
+                        "P1",
+                        "P2",
+                        "P3"
+                      ]
+                    },
+                    "stimulus": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+                    },
+                    "issue": {
+                      "type": "string",
+                      "maxLength": 240
+                    },
+                    "evidence": {
+                      "type": "string",
+                      "maxLength": 240
+                    },
+                    "fix": {
+                      "type": "string",
+                      "maxLength": 240
+                    }
+                  },
+                  "required": [
+                    "severity",
+                    "issue",
+                    "fix"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 12
+              },
+              "strengths": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "maxItems": 8
+              },
+              "coverage": {
+                "type": "string",
+                "maxLength": 400
+              }
+            },
+            "required": [
+              "sim",
+              "expert",
+              "lens",
+              "verdict",
+              "overall",
+              "findings",
+              "coverage"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "expert"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "write",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        }
+      ]
+    },
+    "analyze": {
+      "skills": [
+        {
+          "name": "micro-fish-analyze",
+          "description": "Turn the tally into a decision report with evidence, segment differences and caveats.",
+          "file": "skills/analyze.md"
+        }
+      ],
+      "tools": [
+        {
+          "name": "tally",
+          "description": "Compute deterministic statistics: per-round scores and top-2 rates with 95% intervals, opinion shift, A/B preference, segment or market breakdown, objections, quotes, influential posts, expert verdicts and warnings.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "sim": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,47}$"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "segment",
+                  "market"
+                ]
+              }
+            },
+            "required": [
+              "sim"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "program": "node",
+            "args": [
+              "tools/micro-fish.mjs",
+              "tally"
+            ],
+            "directory": ".",
+            "stdin": "context",
+            "mode": "read",
+            "resource": "micro-fish_world",
+            "timeout": "30s"
+          }
+        }
+      ]
+    }
+  }
+}

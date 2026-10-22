@@ -5,8 +5,14 @@
     {
       "id": "marketing-team",
       "name": "Marketing team",
-      "description": "Radar \u2192 source pool \u2192 creator \u2192 editor \u2192 your selected publishers. Draft-first, with revision-bound approvals.",
+      "description": "Radar → source pool → creator → editor → your selected publishers. Draft-first, with revision-bound approvals.",
       "source": "groups/marketing-team/group.source.json"
+    },
+    {
+      "id": "society-sim",
+      "name": "Simulated society",
+      "description": "A persona crowd, an expert panel and an analyst judge your feature, product, price, video or campaign: independent first impressions, social rounds, then a cited report.",
+      "source": "groups/society-sim/group.source.json"
     }
   ]
 }
