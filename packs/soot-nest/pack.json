@@ -1,10 +1,13 @@
 {
  "api_version":"soot/v1",
  "id":"soot-nest",
- "use":["side-bar"],
+ "use":["side-bar","nest-links"],
  "capabilities":{
   "side-bar":{
    "skills":[{"name":"side-bar","description":"Use Nest's right tool area to present pack interfaces, keep conversation state, and choose suitable size/aspect.","file":"skills/side-bar.md"}]
+  },
+  "nest-links":{
+   "skills":[{"name":"nest-links","description":"Write nest:// links in replies that open a data-pool collection or document, a Soot, a team, a Nest page or a drafted piece of work.","file":"skills/nest-links.md"}]
   }
  }
 }
