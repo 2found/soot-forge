@@ -59,7 +59,7 @@ cannot clear a message still being sent.
 
 ### Shared agent UI
 
-The widget uses the released `@tofound/ui@0.5.0` AgentComposer as a controlled React island, plus the shared agent styles and transcript behavior. The frame still owns draft acknowledgements, validation and retry receipts. Double Escape clears only editable text; pending requests stay locked. `@` filters a bounded set of files linked in the visitor's delivered messages. Anonymous visitors receive no private skill catalog. `widget/ui-manifest.json` records the imported
+The widget uses the released `@tofound/ui@0.9.0` AgentComposer as a controlled React island, plus the shared agent styles and transcript behavior. The frame still owns draft acknowledgements, validation and retry receipts. Double Escape clears only editable text; pending requests stay locked. `@` filters a bounded set of files linked in the visitor's delivered messages. Anonymous visitors receive no private skill catalog. `widget/ui-manifest.json` records the imported
 package version and SHA-256 hashes, including the composer bundle; never edit generated `widget-composer.js`, `agent.css` or
 `agent-behavior.js` in place. From the Forge root, refresh explicitly:
 

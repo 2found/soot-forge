@@ -24,13 +24,16 @@ doctor() {
   [[ -f "$AI_CONFIG" ]] || { echo "MISSING $AI_CONFIG — configure an AI provider and model"; ok=0; }
   if [[ $ok == 1 ]]; then
     soot version | head -1
-    # Every provider key_env named in the config must be set (values never printed).
+    # The key_env of every provider the model and tiers use must be set (values never printed).
+    # Providers the config declares but no model uses are not checked.
     node -e '
       const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
       const flash = c.tiers?.flash ?? c.model ?? {};
-      console.log(`config ${process.argv[1]}: flash tier = ${flash.provider ?? "?"}/${flash.name ?? "?"}`);
-      const envs = new Set();
-      for (const p of Object.values(c.providers ?? {})) if (p.key_env) envs.add(p.key_env);
+      console.log(`config ${process.argv[1]}: flash tier = ${flash.provider ?? c.model?.provider ?? "?"}/${flash.name ?? "?"}`);
+      const used = new Set(), envs = new Set();
+      for (const m of [c.model, ...Object.values(c.tiers ?? {})].filter(Boolean))
+        for (const r of [m, ...(m.fallbacks ?? [])]) used.add(r.provider ?? c.model?.provider);
+      for (const id of used) { const k = c.providers?.[id]?.key_env; if (k) envs.add(k); }
       if (c.model?.key_env) envs.add(c.model.key_env);
       let bad = 0;
       for (const e of envs) { const set = !!process.env[e]; if (!set) bad++; console.log(`${set ? "SET    " : "UNSET  "} ${e}`); }

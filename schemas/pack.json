@@ -79,6 +79,16 @@
                   "additionalProperties": false,
                   "description": "Fixed executable settings; omitted selects a native host tool. Model input never changes argv/environment.",
                   "properties": {
+                    "approval": {
+                      "description": "operator holds each call until an operator approves that exact input in Nest (Cần duyệt); the approval runs the call once. Use for actions a human must sign off, such as publishing.",
+                      "enum": [
+                        "operator"
+                      ],
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "args": {
                       "items": {
                         "type": [
@@ -90,6 +100,10 @@
                         "array",
                         "null"
                       ]
+                    },
+                    "background": {
+                      "description": "The tool can be slow (a crawl, a build, a long upload): offer the Soot async, to start it as a background job and collect it with job_wait. Omitted: every call runs inline, and the Soot is not shown the option.",
+                      "type": "boolean"
                     },
                     "description": {
                       "type": [
@@ -112,6 +126,15 @@
                       },
                       "type": [
                         "array",
+                        "null"
+                      ]
+                    },
+                    "max_input_bytes": {
+                      "description": "Raise the 16 KiB model-input limit (bytes of JSON input) for a tool whose parameters legitimately carry more text, such as a document draft. Up to 128 KiB; keep blobs out of tool input.",
+                      "maximum": 131072,
+                      "minimum": 1,
+                      "type": [
+                        "integer",
                         "null"
                       ]
                     },
@@ -139,6 +162,10 @@
                         "boolean",
                         "null"
                       ]
+                    },
+                    "preflight": {
+                      "description": "With approval operator and stdin context: before filing an approval, run the tool once with hook tool.preflight. It must not change anything. Exit 0 with a short summary (text, or JSON {\"preview\":\"…\"}) shown on the approval card; exit 1 refuses and the Soot gets the message instead of an approval request; any other failure files the approval without a summary.",
+                      "type": "boolean"
                     },
                     "program": {
                       "minLength": 1,
@@ -190,6 +217,11 @@
                         "null"
                       ]
                     },
+                    "title": {
+                      "description": "Short name of the action for people, shown in Nest approvals.",
+                      "maxLength": 80,
+                      "type": "string"
+                    },
                     "verify_target": {
                       "type": [
                         "string",
@@ -204,6 +236,11 @@
                     "object",
                     "null"
                   ]
+                },
+                "title": {
+                  "description": "Short name of the action for people, shown in Nest approvals, e.g. \"Đăng bài lên CMS\". The description stays the model's instruction.",
+                  "maxLength": 80,
+                  "type": "string"
                 }
               },
               "required": [

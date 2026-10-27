@@ -1,14 +1,48 @@
-/* Framework-neutral agent surfaces. Hosts own the theme; embedded clients can
-   map --agent-* to their existing tokens without Tailwind or React. */
+/* Agent surfaces: message, question, status, composer, subagent call and conversation markup is
+   framework-neutral (no React needed); AgentActivity additionally needs the React Accordion.
+   Hosts own the theme and map --agent-* to their tokens. Unset tokens fall back to the host's
+   shadcn-style tokens (--foreground, --muted-foreground, --border, --ring, --card, --muted, --destructive).
+
+   Color tokens
+     --agent-foreground  text                         --agent-muted    secondary text and icons
+     --agent-border      card/divider borders         --agent-ring     focus and selection accent
+     --agent-surface     composer, completion menu and subagent card background (default --card)
+     --agent-inset       question card, user bubble and active completion row (default --muted)
+     --agent-background  selected question option (default --background)
+     --agent-error       invalid composer, failed-step icon (default --destructive)
+   Shape tokens
+     --agent-radius      card radius (default --radius)
+     --agent-shadow      composer/menu/jump shadow (default --shadow-sm; set it when the host defines none)
+     --agent-hit         touch target on coarse pointers (44px)   --agent-action  composer icon button (28px)
+     --agent-pad         card padding (12px)                      --agent-bubble-max  user bubble width
+
+   These rules are unlayered, so they beat host utility classes of any specificity: restyle through the
+   tokens above, or add `!` to a utility (Tailwind: `grid!`) when a token does not reach what you need.
+   Vanilla hosts still style their own native controls (textarea, buttons); this file sets geometry only. */
 .ui-agent-message,.ui-agent-question,.ui-agent-activity,.ui-agent-suggestions {
   min-width:0;
   overflow-wrap:anywhere;
   color:var(--agent-foreground,var(--foreground));
 }
+.ui-agent-visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+
+/* Message */
 .ui-agent-message { display:flex; flex-direction:column; gap:8px; }
-.ui-agent-message-label { color:var(--agent-muted,var(--muted-foreground)); font-size:12px; line-height:1.5; }
+.ui-agent-message-label { color:var(--agent-muted,var(--muted-foreground)); font-size:0.75rem; line-height:1.5; }
 .ui-agent-message-actions { display:flex; flex-wrap:wrap; gap:4px; }
-.ui-agent-status { display:inline-flex; align-items:center; gap:6px; min-width:0; font-size:12px; line-height:1.5; color:var(--agent-muted,var(--muted-foreground)); }
+.ui-agent-message-header { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; }
+.ui-agent-message-meta { font-size:0.75rem; line-height:1.5; color:var(--agent-muted,var(--muted-foreground)); }
+.ui-agent-message-content { min-width:0; max-width:100%; overflow-wrap:anywhere; font-size:0.875rem; line-height:1.7; }
+.ui-agent-message[data-agent-variant=chat] { width:100%; }
+.ui-agent-message[data-agent-variant=chat][data-agent-role=user] { align-self:flex-end; width:fit-content; max-width:min(85%,var(--agent-bubble-max,34rem)); }
+.ui-agent-message[data-agent-variant=chat][data-agent-role=user]>.ui-agent-message-label,
+.ui-agent-message[data-agent-variant=chat][data-agent-role=user]>.ui-agent-message-header,
+.ui-agent-message[data-agent-variant=chat][data-agent-role=user]>.ui-agent-message-actions { align-self:flex-end; }
+.ui-agent-message[data-agent-variant=chat][data-agent-role=user]>.ui-agent-message-content { background:var(--agent-inset,var(--muted)); border-radius:var(--agent-radius,var(--radius)); }
+.ui-agent-message[data-agent-variant=chat][data-agent-role=system] { font-size:0.75rem; color:var(--agent-muted,var(--muted-foreground)); }
+
+/* Status and activity */
+.ui-agent-status { display:inline-flex; align-items:center; gap:6px; min-width:0; font-size:0.75rem; line-height:1.5; color:var(--agent-muted,var(--muted-foreground)); }
 .ui-agent-status-icon { width:14px; height:14px; flex-shrink:0; }
 .ui-agent-status[data-agent-state=error] { color:var(--agent-foreground,var(--foreground)); }
 .ui-agent-status[data-agent-state=error] .ui-agent-status-icon { color:var(--agent-error,var(--destructive)); }
@@ -16,103 +50,106 @@
 .ui-agent-activity [data-slot=accordion-item] { border:0; }
 .ui-agent-activity [data-slot=accordion-trigger] { align-items:center; min-height:28px; padding:4px 0; gap:8px; color:inherit; font-weight:400; }
 .ui-agent-activity [data-slot=accordion-content] { color:inherit; }
-.ui-agent-activity [data-slot=accordion-content]>div { padding-bottom:0; }
-.ui-agent-activity-content { display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:8px 0 8px 12px; border-left:1px solid var(--agent-border,var(--border)); margin-left:6px; }
-.ui-agent-question { border:1px solid var(--agent-border,var(--border)); border-radius:var(--agent-radius,var(--radius)); padding:12px; background:var(--agent-inset,var(--muted)); }
-.ui-agent-question-prompt { font-size:14px; line-height:1.6; font-weight:500; }
-.ui-agent-question-prompt-text { margin:8px 0 12px; }
+.ui-agent-activity-content { display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:8px 0 8px var(--agent-pad,12px); border-left:1px solid var(--agent-border,var(--border)); margin-left:6px; }
+
+/* Question */
+.ui-agent-question { display:flex; flex-direction:column; gap:8px; border:1px solid var(--agent-border,var(--border)); border-radius:var(--agent-radius,var(--radius)); padding:var(--agent-pad,12px); background:var(--agent-inset,var(--muted)); }
+.ui-agent-question[data-answered] { background:transparent; }
+.ui-agent-question-prompt { font-size:0.875rem; line-height:1.6; font-weight:500; }
 .ui-agent-question-options { display:flex; flex-direction:column; gap:4px; }
-.ui-agent-question-option { width:100%; height:auto; min-height:44px; justify-content:space-between; text-align:left; white-space:normal; padding:8px 12px; }
+.ui-agent-question-option { width:100%; height:auto; min-height:var(--agent-hit,44px); justify-content:space-between; text-align:left; white-space:normal; padding:8px var(--agent-pad,12px); }
 .ui-agent-question-option>span { min-width:0; }
 .ui-agent-question-option strong { display:block; font-weight:500; }
-.ui-agent-question-option small,.ui-agent-suggestions small { display:block; margin-top:4px; color:var(--agent-muted,var(--muted-foreground)); font-size:12px; line-height:1.5; }
+.ui-agent-question-option small,.ui-agent-suggestions small { display:block; margin-top:4px; color:var(--agent-muted,var(--muted-foreground)); font-size:0.75rem; line-height:1.5; }
 .ui-agent-question-option>svg { width:16px; height:16px; flex-shrink:0; }
-.ui-agent-question-option[aria-pressed=true] { background:var(--agent-background,var(--background)); border-color:var(--agent-ring,var(--ring)); }
-.ui-agent-question-confirm { margin-top:12px; }
-.ui-agent-question-footer { font-size:12px; line-height:1.5; color:var(--agent-muted,var(--muted-foreground)); }
-.ui-agent-question-footer-text { margin-top:8px; }
-.ui-agent-question[data-answered=true] { background:transparent; }
-.ui-agent-question[data-answered=true] .ui-agent-question-option:disabled { opacity:1; }
+.ui-agent-question-option[aria-checked=true] { background:var(--agent-background,var(--background)); border-color:var(--agent-ring,var(--ring)); }
+/* After an answer the chosen row stays at full strength; the rest recede. */
+.ui-agent-question[data-answered] .ui-agent-question-option:disabled { opacity:0.6; }
+.ui-agent-question[data-answered] .ui-agent-question-option[aria-checked=true]:disabled { opacity:1; }
+.ui-agent-question-confirm { align-self:flex-start; }
+.ui-agent-question-footer { font-size:0.75rem; line-height:1.5; color:var(--agent-muted,var(--muted-foreground)); }
+.ui-agent-question:focus-visible,.ui-agent-question-footer:focus-visible {
+  outline:2px solid var(--agent-ring,var(--ring)); outline-offset:4px;
+}
+
+/* Composer. min-height of the field is controlled by autoSize.minRows (an inline style) when autoSize is on. */
 .ui-agent-composer-input { resize:none; min-height:32px; }
-.ui-agent-composer { width:100%; min-width:0; color:var(--agent-foreground,var(--foreground)); }
+.ui-agent-composer { display:flex; flex-direction:column; gap:8px; width:100%; min-width:0; color:var(--agent-foreground,var(--foreground)); }
 .ui-agent-composer-surface {
   position:relative;
   display:flex; flex-direction:column; gap:8px;
   container:ui-agent-composer / inline-size;
-  min-width:0; padding:12px;
+  min-width:0; padding:var(--agent-pad,12px);
   border:1px solid var(--agent-border,var(--border));
   border-radius:var(--agent-radius,var(--radius));
   background:var(--agent-surface,var(--card));
   box-shadow:var(--agent-shadow,var(--shadow-sm));
 }
-.ui-agent-composer .ui-agent-composer-field { min-height:32px; padding:4px; background:transparent; border:0; border-radius:0; outline:none; box-shadow:none; }
-.ui-agent-composer-surface:has(.ui-agent-composer-field:focus-visible) { outline:2px solid var(--agent-ring,var(--ring)); outline-offset:2px; }
+.ui-agent-composer .ui-agent-composer-field { padding:4px; background:transparent; border:0; border-radius:0; outline:none; box-shadow:none; }
+/* The card is the field: focus reads like Textarea (border takes the ring color plus a 3px halo). */
+.ui-agent-composer-surface:has(.ui-agent-composer-field:focus-visible) {
+  border-color:var(--agent-ring,var(--ring));
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--agent-ring,var(--ring)) 40%,transparent),var(--agent-shadow,var(--shadow-sm));
+}
 .ui-agent-composer[data-invalid=true] .ui-agent-composer-surface { border-color:var(--agent-error,var(--destructive)); }
-.ui-agent-composer[data-invalid=true] .ui-agent-composer-surface:has(.ui-agent-composer-field:focus-visible) { outline-color:var(--agent-error,var(--destructive)); }
+.ui-agent-composer[data-invalid=true] .ui-agent-composer-surface:has(.ui-agent-composer-field:focus-visible) {
+  border-color:var(--agent-error,var(--destructive));
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--agent-error,var(--destructive)) 30%,transparent),var(--agent-shadow,var(--shadow-sm));
+}
 .ui-agent-composer-completions { position:absolute; bottom:calc(100% + 8px); left:0; right:0; z-index:20; padding:4px; border:1px solid var(--agent-border,var(--border)); border-radius:var(--agent-radius,var(--radius)); background:var(--agent-surface,var(--card)); box-shadow:var(--agent-shadow,var(--shadow-sm)); }
 .ui-agent-composer-completions [role=listbox] { max-height:240px; overflow-y:auto; overscroll-behavior:contain; }
-.ui-agent-composer-completion-label,.ui-agent-composer-completion-empty { padding:8px; color:var(--agent-muted,var(--muted-foreground)); font-size:12px; line-height:1.5; }
-.ui-agent-composer-completion-option { padding:8px; cursor:pointer; border-radius:var(--agent-radius,var(--radius)); font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
-.ui-agent-composer-completion-option[aria-selected=true],.ui-agent-composer-completion-option:hover { background:var(--agent-inset,var(--muted)); }
-.ui-agent-composer-completion-option small { display:block; color:var(--agent-muted,var(--muted-foreground)); font-size:12px; }
+.ui-agent-composer-completion-label,.ui-agent-composer-completion-empty { padding:8px; color:var(--agent-muted,var(--muted-foreground)); font-size:0.75rem; line-height:1.5; }
+/* Nested radius: the card radius minus its 4px inset. Only the keyboard/active row is highlighted;
+   a hovered row becomes active on mouse move, so two rows never look selected. */
+.ui-agent-composer-completion-option { padding:8px; cursor:pointer; border-radius:max(0px,calc(var(--agent-radius,var(--radius)) - 4px)); font-size:0.875rem; line-height:1.5; overflow-wrap:anywhere; }
+.ui-agent-composer-completion-option[aria-selected=true] { background:var(--agent-inset,var(--muted)); }
+.ui-agent-composer-completion-option small { display:block; color:var(--agent-muted,var(--muted-foreground)); font-size:0.75rem; }
 .ui-agent-composer-toolbar { display:flex; align-items:center; gap:4px; min-width:0; }
 .ui-agent-composer-controls,.ui-agent-composer-tools,.ui-agent-composer-actions { display:flex; align-items:center; gap:4px; min-width:0; }
 .ui-agent-composer-controls { flex-wrap:wrap; }
 .ui-agent-composer-controls>* { min-width:0; max-width:100%; }
 .ui-agent-composer-tools,.ui-agent-composer-actions { flex-shrink:0; }
 .ui-agent-composer-actions { margin-left:auto; }
-.ui-agent-composer-action { width:28px; height:28px; min-width:28px; padding:0; }
+.ui-agent-composer-action { width:var(--agent-action,28px); height:var(--agent-action,28px); min-width:var(--agent-action,28px); padding:0; }
 .ui-agent-composer-action svg { width:14px; height:14px; }
-.ui-agent-composer button:disabled { pointer-events:auto; }
+/* Keep pointer events on disabled buttons so a title tooltip still shows; they must not look clickable. */
+.ui-agent-composer button:disabled { pointer-events:auto; cursor:not-allowed; }
 .ui-agent-composer-attachments { display:flex; flex-wrap:wrap; gap:8px; }
-.ui-agent-composer-footer { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; min-width:0; color:var(--agent-muted,var(--muted-foreground)); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
-.ui-agent-composer-footer-text { padding:8px 4px 0; }
+.ui-agent-composer-footer { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; min-width:0; color:var(--agent-muted,var(--muted-foreground)); font-size:0.75rem; line-height:1.5; overflow-wrap:anywhere; }
+.ui-agent-composer-footer-text { padding:0 4px; }
 @container ui-agent-composer (max-width:360px) {
   .ui-agent-composer-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; }
   .ui-agent-composer-controls { grid-column:1 / -1; }
   .ui-agent-composer-tools { grid-column:1; }
   .ui-agent-composer-actions { grid-column:2; }
 }
-.ui-agent-jump { border-radius:var(--agent-radius,var(--radius)); box-shadow:var(--agent-shadow,var(--shadow-sm)); }
+
+/* Jump to latest, suggestions */
+.ui-agent-jump { border-radius:999px; box-shadow:var(--agent-shadow,var(--shadow-sm)); }
+.ui-agent-jump[data-new-content] { border-color:var(--agent-ring,var(--ring)); }
 .ui-agent-jump svg { width:14px; height:14px; }
 .ui-agent-suggestions { display:flex; flex-wrap:wrap; gap:8px; }
 .ui-agent-suggestions button { height:auto; white-space:normal; text-align:left; }
-@media (pointer:coarse),(max-width:700px) {
-  .ui-agent-composer-completion-option { min-height:44px; }
-  .ui-agent-activity [data-slot=accordion-trigger],.ui-agent-jump,.ui-agent-question-confirm,.ui-agent-suggestions button { min-height:44px; }
-  .ui-agent-composer-action { width:44px; height:44px; min-width:44px; min-height:44px; }
-  .ui-agent-composer-controls button,.ui-agent-composer-controls [role=combobox],.ui-agent-composer-tools button { min-height:44px; }
-}
-@media (prefers-reduced-motion:no-preference) {
-  .ui-agent-status[data-agent-state=running] .ui-agent-status-icon { animation:ui-agent-spin 1s linear infinite; }
-  @keyframes ui-agent-spin { to { transform:rotate(360deg); } }
-}
-@media (prefers-reduced-motion:reduce) {
-  .ui-agent-activity * { animation:none !important; transition:none !important; }
-}
-
-.ui-agent-question:focus-visible,.ui-agent-question-footer:focus-visible {
-  outline:2px solid var(--agent-ring,var(--ring)); outline-offset:4px;
-}
 
 /* Sub-agent card chrome is owned; rich task/summary/transcript/actions retain caller spacing. */
 .ui-agent-subagent-call { min-width:0; overflow-wrap:anywhere; display:flex; flex-direction:column; gap:8px; color:var(--agent-foreground,var(--foreground)); background:var(--agent-surface,var(--card)); border:1px solid var(--agent-border,var(--border)); border-radius:var(--agent-radius,var(--radius)); overflow:hidden; }
-.ui-agent-subagent-header { display:flex; align-items:center; gap:8px; padding:4px 12px 0; }
-.ui-agent-subagent-trigger,.ui-agent-subagent-heading { display:flex; align-items:center; gap:8px; min-width:0; flex:1; min-height:44px; color:inherit; font:inherit; font-size:13px; }
-.ui-agent-subagent-trigger { text-align:left; cursor:pointer; background:transparent; border:0; padding:0; border-radius:var(--agent-radius,var(--radius)); }
+.ui-agent-subagent-header { display:flex; align-items:center; gap:8px; padding:4px var(--agent-pad,12px) 0; }
+.ui-agent-subagent-trigger,.ui-agent-subagent-heading { display:flex; align-items:center; gap:8px; min-width:0; flex:1; min-height:var(--agent-hit,44px); color:inherit; font:inherit; font-size:0.875rem; }
+.ui-agent-subagent-trigger { text-align:left; cursor:pointer; background:transparent; border:0; padding:0; border-radius:max(0px,calc(var(--agent-radius,var(--radius)) - 4px)); }
 .ui-agent-subagent-trigger:focus-visible { outline:2px solid var(--agent-ring,var(--ring)); outline-offset:2px; }
-.ui-agent-subagent-name { min-width:0; font-weight:600; }
+/* The name takes the slack, so duration and chevron sit together at the end of the row. */
+.ui-agent-subagent-name { min-width:0; flex:1 1 auto; font-weight:600; }
 .ui-agent-subagent-icon,.ui-agent-subagent-chevron { width:16px; height:16px; flex-shrink:0; color:var(--agent-muted,var(--muted-foreground)); }
-.ui-agent-subagent-chevron { margin-left:auto; }
 .ui-agent-subagent-trigger[aria-expanded=true] .ui-agent-subagent-chevron { transform:rotate(180deg); }
-.ui-agent-subagent-duration { margin-left:auto; flex-shrink:0; font-size:12px; font-variant-numeric:tabular-nums; color:var(--agent-muted,var(--muted-foreground)); }
+.ui-agent-subagent-duration { flex-shrink:0; font-size:0.75rem; font-variant-numeric:tabular-nums; color:var(--agent-muted,var(--muted-foreground)); }
 .ui-agent-subagent-actions { display:flex; flex-wrap:wrap; gap:4px; }
-.ui-agent-subagent-metadata { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; padding:0 12px; font-size:12px; color:var(--agent-muted,var(--muted-foreground)); }
+.ui-agent-subagent-metadata { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; padding:0 var(--agent-pad,12px); font-size:0.75rem; color:var(--agent-muted,var(--muted-foreground)); }
 .ui-agent-subagent-id { font:inherit; overflow-wrap:anywhere; }
-.ui-agent-subagent-task { font-size:14px; line-height:1.6; }
-.ui-agent-subagent-summary { font-size:13px; line-height:1.6; color:var(--agent-muted,var(--muted-foreground)); }
-.ui-agent-subagent-text { padding:0 12px; }
-.ui-agent-subagent-text:last-child { padding-bottom:12px; }
+.ui-agent-subagent-task { font-size:0.875rem; line-height:1.6; }
+.ui-agent-subagent-summary { font-size:0.875rem; line-height:1.6; color:var(--agent-muted,var(--muted-foreground)); }
+.ui-agent-subagent-text { padding:0 var(--agent-pad,12px); }
+/* A collapsed transcript stays mounted but hidden, so the last visible text sits before it. */
+.ui-agent-subagent-text:last-child,.ui-agent-subagent-text:has(+ .ui-agent-subagent-transcript[hidden]) { padding-bottom:var(--agent-pad,12px); }
 .ui-agent-subagent-transcript { min-width:0; border-top:1px solid var(--agent-border,var(--border)); }
 
 /* Conversation geometry; rich header/footer/history/message slots have no gutters. */
@@ -126,14 +163,24 @@
 .ui-agent-conversation-history button[aria-disabled=true] { cursor:wait; opacity:0.6; }
 .ui-agent-conversation-jump { position:absolute; bottom:12px; left:0; right:0; display:flex; justify-content:center; pointer-events:none; }
 .ui-agent-conversation-jump>* { pointer-events:auto; }
-.ui-agent-message-header { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; }
-.ui-agent-message-meta { font-size:12px; line-height:1.5; color:var(--agent-muted,var(--muted-foreground)); }
-.ui-agent-message[data-variant=chat] { width:100%; }
-.ui-agent-message[data-variant=chat][data-agent-role=user] { align-self:flex-end; width:fit-content; max-width:min(85%,34rem); }
-.ui-agent-message[data-variant=chat][data-agent-role=user]>.ui-agent-message-label,
-.ui-agent-message[data-variant=chat][data-agent-role=user]>.ui-agent-message-header,
-.ui-agent-message[data-variant=chat][data-agent-role=user]>.ui-agent-message-actions { align-self:flex-end; }
-.ui-agent-message-content { min-width:0; max-width:100%; overflow-wrap:anywhere; font-size:14px; line-height:1.7; }
-.ui-agent-message[data-variant=chat][data-agent-role=user]>.ui-agent-message-content { background:var(--agent-inset,var(--muted)); border-radius:var(--agent-radius,var(--radius)); }
-.ui-agent-message[data-variant=chat][data-agent-role=system] { font-size:12px; color:var(--agent-muted,var(--muted-foreground)); }
-@media(pointer:coarse),(max-width:700px) { .ui-agent-conversation-history button { min-height:44px; } }
+
+/* Touch targets: one coarse-pointer rule, same signal as Button's own 44px minimum. */
+@media (pointer:coarse) {
+  .ui-agent-composer-field { font-size:1rem; } /* >=16px: iOS Safari does not zoom the page on focus */
+  .ui-agent-composer-completion-option { min-height:var(--agent-hit,44px); }
+  .ui-agent-activity [data-slot=accordion-trigger],.ui-agent-jump,.ui-agent-question-confirm,.ui-agent-suggestions button,.ui-agent-conversation-history button { min-height:var(--agent-hit,44px); }
+  .ui-agent-composer-action { width:var(--agent-hit,44px); height:var(--agent-hit,44px); min-width:var(--agent-hit,44px); min-height:var(--agent-hit,44px); }
+  .ui-agent-composer-controls button,.ui-agent-composer-controls [role=combobox],.ui-agent-composer-tools button { min-height:var(--agent-hit,44px); }
+}
+
+@media (prefers-reduced-motion:no-preference) {
+  .ui-agent-status[data-agent-state=running] .ui-agent-status-icon { animation:ui-agent-spin 1s linear infinite; }
+  @keyframes ui-agent-spin { to { transform:rotate(360deg); } }
+  .ui-agent-subagent-chevron { transition:transform .15s ease-out; }
+  .ui-agent-jump { animation:ui-agent-jump-in .15s ease-out; }
+  @keyframes ui-agent-jump-in { from { opacity:0; transform:translateY(4px); } }
+}
+@media (prefers-reduced-motion:reduce) {
+  .ui-agent-activity [data-slot=accordion-content] { animation:none; }
+  .ui-agent-activity [data-slot=accordion-trigger],.ui-agent-activity svg { transition:none; }
+}
