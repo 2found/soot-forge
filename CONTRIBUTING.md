@@ -40,7 +40,8 @@ commit SHA** (not `main`, a tag or `HEAD`):
     "kind": "github",
     "repository": "your-name/your-repository",
     "path": "packs/my-pack",
-    "ref": "REPLACE_WITH_A_FULL_REVIEWED_COMMIT_SHA"
+    "ref": "REPLACE_WITH_A_FULL_REVIEWED_COMMIT_SHA",
+    "version": "1.2.3"
   }
 }
 ```
@@ -48,7 +49,9 @@ commit SHA** (not `main`, a tag or `HEAD`):
 The folder must be publicly fetchable and contain `pack.json` declaring the
 same ID. You must have permission to redistribute its source in Forge release
 archives; document its license in the pack. Updating the pack is another PR
-changing the pinned commit. The 2build entry in `catalog.json` is a real example.
+changing the pinned commit and `version`. `version` is the stable SemVer of the
+release the commit belongs to; the repository must have a tag `v<version>` at
+exactly that commit, which CI checks. The 2build entry in `catalog.json` is a real example.
 The installer uses `https://github.com/owner/repo/tree/<commit>/packs/my-pack`.
 
 ## Review and checks

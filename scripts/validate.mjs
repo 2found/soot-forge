@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path';
 import { readCatalog, materialize, run } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { readGroups } from './groups.mjs';
+import { readFileSync } from 'node:fs';
+import { readGeneral, deriveVersion } from './general.mjs';
 
 const args = process.argv.slice(2);
 let remote = false, soot = null;
@@ -15,6 +17,9 @@ for (let i = 0; i < args.length; i++) {
 const root = resolve(import.meta.dirname, '..');
 const catalog = await readCatalog(root);
 await readGroups(root);
+await readGeneral(root, catalog);
+// The release tag is cut before the build runs, so a version General cannot derive must fail here.
+deriveVersion(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version);
 const work = await mkdtemp(join(tmpdir(), 'soot-forge-validate-'));
 try {
   const directories = (await readdir(join(root, 'packs'), { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name);

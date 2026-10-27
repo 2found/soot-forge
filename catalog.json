@@ -98,7 +98,8 @@
         "kind": "github",
         "repository": "2found/2build",
         "path": "packs/2build",
-        "ref": "403543cce394020e1f0b9e38c2419f504a188db3"
+        "ref": "095dac0e1e1f9ad8818479ec231fd1ebddd59d61",
+        "version": "1.112.0"
       }
     },
     {

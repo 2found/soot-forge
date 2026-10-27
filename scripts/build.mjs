@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { readCatalog, materialize, sourceLink, installCommand } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { buildGroups } from './groups.mjs';
+import { buildGeneral } from './general.mjs';
 
 const version = process.argv[2];
 if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) throw new Error('Usage: node scripts/build.mjs <stable-version>');
@@ -28,5 +29,6 @@ try {
   }
   await writeFile(join(dist, 'catalog.json'), JSON.stringify({ ...catalog, packs: projected }, null, 2) + '\n');
   sums.push(...await buildGroups(root, dist, work, version, projected));
+  sums.push(...await buildGeneral(root, dist, version, catalog));
   await writeFile(join(dist, 'SHA256SUMS'), sums.join('\n') + '\n');
 } finally { await rm(work, { recursive: true, force: true }); }

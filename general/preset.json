@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "install": [
+    "toolbox",
+    "2build",
+    "soot",
+    "vibe_cf",
+    "browser-use",
+    "soot-nest",
+    "office",
+    "ocr",
+    "image-gen"
+  ],
+  "sources": {
+    "toolbox": {
+      "github_latest": "2found/soot-forge"
+    },
+    "soot": {
+      "github_latest": "2found/soot-forge"
+    },
+    "vibe_cf": {
+      "github_latest": "2found/soot-forge"
+    },
+    "browser-use": {
+      "github_latest": "2found/soot-forge"
+    },
+    "soot-nest": {
+      "github_latest": "2found/soot-forge"
+    },
+    "2build": {
+      "github_latest": "2found/soot-forge"
+    },
+    "office": {
+      "github_latest": "2found/soot-forge"
+    },
+    "ocr": {
+      "github_latest": "2found/soot-forge"
+    },
+    "image-gen": {
+      "github_latest": "2found/soot-forge"
+    }
+  },
+  "packs": [
+    "toolbox",
+    "2build",
+    "browser-use",
+    "soot"
+  ],
+  "use": [
+    "common/guide",
+    "toolbox/write",
+    "toolbox/shell",
+    "office/read",
+    "office/write",
+    "office/render",
+    "office/convert",
+    "ocr/assess",
+    "ocr/recognize",
+    "image-gen/inspect",
+    "image-gen/generate"
+  ],
+  "nest": {
+    "packs": [
+      "soot-nest"
+    ],
+    "use": [
+      "soot-nest/manage"
+    ]
+  },
+  "operation_env": {
+    "browser-use_control": [
+      "PATH",
+      "HOME"
+    ],
+    "browser-use_view": [
+      "PATH",
+      "HOME"
+    ],
+    "soot_pet_preflight": [
+      "PATH",
+      "HOME",
+      "CODEX_HOME"
+    ],
+    "soot_pet_prepare": [
+      "PATH",
+      "HOME",
+      "CODEX_HOME"
+    ]
+  },
+  "credentials": {
+    "FILE_ROOT": {
+      "workspace": true,
+      "operations": [
+        "office_inspect",
+        "office_compose",
+        "office_edit",
+        "office_pdf_modify",
+        "office_render",
+        "office_convert",
+        "ocr_assess",
+        "ocr_recognize",
+        "image-gen_inspect",
+        "image-gen_generate"
+      ]
+    },
+    "PYTHON_EXECUTABLE": {
+      "env": "SOOT_MEDIA_PYTHON",
+      "operations": [
+        "office_inspect",
+        "office_compose",
+        "office_edit",
+        "office_pdf_modify",
+        "office_render",
+        "office_convert",
+        "ocr_assess",
+        "ocr_recognize",
+        "image-gen_inspect",
+        "image-gen_generate"
+      ],
+      "lazy": true
+    },
+    "OFFICE_BINDING": {
+      "env": "SOOT_OFFICE_BINDING",
+      "operations": [
+        "office_convert"
+      ],
+      "lazy": true
+    },
+    "OCR_BINDING": {
+      "env": "SOOT_OCR_BINDING",
+      "operations": [
+        "ocr_recognize"
+      ],
+      "lazy": true
+    },
+    "IMAGE_GEN_BINDING": {
+      "env": "SOOT_IMAGE_GEN_BINDING",
+      "operations": [
+        "image-gen_generate"
+      ],
+      "lazy": true
+    }
+  }
+}

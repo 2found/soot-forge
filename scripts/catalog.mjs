@@ -6,9 +6,10 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import { readFileSync } from 'node:fs';
 
 export const run = promisify(execFile);
-const identifier = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+export const identifier = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const repoName = /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const commit = /^[0-9a-f]{40}$/;
+export const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const skipped = new Set(['.git', '.gitignore', 'node_modules', 'fixtures', 'bin', 'data', 'dist', '__pycache__']);
 const checkManifest = new Ajv2020({ strict: false, allErrors: true }).compile(
   JSON.parse(readFileSync(new URL('../schemas/pack.json', import.meta.url), 'utf8')));
@@ -42,7 +43,7 @@ export function validateCatalog(catalog) {
     if (!Array.isArray(pack.tags) || pack.tags.length > 8 || new Set(pack.tags).size !== pack.tags.length ||
         pack.tags.some(tag => typeof tag !== 'string' || !identifier.test(tag))) throw new Error(`Invalid tags for ${pack.id}`);
     const source = pack.source;
-    keys(source, source?.kind === 'bundled' ? ['kind', 'path'] : ['kind', 'repository', 'path', 'ref'], 'source');
+    keys(source, source?.kind === 'bundled' ? ['kind', 'path'] : ['kind', 'repository', 'path', 'ref', 'version'], 'source');
     safePath(source.path);
     if (source.kind === 'bundled') {
       if (source.path !== `packs/${pack.id}`) throw new Error(`Bundled pack ${pack.id} must live at packs/${pack.id}`);
@@ -50,9 +51,21 @@ export function validateCatalog(catalog) {
       if (typeof source.repository !== 'string' || !repoName.test(source.repository) ||
           source.repository.endsWith('.git') || typeof source.ref !== 'string' || !commit.test(source.ref))
         throw new Error(`External pack ${pack.id} requires owner/repo and a full lowercase commit`);
+      // The upstream release the pinned commit belongs to, as bare SemVer (tag v<version>).
+      // Installers compare it with a receipt's version; materialize() proves the tag points at ref.
+      if (typeof source.version !== 'string' || !stableVersion.test(source.version))
+        throw new Error(`External pack ${pack.id} requires source.version as a stable SemVer such as 1.2.3`);
     } else throw new Error(`Unknown source kind for ${pack.id}`);
   }
   return catalog;
+}
+
+// `git ls-remote --tags` output for refs/tags/v<version>{,^{}}: the peeled (^{}) line of an
+// annotated tag holds the commit; a lightweight tag lists the commit directly.
+export function tagCommit(lsRemote, version) {
+  const tag = `refs/tags/v${version}`;
+  const rows = lsRemote.split('\n').map(line => line.trim().split(/\s+/)).filter(([, name]) => name === tag || name === `${tag}^{}`);
+  return (rows.find(([, name]) => name.endsWith('^{}')) ?? rows[0])?.[0];
 }
 
 export function sourceLink(pack, catalogRef = 'main') {
@@ -142,6 +155,9 @@ export async function materialize(pack, root, work) {
     await git('checkout', '--detach', 'FETCH_HEAD');
     const { stdout } = await git('rev-parse', 'HEAD');
     if (stdout.trim() !== source.ref) throw new Error(`External commit mismatch: ${pack.id}`);
+    const tags = await git('ls-remote', '--tags', `https://github.com/${source.repository}.git`, `refs/tags/v${source.version}`, `refs/tags/v${source.version}^{}`);
+    if (tagCommit(tags.stdout, source.version) !== source.ref)
+      throw new Error(`External ${pack.id}: tag v${source.version} does not point at pinned commit ${source.ref}`);
     directory = join(repo, source.path);
   }
   // Validate each ancestor; a symlink at the selected folder's parent can escape

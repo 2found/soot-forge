@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateCatalog, validatePack, materialize, sourceLink, installCommand, readCatalog } from './catalog.mjs';
+import { validateCatalog, validatePack, materialize, sourceLink, installCommand, readCatalog, tagCommit } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const entry = { id: 'example', name: 'Example', description: 'Example pack.', tags: ['research'], source: { kind: 'bundled', path: 'packs/example' } };
 function catalog(pack = entry) { return { version: 1, repository: '2found/soot-forge', packs: [structuredClone(pack)] }; }
-const linked = { ...entry, source: { kind: 'github', repository: 'someone/repo', path: 'packs/example', ref: 'a'.repeat(40) } };
+const linked = { ...entry, source: { kind: 'github', repository: 'someone/repo', path: 'packs/example', ref: 'a'.repeat(40), version: '1.2.3' } };
 
 test('validation rejects unknown flags and missing or duplicate installer options', async () => {
   const exec = promisify(execFile);
@@ -37,6 +37,9 @@ test('PR metadata rejects duplicate IDs, unknown fields, traversal and moving re
     c => c.packs[0].source = { ...linked.source, repository: 'https://github.com/owner/repo' },
     c => c.packs[0].source = { ...linked.source, repository: 'owner/repo;echo' },
     c => c.packs[0].tags = ['tag', 'tag'], c => c.packs[0].tags = [1],
+    c => c.packs[0].source = { ...linked.source, version: undefined }, c => c.packs[0].source = { ...linked.source, version: 'v1.2.3' },
+    c => c.packs[0].source = { ...linked.source, version: '1.2' }, c => c.packs[0].source = { ...linked.source, version: '1.2.3-rc.1' },
+    c => c.packs[0].source = { ...linked.source, version: 123 }, c => c.packs[0].source.version = '1.2.3',
   ];
   for (const mutate of mutations) {
     const value = catalog(); mutate(value);
@@ -80,4 +83,19 @@ test('the real catalog is standalone and every hosted pack validates', async t =
   const current = await readCatalog(root);
   assert.ok(current.packs.some(pack => pack.id === '2build' && pack.source.kind === 'github'));
   for (const pack of current.packs.filter(pack => pack.source.kind === 'bundled')) await materialize(pack, root, work);
+});
+
+test('an upstream tag must resolve to the pinned commit, peeled for annotated tags', () => {
+  const ref = 'b'.repeat(40), tagObject = 'c'.repeat(40);
+  assert.equal(tagCommit(`${tagObject}\trefs/tags/v1.2.3\n${ref}\trefs/tags/v1.2.3^{}\n`, '1.2.3'), ref);
+  assert.equal(tagCommit(`${ref}\trefs/tags/v1.2.3\n`, '1.2.3'), ref);
+  assert.equal(tagCommit(`${ref}\trefs/tags/v1.2.30\n${ref}\trefs/tags/1.2.3\n`, '1.2.3'), undefined);
+  assert.equal(tagCommit('', '1.2.3'), undefined);
+});
+
+test('every external entry names the upstream release its pin belongs to', async () => {
+  const current = await readCatalog(join(import.meta.dirname, '..'));
+  const external = current.packs.filter(pack => pack.source.kind === 'github');
+  assert.ok(external.length > 0);
+  for (const pack of external) assert.match(pack.source.version, /^\d+\.\d+\.\d+$/);
 });

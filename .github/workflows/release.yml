@@ -91,7 +91,7 @@ jobs:
           tar -czf "dist/soot-forge-docs_${VERSION}.tar.gz" README.md USAGE.md AGENTS.md
           printf '# Soot Forge %s\n\nDownload catalog.json for pack URLs and SHA-256 checksums. See USAGE.md in the documentation archive for installation.\n' "$VERSION" > dist/DOWNLOADS.md
           cd dist
-          sha256sum ./*.tar.gz catalog.json DOWNLOADS.md > SHA256SUMS
+          sha256sum ./*.tar.gz general-preset_*.json catalog.json DOWNLOADS.md > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: packs-${{ github.run_id }}
