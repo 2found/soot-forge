@@ -1,6 +1,19 @@
 # Soot Forge
 
-Discover, install and share things Soots can use.
+Packs for Soot: the skills and tools a Soot can use, in a public catalog that
+grows by pull request.
+
+[Soot](https://trysoot.com) gives recurring work — answering visitors,
+watching sources, writing, following up — to a small team of Soots that runs on
+schedule and asks you only when a person is needed. Each Soot uses only the
+tools you grant it. A pack is how those skills and tools reach it.
+
+This repository holds the packs and the catalog. Browse them at
+[trysoot.com/forge](https://trysoot.com/forge); that page is part of the Soot
+website and is built from this repository's [`catalog.json`](catalog.json),
+which lists every pack with its source, tags and description.
+
+## Find and install a pack
 
 Ask your coding agent:
 
@@ -8,13 +21,7 @@ Ask your coding agent:
 Read https://github.com/2found/soot-forge/blob/main/USAGE.md and its catalog.json. Help me find a pack for my task, explain its source and required capabilities, and install the pack I choose into my Soot workspace. Verify the installation without automatically granting tools.
 ```
 
-Soot Forge is the community pack catalog for [Soot](https://trysoot.com).
-Browse it at [trysoot.com/forge](https://trysoot.com/forge). This repository owns
-the packs and source links; the page is implemented in the Soot website.
-
-## Install a pack
-
-Inside a Soot workspace, pass its GitHub folder link to Soot:
+Or, inside a Soot workspace, pass the pack's GitHub folder link to Soot:
 
 ```sh
 soot add https://github.com/2found/soot-forge/tree/main/packs/health
@@ -25,24 +32,23 @@ replace `main` with a reviewed full commit, or use a versioned release archive
 with its SHA-256 from `SHA256SUMS`. `soot add` requires a Soot version supporting
 GitHub tree links; earlier versions accept `2found/soot-forge/packs/health`.
 
-Installing adds files to the workspace's pack library. It does not run dependency
-scripts, start an adapter or grant a capability. Read the pack README, prepare
-its executable if needed, then explicitly select `health/probe` in the Soot
-definition and run `soot check --show`. Existing packs are never overwritten.
-Recipes referencing another pack require you to install that pack separately.
+**Installing grants nothing.** It adds files to the workspace's pack library;
+it does not run dependency scripts, start an adapter or grant a capability.
+Read the pack README, prepare its executable if needed, then explicitly select
+the capability (for example `health/probe`) in the Soot definition and run
+`soot check --show`. Existing packs are never overwritten. Recipes referencing
+another pack require you to install that pack separately.
 
-## Share a pack
+## See whole teams
 
-Open a pull request with one of these two forms:
-
-| Form | Your PR contains | Source ownership |
-| --- | --- | --- |
-| Bundled | `packs/<id>/` and a `catalog.json` entry | Pack changes are reviewed here |
-| External repository | A `catalog.json` entry with repository, folder and commit | Pack changes stay in your repository |
-
-For example, **2build** keeps its pack in `2found/2build`; Forge links to a
-reviewed commit. Consumers can install directly from that GitHub folder link.
-See [Contributing](CONTRIBUTING.md) for exact entries, validation and release policy.
+- [**The marketing team that runs 2found**](examples/marketing-team/README.md)
+  — an editor, a radar, a writer and a browser poster that share a data pool,
+  run on two schedules and publish on their own, asking a person only for what
+  a person must do. It is a copy of 2found's own marketing team, with 2found's
+  services swapped for Forge packs.
+- [**Media workspace**](examples/media-workspace/README.md) — Soot definitions
+  and host configuration for the files, speech and video packs below, kept
+  outside the distributable packs.
 
 ## Files, speech and video
 
@@ -58,48 +64,63 @@ See [Contributing](CONTRIBUTING.md) for exact entries, validation and release po
 Client dependencies are small and separately prepared. Model weights, Python
 environments, browser binaries and caches stay outside the distributed pack
 tree. Installing a pack starts none of these services. Read the individual
-README and select only the needed capabilities. A complete host example lives
-in [examples/media-workspace](examples/media-workspace/README.md).
-
-[examples/marketing-team](examples/marketing-team/README.md) is a whole team as
-a Soot source: an editor, a radar, a writer and a browser poster that share a
-data pool, run on two schedules and publish on their own, asking a person only
-for what a person must do.
-
-See [library choices and verification](docs/media-packs.md) for measured sizes,
+README and select only the needed capabilities. See
+[library choices and verification](docs/media-packs.md) for measured sizes,
 actual Soot/provider evidence, limitations and reproducible test commands.
+
+Every other pack is listed in [`catalog.json`](catalog.json) and on
+[trysoot.com/forge](https://trysoot.com/forge). Many came from Soot and are
+now maintained here; [SOURCE.md](SOURCE.md) records each one's provenance. Go
+runners build from each pack's `runner/` module; Node owner tools include their
+public wire codec. Host adapters, SDKs and reviewed application/test snapshots
+remain in Soot.
+
+## Share a pack
+
+Open a pull request with one of these two forms:
+
+| Form | Your PR contains | Source ownership |
+| --- | --- | --- |
+| Bundled | `packs/<id>/` and a `catalog.json` entry | Pack changes are reviewed here |
+| External repository | A `catalog.json` entry with repository, folder and commit | Pack changes stay in your repository |
+
+For example, **2build** keeps its pack in `2found/2build`; Forge links to a
+reviewed commit. Consumers can install directly from that GitHub folder link.
+See [Contributing](CONTRIBUTING.md) for exact entries, validation and review.
+Once merged, a pack installs from `main` right away; the Forge page shows it
+after the Soot website refreshes its catalog snapshot.
 
 ## Catalog and releases
 
 `catalog.json` is the single authored list. External entries pin a full commit,
-so a changed branch cannot silently change a reviewed pack. Release packaging
-materializes the same pinned content and publishes one archive per catalog
-entry, including linked packs, plus SHA-256 checksums and the projected catalog.
-An archive does not change the upstream ownership of a linked pack.
+so a changed branch cannot silently change a reviewed pack. Agents discover
+packs from it: `id`, `name`, `description`, `tags` and `source` are
+machine-readable metadata. Each installed pack has its own `pack.json`
+describing capabilities, skills and tools. Follow [USAGE.md](USAGE.md) to turn
+a catalog entry into an installation command.
 
-Agents discover packs from `catalog.json`: `id`, `name`, `description`, `tags`
-and `source` are machine-readable metadata. Each installed pack has its own
-`pack.json` describing capabilities, skills and tools. Follow [USAGE.md](USAGE.md)
-to turn a catalog entry into an installation command.
+A release materializes the same pinned content as one archive per catalog
+entry, including linked packs, plus SHA-256 checksums and the projected
+catalog. An archive does not change the upstream ownership of a linked pack.
+Releases are cut by raising the version in `package.json` and
+`package-lock.json` and pushing `main`; once that version is released, a push
+that leaves it alone runs the checks and publishes nothing.
+`catalog.json.version` is the schema version, not the release version.
+[RELEASE.md](RELEASE.md) is the maintainer checklist and
+[Contributing](CONTRIBUTING.md#automated-releases) the release policy.
 
 The General Soot installs default pack archives from a stable Forge release;
 its 2build pack still resolves the latest stable 2build release from upstream.
 Keep a Forge release containing `toolbox`, `soot`, `browser-use`, `soot-nest`,
 `vibe_cf`, `office`, `ocr` and `image-gen` available before releasing that Soot
-default. Source on `main` alone does not make those archives available to a fresh
-Nest installation: the installer resolves the latest published stable release.
-The selected browser capability also needs the host preparation in
+default. Source on `main` alone does not make those archives available to a
+fresh Nest installation: the installer resolves the latest published stable
+release. The selected browser capability also needs the host preparation in
 [Browser use](packs/browser-use/README.md): Node.js 24+ and the standalone
 `soot-browser` executable on the Soot host's PATH. Pack installation does not
 install that executable or its browser dependencies.
-Update `package.json` and both version fields in `package-lock.json` to the reviewed stable release version,
-then push `main`. A single workflow validates catalog content and runner tests,
-creates `v<version>` after those checks, builds the pack archives, and publishes
-a complete release with catalog, docs, download instructions and checksums.
-Unchanged versions still run checks and skip publication. `catalog.json.version`
-is the schema version, not the release version. PRs use the same read-only gate;
-no contributor tools run there. Resume an unpublished tag/draft via workflow
-dispatch; published tags and assets are immutable.
+
+## Develop and test
 
 ```sh
 node --test scripts/*.test.mjs
@@ -114,7 +135,8 @@ node scripts/test-packs.mjs --python /absolute/office-runtime/bin/python --repor
 
 The repository builds independently. It needs Node 22+, Python 3 and Git;
 Go 1.25+ builds the optional runners. It does not require a sibling checkout.
-No contributor scripts run in catalog checks or packaging.
+No contributor scripts run in catalog checks or packaging; PRs use the same
+read-only gate.
 
 Runner tests execute pack code and belong to the trusted-source CI lane.
 The Python option is explicit; omitted Python and opt-in service tests are not
@@ -122,8 +144,4 @@ passes. Real provider/service journeys remain separate from hermetic tests.
 See [the catalog-wide review](docs/pack-review.md) for coverage, measured
 performance changes and remaining integration prerequisites.
 
-Soot is a 2found product. **Tiny agents. Better together.**
-
-## Migrated community packs
-
-The catalog also includes artifacts, casework, data-pool, email, live-chat, live-chat-sheets, nest-no-code, research, router-care, website and writing. Their source is maintained here. Go runners build from each pack’s `runner/` module; Node owner tools include their public wire codec. Host adapters, SDKs and reviewed application/test snapshots remain in Soot. See [SOURCE.md](SOURCE.md) for provenance.
+Soot and Soot Forge are 2found products. **Tiny agents. Better together.**
