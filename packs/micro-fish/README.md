@@ -37,6 +37,8 @@ Limits keep every call inside the host's 16 KiB tool input and 32 KiB preview: 2
 
 ## Test
 
+Tests and QA scripts run from a Soot Forge checkout; release archives omit them.
+
 ```sh
 node --test packs/micro-fish/tests/world.test.mjs
 ```

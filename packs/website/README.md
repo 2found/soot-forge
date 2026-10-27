@@ -27,7 +27,7 @@ Website article Markdown supports simple safe HTTPS `[source label](https://...)
 
 ## Verification and activation
 
-`pnpm test` or `node --test tests/*.test.mjs` uses synthetic/local HTTP fixtures only. Host deployment composition and credentials belong to the consuming repository; follow that repository’s deployment runbook. The Pack archive contains no host credentials or deployment state.
+`pnpm test` or `node --test tests/*.test.mjs` (from a Soot Forge checkout; release archives omit `tests/`) uses synthetic/local HTTP fixtures only. Host deployment composition and credentials belong to the consuming repository; follow that repository’s deployment runbook. The Pack archive contains no host credentials or deployment state.
 
 The bundle additionally selects `2found/marketing` and only `toolbox/research` for the marketer; this website pack itself does not grant research or start timers. `GITHUB_RELEASES` binds the runtime-only `SOOT_GITHUB_RELEASE_TOKEN` to `2found_releases` only (fixed read-only repository). Its token is 20–4096 printable non-whitespace ASCII characters and distinct from admin/showcase/advisor/visitor/CMS tokens. Reviewed 6h release and 24h provider-digest schedules save private plans and EN/VI article **drafts only**; only explicit operator publication tasks may publish articles by policy. Draft-only is a schedule instruction, not a separate tool-enforced status restriction. Original `website/publish` landing-region behavior remains independent and unchanged.
 

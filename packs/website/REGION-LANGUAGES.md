@@ -44,7 +44,7 @@ Run only after the host shell fence is reconciled, never as a replay of an uncer
 
 | Check | Source coverage / pending command |
 | --- | --- |
-| Pack old and new fixtures | From `packs/website`: `pnpm test` (or `node --test tests/*.test.mjs`) |
+| Pack old and new fixtures | From `packs/website` in a Soot Forge checkout (release archives omit `tests/`): `pnpm test` (or `node --test tests/*.test.mjs`) |
 | API and existing web units | From `web`: `pnpm test` |
 | Types and production build | From `web`: `pnpm typecheck`, then `pnpm build` |
 | Local authored-content browser fixture | From `web`: `node tests/marketing-language.mjs`; optional installed Chrome via `SOOT_QA_CHROME` |

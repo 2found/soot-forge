@@ -102,6 +102,8 @@ Review prompt fidelity and typography visually after generation.
 The model inherits the [Qwen Research License](https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo/blob/d65dbc9a7e8f6b5479e33dee6030eaab2a906509/LICENSE).
 It is not an Apache-2.0 model. Read its terms before distribution or commercial use.
 
+From a Soot Forge checkout (release archives omit `tests/`):
+
 ```sh
 /absolute/host-runtimes/image-gen/bin/python tests/test_runner.py
 ```

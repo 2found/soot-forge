@@ -72,7 +72,7 @@ uses the typed `router-care_status` tool. Install/grant updates explicitly and
 review that host’s policy before activating any worker. Installing this pack never
 installs infrastructure or grants deployment authority.
 
-From this pack directory, run `node --test tests/*.test.mjs`. Tests use isolated
+From this pack directory in a Soot Forge checkout (release archives omit `tests/`), run `node --test tests/*.test.mjs`. Tests use isolated
 files and real tool stdin/output, including malformed input, missing bindings,
 oversized/private status and symlink rejection. The local `sdk/` wire codec is a
 reviewed export of the public soot/v1 SDK; no sibling checkout is required.

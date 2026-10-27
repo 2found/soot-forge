@@ -333,7 +333,7 @@ DATA_POOL_TEST_MEILI=/absolute/path/meilisearch DATA_POOL_TEST_PUBLIC_WEB=1 go t
 
 The real CLI journey builds/installs an archive into an isolated workspace and
 uses a scripted local OpenAI-compatible provider with the actual Soot runtime
-and executable tools. Pass verified binary paths; it does not install binaries:
+and executable tools. Pass verified binary paths; it does not install binaries. The script lives in the Soot Forge checkout; release archives omit `qa/`:
 
 ```sh
 python3 qa/cli_journey.py --shared --soot /absolute/path/soot \
