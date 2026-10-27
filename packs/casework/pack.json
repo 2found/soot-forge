@@ -12,6 +12,7 @@
       "tools": [
         {
           "name": "read",
+          "description": "Read this conversation's case record (title, summary, status, owner). A missing record is normal and means nothing has been tracked yet.",
           "run": {
             "program": "bin/soot-case",
             "args": [
@@ -31,6 +32,7 @@
         },
         {
           "name": "upsert",
+          "description": "Create or update this conversation's case record when work needs durable tracking: a short title, a summary of evidence and next step, and status open or resolved. It records state only; it does not do or announce the real-world work.",
           "run": {
             "program": "bin/soot-case",
             "args": [
@@ -73,6 +75,7 @@
         },
         {
           "name": "handoff",
+          "description": "Record that a human now owns this case, with a summary of the evidence and the next action. It does not message anyone or start another agent; after it, an operator must intervene before the record can be updated again.",
           "run": {
             "program": "bin/soot-case",
             "args": [

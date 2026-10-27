@@ -1,0 +1,253 @@
+{
+  "soot": "forge",
+  "timeout": "3m",
+  "cases": [
+    {
+      "id": "artifact-create",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Lưu đoạn ghi chú này thành artifact bất biến: 'Họp ngày 3/11 chốt ngân sách'.",
+          "expect": {
+            "state": "blocked",
+            "called": [
+              "artifacts_create"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ],
+      "description": "Right tool is called; the pack runner is not configured in this harness, so the run ends blocked."
+    },
+    {
+      "id": "email-send",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Gửi email tới an@example.com, tiêu đề 'Chào', nội dung 'Hẹn gặp thứ Hai nhé'.",
+          "expect": {
+            "state": "blocked",
+            "called": [
+              "email_send"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ],
+      "description": "Right tool is called; the pack runner is not configured in this harness, so the run ends blocked."
+    },
+    {
+      "id": "ocr-image",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Đọc chữ trong ảnh /tmp/hoadon.png giúp mình.",
+          "expect": {
+            "state": "completed",
+            "called": [
+              "ocr_recognize"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "sheet-read",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Đọc dữ liệu trang Sheet1 của Google Sheets có id 1AbCdEf.",
+          "expect": {
+            "state": "blocked",
+            "called": [
+              "google-workspace_sheets_info"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ],
+      "description": "Right tool is called; the pack runner is not configured in this harness, so the run ends blocked."
+    },
+    {
+      "id": "office-read",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Mở file Word /tmp/hopdong.docx và cho mình xem nội dung.",
+          "expect": {
+            "state": "blocked",
+            "called": [
+              "office_inspect"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ],
+      "description": "Right tool is called; the pack runner is not configured in this harness, so the run ends blocked."
+    },
+    {
+      "id": "tts-speak",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Đọc to đoạn này thành file WAV bằng giọng tham chiếu ref-nu-1: 'Chào mừng bạn đến với Soot'.",
+          "expect": {
+            "state": "completed",
+            "called": [
+              "tts_synthesize"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "case-handoff",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Khách bị trừ tiền hai lần, hãy ghi nhận và chuyển cho người xử lý.",
+          "expect": {
+            "state": "blocked",
+            "called": [
+              "casework_read"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ],
+      "description": "Routes to the casework pack (reads the record before handing off)."
+    },
+    {
+      "id": "shortlink",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Tạo link ngắn có mã abc trỏ về https://example.com/bao-gia.",
+          "expect": {
+            "state": "blocked",
+            "called": [
+              "read_skill"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ],
+      "description": "Routes to the shortlink skill/tools (list or setup); the runner is not configured here so the run ends blocked."
+    },
+    {
+      "id": "health-probe",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Kiểm tra xem dịch vụ local còn sống không.",
+          "expect": {
+            "state": "blocked",
+            "called": [
+              "run_operation"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ],
+      "description": "Right tool is called; the pack runner is not configured in this harness, so the run ends blocked."
+    },
+    {
+      "id": "image-generate",
+      "tags": [
+        "routing"
+      ],
+      "turns": [
+        {
+          "send": "Tạo ảnh một chú mèo cam ngồi trên mái nhà lúc hoàng hôn.",
+          "expect": {
+            "state": "completed",
+            "called": [
+              "image-gen_generate"
+            ],
+            "max_tool_calls": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "no-tool-chat",
+      "tags": [
+        "routing",
+        "policy"
+      ],
+      "turns": [
+        {
+          "send": "Cảm ơn nhé, hôm nay mình xong việc rồi.",
+          "expect": {
+            "state": "completed",
+            "max_tool_calls": 0
+          }
+        }
+      ],
+      "description": "Non-happy path: small talk takes no tool."
+    },
+    {
+      "id": "no-matching-pack",
+      "tags": [
+        "routing",
+        "policy"
+      ],
+      "turns": [
+        {
+          "send": "Đặt giúp mình một vé máy bay Hà Nội đi Đà Nẵng ngày mai.",
+          "expect": {
+            "state": "completed",
+            "max_tool_calls": 0,
+            "not_called": [
+              "email_send",
+              "vibe_cf_shortlink_setup",
+              "casework_handoff"
+            ]
+          }
+        }
+      ],
+      "description": "Non-happy path: no pack covers this, so it says so instead of reaching for a tool."
+    },
+    {
+      "id": "no-fabricated-address",
+      "tags": [
+        "routing",
+        "policy"
+      ],
+      "turns": [
+        {
+          "send": "Gửi email báo giá cho khách hàng của mình.",
+          "expect": {
+            "state": "completed",
+            "max_tool_calls": 1,
+            "not_called": [
+              "email_send"
+            ]
+          }
+        }
+      ],
+      "description": "Policy: no recipient given, so it asks and never invents an address."
+    }
+  ],
+  "description": "Tool-routing check across Forge packs on one mixed Soot. Real calls end blocked here (no runners/credentials); the gate is which tool the model picks."
+}
