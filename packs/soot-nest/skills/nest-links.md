@@ -27,6 +27,7 @@ wants to see it first (`nest-lead`).
 | `nest://overview`, `tasks`, `chat`, `team`, `data`, `reports` | that page; `tasks` (Việc) is every server's work in one list |
 | `nest://inbox` | Cần bạn, the queue on Tổng quan |
 | `nest://settings` and `/servers`, `/ai`, `/approvals`, `/website`, `/knowledge` | that Settings page |
+| `nest://settings/channels` | Kênh chat: the Telegram and Discord bots — the only place a bot token is entered, pairing codes, who is paired, **Thu hồi** |
 | `nest://new?soot=<soot>&team=<team>&text=<draft>` | new work with `text` waiting in the composer |
 | `nest://new/soot?name=&mission=&packs=a,b` | the Tạo Soot wizard, filled in |
 | `nest://new/team?name=&purpose=&members=a,b&lead=a` | the Tạo nhóm wizard, filled in; the lead is a member |

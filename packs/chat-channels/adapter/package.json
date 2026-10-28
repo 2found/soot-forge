@@ -1,0 +1,17 @@
+{
+  "name": "soot-channel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Telegram and Discord chat adapter for the Soot runtime (channel-adapter.v1)",
+  "bin": {
+    "soot-channel": "cli.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "bun build --compile cli.mjs --outfile dist/soot-channel"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

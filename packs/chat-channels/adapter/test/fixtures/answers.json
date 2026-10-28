@@ -1,0 +1,126 @@
+[
+  {
+    "name": "answers: owner presses Duyệt và chạy in Telegram (T2)",
+    "schema": { "request": "AnswerRequest", "response": "AnswerResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:4417081129384756",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "token": "k7Hq2Lm9Ap0Zx4"
+      }
+    },
+    "response": { "status": 200, "body": { "result": "applied", "duplicate": false, "label": "Duyệt và chạy", "toast": "Đã duyệt. Soot Marketing chạy tiếp." } }
+  },
+  {
+    "name": "answers: Telegram redelivers the same callback → nothing runs twice",
+    "schema": { "request": "AnswerRequest", "response": "AnswerResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:4417081129384756",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "token": "k7Hq2Lm9Ap0Zx4"
+      }
+    },
+    "response": { "status": 200, "body": { "result": "applied", "duplicate": true, "label": "Duyệt và chạy", "toast": "Đã duyệt. Soot Marketing chạy tiếp." } }
+  },
+  {
+    "name": "answers: a second press (new callback id) after it was applied (T2)",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:4417081129384799",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "token": "r3Dw8Ns1Bv6Yt2"
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": {
+        "code": "already_resolved",
+        "error": "the item was already settled",
+        "toast": "Mục này đã được xử lý: Duyệt và chạy.",
+        "resolution": { "item": "att_apr_0c41", "label": "Duyệt và chạy", "by": "channel", "at": "2026-10-28T08:24:02Z" }
+      }
+    }
+  },
+  {
+    "name": "answers: the owner already answered in Nest",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "dc:1100220033004400:i:1311111111111111111",
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1299999999999999999", "kind": "dm" },
+        "token": "p9Ux1Ke4Wq7Mn3"
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": {
+        "code": "already_resolved",
+        "error": "the item was already settled",
+        "toast": "Đã được xử lý trong Nest: Bỏ.",
+        "resolution": { "item": "att_imp_cskh", "label": "Bỏ", "by": "nest", "at": "2026-10-28T09:01:00Z" }
+      }
+    }
+  },
+  {
+    "name": "answers: the blocker changed since the item was sent",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:4417081129384800",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "token": "b5Kj7Np2Qr4Sx8"
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": { "code": "moved_on", "error": "the blocker this choice answered is no longer current", "toast": "Việc này vừa đổi trạng thái. Mở Nest để xem rồi chọn lại." }
+    }
+  },
+  {
+    "name": "answers: a member presses a button on an owner-only item",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "dc:1100220033004400:i:1311111111111111112",
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "token": "k7Hq2Lm9Ap0Zx4"
+      }
+    },
+    "response": { "status": 403, "body": { "code": "not_allowed", "error": "this user cannot answer this item", "toast": "Chỉ chủ sở hữu trả lời được mục này." } }
+  },
+  {
+    "name": "answers: unknown or expired token",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:4417081129384801",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "token": "zzzzzzzzzzzzzz"
+      }
+    },
+    "response": { "status": 404, "body": { "code": "item_gone", "error": "no open item for this token", "toast": "Mục này không còn. Mở Nest → Cần bạn để xem." } }
+  }
+]

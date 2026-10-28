@@ -1,0 +1,68 @@
+[
+  {
+    "name": "resolve: first message in a DM creates the mapping",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "tg:7012345678:u:500110",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "new": false
+      }
+    },
+    "response": { "status": 200, "body": { "conversation": "chc_9f3a1c7e2b", "created": true } }
+  },
+  {
+    "name": "resolve: /new maps a fresh conversation",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "tg:7012345678:u:500120",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "new": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": { "conversation": "chc_4d8e0b6a11", "created": true, "reply": "Đã mở cuộc trò chuyện mới với Đầu mối. Cuộc cũ vẫn còn trong Nest." }
+    }
+  },
+  {
+    "name": "resolve: bare /start from a paired sender",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "tg:7012345678:u:500121",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "new": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": { "conversation": "chc_4d8e0b6a11", "created": false, "reply": "Bạn đang nói chuyện với Đầu mối. Gõ /new để bắt đầu cuộc trò chuyện mới." }
+    }
+  },
+  {
+    "name": "resolve: unpaired sender",
+    "schema": { "request": "ResolveRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "tg:7012345678:u:500122",
+        "sender": { "id": "987654321" },
+        "chat": { "id": "987654321", "kind": "dm" },
+        "new": true
+      }
+    },
+    "response": { "status": 403, "body": { "code": "not_admitted", "error": "sender is not paired on this binding" } }
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "name": "ack: two delivered items",
+    "schema": { "request": "AckRequest", "response": "AckResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/outbox/ack",
+      "body": {
+        "acks": [
+          { "receipt_id": "ob_7Q2mKx81Ra", "status": "delivered", "platform_message_ids": ["8811"] },
+          { "receipt_id": "ob_9Vb3Tt20Qc", "status": "delivered", "platform_message_ids": ["8812"] }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 42,
+        "results": [ { "receipt_id": "ob_7Q2mKx81Ra", "ok": true }, { "receipt_id": "ob_9Vb3Tt20Qc", "ok": true } ]
+      }
+    }
+  },
+  {
+    "name": "ack: repeat of an earlier ack is fine",
+    "schema": { "request": "AckRequest", "response": "AckResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/outbox/ack",
+      "body": { "acks": [ { "receipt_id": "ob_9Vb3Tt20Qc", "status": "delivered", "platform_message_ids": ["8812"] } ] }
+    },
+    "response": { "status": 200, "body": { "acked_through": 42, "results": [ { "receipt_id": "ob_9Vb3Tt20Qc", "ok": true } ] } }
+  },
+  {
+    "name": "ack: Discord 429 → retryable failure; host redelivers as attempt 2",
+    "schema": { "request": "AckRequest", "response": "AckResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/outbox/ack",
+      "body": { "acks": [ { "receipt_id": "ob_4Tg7Ub22Lj", "status": "failed", "error": { "code": "discord_429", "retryable": true } } ] }
+    },
+    "response": { "status": 200, "body": { "acked_through": 47, "results": [ { "receipt_id": "ob_4Tg7Ub22Lj", "ok": true } ] } }
+  },
+  {
+    "name": "ack: user blocked the bot → permanent failure, never re-sent",
+    "schema": { "request": "AckRequest", "response": "AckResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/outbox/ack",
+      "body": { "acks": [ { "receipt_id": "ob_6Pd2Ze14Ki", "status": "failed", "error": { "code": "telegram_403_blocked", "retryable": false } } ] }
+    },
+    "response": { "status": 200, "body": { "acked_through": 47, "results": [ { "receipt_id": "ob_6Pd2Ze14Ki", "ok": true } ] } }
+  },
+  {
+    "name": "ack: unknown kind skipped, and a receipt the host never issued",
+    "schema": { "request": "AckRequest", "response": "AckResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/outbox/ack",
+      "body": {
+        "acks": [
+          { "receipt_id": "ob_1Mb6Yd90Hg", "status": "skipped" },
+          { "receipt_id": "ob_NotIssued00", "status": "delivered", "platform_message_ids": ["1"] }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 47,
+        "results": [ { "receipt_id": "ob_1Mb6Yd90Hg", "ok": true }, { "receipt_id": "ob_NotIssued00", "ok": false, "code": "unknown_receipt" } ]
+      }
+    }
+  }
+]

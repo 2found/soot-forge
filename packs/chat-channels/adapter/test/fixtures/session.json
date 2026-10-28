@@ -1,0 +1,38 @@
+[
+  {
+    "name": "session: handshake for the Telegram binding",
+    "schema": { "response": "Session" },
+    "request": {
+      "method": "GET",
+      "path": "/v1/channel/session",
+      "headers": { "Authorization": "Bearer sca_fixture0000000000000000000000000000000000000" }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "contract": "channel-adapter.v1",
+        "binding": { "id": "telegram", "platform": "telegram", "enabled": true },
+        "soot": { "name": "Đầu mối" },
+        "nest_url": null,
+        "limits": { "text_bytes": 16384, "outbox_page": 100, "ack_batch": 100 },
+        "pairing": { "code_pattern": "^[A-HJ-NP-Z2-9]{4}[- ]?[A-HJ-NP-Z2-9]{4}$" },
+        "copy": {
+          "secret_warning": "Tin vừa rồi trông giống một khóa bí mật nên mình đã không đọc và không gửi đi. Đừng gửi khóa, mật khẩu hay mã 2FA qua đây — nhập chúng trong Nest.",
+          "attachment_refused": "Hiện mình chưa nhận ảnh hay tệp qua đây. Bạn gửi trong Nest, hoặc mô tả bằng chữ nhé.",
+          "too_long": "Tin quá dài. Bạn chia nhỏ ra giúp mình nhé.",
+          "truncated": "… (còn tiếp)",
+          "open_in_nest": "Mở Nest để xem đầy đủ.",
+          "pair_in_dm": "Gửi mã ghép cặp trong tin nhắn riêng với bot, đừng gửi trong nhóm."
+        }
+      }
+    }
+  },
+  {
+    "name": "session: contract the adapter does not speak → exit 78",
+    "schema": { "response": "Session" },
+    "note": "Illustrative only: a v1 host never returns another contract. An adapter seeing any value other than channel-adapter.v1 exits 78.",
+    "request": { "method": "GET", "path": "/v1/channel/session" },
+    "response": { "status": 200, "body": { "contract": "channel-adapter.v2" } },
+    "valid": false
+  }
+]

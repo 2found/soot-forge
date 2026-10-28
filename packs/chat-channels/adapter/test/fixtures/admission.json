@@ -1,0 +1,78 @@
+[
+  {
+    "name": "admission: paired owner in DM",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "123456789" }, "chat": { "id": "123456789", "kind": "dm" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true } }
+  },
+  {
+    "name": "admission: stranger in DM, first time today → one fixed notice, no model run (T1)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "987654321", "name": "Người lạ" }, "chat": { "id": "987654321", "kind": "dm" }, "addressed": true }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "admitted": false,
+        "reason": "unpaired",
+        "notice": "Bot này chưa được kết nối với bạn. Nếu bạn là chủ sở hữu, tạo mã ghép cặp trong Nest rồi gửi mã đó vào đây."
+      }
+    }
+  },
+  {
+    "name": "admission: same stranger again within 24 h → silent",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "987654321" }, "chat": { "id": "987654321", "kind": "dm" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "unpaired" } }
+  },
+  {
+    "name": "admission: paired user in a guild channel without mention (D1)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "Backstop only: the adapter must not call the host for unaddressed group messages at all.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": {
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "addressed": false
+      }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "not_addressed" } }
+  },
+  {
+    "name": "admission: paired user mentions the bot in a guild channel (D1)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": {
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "addressed": true
+      }
+    },
+    "response": { "status": 200, "body": { "admitted": true } }
+  },
+  {
+    "name": "admission: revoked in Nest a second ago (T4)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "123456789" }, "chat": { "id": "123456789", "kind": "dm" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "revoked" } }
+  }
+]

@@ -1,0 +1,175 @@
+[
+  {
+    "name": "outbox: one page covering every kind",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=40&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 40,
+        "next_after": 46,
+        "items": [
+          {
+            "receipt_id": "ob_7Q2mKx81Ra",
+            "seq": 41,
+            "attempt": 1,
+            "kind": "reply",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-28T08:15:02Z",
+            "conversation": "chc_4d8e0b6a11",
+            "text": "Hôm nay cả đội dùng **182.400 token**. [Soot CSKH](nest://soot/cskh) dùng nhiều nhất (121.000), còn dưới ngân sách 200.000/ngày.",
+            "links": [ { "href": "nest://soot/cskh", "label": "Soot CSKH", "url": null } ],
+            "open_url": null
+          },
+          {
+            "receipt_id": "ob_9Vb3Tt20Qc",
+            "seq": 42,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-28T08:20:11Z",
+            "conversation": "chc_1b2c3d4e5f",
+            "text": "**Cần bạn duyệt:** Đăng bài Facebook “Khuyến mãi 11/11” trên trang Shop.\nSoot Marketing đã soạn xong và đang chờ.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_0c41",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Đăng bài Facebook “Khuyến mãi 11/11”",
+              "why": "Công cụ đăng bài cần bạn duyệt trước khi chạy.",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "k7Hq2Lm9Ap0Zx4" },
+                { "label": "Từ chối", "style": "danger", "token": "r3Dw8Ns1Bv6Yt2" }
+              ]
+            }
+          },
+          {
+            "receipt_id": "ob_2Hn8Pq71Ue",
+            "seq": 43,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-28T08:21:40Z",
+            "text": "**Đề xuất cải thiện cho Soot CSKH** đang chờ bạn xem. Điểm trên bộ kiểm tra giữ lại: 72% → 88%.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_imp_cskh",
+              "kind": "improve_proposal",
+              "urgent": false,
+              "title": "Đề xuất cải thiện cho Soot CSKH",
+              "diff": "--- skills/cskh.md\n+++ skills/cskh.md\n@@\n-Trả lời ngắn.\n+Trả lời ngắn, luôn kèm chính sách đổi trả khi khách hỏi về hoàn tiền.",
+              "choices": [
+                { "label": "Áp dụng", "style": "primary", "token": "p9Ux1Ke4Wq7Mn3" },
+                { "label": "Bỏ", "token": "d2Ty6Rb8Lz0Hc5" }
+              ]
+            }
+          },
+          {
+            "receipt_id": "ob_5Kc0Wm33Jd",
+            "seq": 44,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-28T08:22:05Z",
+            "text": "**Chưa rõ kết quả:** gửi email cho khách “Nguyễn Văn B” bị mất phản hồi. Cần kiểm tra trước khi thử lại.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_eff_77e1",
+              "kind": "unknown_outcome",
+              "urgent": true,
+              "title": "Gửi email cho khách “Nguyễn Văn B”",
+              "choices": [ { "label": "→ Mở Nest → Cần bạn để kiểm tra" } ]
+            }
+          },
+          {
+            "receipt_id": "ob_8Rz4Xa56Gf",
+            "seq": 45,
+            "attempt": 1,
+            "kind": "attention_resolved",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-28T08:25:30Z",
+            "text": "Đã xử lý · Duyệt và chạy (trong Nest)\nĐăng bài Facebook “Khuyến mãi 11/11”",
+            "links": [],
+            "open_url": null,
+            "resolved": {
+              "item": "att_apr_0c41",
+              "label": "Duyệt và chạy",
+              "by": "nest",
+              "at": "2026-10-28T08:25:29Z",
+              "edit": [ { "receipt_id": "ob_9Vb3Tt20Qc", "platform_message_ids": ["8812"] } ]
+            }
+          },
+          {
+            "receipt_id": "ob_1Mb6Yd90Hg",
+            "seq": 46,
+            "attempt": 1,
+            "kind": "brief",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-29T01:00:20Z",
+            "text": "**Bản tin sáng 29/10**\n- Xong: 3 bài Facebook đã đăng ([Lịch](nest://schedules/marketing)).\n- Chờ bạn: 1 đề xuất cải thiện cho [Soot CSKH](nest://soot/cskh).\n- Cập nhật: soot-nest 0.6.0 đã tự áp dụng.",
+            "links": [
+              { "href": "nest://schedules/marketing", "label": "Lịch chạy của Soot Marketing", "url": null },
+              { "href": "nest://soot/cskh", "label": "Soot CSKH", "url": null }
+            ],
+            "open_url": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "outbox: notice after the owner revoked a member's pairing",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=46&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 46,
+        "next_after": 47,
+        "items": [
+          {
+            "receipt_id": "ob_6Pd2Ze14Ki",
+            "seq": 47,
+            "attempt": 1,
+            "kind": "notice",
+            "chat": { "id": "1299999999999999999", "kind": "dm" },
+            "created_at": "2026-10-29T02:00:00Z",
+            "text": "Kết nối của bạn với Đầu mối đã bị thu hồi. Tin nhắn mới sẽ không được xử lý.",
+            "links": [],
+            "open_url": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "outbox: a long reply on a host with Nest web, threaded in a guild",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=47&limit=1" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 47,
+        "next_after": 48,
+        "items": [
+          {
+            "receipt_id": "ob_4Tg7Ub22Lj",
+            "seq": 48,
+            "attempt": 2,
+            "kind": "reply",
+            "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+            "created_at": "2026-10-29T02:10:00Z",
+            "conversation": "chc_77aa01bc90",
+            "in_reply_to": { "platform_message_id": "1300000000000000042" },
+            "text": "Hôm qua đội làm 12 việc. (… văn bản dài hơn giới hạn 2000 ký tự của Discord …)",
+            "links": [],
+            "open_url": "https://nest.shop.example/chat/c/9f3a1c7e2b"
+          }
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,54 @@
+# channel-adapter.v1 outbox stream fixture. Lines starting with "#" are fixture
+# notes, not wire bytes; strip them. Each "## connection" block is one HTTP
+# response body of GET /v1/channel/outbox/stream. Data lines are the same
+# OutboxItem objects as fixtures/outbox.json (shortened here to the ids that
+# matter; a mock server should send the full objects from outbox.json).
+
+## connection 1 — request: no Last-Event-ID; host starts at acked_through = 40
+: connected
+
+id: 41
+event: item
+data: {"receipt_id":"ob_7Q2mKx81Ra","seq":41,"attempt":1,"kind":"reply","chat":{"id":"123456789","kind":"dm"},"created_at":"2026-10-28T08:15:02Z","conversation":"chc_4d8e0b6a11","text":"Hôm nay cả đội dùng **182.400 token**.","links":[],"open_url":null}
+
+id: 42
+event: item
+data: {"receipt_id":"ob_9Vb3Tt20Qc","seq":42,"attempt":1,"kind":"attention","chat":{"id":"123456789","kind":"dm"},"created_at":"2026-10-28T08:20:11Z","text":"**Cần bạn duyệt:** Đăng bài Facebook “Khuyến mãi 11/11”.","links":[],"open_url":null,"attention":{"item":"att_apr_0c41","kind":"approval","urgent":true,"title":"Đăng bài Facebook “Khuyến mãi 11/11”","choices":[{"label":"Duyệt và chạy","recommended":true,"style":"primary","token":"k7Hq2Lm9Ap0Zx4"},{"label":"Từ chối","style":"danger","token":"r3Dw8Ns1Bv6Yt2"}]}}
+
+id: 42
+: cursor
+
+: ping
+
+# The adapter posts 41 and 42, journals receipt_id → platform ids, acks both
+# (fixtures/ack.json #1), then the process is killed before it saw anything else.
+
+## connection 2 — request header: Last-Event-ID: 42 (journal survived)
+: connected
+
+id: 45
+event: item
+data: {"receipt_id":"ob_8Rz4Xa56Gf","seq":45,"attempt":1,"kind":"attention_resolved","chat":{"id":"123456789","kind":"dm"},"created_at":"2026-10-28T08:25:30Z","text":"Đã xử lý · Duyệt và chạy (trong Nest)","links":[],"open_url":null,"resolved":{"item":"att_apr_0c41","label":"Duyệt và chạy","by":"nest","at":"2026-10-28T08:25:29Z","edit":[{"receipt_id":"ob_9Vb3Tt20Qc","platform_message_ids":["8812"]}]}}
+
+# 43 and 44 belong to another chat filtered out of this fixture; the gap in
+# seq is normal and must not be treated as loss.
+
+## connection 3 — request: no Last-Event-ID (state dir lost); acked_through = 42
+: connected
+
+id: 45
+event: item
+data: {"receipt_id":"ob_8Rz4Xa56Gf","seq":45,"attempt":1,"kind":"attention_resolved","chat":{"id":"123456789","kind":"dm"},"created_at":"2026-10-28T08:25:30Z","text":"Đã xử lý · Duyệt và chạy (trong Nest)","links":[],"open_url":null,"resolved":{"item":"att_apr_0c41","label":"Duyệt và chạy","by":"nest","at":"2026-10-28T08:25:29Z","edit":[{"receipt_id":"ob_9Vb3Tt20Qc","platform_message_ids":["8812"]}]}}
+
+# Connection 2 edited message 8812 but died before acking 45, so 45 comes
+# again. Editing to the same text is harmless; the adapter acks it.
+
+## connection 4 — redelivery after a retryable failure: same receipt_id, new seq
+: connected
+
+id: 49
+event: item
+data: {"receipt_id":"ob_4Tg7Ub22Lj","seq":49,"attempt":2,"kind":"reply","chat":{"id":"1288888888888888888","kind":"guild_channel","guild_id":"1277777777777777777"},"created_at":"2026-10-29T02:10:00Z","conversation":"chc_77aa01bc90","in_reply_to":{"platform_message_id":"1300000000000000042"},"text":"Hôm qua đội làm 12 việc.","links":[],"open_url":"https://nest.shop.example/chat/c/9f3a1c7e2b"}
+
+## connection 5 — a second concurrent stream for the same binding
+# HTTP 409 {"code":"stream_taken","error":"another adapter process holds this binding's stream"}

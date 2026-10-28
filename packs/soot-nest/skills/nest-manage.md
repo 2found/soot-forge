@@ -75,8 +75,8 @@ When you already know a change is on this list, send it straight to `manage_gate
 sure, try `manage`: it refuses what needs approval.
 
 Tightening is yours: a stricter approval policy, a lower budget, a stricter
-update policy, `client.disable`, `soot.improve`. An improvement proposal is never
-applied from here; it waits under **Cần bạn**.
+update policy, `client.disable`, `soot.improve`, `channel.unpair`. An improvement
+proposal is never applied from here; it waits under **Cần bạn**.
 
 Do not try to split a change to avoid approval. If the person says "xem trước"
 or "để tôi xem", propose the draft link instead of acting.
@@ -104,12 +104,17 @@ or "để tôi xem", propose the draft link instead of acting.
 | `updates.policy` | `update_policy`: `{general, packs, teams}`, each `auto` or `manual`; only the kinds that change |
 | `usage.read` | read only: token usage today and per Soot, with each Soot's limits |
 | `budget.save` | `id` (the Soot), `budget`: `{daily_tokens, max_run_tokens}`, only what changes |
+| `channel.status` | read only: each chat bot `{binding, platform, enabled, token_set, state}` and its pairings `{pairing, user, role, paired_at}`; never a token |
+| `channel.unpair` | `channel`: `{binding, pairing}` exactly as `channel.status` lists them; revokes at once; an already revoked pairing returns `already_revoked: true` |
 | `undo` | `undo`: the earlier change's `request_id` |
 
-The new rows (`client.*`, `soot.improve`, `updates.*`, `usage.read`, `budget.save`)
-need a Soot runtime that has them. If `manage` says the action is unknown, say you
-cannot do it on this server yet and link the page (`nest://settings/website`,
-`nest://settings`); do not guess other input. Field names above are what the
+The new rows (`client.*`, `soot.improve`, `updates.*`, `usage.read`, `budget.save`,
+`channel.*`) need a Soot runtime that has them. If `manage` says the action is
+unknown, say you cannot do it on this server yet and link the page
+(`nest://settings/website`, `nest://settings/channels`, `nest://settings`); do not
+guess other input. Turning a chat bot on, its token and pairing codes are never
+actions: they stay in `nest://settings/channels`, so a request to connect
+Telegram or Discord reads nothing and gets the steps from the lead skill. Field names above are what the
 runtime reads: use the keys `read` or the refusal names if they differ.
 
 "Hoàn tác thay đổi <request_id>" from the person means `undo` with that id. If

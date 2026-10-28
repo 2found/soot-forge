@@ -1,0 +1,26 @@
+[
+  {
+    "name": "status: connected after getMe",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": {
+        "state": "connected",
+        "platform_account": { "id": "7012345678", "username": "shop_dau_moi_bot", "display_name": "Đầu mối của Shop" },
+        "adapter_version": "0.1.0"
+      }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "status: platform rejected the bot token (then exit 78)",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": { "state": "platform_token_invalid", "detail": "telegram_getme_401" }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  }
+]

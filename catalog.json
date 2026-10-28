@@ -76,6 +76,18 @@
       }
     },
     {
+      "id": "chat-channels",
+      "name": "Chat channels",
+      "description": "Telegram and Discord chat adapter (soot-channel) that the deployment starts; adds no tools.",
+      "tags": [
+        "communication"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/chat-channels"
+      }
+    },
+    {
       "id": "soot-nest",
       "name": "Nest",
       "description": "Capabilities and interface metadata for the Soot app workspace.",

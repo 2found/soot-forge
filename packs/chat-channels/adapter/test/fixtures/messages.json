@@ -1,0 +1,134 @@
+[
+  {
+    "name": "messages: paired owner asks the Đầu mối something",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500130",
+        "sender": { "id": "123456789", "name": "Lan Nguyễn" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4411",
+        "text": "Hôm nay đội mình tốn bao nhiêu token?"
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_4d8e0b6a11" } }
+  },
+  {
+    "name": "messages: same update redelivered after a restart (T3) → no second run",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500130",
+        "sender": { "id": "123456789", "name": "Lan Nguyễn" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4411",
+        "text": "Hôm nay đội mình tốn bao nhiêu token?"
+      }
+    },
+    "response": { "status": 200, "body": { "accepted": true, "duplicate": true, "conversation": "chc_4d8e0b6a11" } }
+  },
+  {
+    "name": "messages: same request_id with different text → conflict",
+    "schema": { "request": "MemberMessage", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500130",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4411",
+        "text": "Một nội dung khác"
+      }
+    },
+    "response": { "status": 409, "body": { "code": "request_conflict", "error": "request_id was used with a different payload" } }
+  },
+  {
+    "name": "messages: guild mention from a paired member, mention already stripped (D1)",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1300000000000000042",
+        "sender": { "id": "223344556677889900", "name": "minh" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "platform_message_id": "1300000000000000042",
+        "text": "Tóm tắt giúp mình việc hôm qua"
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_77aa01bc90" } }
+  },
+  {
+    "name": "messages: a reply to an open Decision answers that item",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500140",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4420",
+        "text": "Giữ giá cũ, chỉ giảm phí ship",
+        "reply_to": { "receipt_id": "ob_3Fq9Lw0ZpA" }
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_4d8e0b6a11", "answered": "att_blk_51c2" } }
+  },
+  {
+    "name": "messages: looks like a secret (backstop; the adapter should have caught it)",
+    "schema": { "request": "MemberMessage", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500150",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4430",
+        "text": "key nè sk-ant-api03-FIXTUREFIXTUREFIXTUREFIXTUREFIXTUREFIXTURE00"
+      }
+    },
+    "response": { "status": 422, "body": { "code": "secret_detected", "error": "message looks like a credential; it was not stored or forwarded" } }
+  },
+  {
+    "name": "messages: pairing revoked between admission and send (T4)",
+    "schema": { "request": "MemberMessage", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500160",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4440",
+        "text": "Còn đó không?"
+      }
+    },
+    "response": { "status": 403, "body": { "code": "not_admitted", "error": "sender is not paired on this binding" } }
+  },
+  {
+    "name": "messages: the mapped conversation's Soot was deleted",
+    "schema": { "request": "MemberMessage", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500170",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4450",
+        "text": "Chào"
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": { "code": "conversation_closed", "error": "the conversation's Soot was deleted", "reply": "Cuộc trò chuyện này đã đóng vì Soot không còn. Gõ /new để bắt đầu lại." }
+    }
+  }
+]

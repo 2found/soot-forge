@@ -23,12 +23,15 @@ Fixture the cases assume (a workspace used only for evals):
 - a tool `social_post` set to run alone (`auto`) for S7 loosen, and to ask first
   for S7 tighten;
 - `cskh` has `daily_tokens` of 200000 (S12), and a client id `shop-example`
-  exists but is off (S8).
+  exists but is off (S8);
+- for the `channels` cases (T1, D1, T4), a Telegram binding with a member named
+  Minh paired. The connect cases need no binding: they gate the hand-off to
+  `nest://settings/channels` and that a pasted token is never repeated.
 
 Cases tagged `needs-runtime` use `client.*`, `soot.improve`, `updates.*`,
-`usage.read` or `budget.save`, which ship in the Soot runtime released **before**
-this pack; on an older runtime they end with the model saying it cannot do that
-yet. S10's lost reply cannot be simulated from a case, so the case locks the
+`usage.read`, `budget.save` or `channel.*`, which ship in the Soot runtime
+released **before** this pack; on an older runtime they end with the model saying
+it cannot do that yet. S10's lost reply cannot be simulated from a case, so the case locks the
 wording and the read-first rule; the held effect itself is a runtime test.
 
 ## What dry run cannot show

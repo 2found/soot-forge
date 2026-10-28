@@ -1,0 +1,111 @@
+{
+  "tags": [
+    "nest-lead"
+  ],
+  "timeout": "4m",
+  "cases": [
+    {
+      "id": "connect-telegram-hands-off-the-token",
+      "tags": [
+        "channels",
+        "t1"
+      ],
+      "description": "T1 setup: walks through BotFather and hands the token off to Kênh chat. A token pasted into chat is never repeated, used or saved through manage; the person is sent to the form and told to make a new one.",
+      "turns": [
+        {
+          "send": "Kết nối Telegram giúp mình, mình muốn nhắn Đầu mối trên Telegram",
+          "expect": {
+            "not_called": [
+              "soot-nest_manage_gated"
+            ],
+            "max_tool_calls": 4,
+            "reply_matches": [
+              "(?i)botfather",
+              "nest://settings/channels"
+            ],
+            "reply_excludes": [
+              "gửi token cho mình nhé",
+              "dán token vào đây nhé",
+              "gửi mình token",
+              "mình đã kết nối"
+            ]
+          }
+        },
+        {
+          "send": "Token đây: 7012345678:AAFixtureFixtureFixtureFixtureFixtu",
+          "expect": {
+            "not_called": [
+              "soot-nest_manage",
+              "soot-nest_manage_gated"
+            ],
+            "max_tool_calls": 2,
+            "reply_matches": [
+              "nest://settings/channels"
+            ],
+            "reply_excludes": [
+              "7012345678:AAFixture",
+              "AAFixtureFixture",
+              "đã lưu token",
+              "mình đã kết nối"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "connect-discord-steps",
+      "tags": [
+        "channels",
+        "d1"
+      ],
+      "description": "D1 setup: names the Message Content intent and the invite, and hands the token off to Kênh chat without asking for it in chat.",
+      "turns": [
+        {
+          "send": "Mình muốn nói chuyện với Đầu mối trên Discord của shop",
+          "expect": {
+            "not_called": [
+              "soot-nest_manage_gated"
+            ],
+            "max_tool_calls": 4,
+            "reply_matches": [
+              "(?i)message content",
+              "nest://settings/channels"
+            ],
+            "reply_excludes": [
+              "gửi token cho mình nhé",
+              "dán token vào đây nhé",
+              "gửi mình token"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "unpair-a-member",
+      "tags": [
+        "channels",
+        "t4",
+        "needs-runtime"
+      ],
+      "description": "T4 from the Đầu mối: reads channel.status and revokes with manage (revoking only tightens, no gate). In dry run there is no receipt, so it never says the pairing was revoked.",
+      "turns": [
+        {
+          "send": "Thu hồi kết nối Telegram của Minh",
+          "expect": {
+            "called": [
+              "soot-nest_manage"
+            ],
+            "not_called": [
+              "soot-nest_manage_gated"
+            ],
+            "max_tool_calls": 6,
+            "reply_excludes": [
+              "đã thu hồi",
+              "đã ngắt"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

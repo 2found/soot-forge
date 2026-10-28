@@ -1,0 +1,58 @@
+[
+  {
+    "name": "errors: credential of a stopped process → adapter exits 0",
+    "schema": { "response": "Error" },
+    "request": { "method": "GET", "path": "/v1/channel/session", "headers": { "Authorization": "Bearer sca_fixtureRevoked000000000000000000000000000000" } },
+    "response": { "status": 401, "body": { "code": "credential_invalid", "error": "channel credential is unknown or revoked" } }
+  },
+  {
+    "name": "errors: operator token on a channel route",
+    "schema": { "response": "Error" },
+    "request": { "method": "GET", "path": "/v1/channel/session", "headers": { "Authorization": "Bearer operator-fixture-token-000000000000" } },
+    "response": { "status": 403, "body": { "code": "not_allowed", "error": "only a channel adapter credential may use /v1/channel" } }
+  },
+  {
+    "name": "errors: binding disabled in Nest",
+    "schema": { "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500200",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4500",
+        "text": "Chào"
+      }
+    },
+    "response": { "status": 403, "body": { "code": "binding_disabled", "error": "this channel is turned off on the host" } }
+  },
+  {
+    "name": "errors: host rate limit",
+    "schema": { "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500201",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4501",
+        "text": "Chào lần nữa"
+      }
+    },
+    "response": { "status": 429, "headers": { "Retry-After": "20" }, "body": { "code": "rate_limited", "error": "too many messages from this sender", "retry_after": 20 } }
+  },
+  {
+    "name": "errors: host restarting → retry same request_id",
+    "schema": { "response": "Error" },
+    "request": { "method": "POST", "path": "/v1/channel/outbox/ack", "body": { "acks": [ { "receipt_id": "ob_7Q2mKx81Ra", "status": "delivered", "platform_message_ids": ["8811"] } ] } },
+    "response": { "status": 503, "headers": { "Retry-After": "2" }, "body": { "code": "unavailable", "error": "runtime is restarting", "retry_after": 2 } }
+  },
+  {
+    "name": "errors: too long",
+    "schema": { "response": "Error" },
+    "request": { "method": "POST", "path": "/v1/channel/messages" },
+    "response": { "status": 413, "body": { "code": "too_large", "error": "text exceeds 16384 bytes" } }
+  }
+]

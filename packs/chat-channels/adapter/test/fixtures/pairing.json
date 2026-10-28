@@ -1,0 +1,134 @@
+[
+  {
+    "name": "pairing: owner redeems a fresh code in DM (T1)",
+    "schema": { "request": "PairingClaim", "response": "PairingResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/pairings/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:500100",
+        "sender": { "id": "123456789", "name": "Lan Nguyễn", "username": "lan_ng" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "code": "K7QM-4XPA"
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "paired": true,
+        "user": { "display_name": "Bạn (chủ sở hữu)", "role": "owner" },
+        "reply": "Đã kết nối. Từ giờ bạn nhắn Đầu mối ngay tại đây; việc cần bạn duyệt cũng sẽ tới đây. Gõ /new để mở cuộc trò chuyện mới."
+      }
+    }
+  },
+  {
+    "name": "pairing: the same claim replayed after an adapter restart",
+    "schema": { "request": "PairingClaim", "response": "PairingResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/pairings/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:500100",
+        "sender": { "id": "123456789", "name": "Lan Nguyễn", "username": "lan_ng" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "code": "K7QM-4XPA"
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "paired": true,
+        "duplicate": true,
+        "user": { "display_name": "Bạn (chủ sở hữu)", "role": "owner" },
+        "reply": "Đã kết nối. Từ giờ bạn nhắn Đầu mối ngay tại đây; việc cần bạn duyệt cũng sẽ tới đây. Gõ /new để mở cuộc trò chuyện mới."
+      }
+    }
+  },
+  {
+    "name": "pairing: used code (expired and unknown answer identically)",
+    "schema": { "request": "PairingClaim", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/pairings/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:500101",
+        "sender": { "id": "987654321", "name": "Người lạ" },
+        "chat": { "id": "987654321", "kind": "dm" },
+        "code": "K7QM4XPA"
+      }
+    },
+    "response": {
+      "status": 400,
+      "body": {
+        "code": "code_invalid",
+        "error": "pairing code is unknown, expired or already used",
+        "reply": "Mã này không dùng được (sai, đã dùng hoặc quá 10 phút). Tạo mã mới trong Nest → Cài đặt → Kênh chat."
+      }
+    }
+  },
+  {
+    "name": "pairing: code sent in a group is refused",
+    "schema": { "request": "PairingClaim", "response": "Error" },
+    "note": "The adapter should never send this (it does not claim outside dm); the host refuses anyway and the code is not consumed.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/pairings/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:500102",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "-1001234567890", "kind": "group", "title": "Shop team" },
+        "code": "R2D2-C3P9"
+      }
+    },
+    "response": {
+      "status": 403,
+      "body": { "code": "pairing_requires_dm", "error": "pairing is only accepted in a direct message" }
+    }
+  },
+  {
+    "name": "pairing: too many failed claims",
+    "schema": { "request": "PairingClaim", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/pairings/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:500109",
+        "sender": { "id": "987654321" },
+        "chat": { "id": "987654321", "kind": "dm" },
+        "code": "AAAA-BBBB"
+      }
+    },
+    "response": {
+      "status": 429,
+      "headers": { "Retry-After": "540" },
+      "body": {
+        "code": "rate_limited",
+        "error": "too many failed pairing attempts",
+        "retry_after": 540,
+        "reply": "Bạn thử sai nhiều lần quá. Đợi ít phút rồi gửi mã mới."
+      }
+    }
+  },
+  {
+    "name": "pairing: sender already paired to another Nest user",
+    "schema": { "request": "PairingClaim", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/pairings/claim",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1300000000000000001",
+        "sender": { "id": "223344556677889900", "name": "minh" },
+        "chat": { "id": "1299999999999999999", "kind": "dm" },
+        "code": "HJKL-MNPQ"
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": {
+        "code": "already_paired",
+        "error": "sender is paired to a different Nest user",
+        "reply": "Tài khoản này đã được ghép với một người dùng Nest khác. Chủ sở hữu cần thu hồi kết nối cũ trước."
+      }
+    }
+  }
+]
