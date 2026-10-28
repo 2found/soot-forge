@@ -1,7 +1,8 @@
 # Nest manage
 
 As the Đầu mối you change this Nest's settings yourself with `manage`: Soots,
-schedules, teams, which tools ask first, data access and model tiers. The person
+schedules, teams, which tools ask first, data access, model tiers, website
+chatbots, updates, token budgets and Soot improvement. The person
 asks once in chat; you do it and report once. They should not have to open a
 form for something you can do.
 
@@ -36,13 +37,21 @@ form for something you can do.
 - **`revision_conflict`** (settings changed since you read): read again and redo the change once
   against the new revision, with a new `request_id`. If what you meant to change is gone, tell the
   person.
-- **Not this Soot's job** (another Soot, a provider key, a website): say so and
-  link the page (`nest://settings/ai`, `nest://settings/website`). Secrets and
-  API keys are entered by the person in Settings, never in chat.
+- **Not this Soot's job** (another Soot, a provider key, a website's embed key):
+  say so and link the page (`nest://settings/ai`, `nest://settings/website`).
+  Secrets and API keys are entered by the person in Settings, never in chat.
 - **No `manage` tool on this Soot**: you cannot change settings yet. Ask for it
   with `report_blocker` and
   `{"grant":{"kind":"use","use":"soot-nest/manage"}}`; until it is granted,
   propose the change as a draft link (`nest-lead`).
+
+## When the result is unclear
+
+A write that times out or loses its reply is a held effect: the change may or
+may not be in effect. Say "chưa rõ kết quả" and that you did not repeat it.
+`read` again; only if the setting is still unchanged, retry the same input with
+the **same** `request_id` (a replay never applies twice). Never send it under a
+new id, and never say "đã" before the read or the receipt shows it.
 
 ## What goes through approval
 
@@ -55,7 +64,19 @@ form for something you can do.
 - letting tools run without asking, and turning on data access while the pool
   is writable;
 - a new team from a template, and model tiers that change where a model
-  connects.
+  connects;
+- turning a website client on (`client.enable`), `client.key.rotate`,
+  `client.delete`, and raising a client's or a Soot's token budget;
+- applying a MAJOR update or one `awaiting_user` (`updates.apply`), and loosening
+  the update policy.
+
+When you already know a change is on this list, send it straight to `manage_gated`
+(same `request_id`, same `revision`); do not try `manage` first. If you are not
+sure, try `manage`: it refuses what needs approval.
+
+Tightening is yours: a stricter approval policy, a lower budget, a stricter
+update policy, `client.disable`, `soot.improve`. An improvement proposal is never
+applied from here; it waits under **Cần bạn**.
 
 Do not try to split a change to avoid approval. If the person says "xem trước"
 or "để tôi xem", propose the draft link instead of acting.
@@ -75,7 +96,21 @@ or "để tôi xem", propose the draft link instead of acting.
 | `soot.data_pool` | `id`, `data_pool`: true or false |
 | `soot.host_use` | `id`, `host_use`: `{ref, granted}` |
 | `tier.save` | `id`, `model`: the tier as read, with only the model order changed |
+| `client.create` / `client.save` | `id` (a short slug), `client`: `{soots, origins, limits, widget}`; save sends only what changes |
+| `client.enable` / `client.disable` / `client.key.rotate` / `client.delete` | `id` |
+| `soot.improve` | `id`, `improve`: `{schedule: {every, at, budget, paused}}`, the whole schedule (resend `budget` to pause); `every` is 6h to 744h, weekly is `168h`; a `null` schedule switches it off |
+| `updates.status` | read only: what applied, what waits, what is held and why |
+| `updates.apply` | `kind` and `id` of the item exactly as `updates.status` lists it (`pack`, `software`, `general` or `team`) |
+| `updates.policy` | `update_policy`: `{general, packs, teams}`, each `auto` or `manual`; only the kinds that change |
+| `usage.read` | read only: token usage today and per Soot, with each Soot's limits |
+| `budget.save` | `id` (the Soot), `budget`: `{daily_tokens, max_run_tokens}`, only what changes |
 | `undo` | `undo`: the earlier change's `request_id` |
+
+The new rows (`client.*`, `soot.improve`, `updates.*`, `usage.read`, `budget.save`)
+need a Soot runtime that has them. If `manage` says the action is unknown, say you
+cannot do it on this server yet and link the page (`nest://settings/website`,
+`nest://settings`); do not guess other input. Field names above are what the
+runtime reads: use the keys `read` or the refusal names if they differ.
 
 "Hoàn tác thay đổi <request_id>" from the person means `undo` with that id. If
 it was changed again since, the undo is refused: say so and offer to make the
