@@ -49,6 +49,8 @@ jobs:
       - run: python -m venv /tmp/forge-test-python
       - run: /tmp/forge-test-python/bin/pip install --require-hashes -r packs/office/requirements.lock
       - run: corepack enable && corepack pnpm --dir packs/live-chat-sheets install --frozen-lockfile --ignore-scripts
+      # Pack node tests may import root devDependencies (e.g. ajv).
+      - run: npm ci --ignore-scripts
       - run: npm ci --prefix packs/browser-use/adapter --ignore-scripts --no-audit --no-fund
       - run: node scripts/test-packs.mjs --python /tmp/forge-test-python/bin/python --report /tmp/pack-tests.json
       - uses: actions/upload-artifact@v4
