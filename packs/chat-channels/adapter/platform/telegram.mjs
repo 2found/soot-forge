@@ -1,6 +1,7 @@
 // Telegram Bot API side: getUpdates long polling, HTML messages, inline keyboards.
 import {PlatformError, backoff, sleep} from '../core/errors.mjs';
 
+const CONFLICT_BACKOFF_MAX = 5 * 60_000;
 const ATTACHMENTS = ['photo', 'document', 'sticker', 'voice', 'video', 'audio', 'animation', 'video_note'];
 
 export class Telegram {
@@ -24,14 +25,16 @@ export class Telegram {
       body = await response.json().catch(() => null);
     } catch (error) {
       if (signal?.aborted) throw error;
-      throw new PlatformError('telegram_network', {retryable: true});
+      throw new PlatformError('telegram_network', {retryable: true, reason: 'platform_unreachable'});
     }
     if (body?.ok) return body.result;
     const status = body?.error_code ?? response.status;
     const description = String(body?.description ?? '').toLowerCase();
-    if (status === 401 || (status === 404 && method === 'getMe')) throw new PlatformError(`telegram_${method.toLowerCase()}_${status}`, {tokenInvalid: true});
-    if (status === 429) throw new PlatformError('telegram_429', {retryable: true, retryAfter: Number(body?.parameters?.retry_after) || 1});
-    if (status >= 500 || status === 409) throw new PlatformError(`telegram_${status}`, {retryable: true});
+    if (status === 401 || (status === 404 && method === 'getMe')) throw new PlatformError(`telegram_${method.toLowerCase()}_${status}`, {tokenInvalid: true, reason: 'platform_token_rejected'});
+    if (status === 429) throw new PlatformError('telegram_429', {retryable: true, retryAfter: Number(body?.parameters?.retry_after) || 1, reason: 'platform_rate_limited'});
+    // 409 on getUpdates: a webhook is set, or another program polls this bot (§9.4).
+    if (status === 409) throw new PlatformError('telegram_409', {retryable: true, reason: description.includes('webhook') ? 'telegram_webhook_active' : 'telegram_poll_conflict'});
+    if (status >= 500) throw new PlatformError(`telegram_${status}`, {retryable: true, reason: 'platform_unreachable'});
     if (description.includes('message is not modified')) throw new PlatformError('telegram_not_modified');
     if (status === 403) throw new PlatformError('telegram_403_blocked');
     const editGone = description.includes('message to edit not found') || description.includes("can't be edited");
@@ -111,9 +114,12 @@ export class Telegram {
       } catch (error) {
         if (signal.aborted) return;
         if (!(error instanceof PlatformError) || error.tokenInvalid) throw error;
-        onHealth('degraded', error.code);
-        this.log('telegram_poll_failed', {code: error.code});
-        await sleep(Math.max(error.retryAfter * 1000, backoff(attempt++, this.backoffBase)), signal);
+        onHealth('degraded', error.code, error.reason);
+        this.log('telegram_poll_failed', {code: error.code, reason: error.reason});
+        // A conflict only clears when the person acts (webhook removed, other poller
+        // stopped): keep trying, at most every 5 minutes.
+        const max = error.code === 'telegram_409' ? CONFLICT_BACKOFF_MAX : undefined;
+        await sleep(Math.max(error.retryAfter * 1000, backoff(attempt++, this.backoffBase, max)), signal);
         continue;
       }
       for (const update of updates) {

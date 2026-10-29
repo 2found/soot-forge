@@ -1,0 +1,313 @@
+[
+  {
+    "name": "group: a question in a guild conversation is asked in that channel, threaded under the asker",
+    "schema": { "response": "OutboxPage" },
+    "note": "Discord binding, adapter revision 1. minh (paired member) wrote message 1300000000000000042 that started the run; the run paused on a clarifying question. It goes to this channel only: not to minh's DM, not to the owner's DM (the owner still sees it in Nest → Cần bạn).",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=60&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 60,
+        "next_after": 61,
+        "items": [
+          {
+            "receipt_id": "ob_Gq1Ask0061",
+            "seq": 61,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+            "created_at": "2026-10-29T03:00:05Z",
+            "conversation": "chc_77aa01bc90",
+            "in_reply_to": { "platform_message_id": "1300000000000000042" },
+            "text": "**Câu hỏi:** Đăng bài khuyến mãi lên kênh nào?",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_blk_6d1e0a9c3b",
+              "kind": "question",
+              "urgent": false,
+              "title": "Đăng bài khuyến mãi lên kênh nào?",
+              "choices": [
+                { "label": "Facebook", "recommended": true, "token": "q1FbTk7Lm2Nx4P" },
+                { "label": "Zalo", "token": "q1ZlTk3Rb8Vd6W" }
+              ],
+              "asker": { "pairing": "chp_member0001", "sender": { "id": "223344556677889900", "name": "minh" } }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "group: a decision in a Telegram group, asked by the owner",
+    "schema": { "response": "OutboxPage" },
+    "note": "Telegram binding, adapter revision 1. The owner mentioned the bot in the group (message 5120).",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=61&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 61,
+        "next_after": 62,
+        "items": [
+          {
+            "receipt_id": "ob_Dc1Tgr0062",
+            "seq": 62,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "-1001234567890", "kind": "group", "title": "Shop team" },
+            "created_at": "2026-10-29T03:05:00Z",
+            "conversation": "chc_5e6f7a8b9c",
+            "in_reply_to": { "platform_message_id": "5120" },
+            "text": "**Cần bạn chọn:** Giữ giá cũ hay giảm 10% cho đơn trên 500k?",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_blk_9a8b7c6d5e",
+              "kind": "decision",
+              "urgent": false,
+              "title": "Giữ giá cũ hay giảm 10% cho đơn trên 500k?",
+              "choices": [
+                { "label": "Giảm 10%", "recommended": true, "style": "primary", "token": "d4Ab6Cd8Ef0Gh2" },
+                { "label": "Giữ giá cũ", "token": "d4Ij1Kl3Mn5Op7" }
+              ],
+              "asker": { "pairing": "chp_owner00001", "sender": { "id": "123456789", "name": "Lan Nguyễn" } }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "group: an approval in the owner's guild conversation goes to the owner's DM; the channel gets one pointer line",
+    "schema": { "response": "OutboxPage" },
+    "note": "Approval is DM-only (§9.2). The pointer is a fixed host sentence: no title, no content of the item.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=62&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 62,
+        "next_after": 64,
+        "items": [
+          {
+            "receipt_id": "ob_Ap1Own0063",
+            "seq": 63,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "1322222222222222222", "kind": "dm" },
+            "created_at": "2026-10-29T03:10:00Z",
+            "conversation": "chc_88bb02cd01",
+            "text": "**Cần bạn duyệt:** Đăng bài Facebook “Khuyến mãi 11/11”\nSoot Marketing đang chờ.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_3f2e1d0c9b",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Đăng bài Facebook “Khuyến mãi 11/11”",
+              "why": "Công cụ Đăng bài Facebook cần bạn duyệt trước khi chạy.",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "a9Ok2Rt5Uv8Wx1" },
+                { "label": "Từ chối", "style": "danger", "token": "a9No4Bc7De0Fg3" }
+              ]
+            }
+          },
+          {
+            "receipt_id": "ob_Pt1Own0064",
+            "seq": 64,
+            "attempt": 1,
+            "kind": "notice",
+            "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+            "created_at": "2026-10-29T03:10:00Z",
+            "conversation": "chc_88bb02cd01",
+            "in_reply_to": { "platform_message_id": "1300000000000000077" },
+            "text": "Mình đã nhắn riêng để xin bạn duyệt.",
+            "links": [],
+            "open_url": null,
+            "notice": { "reason": "dm_pointer", "item": "att_apr_3f2e1d0c9b" }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "group: a member's run needs the owner's approval; the channel says so without details",
+    "schema": { "response": "OutboxPage" },
+    "note": "minh cannot settle an approval; the owner's DM gets the item (not shown: same shape as seq 63). The channel line names nobody's data.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=64&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 64,
+        "next_after": 65,
+        "items": [
+          {
+            "receipt_id": "ob_Pt2Mem0065",
+            "seq": 65,
+            "attempt": 1,
+            "kind": "notice",
+            "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+            "created_at": "2026-10-29T03:12:00Z",
+            "conversation": "chc_77aa01bc90",
+            "in_reply_to": { "platform_message_id": "1300000000000000042" },
+            "text": "Việc này cần chủ sở hữu duyệt. Mình đã báo riêng cho chủ sở hữu.",
+            "links": [],
+            "open_url": null,
+            "notice": { "reason": "dm_pointer", "item": "att_apr_5b4a39281c" }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "group: the asker answered in the channel → that channel message is edited",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=65&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 65,
+        "next_after": 66,
+        "items": [
+          {
+            "receipt_id": "ob_Rs1Gld0066",
+            "seq": 66,
+            "attempt": 1,
+            "kind": "attention_resolved",
+            "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+            "created_at": "2026-10-29T03:14:00Z",
+            "conversation": "chc_77aa01bc90",
+            "text": "Đã trả lời · Zalo\nĐăng bài khuyến mãi lên kênh nào?",
+            "links": [],
+            "open_url": null,
+            "resolved": {
+              "item": "att_blk_6d1e0a9c3b",
+              "label": "Zalo",
+              "by": "channel",
+              "at": "2026-10-29T03:13:58Z",
+              "edit": [ { "receipt_id": "ob_Gq1Ask0061", "platform_message_ids": ["1300000000000000061"] } ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "group compat: a revision-0 adapter gets the same question in the asker's DM, as in v1.0",
+    "schema": { "response": "OutboxPage" },
+    "note": "No StatusReport with contract_revision ≥ 1 from the running process: v1.0 targeting exactly. No pointer line.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=66&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 66,
+        "next_after": 67,
+        "items": [
+          {
+            "receipt_id": "ob_Gq3Dm00067",
+            "seq": 67,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "1299999999999999999", "kind": "dm" },
+            "created_at": "2026-10-29T03:20:00Z",
+            "conversation": "chc_77aa01bc90",
+            "text": "**Câu hỏi:** Đăng bài khuyến mãi lên kênh nào?",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_blk_7e2f1b0d4c",
+              "kind": "question",
+              "urgent": false,
+              "title": "Đăng bài khuyến mãi lên kênh nào?",
+              "choices": [
+                { "label": "Facebook", "recommended": true, "token": "q3FbTk2Wq9Er4T" },
+                { "label": "Zalo", "token": "q3ZlTk6Yu1Io8P" }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "group compat: an adapter skips a channel question (downgrade) → the host re-targets it to the DM",
+    "schema": { "request": "AckRequest", "response": "AckResult" },
+    "note": "Safety net (§9.6): a non-DM attention acked skipped is never lost; the host queues it for the asker's DM per v1.0 (next exchange).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/outbox/ack",
+      "body": { "acks": [ { "receipt_id": "ob_Gq4Gld0068", "status": "skipped" } ] }
+    },
+    "response": { "status": 200, "body": { "acked_through": 68, "results": [ { "receipt_id": "ob_Gq4Gld0068", "ok": true } ] } }
+  },
+  {
+    "name": "group compat: the re-targeted question in the asker's DM",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=68&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 68,
+        "next_after": 69,
+        "items": [
+          {
+            "receipt_id": "ob_Gq4Dm00069",
+            "seq": 69,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "1299999999999999999", "kind": "dm" },
+            "created_at": "2026-10-29T03:25:01Z",
+            "conversation": "chc_77aa01bc90",
+            "text": "**Câu hỏi:** Gửi báo giá cho khách nào trước?",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_blk_1a2b3c4d5e",
+              "kind": "question",
+              "urgent": false,
+              "title": "Gửi báo giá cho khách nào trước?",
+              "choices": [
+                { "label": "Khách sỉ", "recommended": true, "token": "q4SiTk8Hn3Bv5C" },
+                { "label": "Khách lẻ", "token": "q4LeTk1Mx7Zq0R" }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "group: INVALID — an approval aimed at a guild channel",
+    "schema": { "response": "OutboxPage" },
+    "valid": false,
+    "note": "A host never produces this; schema.json rejects it and a v1.1 adapter acks it skipped without posting (§9.6).",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=69&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 69,
+        "next_after": 70,
+        "items": [
+          {
+            "receipt_id": "ob_Bad0Apr070",
+            "seq": 70,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+            "created_at": "2026-10-29T03:30:00Z",
+            "text": "**Cần bạn duyệt:** …",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_0000000000",
+              "kind": "approval",
+              "urgent": true,
+              "title": "…",
+              "choices": [ { "label": "Duyệt và chạy", "token": "zzBadTk0000000" } ],
+              "asker": { "pairing": "chp_member0001", "sender": { "id": "223344556677889900" } }
+            }
+          }
+        ]
+      }
+    }
+  }
+]

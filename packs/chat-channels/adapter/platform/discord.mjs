@@ -5,8 +5,13 @@ import {PlatformError, backoff, sleep} from '../core/errors.mjs';
 // GUILDS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT
 export const INTENTS = (1 << 0) | (1 << 9) | (1 << 12) | (1 << 15);
 const THREAD_TYPES = new Set([10, 11, 12]);
-// Close codes that no reconnect can fix: bad token, bad shard, disallowed intents.
-const FATAL_CLOSE = new Set([4004, 4010, 4011, 4012, 4013, 4014]);
+// Close codes that no reconnect can fix → StatusReport reason (§9.4), then exit 78.
+const FATAL_CLOSE = new Map([
+  [4004, 'platform_token_rejected'],
+  [4014, 'discord_intents_disallowed'],
+  [4011, 'discord_sharding_required'],
+  [4010, 'adapter_incompatible'], [4012, 'adapter_incompatible'], [4013, 'adapter_incompatible'],
+]);
 const FRESH_SESSION_CLOSE = new Set([4007, 4009]);
 const STYLE = {primary: 1, danger: 4};
 
@@ -38,14 +43,14 @@ export class Discord {
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch {
-      throw new PlatformError('discord_network', {retryable: true});
+      throw new PlatformError('discord_network', {retryable: true, reason: 'platform_unreachable'});
     }
     const parsed = response.status === 204 ? null : await response.json().catch(() => null);
     if (response.ok) return parsed;
     const status = response.status;
-    if (status === 401) throw new PlatformError('discord_401', {tokenInvalid: true});
-    if (status === 429) throw new PlatformError('discord_429', {retryable: true, retryAfter: Number(parsed?.retry_after) || 1});
-    if (status >= 500) throw new PlatformError(`discord_${status}`, {retryable: true});
+    if (status === 401) throw new PlatformError('discord_401', {tokenInvalid: true, reason: 'platform_token_rejected'});
+    if (status === 429) throw new PlatformError('discord_429', {retryable: true, retryAfter: Number(parsed?.retry_after) || 1, reason: 'platform_rate_limited'});
+    if (status >= 500) throw new PlatformError(`discord_${status}`, {retryable: true, reason: 'platform_unreachable'});
     if (status === 403 && parsed?.code === 50007) throw new PlatformError('discord_403_blocked');
     throw new PlatformError(`discord_${status}`, {editGone: status === 404 || parsed?.code === 50005});
   }
@@ -109,10 +114,10 @@ export class Discord {
       const {code, healthy} = await this.connect(inbound, signal, onHealth);
       if (this.failure) throw this.failure;
       if (signal.aborted) return;
-      if (FATAL_CLOSE.has(code)) throw new PlatformError(code === 4014 ? 'discord_disallowed_intents' : `discord_gateway_${code}`, {tokenInvalid: true});
+      if (FATAL_CLOSE.has(code)) throw new PlatformError(`discord_gateway_${code}`, {tokenInvalid: true, reason: FATAL_CLOSE.get(code)});
       if (FRESH_SESSION_CLOSE.has(code)) { this.session = null; this.seq = null; }
       if (healthy) { attempt = 0; continue; }
-      onHealth('degraded', `discord_gateway_${code ?? 'lost'}`);
+      onHealth('degraded', `discord_gateway_${code ?? 'lost'}`, 'platform_unreachable');
       await sleep(backoff(attempt++, this.backoffBase), signal);
     }
   }
@@ -209,7 +214,8 @@ export class Discord {
   async send(chat, text, {buttons = [], replyTo = null} = {}) {
     const body = {content: text, allowed_mentions: {parse: []}};
     if (buttons.length) body.components = rows(buttons);
-    if (replyTo) body.message_reference = {message_id: String(replyTo), fail_if_not_exists: false};
+    // A threaded post may notify the person it answers, nobody else.
+    if (replyTo) Object.assign(body, {message_reference: {message_id: String(replyTo), fail_if_not_exists: false}, allowed_mentions: {parse: [], replied_user: true}});
     const message = await this.rest('POST', `/channels/${chat.id}/messages`, body);
     return String(message.id);
   }

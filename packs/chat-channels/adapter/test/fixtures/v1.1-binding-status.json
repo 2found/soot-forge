@@ -1,0 +1,46 @@
+[
+  {
+    "name": "binding: connected",
+    "schema": { "object": "BindingStatus" },
+    "object": { "state": "connected", "bot": "Soot" }
+  },
+  {
+    "name": "binding: the adapter program was not found (default lookup: next to soot, then PATH)",
+    "schema": { "object": "BindingStatus" },
+    "note": "Host-originated: the supervisor could not find the program. Retried with backoff, so installing it recovers without a click.",
+    "object": { "state": "adapter_missing", "reason": "adapter_missing", "detail": "not_found" }
+  },
+  {
+    "name": "binding: the adapter program exists but cannot run",
+    "schema": { "object": "BindingStatus" },
+    "note": "Host-originated: permission denied or a binary for another OS/architecture (detail permission_denied | exec_format).",
+    "object": { "state": "adapter_missing", "reason": "adapter_not_executable", "detail": "permission_denied" }
+  },
+  {
+    "name": "binding: Discord 4014 reported by a v1.1 adapter",
+    "schema": { "object": "BindingStatus" },
+    "object": { "state": "platform_token_invalid", "reason": "discord_intents_disallowed", "detail": "discord_gateway_4014" }
+  },
+  {
+    "name": "binding: Discord 4014 reported by a v1.0 adapter (legacy detail mapped by the host)",
+    "schema": { "object": "BindingStatus" },
+    "note": "soot-forge ≤ 0.4.0 sends {state: platform_token_invalid, detail: discord_disallowed_intents} and no reason; the host maps it (§9.4).",
+    "object": { "state": "platform_token_invalid", "reason": "discord_intents_disallowed", "detail": "discord_disallowed_intents" }
+  },
+  {
+    "name": "binding: Telegram token rejected reported by a v1.0 adapter (legacy detail mapped by the host)",
+    "schema": { "object": "BindingStatus" },
+    "object": { "state": "platform_token_invalid", "reason": "platform_token_rejected", "detail": "telegram_getme_401" }
+  },
+  {
+    "name": "binding: exit 78 with no status from this process",
+    "schema": { "object": "BindingStatus" },
+    "note": "Host-originated: the adapter stopped for a configuration reason it did not report. Not restarted until the person retries.",
+    "object": { "state": "stopped", "reason": "adapter_exited_config" }
+  },
+  {
+    "name": "binding: Telegram webhook set on the bot",
+    "schema": { "object": "BindingStatus" },
+    "object": { "state": "degraded", "reason": "telegram_webhook_active", "detail": "telegram_409", "bot": "shop_dau_moi_bot" }
+  }
+]

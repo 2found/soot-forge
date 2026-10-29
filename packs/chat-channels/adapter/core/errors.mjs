@@ -12,11 +12,13 @@ export class ExitError extends Error {
 }
 
 // A platform call that failed. `retryable` decides the outbox ack (§4.9);
-// `tokenInvalid` means the platform rejected the bot token (exit 78).
+// `tokenInvalid` means the platform refused the bot's setup (exit 78); `reason` is the
+// v1.1 StatusReport reason (§9.4), `code` stays the low-level detail.
 export class PlatformError extends Error {
-  constructor(code, {retryable = false, tokenInvalid = false, retryAfter = 0, editGone = false} = {}) {
+  constructor(code, {retryable = false, tokenInvalid = false, retryAfter = 0, editGone = false, reason = null} = {}) {
     super(code);
     this.code = code;
+    this.reason = reason;
     this.retryable = retryable;
     this.tokenInvalid = tokenInvalid;
     this.retryAfter = retryAfter;

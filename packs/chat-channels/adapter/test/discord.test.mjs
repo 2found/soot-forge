@@ -79,7 +79,7 @@ test('D1/D2 happy path: guild mention → message; button → deferred toast; re
   await until(() => runtime.callsTo('/v1/channel/outbox/ack').flatMap(call => call.body.acks).length === 2);
   const [reply, approval] = discord.callsMatching('POST', /^\/channels\/\d+\/messages$/).map(call => call.body);
   assert.deepEqual(reply.message_reference, {message_id: '1300000000000000042', fail_if_not_exists: false});
-  assert.deepEqual(reply.allowed_mentions, {parse: []});
+  assert.deepEqual(reply.allowed_mentions, {parse: [], replied_user: true}, 'pings only the person it answers');
   assert.deepEqual(approval.components, [{type: 1, components: [
     {type: 2, style: 1, label: 'Duyệt và chạy', custom_id: 'k7Hq2Lm9Ap0Zx4'},
     {type: 2, style: 4, label: 'Từ chối', custom_id: 'r3Dw8Ns1Bv6Yt2'}]}]);
@@ -157,15 +157,15 @@ test('D2: resolved edits drop the buttons; a long reply is cut to 2000 with the 
   assert.equal(await adapter.stop(), 0);
 });
 
-test('Gateway close 4004 (token rejected) and 4014 (Message Content intent off) → status + exit 78', async t => {
-  for (const [code, detail] of [[4004, 'discord_gateway_4004'], [4014, 'discord_disallowed_intents']]) {
+test('Gateway close 4004/4014/4011/4012 → the §9.4 reason + exit 78', async t => {
+  for (const [code, name] of [[4004, 'Discord close 4004'], [4014, 'Discord close 4014'], [4011, 'Discord close 4011'], [4012, 'Discord close 4012']]) {
     const {runtime, discord} = await setup(t);
     const adapter = startAdapter({platform: 'discord', runtime, discord});
     await until(() => discord.received.some(payload => payload.op === 2));
     discord.last.close(code);
     assert.equal(await adapter.done, 78);
-    assert.deepEqual(runtime.callsTo('/v1/channel/status').at(-1).body, {state: 'platform_token_invalid', adapter_version: '0.1.0', detail,
-      platform_account: {id: BOT, username: 'dau-moi', display_name: 'Đầu mối'}});
+    assert.deepEqual(runtime.callsTo('/v1/channel/status').at(-1).body, {...exchange('v1.1-status', `status v1.1: ${name}`).request.body,
+      adapter_version: '0.2.0', platform_account: {id: BOT, username: 'dau-moi', display_name: 'Đầu mối'}}, `close ${code}`);
   }
   const {runtime, discord} = await setup(t);
   assert.equal(await startAdapter({platform: 'discord', runtime, discord: {...discord, token: 'wrong'}}).done, 78);

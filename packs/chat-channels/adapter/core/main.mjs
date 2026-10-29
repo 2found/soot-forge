@@ -8,7 +8,9 @@ import {Telegram} from '../platform/telegram.mjs';
 import {Discord} from '../platform/discord.mjs';
 
 export const CONTRACT = 'channel-adapter.v1';
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
+// channel-adapter v1.1 (§9.1): declared on every StatusReport.
+export const CONTRACT_REVISION = 1;
 const PLATFORMS = {telegram: Telegram, discord: Discord};
 const REQUIRED = ['SOOT_CHANNEL_API', 'SOOT_CHANNEL_TOKEN', 'SOOT_CHANNEL_BINDING', 'SOOT_CHANNEL_PLATFORM', 'SOOT_CHANNEL_PLATFORM_TOKEN', 'SOOT_CHANNEL_STATE_DIR'];
 const STOP_BUDGET_MS = 9000;
@@ -54,7 +56,7 @@ export async function runAdapter({argv, env, stop, log = makeLogger(), fetch = g
     status.account = account;
     status.report('connected', null, true);
 
-    const health = (state, detail) => status.report(state, detail);
+    const health = (state, detail, reason) => status.report(state, detail, false, reason);
     const inbound = new Inbound({client, journal, platform: platform.name, getSession: () => session, ops: platform.ops(), log});
     let fatal;
     const failed = new Promise(resolve => { fatal = resolve; });
@@ -64,7 +66,7 @@ export async function runAdapter({argv, env, stop, log = makeLogger(), fetch = g
       onConnectionLost: async () => { session = await fetchSession(client); },
     });
     outbox.onFatal = fatal;
-    const heartbeat = setInterval(() => status.report(status.state, status.detail, true), STATUS_EVERY_MS);
+    const heartbeat = setInterval(() => status.report(status.state, status.detail, true, status.reason), STATUS_EVERY_MS);
     heartbeat.unref?.();
     const stopped = new Promise(resolve => signal.addEventListener('abort', () => resolve(null), {once: true}));
     const outcome = await Promise.race([
@@ -89,7 +91,7 @@ async function finish(outcome, status, log) {
   if (!outcome) return EXIT_OK;
   if (outcome instanceof ExitError) { log('exit', {code: outcome.exitCode, detail: outcome.detail}); return outcome.exitCode; }
   if (outcome instanceof PlatformError && outcome.tokenInvalid) {
-    await status?.final('platform_token_invalid', outcome.code);
+    await status?.final('platform_token_invalid', outcome.code, outcome.reason);
     log('exit', {code: EXIT_CONFIG, detail: outcome.code});
     return EXIT_CONFIG;
   }
@@ -111,7 +113,7 @@ async function startPlatform(platform, status, signal, base = 1000) {
     try { return await platform.start(signal); }
     catch (error) {
       if (!(error instanceof PlatformError) || error.tokenInvalid) throw error;
-      status.report('degraded', error.code);
+      status.report('degraded', error.code, false, error.reason);
       await sleep(Math.max(error.retryAfter * 1000, backoff(attempt, base)), signal);
     }
   }
@@ -124,24 +126,27 @@ class StatusReporter {
     this.log = log;
     this.state = null;
     this.detail = null;
+    this.reason = null;
     this.account = null;
     this.chain = Promise.resolve();
   }
 
   // Sent on every change (fire and forget: health never blocks delivery).
-  report(state, detail = null, force = false) {
-    if (!force && state === this.state && detail === this.detail) return;
+  report(state, detail = null, force = false, reason = null) {
+    if (!force && state === this.state && detail === this.detail && reason === this.reason) return;
     if (!force && state === 'connected' && this.state === 'connected') return;
     this.state = state;
     this.detail = detail;
-    const body = {state, adapter_version: VERSION};
+    this.reason = reason;
+    const body = {state, adapter_version: VERSION, contract_revision: CONTRACT_REVISION};
+    if (reason) body.reason = reason;
     if (detail) body.detail = detail;
     if (this.account) body.platform_account = this.account;
     this.chain = this.chain.then(() => this.client.post('/v1/channel/status', body)).catch(error => this.log('status_failed', {name: error?.name}));
   }
 
-  async final(state, detail) {
-    this.report(state, detail, true);
+  async final(state, detail, reason) {
+    this.report(state, detail, true, reason);
     await Promise.race([this.chain, deadline(3000)]);
   }
 }

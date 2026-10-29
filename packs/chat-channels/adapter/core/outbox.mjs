@@ -5,7 +5,17 @@ import {EXIT_OK, ExitError, PlatformError, backoff, sleep} from './errors.mjs';
 import {renderItem} from './render.mjs';
 
 const KNOWN = new Set(['reply', 'attention', 'attention_resolved', 'brief', 'notice']);
-const DM_ONLY = new Set(['attention', 'attention_resolved', 'brief', 'notice']);
+const IN_PLACE = new Set(['question', 'decision']);
+
+// §9.6 adapter lock: outside a DM only a question/decision with an asker, its
+// resolution, notices and replies are posted. A refusal only: the choices shown are
+// still exactly the item's, never inferred from its kind.
+function refusedOutsideDM(item) {
+  if (item.chat.kind === 'dm') return false;
+  if (item.kind === 'brief') return true;
+  if (item.kind === 'attention') return !IN_PLACE.has(item.attention?.kind) || !item.attention?.asker;
+  return false;
+}
 
 export class Outbox {
   // platform: {name, send(chat, text, {buttons, replyTo}) → id, edit(chat, id, text) → id}
@@ -109,7 +119,7 @@ export class Outbox {
   async deliver(item) {
     const receipt = item.receipt_id;
     if (!KNOWN.has(item.kind)) return {receipt_id: receipt, status: 'skipped'};
-    if (DM_ONLY.has(item.kind) && item.chat.kind !== 'dm') return {receipt_id: receipt, status: 'skipped'};
+    if (refusedOutsideDM(item)) return {receipt_id: receipt, status: 'skipped'};
     const journaled = this.journal.delivered(receipt);
     if (journaled) return {receipt_id: receipt, status: 'delivered', platform_message_ids: journaled};
     let rendered;
@@ -126,7 +136,7 @@ export class Outbox {
       })];
     } catch (error) {
       if (!(error instanceof PlatformError) || error.tokenInvalid) throw error;
-      this.onHealth('degraded', error.code);
+      this.onHealth('degraded', error.code, error.reason);
       this.log('outbox_platform_failed', {receipt_id: receipt, code: error.code, retryable: error.retryable});
       return {receipt_id: receipt, status: 'failed', error: {code: error.code, retryable: error.retryable}};
     }
@@ -139,16 +149,17 @@ export class Outbox {
   // more gets the text as a new post instead (§4.8).
   async resolve(item, rendered) {
     const ids = [];
+    const repost = () => this.platform.send(item.chat, rendered.text, {buttons: [], replyTo: item.in_reply_to?.platform_message_id ?? null});
     const targets = (item.resolved?.edit ?? []).flatMap(edit => edit.platform_message_ids ?? []);
     for (const id of targets) {
       try {
         ids.push(String(await this.platform.edit(item.chat, id, rendered.text)));
       } catch (error) {
         if (!(error instanceof PlatformError) || error.retryable || error.tokenInvalid) throw error;
-        ids.push(String(await this.platform.send(item.chat, rendered.text, {buttons: []})));
+        ids.push(String(await repost()));
       }
     }
-    if (!targets.length) ids.push(String(await this.platform.send(item.chat, rendered.text, {buttons: []})));
+    if (!targets.length) ids.push(String(await repost()));
     return ids;
   }
 

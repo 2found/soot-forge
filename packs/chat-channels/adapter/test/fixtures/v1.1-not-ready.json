@@ -1,0 +1,125 @@
+[
+  {
+    "name": "not ready: the owner writes while the runtime has no AI credential → accepted and queued",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "note": "Telegram binding. Work is unavailable (Nest shows work_available=false, credentials_missing). The response does not change; the notice comes through the outbox.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500300",
+        "sender": { "id": "123456789", "name": "Lan Nguyễn" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4600",
+        "text": "Hôm nay có đơn nào mới không?"
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_4d8e0b6a11" } }
+  },
+  {
+    "name": "not ready: one host sentence for that chat, queued before the 202",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=70&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 70,
+        "next_after": 71,
+        "items": [
+          {
+            "receipt_id": "ob_Nr1Own0071",
+            "seq": 71,
+            "attempt": 1,
+            "kind": "notice",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-29T04:00:00Z",
+            "conversation": "chc_4d8e0b6a11",
+            "text": "Soot chưa sẵn sàng: máy chủ chưa có khóa AI để trả lời. Mở Nest để xử lý — tin nhắn của bạn vẫn được giữ và sẽ được trả lời khi Soot sẵn sàng.",
+            "links": [],
+            "open_url": null,
+            "notice": { "reason": "runtime_not_ready" }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "not ready: a second message in the same outage → accepted, no second notice",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:500301",
+        "sender": { "id": "123456789", "name": "Lan Nguyễn" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "platform_message_id": "4601",
+        "text": "Còn đó không?"
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_4d8e0b6a11" } }
+  },
+  {
+    "name": "not ready: the outbox has nothing new for the second message",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=71&limit=100" },
+    "response": { "status": 200, "body": { "acked_through": 71, "next_after": 71, "items": [] } }
+  },
+  {
+    "name": "not ready: a guild mention during the outage (adapter revision 1) → the notice is threaded in that channel",
+    "schema": { "response": "OutboxPage" },
+    "note": "Discord binding. minh mentioned the bot (message 1300000000000000100); the message was accepted (202, not shown).",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=72&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 72,
+        "next_after": 73,
+        "items": [
+          {
+            "receipt_id": "ob_Nr2Gld0073",
+            "seq": 73,
+            "attempt": 1,
+            "kind": "notice",
+            "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+            "created_at": "2026-10-29T04:02:00Z",
+            "conversation": "chc_77aa01bc90",
+            "in_reply_to": { "platform_message_id": "1300000000000000100" },
+            "text": "Soot chưa sẵn sàng: máy chủ chưa có khóa AI để trả lời. Mở Nest để xử lý — tin nhắn của bạn vẫn được giữ và sẽ được trả lời khi Soot sẵn sàng.",
+            "links": [],
+            "open_url": null,
+            "notice": { "reason": "runtime_not_ready" }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "not ready compat: the same guild mention with a revision-0 adapter → the notice goes to the sender's DM",
+    "schema": { "response": "OutboxPage" },
+    "note": "A v1.0 adapter skips notices outside a DM, so the host aims it at minh's DM instead.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=73&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 73,
+        "next_after": 74,
+        "items": [
+          {
+            "receipt_id": "ob_Nr3Dm00074",
+            "seq": 74,
+            "attempt": 1,
+            "kind": "notice",
+            "chat": { "id": "1299999999999999999", "kind": "dm" },
+            "created_at": "2026-10-29T04:03:00Z",
+            "conversation": "chc_77aa01bc90",
+            "text": "Soot chưa sẵn sàng: máy chủ chưa có khóa AI để trả lời. Mở Nest để xử lý — tin nhắn của bạn vẫn được giữ và sẽ được trả lời khi Soot sẵn sàng.",
+            "links": [],
+            "open_url": null,
+            "notice": { "reason": "runtime_not_ready" }
+          }
+        ]
+      }
+    }
+  }
+]

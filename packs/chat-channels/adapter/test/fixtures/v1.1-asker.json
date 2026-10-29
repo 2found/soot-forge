@@ -1,0 +1,136 @@
+[
+  {
+    "name": "asker: the asker presses a button in the guild → admitted",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "Item att_blk_6d1e0a9c3b (fixtures/v1.1-group.json seq 61) is open in channel 1288888888888888888; its asker is minh (chp_member0001).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": {
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "addressed": true,
+        "button": true
+      }
+    },
+    "response": { "status": 200, "body": { "admitted": true } }
+  },
+  {
+    "name": "asker: another paired user, the owner included, presses the question's button → refused, nothing runs",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "dc:1100220033004400:i:1320000000000000001",
+        "sender": { "id": "334455667788990011" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "token": "q1ZlTk3Rb8Vd6W"
+      }
+    },
+    "response": {
+      "status": 403,
+      "body": { "code": "not_allowed", "reason": "not_asker", "error": "only the asker can answer this item in this chat", "toast": "Chỉ người hỏi mới trả lời được câu này." }
+    }
+  },
+  {
+    "name": "asker: an unpaired user presses the question's button → refused by admission with an ephemeral toast",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "The adapter shows toast as the press's ephemeral answer (Telegram answerCallbackQuery, Discord ephemeral reply) and calls nothing else. Never a notice in a group.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": {
+        "sender": { "id": "445566778899001122", "name": "khách" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "addressed": true,
+        "button": true
+      }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "unpaired", "toast": "Chỉ người hỏi mới trả lời được câu này." } }
+  },
+  {
+    "name": "asker: an unpaired user replies to the question in text → silent",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": {
+        "sender": { "id": "445566778899001122" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "addressed": true
+      }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "unpaired" } }
+  },
+  {
+    "name": "asker: the asker presses Zalo → applied",
+    "schema": { "request": "AnswerRequest", "response": "AnswerResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "dc:1100220033004400:i:1320000000000000002",
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "token": "q1ZlTk3Rb8Vd6W"
+      }
+    },
+    "response": { "status": 200, "body": { "result": "applied", "duplicate": false, "label": "Zalo", "toast": "Đã trả lời: Zalo." } }
+  },
+  {
+    "name": "asker: a paired non-asker replies to a channel question in text → refused once with a reply",
+    "schema": { "request": "MemberMessage", "response": "Error" },
+    "note": "Item att_blk_2c7f9e4a10 (receipt ob_Gq2Ask0071) is a second open question in the same channel, asker minh. The text goes nowhere: not into the sender's own conversation. The adapter posts reply threaded under the sender's message.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1300000000000000090",
+        "sender": { "id": "334455667788990011", "name": "Lan" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "platform_message_id": "1300000000000000090",
+        "text": "Chọn khách sỉ",
+        "reply_to": { "receipt_id": "ob_Gq2Ask0071" }
+      }
+    },
+    "response": {
+      "status": 403,
+      "body": { "code": "not_allowed", "reason": "not_asker", "error": "only the asker can answer this item in this chat", "reply": "Chỉ người hỏi mới trả lời được câu này." }
+    }
+  },
+  {
+    "name": "asker: the same non-asker replies again → refused, no second reply",
+    "schema": { "request": "MemberMessage", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1300000000000000091",
+        "sender": { "id": "334455667788990011", "name": "Lan" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "platform_message_id": "1300000000000000091",
+        "text": "Khách sỉ nhé",
+        "reply_to": { "receipt_id": "ob_Gq2Ask0071" }
+      }
+    },
+    "response": { "status": 403, "body": { "code": "not_allowed", "reason": "not_asker", "error": "only the asker can answer this item in this chat" } }
+  },
+  {
+    "name": "asker: the asker replies to the channel question in text → that item is answered, as in DM",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1300000000000000092",
+        "sender": { "id": "223344556677889900", "name": "minh" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "platform_message_id": "1300000000000000092",
+        "text": "Khách lẻ trước",
+        "reply_to": { "receipt_id": "ob_Gq2Ask0071" }
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_77aa01bc90", "answered": "att_blk_2c7f9e4a10" } }
+  }
+]

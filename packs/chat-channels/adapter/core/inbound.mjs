@@ -104,9 +104,10 @@ export class Inbound {
   }
 
   async admit(event) {
-    const {status, body} = await this.client.post('/v1/channel/admission', {
-      sender: event.sender, chat: event.chat, addressed: event.addressed || event.chat.kind === 'dm',
-    });
+    const request = {sender: event.sender, chat: event.chat, addressed: event.addressed || event.chat.kind === 'dm'};
+    if (event.button) request.button = true;
+    const {status, body} = await this.client.post('/v1/channel/admission', request);
+    if (event.button) event.admissionToast = body?.toast ?? null;
     if (status !== 200) {
       await this.reply(event, body.notice ?? body.reply);
       return body.code || `admission_${status}`;
@@ -118,9 +119,11 @@ export class Inbound {
   }
 
   async answer(event) {
-    const admitted = await this.admit({...event, addressed: true});
+    const press = {...event, addressed: true};
+    const admitted = await this.admit(press);
     if (admitted !== true) {
-      await this.ops.toast(event, null).catch(() => {});
+      // A v1.1 host refuses an unpaired press with a toast (§9.2): shown to the presser only.
+      await this.ops.toast(event, press.admissionToast).catch(error => this.log('toast_failed', {code: error?.code}));
       return admitted;
     }
     const {status, body} = await this.client.post('/v1/channel/answers', {

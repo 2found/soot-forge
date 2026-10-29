@@ -1,6 +1,6 @@
 {
   "name": "soot-channel",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Telegram and Discord chat adapter for the Soot runtime (channel-adapter.v1)",

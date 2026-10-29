@@ -1,0 +1,89 @@
+[
+  {
+    "name": "status v1.1: connected, the adapter declares revision 1",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "note": "From now on the host may send this process v1.1 items (§9.1). A v0.7.0 host ignores contract_revision.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": {
+        "state": "connected",
+        "platform_account": { "id": "1100220033004400", "username": "Soot", "display_name": "Soot" },
+        "adapter_version": "0.2.0",
+        "contract_revision": 1
+      }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "status v1.1: Discord close 4014, Message Content intent is off (then exit 78)",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": { "state": "platform_token_invalid", "reason": "discord_intents_disallowed", "detail": "discord_gateway_4014", "contract_revision": 1 }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "status v1.1: Discord close 4004, the bot token was rejected (then exit 78)",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": { "state": "platform_token_invalid", "reason": "platform_token_rejected", "detail": "discord_gateway_4004", "contract_revision": 1 }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "status v1.1: Telegram getMe 401, the bot token was rejected (then exit 78)",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": { "state": "platform_token_invalid", "reason": "platform_token_rejected", "detail": "telegram_getme_401", "contract_revision": 1 }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "status v1.1: Discord close 4011, the bot is in too many servers (then exit 78)",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": { "state": "platform_token_invalid", "reason": "discord_sharding_required", "detail": "discord_gateway_4011", "contract_revision": 1 }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "status v1.1: Discord close 4012, the platform no longer speaks this adapter's protocol (then exit 78)",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "note": "4010, 4012 and 4013 all map to adapter_incompatible: the fix is a newer Nest/adapter, not a setting.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": { "state": "platform_token_invalid", "reason": "adapter_incompatible", "detail": "discord_gateway_4012", "contract_revision": 1 }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "status v1.1: Telegram getUpdates 409, a webhook is set on this bot (keeps retrying)",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": { "state": "degraded", "reason": "telegram_webhook_active", "detail": "telegram_409", "contract_revision": 1 }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "status v1.1: Telegram getUpdates 409, another program polls the same bot (keeps retrying)",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": { "state": "degraded", "reason": "telegram_poll_conflict", "detail": "telegram_409", "contract_revision": 1 }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  }
+]
