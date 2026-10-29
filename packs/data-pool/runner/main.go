@@ -161,7 +161,8 @@ func execute(ctx context.Context, args []string, stdin io.Reader, stdout io.Writ
 	if b.ServiceURL != "" {
 		return remoteExecute(ctx, b, call, stdout)
 	}
-	if !slices.Contains(b.Soots, call.Soot) {
+	// Refuse a malformed identity before touching state.
+	if !identifier.MatchString(call.Soot) {
 		return errors.New("access denied")
 	}
 	s, err := openService(b, call.Soot)
@@ -169,6 +170,9 @@ func execute(ctx context.Context, args []string, stdin io.Reader, stdout io.Writ
 		return err
 	}
 	defer s.close()
+	if !slices.Contains(s.b.Soots, call.Soot) { // static ∪ admitted
+		return errors.New("access denied")
+	}
 	// Only separate, explicitly granted UI operations may claim human provenance.
 	s.human = call.Interaction && (args[0] == "view" || args[0] == "action")
 	s.origin = s.callOrigin(call)

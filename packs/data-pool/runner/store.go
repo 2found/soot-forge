@@ -78,6 +78,10 @@ type service struct {
 	membership []string
 	groupsFor  string
 	perms      map[string]string
+	// static is the operator's binding before admissions widen b (admission.go);
+	// hosts names the gateway's @host clients, empty in local executable mode.
+	static binding
+	hosts  []string
 }
 
 func hash(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
@@ -91,9 +95,9 @@ func openService(b binding, actor string) (*service, error) {
 	if err != nil {
 		return nil, errors.New("plugin state unavailable or busy; inspect the original request before retrying a mutation")
 	}
-	s := &service{b: b, actor: actor, db: db, backend: newBackend(b), membership: actorGroups(b, actor), groupsFor: actor, perms: map[string]string{}}
+	s := &service{b: b, static: b, actor: actor, db: db, backend: newBackend(b), membership: actorGroups(b, actor), groupsFor: actor, perms: map[string]string{}}
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, name := range []string{"config", "pools", "grants", "by-soot", "documents", "receipts", "fences", "activity", "children", "effective", "by-group", "references"} {
+		for _, name := range []string{"config", "pools", "grants", "by-soot", "documents", "receipts", "fences", "activity", "children", "effective", "by-group", "references", "admitted"} {
 			if _, e := tx.CreateBucketIfNotExists([]byte(name)); e != nil {
 				return e
 			}
@@ -112,6 +116,7 @@ func openService(b binding, actor string) (*service, error) {
 		db.Close()
 		return nil, err
 	}
+	s.withAdmitted()
 	return s, nil
 }
 

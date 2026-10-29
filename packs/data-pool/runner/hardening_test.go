@@ -107,9 +107,6 @@ func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
 		human            bool
 		in               any
 	}{
-		{macHostToken, "support", "pools", false, poolsInput{}},  // outside mac's allowlist
-		{vmHostToken, "marketing", "pools", false, poolsInput{}}, // outside vm's allowlist
-		{vmHostToken, "manager", "manage", false, manageInput{}}, // manager not on vm
 		{macHostToken, "marketing", "write", false, secret},      // reader role
 		{macHostToken, "manager", "view", true, uiInput("overview", map[string]any{})},
 		{macHostToken, "manager", "view", false, uiInput("overview", map[string]any{})},
@@ -117,6 +114,16 @@ func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
 	} {
 		if code := call(denied.token, denied.actor, denied.op, denied.human, denied.in); code != 403 {
 			t.Fatal("host credential exceeded its allowlist", denied.token[:14], denied.actor, denied.op, code)
+		}
+	}
+	// A Soot outside a machine's allowlist (and not admitted for it) is refused
+	// with a reason the model can act on, never with data.
+	for _, outside := range []struct{ token, actor, op string }{
+		{macHostToken, "support", "pools"}, {vmHostToken, "marketing", "pools"}, {vmHostToken, "manager", "manage"},
+	} {
+		w := toolRequest(t, g, outside.token, outside.actor, outside.op, false, poolsInput{})
+		if w.Code != 400 || !strings.Contains(w.Body.String(), "not admitted to the shared data pool") || strings.Contains(w.Body.String(), "company") {
+			t.Fatal("host credential exceeded its allowlist", outside.token[:14], outside.actor, outside.op, w.Code, w.Body.String())
 		}
 	}
 	if code := call(vmHostToken, "support", "write", false, secret); code != 200 {
@@ -150,7 +157,7 @@ func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
 	if json.Unmarshal([]byte(strings.SplitN(text, "\n", 2)[0]), &first) != nil || first.Client != "host:mac" || first.Soot != "manager" || first.Op != "manage" || first.Status != 200 || first.Time == "" {
 		t.Fatal(text)
 	}
-	if !strings.Contains(text, `"soot":"marketing","client":"host:vm","op":"pools","status":403`) {
+	if !strings.Contains(text, `"soot":"marketing","client":"host:vm","op":"pools","status":400`) || !strings.Contains(text, `"refused":"soot.unadmitted"`) {
 		t.Fatal("denial not logged", text)
 	}
 	// Revoking one machine is removing its client entry; the other keeps working.

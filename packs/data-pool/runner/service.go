@@ -50,6 +50,8 @@ type manageInput struct {
 	// by default, at most write), own writes the creator =manage (the default).
 	Scope   string `json:"scope,omitempty"`
 	Subject string `json:"subject,omitempty"`
+	// Host is the admit target's machine credential name (admission.go).
+	Host string `json:"host,omitempty"`
 }
 type writeInput struct {
 	Action           string   `json:"action"`
@@ -460,6 +462,9 @@ func (s *service) readPage(ctx context.Context, pool, id string, offset, limit i
 }
 
 func (s *service) manage(ctx context.Context, in manageInput) (any, error) {
+	if in.Action == "admit" || in.Action == "dismiss" {
+		return s.manageAdmission(in)
+	}
 	if in.Action != "pool_remove" {
 		return s.manageCollection(in)
 	}

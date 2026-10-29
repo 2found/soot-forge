@@ -167,7 +167,11 @@ func newGateway(c serverConfig) (*gateway, error) {
 	clients := make(map[string]serviceClient, len(c.Clients))
 	for _, client := range c.Clients {
 		clients[client.TokenSHA256] = client
+		if client.Soot == hostClient {
+			s.hosts = append(s.hosts, client.Name)
+		}
 	}
+	slices.Sort(s.hosts)
 	return &gateway{base: s, clients: clients, slots: make(chan struct{}, 256), active: map[string]int{}}, nil
 }
 
@@ -175,6 +179,7 @@ func newGateway(c serverConfig) (*gateway, error) {
 // group list are per-actor request state; sharing the base map races.
 func (g *gateway) session(actor string) *service {
 	s := *g.base
+	s.withAdmitted()
 	s.actor, s.perms = actor, map[string]string{}
 	s.membership, s.groupsFor = actorGroups(s.b, actor), actor
 	s.human, s.origin = false, nil
@@ -315,16 +320,25 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 	}
 	allowed := principal.Operations
 	actor := principal.Soot
+	var session *service
 	if principal.Soot == hostClient {
 		// The host asserts its Soot identity in the envelope; the service bounds
 		// the claim to this machine's allowlist. Human UI needs the separate UI
 		// token, so a machine credential never carries the interaction marker.
-		if call.Interaction || !slices.Contains(principal.Soots, call.Soot) {
+		if call.Interaction || !identifier.MatchString(call.Soot) {
 			http.Error(w, "access denied", 403)
 			return
 		}
+		if !slices.Contains(principal.Soots, call.Soot) && !g.base.admitted(call.Soot, principal.Name) {
+			// The machine is authenticated, so say what is missing: a model that
+			// only sees "403" guesses collection ids and asks for the wrong grant.
+			entry.Refused = "soot.unadmitted"
+			writeInvalid(w, "this Soot is not admitted to the shared data pool yet, so no collection is visible to it; do not guess collection ids. Report a blocker with grant kind data_pool so a pool manager turns Kho dữ liệu on for this Soot in Nest")
+			return
+		}
 		actor = call.Soot
-		allowed = roleOperations(g.base.b, call.Soot)
+		session = g.session(actor) // one admission read serves the role check and the call
+		allowed = roleOperations(session.b, actor)
 	} else if call.Soot != principal.Soot {
 		http.Error(w, "invalid tool context", 400)
 		return
@@ -358,7 +372,10 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 		http.Error(w, "service busy; inspect original request before retrying", 503)
 		return
 	}
-	s := g.session(actor) // Identity is credential-bound, never model-selected.
+	s := session // Identity is credential-bound, never model-selected.
+	if s == nil {
+		s = g.session(actor)
+	}
 	s.human = call.Interaction && (op == "view" || op == "action")
 	s.origin = s.callOrigin(call)
 	result, err := s.dispatch(ctx, op, call.Input)
@@ -373,9 +390,7 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 			if field := (fieldError{}); errors.As(err, &field) {
 				entry.Refused = op + "." + field.field
 			}
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(400)
-			json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": "invalid_input", "message": invalid.Error()}})
+			writeInvalid(w, invalid.Error())
 			return
 		}
 		http.Error(w, "request denied or failed; inspect original request before retrying", 400)
@@ -507,4 +522,12 @@ func healthcheck(args []string) error {
 		return fmt.Errorf("unhealthy: HTTP %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// writeInvalid is the one invalid_input envelope the host passes through to
+// the model (remote.go parses the same shape).
+func writeInvalid(w http.ResponseWriter, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": "invalid_input", "message": message}})
 }

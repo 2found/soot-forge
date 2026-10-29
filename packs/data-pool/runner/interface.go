@@ -80,7 +80,7 @@ func (s *service) view(ctx context.Context, raw json.RawMessage) (any, error) {
 	return nil, errors.New("unsupported data-pool view")
 }
 func (s *service) overview() any {
-	return map[string]any{"namespace": s.b.Namespace, "service_identity": hash(s.b.Namespace + "\n" + s.b.Endpoint), "actor": s.actorReference(), "bound_soots": s.b.Soots, "host_managers": s.b.Managers,
+	return map[string]any{"namespace": s.b.Namespace, "service_identity": hash(s.b.Namespace + "\n" + s.b.Endpoint), "actor": s.actorReference(), "bound_soots": s.b.Soots, "admitted_soots": s.admittedLevels(), "host_managers": s.b.Managers,
 		"groups": s.b.Groups, "default_collection": s.b.Defaults[s.actor], "organization_version": 1,
 		"limits": map[string]any{"collections": maxPools, "collection_depth": maxCollectionDepth, "reference_retention": referenceRetention, "page_size": 20, "inline_content_bytes": 12 << 10, "content_bytes": maxContent, "activity_retention": activityRetention}, "available": true}
 }
@@ -110,7 +110,8 @@ func (s *service) action(ctx context.Context, raw json.RawMessage) (any, error) 
 		if err = decodeStrict(in.Input, &input); err != nil {
 			break
 		}
-		if input.Action != "pool_create" && (input.ExpectedPolicyRevision == nil || input.Generation == "") {
+		// Admission is not a collection policy edit: no revision to guard.
+		if input.Action != "pool_create" && input.Action != "admit" && input.Action != "dismiss" && (input.ExpectedPolicyRevision == nil || input.Generation == "") {
 			err = errors.New("human management requires expected_policy_revision and pool generation")
 			break
 		}

@@ -39,6 +39,18 @@ keep the original request and check its receipt before any further mutation.
 
 Pool details expose `policy_revision`, effective `grants`, `host_managers` and
 `bound_soots`. Namespace administrators cannot be revoked through pool grants.
+
+Admission: `storage.soots` is fixed at install, so a host Soot created later is
+admitted at runtime. `action` kind `manage` with `{ "action": "admit", "soot":
+"<id>", "level": "read|write", "host": "<@host client name>", "request_id": … }`
+(host may be omitted when the service has one machine credential) or
+`{ "action": "dismiss", "soot", "request_id" }`. Only a host manager may call
+them; they need no generation or policy revision, take effect on the next
+request without a restart, and tie the Soot to that one machine credential.
+`overview` lists `admitted_soots` (id → level) beside `bound_soots`, which now
+includes them. A config-bound Soot cannot be dismissed. A machine credential
+calling for a Soot it may not act as gets 400 `invalid_input` saying the Soot is
+not admitted, so the model reports a `data_pool` blocker instead of guessing.
 Document metadata includes optional `{ "writer": { "kind": "human|soot",
 "soot": "bound-identity" } }`. Activity contains actor, timestamp, status,
 document ID/revision references and permission targets; no query text, content

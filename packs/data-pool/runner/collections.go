@@ -361,9 +361,9 @@ func (s *service) manageCollection(in manageInput) (any, error) {
 			return nil, inputError{fmt.Sprintf("%s manages this namespace already; a pool grant cannot change that", in.Soot)}
 		}
 		// Turning the pool on for a Soot in Nest is the host half; the
-		// service must also accept that identity, or every grant fails here.
+		// service must also accept that identity (config or admission).
 		if in.Soot != "" && !slices.Contains(s.b.Soots, in.Soot) {
-			return nil, inputError{fmt.Sprintf("%s is not bound to this data service; add it to storage.soots (and to the host client's soots) in the service config, restart the service, then grant again", in.Soot)}
+			return nil, inputError{fmt.Sprintf("%s is not admitted to this data service; a pool manager admits it first by turning Kho dữ liệu on for it in Nest, then grant again", in.Soot)}
 		}
 		if in.Action == "grant" && rank(in.Level) == 0 || in.Action == "revoke" && in.Level != "" {
 			return nil, errors.New("invalid permission")

@@ -343,7 +343,7 @@ func TestGrantToUnboundSootSaysWhatToChange(t *testing.T) {
 	_, server, _ := organizationFixture(t)
 	orgCreate(t, server, "company", "", nil)
 	_, err := remoteCall(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "grant", Pool: "company", Soot: "newcomer", Level: "read", RequestID: "unbound"})
-	if err == nil || !strings.Contains(err.Error(), "newcomer is not bound to this data service; add it to storage.soots") {
+	if err == nil || !strings.Contains(err.Error(), "newcomer is not admitted to this data service; a pool manager admits it") {
 		t.Fatalf("err = %v", err)
 	}
 	_, err = remoteCall(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "grant", Pool: "company", Soot: "manager", Level: "read", RequestID: "manager"})
