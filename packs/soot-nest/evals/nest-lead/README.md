@@ -1,7 +1,7 @@
 # Nest lead evals
 
-Dry-run behaviour locks for the Đầu mối (`nest-lead`, `nest-manage`). Each case
-sends one message from the acceptance scenarios (S1–S4, S7, S8, S10–S13) and
+Dry-run behaviour locks for the Kamaji (`nest-lead`, `nest-manage`). Each case
+sends one message from the acceptance scenarios (S1–S4, S7, S8, S10–S13, W1–W5) and
 gates the *decision*: which tool is called, which is not, and what the reply must
 not claim. Evals read tool names only, never arguments or results.
 
@@ -12,7 +12,7 @@ soot eval --tag needs-runtime        # cases for operations that need the new ru
 ```
 
 The suite has no `soot`, so it runs on the runtime's default Soot: run it in a
-Nest workspace whose default Soot is the Đầu mối and holds `soot-nest/manage`.
+Nest workspace whose default Soot is the Kamaji and holds `soot-nest/manage`.
 Dry run is the default (`effects: dry_run`): `manage` and `manage_gated` answer
 with a preview or a refusal, never a receipt, so every case also forbids
 "đã tạo", "đã đổi", "đã áp dụng" and similar.
@@ -28,8 +28,12 @@ Fixture the cases assume (a workspace used only for evals):
   Minh paired. The connect cases need no binding: they gate the hand-off to
   `nest://settings/channels` and that a pasted token is never repeated.
 
+- for the `workspace` cases (W1–W5), a team `ban-hang` with `but-lohi` as a
+  member; W5 reads better with an `orders` table at the workspace level, but a
+  missing one still gates that the count comes from `data`.
+
 Cases tagged `needs-runtime` use `client.*`, `soot.improve`, `updates.*`,
-`usage.read`, `budget.save` or `channel.*`, which ship in the Soot runtime
+`usage.read`, `budget.save`, `channel.*` or `access.*`, which ship in the Soot runtime
 released **before** this pack; on an older runtime they end with the model saying
 it cannot do that yet. S10's lost reply cannot be simulated from a case, so the case locks the
 wording and the read-first rule; the held effect itself is a runtime test.

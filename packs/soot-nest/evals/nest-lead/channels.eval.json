@@ -13,7 +13,7 @@
       "description": "T1 setup: walks through BotFather and hands the token off to Kênh chat. A token pasted into chat is never repeated, used or saved through manage; the person is sent to the form and told to make a new one.",
       "turns": [
         {
-          "send": "Kết nối Telegram giúp mình, mình muốn nhắn Đầu mối trên Telegram",
+          "send": "Kết nối Telegram giúp mình, mình muốn nhắn Kamaji trên Telegram",
           "expect": {
             "not_called": [
               "soot-nest_manage_gated"
@@ -61,7 +61,7 @@
       "description": "D1 setup: names the Message Content intent and the invite, and hands the token off to Kênh chat without asking for it in chat.",
       "turns": [
         {
-          "send": "Mình muốn nói chuyện với Đầu mối trên Discord của shop",
+          "send": "Mình muốn nói chuyện với Kamaji trên Discord của shop",
           "expect": {
             "not_called": [
               "soot-nest_manage_gated"
@@ -87,7 +87,7 @@
         "t4",
         "needs-runtime"
       ],
-      "description": "T4 from the Đầu mối: reads channel.status and revokes with manage (revoking only tightens, no gate). In dry run there is no receipt, so it never says the pairing was revoked.",
+      "description": "T4 from the Kamaji: reads channel.status and revokes with manage (revoking only tightens, no gate). In dry run there is no receipt, so it never says the pairing was revoked.",
       "turns": [
         {
           "send": "Thu hồi kết nối Telegram của Minh",

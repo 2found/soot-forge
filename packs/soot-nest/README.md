@@ -10,7 +10,7 @@ reply to send the person to a data-pool collection or document, a Soot, a team, 
 page or a drafted piece of work. Links grant nothing and send nothing. The
 grammar mirrors `desktop/src/nest-links.ts` in 2agent; change both together.
 
-Its `manage` capability gives the Đầu mối two tools, `manage` and
+Its `manage` capability gives Kamaji, the lead, two tools, `manage` and
 `manage_gated`, that run `soot manage` to change the host's Soots, schedules,
 teams, approvals, data access and model tiers. The runtime acts only for the
 host's `default_soot` and holds every change that would grant more than the lead
