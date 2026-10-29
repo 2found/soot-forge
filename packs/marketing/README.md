@@ -1,27 +1,59 @@
-# Marketing workflow
+# Marketing
 
-This optional pack supplies role guidance and passive draft/plan/publication records. Soot's native delegation owns work; the ledger never starts agents or schedules jobs. Node.js 22+ is required. Install executes no scripts and grants nothing.
+The know-how and the tools of a marketing team that researches, writes, reviews,
+publishes and learns for one product. It is product-neutral: what the product
+is, who it is for and how it sounds come from the team's brief (`team.brief` in
+team memory, asked by Kamaji when it builds the team) and from a product's own
+skill, never from this pack. Installing it grants nothing.
 
-Use the [Marketing team template](../../groups/marketing-team/README.md) to prepare coordinator, Radar, creator, editor and optional Blog/X publishers. Research and shared data reuse the research, writing and data-pool packs. Build the data-pool connector explicitly as documented by that pack; infrastructure and grants are separate.
+| capability | for | tools |
+| --- | --- | --- |
+| `radar` | the Soot that watches sources | `radar_feeds`, `radar_scan`, `radar_items`, `radar_mark` |
+| `write` | writers | `cms_list`, `cms_read`, `cms_save`, `social_channels`, `social_queue`, `social_list`, `social_update` |
+| `edit` | the editor (a skill: review, voice rules) | — |
+| `publish` | the editor, or a publisher | `cms_publish`, `social_publish`, `social_record` |
+| `measure` | the editor or the lead's review | `content_stats` |
 
-Bind `MARKETING_TEAM` per Soot/selected operation to a private JSON credential:
+The [Marketing team](../../groups/marketing-team/README.md) template puts these
+together: Kamaji leads, a radar, a writer and an editor work on tasks, keep
+shared records in the team tables `signals` and `content`, and keep the brief,
+voice rules and lessons in team memory. Nothing goes live without an editor's
+review task.
 
-```json
-{"soot":"acme-blog","directory":"/private/marketing-records","channels":{"blog":{"endpoint":"https://publisher.example.com","destination":"my-blog","token":"<gateway credential>"}}}
-```
+## The hub
 
-Creator/editor bindings omit channels. Publishers receive only their own channel, destination and credential. `directory` is shared by authorized local team members; different tenants need different directories. Do not grant shell/file tools to a publisher. This local filesystem boundary is not OS sandboxing.
+Every tool forwards its call, unchanged, with `soot tool-forward --binding-env
+MARKETING_HUB` to a marketing hub service: a CMS for each product's blog, a
+social queue with platform adapters, a radar of sources and the publish log.
+The [2found hub](https://github.com/2found/2found.dev/blob/main/api/docs/hub.md)
+is one implementation; any service that answers the same `soot/v1` tool calls
+works.
 
-Gateway contract: POST `/v1/publications`, with `Idempotency-Key` and the JSON `idempotency_key`, destination, channel and exact draft payload; GET `/v1/publications/{key}` reconciles a lost response without creating a post. Both require Bearer auth. A proven result is `{idempotency_key,status:"published",url:"https://…",receipt:"…"}`. The gateway must persist idempotency and platform receipts. It owns authenticated X/blog platform integration; this pack does not pretend a gateway exists or silently bypass X access restrictions. Bind a reviewed adapter before live publishing. Redirects are refused. Response bodies are bounded.
+Bind `MARKETING_HUB` per Soot in Nest (Cài đặt → Kết nối) to
+`{"service_url": "https://…/api/hub", "service_token": "…"}`. The token is the
+hub's client for this team: the hub decides which sites it writes for, which
+channels it queues and whether it may publish, so a writer's token cannot
+publish and one team cannot touch another product's posts. Tokens never go
+through chat and never ship in a template.
 
-Default approval is operator-only. Inspect a draft and proposed plan first; create an approval JSON containing `{id,revision,plan_revision,hash,channel}`. With that publisher's private binding in the environment, run:
+## Publishing
 
-```sh
-node tools/marketing.mjs approve /private/reviewed-approval.json
-```
+`cms_publish` and `social_publish` are public. Whether a person approves each
+one first is the host's approval policy: the pack and the template never relax
+it. The hub refuses a call that cannot go out (a moved revision, text that is not
+the draft, a channel without credentials, an account that posts only for another
+product, TikTok) and posts nothing; the publisher then hands the post to a
+person in **Cần bạn**. An uncertain post is never published again.
 
-The command is deliberately absent from model tool grants. Approval binds the exact hash/revision, publisher, destination and planned time. Any content/plan change invalidates it. A host may explicitly set `automatic:true` on one channel; templates never do so. Future plan rows are not jobs: arrange the existing host schedule separately and never claim scheduled delivery from a ledger entry.
+`content_stats` counts what went out — articles, drafts, social posts by
+channel — and never who read it (`visits` is `null`). Reader numbers come from a
+product's own data pack when it has one.
 
-Publication writes an uncertain receipt before HTTP. A timeout, malformed response or HTTP error retains uncertainty; only a matching remote GET receipt resolves it. It never automatically retries. Successful channels remain recorded when another fails. Interrupted filesystem locks are preserved; the operator verifies no writer owns the directory before removing `.marketing.lock`. Do not remove records to clear uncertainty. Tests use a local fixture gateway and send no real posts.
+## Moving from 2found-hub or the ledger
 
-Editor plans use `expected_plan_revision` from the inspected record in addition to the content `expected_revision`. An approval must include that observed `plan_revision`; stale plan approvals and stale editor writes are refused. If a destination or gateway changes while an attempt is uncertain, restore the original reviewed binding and reconcile that attempt before publishing again.
+This replaces the earlier draft/plan/approval ledger (`MARKETING_TEAM`), which
+nothing used. A source that copied the `2found-hub` pack can grant
+`marketing/<capability>` instead and rename its `FOUND_HUB` binding to
+`MARKETING_HUB`; the hub contract is the same.
+
+Tests: `node --test packs/marketing/tests/*.test.mjs` (no network, no posts).

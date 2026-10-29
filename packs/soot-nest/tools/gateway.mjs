@@ -11,9 +11,15 @@ function unknown() {
   return error;
 }
 
-export async function callOwner(pack, mode, call, endpoint, token, {fetcher = fetch, timeoutMs = 12000} = {}) {
-  if (!['nest-no-code', 'live-chat-sheets'].includes(pack) || !['view', 'action'].includes(mode) ||
-      call?.api_version !== 'soot/v1' || call?.hook !== 'tool.call' || call.operation !== `${pack}_${mode}` ||
+// The tool names each owner pack gives its read and write operation.
+const owners = new Map([
+  ['soot-nest', new Map([['website_view', 'view'], ['website_action', 'action']])],
+  ['live-chat-sheets', new Map([['view', 'view'], ['action', 'action']])],
+]);
+
+export async function callOwner(pack, tool, call, endpoint, token, {fetcher = fetch, timeoutMs = 12000} = {}) {
+  const mode = owners.get(pack)?.get(tool);
+  if (!mode || call?.api_version !== 'soot/v1' || call?.hook !== 'tool.call' || call.operation !== `${pack}_${tool}` ||
       typeof call.soot !== 'string' || !call.soot) throw new Error('Invalid operation binding');
   const input = call.input;
   const allowed = pack === 'live-chat-sheets' ? ['action', 'site_id', 'binding', 'request_id'] :

@@ -1,6 +1,8 @@
 # Live chat Sheets pack
 
-Reusable Google Sheets sink for public Live chat transcripts. Optional integration for [Nest no code](../nest-no-code/README.md). Installing it does not start a worker or grant Google access. The host selects `live-chat-sheets/sync` for an owner configurator, installs the Node dependencies, then explicitly adds a tenant-scoped binding to the host-owned gateway. The adapter owns ingress, OAuth, vault and durable export queue; Soot retains canonical conversation history.
+Reusable Google Sheets sink for public Live chat transcripts. Optional integration for the website Live chat in [Soot Nest](../soot-nest/README.md) (`soot-nest/website-chat`, formerly the `nest-no-code` pack). Installing it does not start a worker or grant Google access. The host selects `live-chat-sheets/sync` for an owner configurator, installs the Node dependencies, then explicitly adds a tenant-scoped binding to the host-owned gateway. The adapter owns ingress, OAuth, vault and durable export queue; Soot retains canonical conversation history.
+
+What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/domain/SKILL.md); this pack is kept separate from it on purpose: it needs `google-auth-library`, and the default install stays light.
 
 For an existing local installation, update the pack recipe path, select `live-chat-sheets/sync`, and explicitly rebind credentials to the renamed operations. The adapter's Sheets binding IDs, control actions and stored export data keep their existing names.
 

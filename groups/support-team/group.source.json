@@ -1,0 +1,116 @@
+{
+  "api_version": "soot/group-template/v2",
+  "id": "support-team",
+  "name": "Support team",
+  "description": "Kamaji leads a website answerer and a feedback desk: visitors get answers from your product facts, and what they ask, report or want lands as voice-of-customer rows for you.",
+  "root": "",
+  "members": [
+    {
+      "id": "answerer",
+      "name": "Answerer",
+      "role": "Answer website visitors from the product facts and record what they ask, report or want.",
+      "soul": "You are the product's website answerer. Be warm, brief and exact. Say plainly what you do not know, and never promise what the facts do not state.",
+      "mission": "Answer visitors only from the product knowledge you were given. When a visitor reports a problem, asks for something the product lacks, wants to buy, or asks what you cannot answer, record it with record_feedback (with their contact only if they offered it) and tell them a person will follow up when they left a contact.",
+      "use": [
+        "live-chat/conversation"
+      ]
+    },
+    {
+      "id": "desk",
+      "name": "Feedback desk",
+      "role": "Sort visitor feedback into the workspace voc table and flag what needs a person.",
+      "soul": "You are Feedback desk on a small team led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
+      "mission": "For each feedback note, add or update one row in the workspace table `voc` (date, product, kind: bug, request, question, lead or complaint; severity; summary; contact present; status open). Create the table when it is missing. When a write is refused, ask for the grant with report_blocker. Flag only what a person can act on now (a lead with a contact, a blocking bug, a complaint) in one report_blocker per turn.",
+      "use": []
+    }
+  ],
+  "default": [
+    "answerer",
+    "desk"
+  ],
+  "packs": [
+    {
+      "id": "live-chat",
+      "archive": "dependencies/live-chat.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "bindings": [],
+  "inputs": [
+    {
+      "id": "product",
+      "label": "Sản phẩm",
+      "ask": "Đội hỗ trợ khách cho sản phẩm nào (tên và địa chỉ web)?",
+      "confirm": true
+    },
+    {
+      "id": "website",
+      "label": "Website",
+      "ask": "Khung chat sẽ đặt trên website nào?",
+      "confirm": true
+    },
+    {
+      "id": "facts",
+      "label": "Tài liệu",
+      "ask": "Soot trả lời khách từ đâu: trang tài liệu, llms.txt, hay file bạn thêm vào Dữ liệu?"
+    },
+    {
+      "id": "escalation",
+      "label": "Chuyển người",
+      "ask": "Việc gì phải chuyển cho người, và ai nhận (không ghi số điện thoại hay mật khẩu vào đây)?"
+    },
+    {
+      "id": "tone",
+      "label": "Giọng",
+      "ask": "Giọng trả lời khách: thân mật hay trang trọng, xưng hô thế nào?"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "lean",
+      "label": "Tiết kiệm",
+      "cadence": "Trả lời khách cả ngày với model nhẹ; tổng hợp phản hồi mỗi chiều.",
+      "members": {
+        "answerer": {
+          "tier": "flash",
+          "daily_tokens": 300000
+        },
+        "desk": {
+          "tier": "flash",
+          "daily_tokens": 100000
+        }
+      }
+    },
+    {
+      "id": "steady",
+      "label": "Đều đặn",
+      "cadence": "Model tốt hơn cho câu hỏi khó; tổng hợp mỗi chiều và báo cáo tuần.",
+      "members": {
+        "answerer": {
+          "tier": "pro",
+          "daily_tokens": 800000
+        },
+        "desk": {
+          "tier": "flash",
+          "daily_tokens": 200000
+        }
+      }
+    }
+  ],
+  "schedules": [
+    {
+      "id": "digest",
+      "name": "Tổng hợp phản hồi",
+      "every": "24h",
+      "at": "17:00",
+      "text": "Daily feedback digest. Query the workspace table voc for today's rows. Post one short summary in the team thread: top questions, problems and requests with counts, and open leads. Create a task for anything that needs a product change; never contact a visitor yourself."
+    },
+    {
+      "id": "weekly",
+      "name": "Báo cáo tuần",
+      "every": "168h",
+      "at": "09:00",
+      "text": "Weekly support review. From the voc table, count the last 7 days by kind and product, name the questions the answerer could not answer and propose the facts to add. Keep at most three lessons in team memory."
+    }
+  ]
+}

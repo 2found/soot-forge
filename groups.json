@@ -5,8 +5,14 @@
     {
       "id": "marketing-team",
       "name": "Marketing team",
-      "description": "Radar → source pool → creator → editor → your selected publishers. Draft-first, with revision-bound approvals.",
+      "description": "Kamaji leads a radar, a writer and an editor who research, write, review, publish and learn for one product through a marketing hub, on tasks you can follow.",
       "source": "groups/marketing-team/group.source.json"
+    },
+    {
+      "id": "support-team",
+      "name": "Support team",
+      "description": "Kamaji leads a website answerer and a feedback desk: visitors get answers from your product facts, and what they ask, report or want lands as voice-of-customer rows for you.",
+      "source": "groups/support-team/group.source.json"
     },
     {
       "id": "society-sim",

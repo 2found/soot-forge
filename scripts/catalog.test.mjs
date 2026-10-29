@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateCatalog, validatePack, materialize, sourceLink, installCommand, readCatalog, tagCommit } from './catalog.mjs';
+import { validateCatalog, validatePack, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -45,6 +45,20 @@ test('PR metadata rejects duplicate IDs, unknown fields, traversal and moving re
     const value = catalog(); mutate(value);
     assert.throws(() => validateCatalog(value));
   }
+});
+
+test('a retired pack merges into a listed one by explicit capability and tool maps', () => {
+  const retired = { id: 'old', into: 'example', capabilities: { configure: 'website' }, tools: { view: 'website_view' } };
+  validateCatalog({ ...catalog(), retired: [retired] });
+  for (const bad of [
+    { ...retired, id: 'example' }, { ...retired, into: 'missing' }, { ...retired, capabilities: {} },
+    { ...retired, capabilities: { configure: 'Bad Name' } }, { ...retired, tools: ['view'] }, { ...retired, extra: true },
+  ]) assert.throws(() => validateCatalog({ ...catalog(), retired: [bad] }), JSON.stringify(bad));
+  assert.throws(() => validateCatalog({ ...catalog(), retired: [retired, retired] }));
+  const manifest = { capabilities: { website: { tools: [{ name: 'website_view' }] } } };
+  checkRetiredTarget(retired, manifest);
+  assert.throws(() => checkRetiredTarget({ ...retired, capabilities: { configure: 'other' } }, manifest), /no capability other/);
+  assert.throws(() => checkRetiredTarget({ ...retired, tools: { view: 'view' } }, manifest), /no tool view/);
 });
 
 test('materialization rejects symlink ancestors, missing skills, mismatched ID and forbidden manifest fields', async t => {

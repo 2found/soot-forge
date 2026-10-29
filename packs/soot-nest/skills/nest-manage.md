@@ -1,7 +1,7 @@
 # Nest manage
 
 As Kamaji, the lead, you change this Nest's settings yourself with `manage`:
-Soots, schedules, teams, which tools ask first, who reaches which tables,
+Soots, schedules, teams (built from templates), which tools ask first, who reaches which tables,
 memory and files, model tiers, website chatbots, updates, token budgets and
 Soot improvement. The person
 asks once in chat; you do it and report once. They should not have to open a
@@ -93,7 +93,8 @@ or "để tôi xem", propose the draft link instead of acting.
 | `soot.delete` | `id` |
 | `schedule.save` | `id` (new or existing schedule), `schedule`: `{soot, name, text, every, at, timezone, paused}` |
 | `schedule.delete` | `id` |
-| `group.create` | `group`: `{template, name}` |
+| `templates.list` | read only: the team templates you can build from, Forge's first, then this host's (`forge` is `unavailable` when only the host's answered); each with `members`, `inputs`, `profiles` (daily and monthly tokens) and `schedules` |
+| `group.create` | `group`: `{template, name, title, profile, brief}` — `name` is the team's short id (lowercase, `-`), `title` what the person calls it, `profile` one of the template's `profiles` ids, `brief` the answers by input id. A template from Forge is installed by this same change |
 | `group.policy.create` / `.save` | `team`: `{name, description, entries, members}`; `id` to save |
 | `group.policy.delete` | `id` |
 | `approval.policy` | `id` (the tool), `approval`: `operator` asks first, `auto` runs alone, `default` follows its pack |
@@ -126,6 +127,46 @@ runtime reads: use the keys `read` or the refusal names if they differ.
 "Hoàn tác thay đổi <request_id>" from the person means `undo` with that id. If
 it was changed again since, the undo is refused: say so and offer to make the
 change they want now.
+
+## Build a team
+
+The person asks for a team ("lập cho tôi một nhóm …"). The team's know-how is
+in its template; you choose the template, collect its brief and propose it in
+one approval. Never invent members, souls or missions for a request a template
+covers.
+
+1. **Pick the template.** `templates.list`. Choose the template whose
+   description fits the request; if two fit, name both in one line and ask which.
+   If none fits, say so and offer to draft the team yourself
+   (`group.policy.create` with Soots you make), or link `nest://settings/teams`.
+   When `forge` is `unavailable`, say in one line that only this machine's
+   templates are listed right now.
+2. **Fill the brief from what you know.** Each `inputs` entry is one thing the
+   team needs to know (`label`, the question in `ask`). Answer what the
+   conversation, the workspace memory and the person's files already say. Ask
+   the rest **one question per turn**, in the template's words, and wait for the
+   answer. An input marked `confirm` is confirmed even when you inferred it:
+   say what you inferred and ask "đúng không?". Keep each answer short and in
+   the person's words.
+3. **Choose the budget.** Read `usage.read` for today's use. Offer the
+   template's `profiles` in one short list: label, cadence, `daily_tokens` and
+   `monthly_tokens`, and which models each member runs on. `cost` is `unknown`:
+   say the money cost cannot be estimated here, never a made-up price. Default
+   to the first profile when the person has no preference.
+4. **Propose once.** Send `group.create` straight to `manage_gated` with
+   `{template, name, title, profile, brief}`. The person sees the members, their
+   models and token caps, the schedules and the brief on one card in **Cần
+   bạn**. Say in one line that it waits for them.
+5. **After it is created**, report once with the team link. For every setup
+   gap the template names (`bindings` it needs, a connection only the person
+   can make, a key to enter in Settings), create one `task` assigned to the
+   person (`human`) with the exact step and link; never ask for a secret in
+   chat. Then say when the first cycle runs (the profile's schedules) and that
+   `Hoàn tác` removes the whole team.
+
+Changing a team later is the same flow: a new brief is a new `group.create`
+only when the template changed; otherwise edit the members or schedules with
+the actions above.
 
 ## Access to tables, memory and files
 

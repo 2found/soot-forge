@@ -54,7 +54,7 @@
     {
       "id": "soot",
       "name": "Soot",
-      "description": "Soot domain knowledge and tools for preparing custom pets.",
+      "description": "Everything about Soot: what it is, how Soots, packs, teams, schedules and approvals work, and custom pets.",
       "tags": [
         "essentials"
       ],
@@ -90,7 +90,7 @@
     {
       "id": "soot-nest",
       "name": "Nest",
-      "description": "Capabilities and interface metadata for the Soot app workspace.",
+      "description": "Everything for working in Nest with Kamaji: the lead, settings, team building, links, the side tool area and website Live chat.",
       "tags": [
         "essentials"
       ],
@@ -190,19 +190,6 @@
       }
     },
     {
-      "id": "nest-no-code",
-      "name": "Nest no code",
-      "description": "Configure a Live chat website through a host-bound owner endpoint.",
-      "tags": [
-        "configuration",
-        "communication"
-      ],
-      "source": {
-        "kind": "bundled",
-        "path": "packs/nest-no-code"
-      }
-    },
-    {
       "id": "research",
       "name": "Research",
       "description": "Research guidance using the Soot runtime web search and fetch tools.",
@@ -255,7 +242,7 @@
     {
       "id": "marketing",
       "name": "Marketing team",
-      "description": "Coordinate sourced drafts, channel plans and revision-bound publication receipts.",
+      "description": "A product-neutral marketing team: radar, writing, editing, publishing and measuring through a marketing hub, on team tasks, tables and memory.",
       "tags": [
         "marketing",
         "collaboration"
@@ -368,6 +355,19 @@
       "source": {
         "kind": "bundled",
         "path": "packs/image-gen"
+      }
+    }
+  ],
+  "retired": [
+    {
+      "id": "nest-no-code",
+      "into": "soot-nest",
+      "capabilities": {
+        "configure": "website-chat"
+      },
+      "tools": {
+        "view": "website_view",
+        "action": "website_action"
       }
     }
   ]

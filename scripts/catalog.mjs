@@ -31,7 +31,7 @@ export function safePath(path) {
 }
 
 export function validateCatalog(catalog) {
-  keys(catalog, ['version', 'repository', 'packs'], 'catalog');
+  keys(catalog, ['version', 'repository', 'packs', 'retired'], 'catalog');
   if (catalog.version !== 1 || catalog.repository !== '2found/soot-forge' ||
       !Array.isArray(catalog.packs) || catalog.packs.length > 256) throw new Error('Invalid catalog version/repository/packs');
   const ids = new Set();
@@ -57,7 +57,39 @@ export function validateCatalog(catalog) {
         throw new Error(`External pack ${pack.id} requires source.version as a stable SemVer such as 1.2.3`);
     } else throw new Error(`Unknown source kind for ${pack.id}`);
   }
+  validateRetired(catalog.retired ?? [], ids);
   return catalog;
+}
+
+// A retired pack was merged into a listed one. Installers move every grant of
+// <id>/<capability> and <id>_<tool> onto the names mapped here, then remove
+// the old copy; a capability or tool left out of the maps blocks that move.
+function validateRetired(retired, ids) {
+  if (!Array.isArray(retired) || retired.length > 64) throw new Error('Invalid retired list');
+  const seen = new Set();
+  for (const entry of retired) {
+    keys(entry, ['id', 'into', 'capabilities', 'tools'], 'retired entry');
+    if (typeof entry.id !== 'string' || !identifier.test(entry.id) || ids.has(entry.id) || seen.has(entry.id))
+      throw new Error(`Retired pack ${entry.id} must be a unique id no longer listed`);
+    seen.add(entry.id);
+    if (!ids.has(entry.into)) throw new Error(`Retired pack ${entry.id} must merge into a listed pack`);
+    for (const field of ['capabilities', 'tools']) {
+      const map = entry[field] ?? {};
+      if (!map || typeof map !== 'object' || Array.isArray(map) || Object.keys(map).length > 64 ||
+          Object.entries(map).some(([from, to]) => !identifier.test(from) || typeof to !== 'string' || !identifier.test(to)))
+        throw new Error(`Invalid ${field} map for retired pack ${entry.id}`);
+    }
+    if (!Object.keys(entry.capabilities ?? {}).length) throw new Error(`Retired pack ${entry.id} maps no capability`);
+  }
+}
+
+// Every name a retired entry maps to exists in the pack it merged into.
+export function checkRetiredTarget(entry, manifest) {
+  const tools = new Set(Object.values(manifest.capabilities).flatMap(capability => (capability.tools ?? []).map(tool => tool.name)));
+  for (const to of Object.values(entry.capabilities ?? {}))
+    if (!Object.hasOwn(manifest.capabilities, to)) throw new Error(`Retired pack ${entry.id}: ${entry.into} has no capability ${to}`);
+  for (const to of Object.values(entry.tools ?? {}))
+    if (!tools.has(to)) throw new Error(`Retired pack ${entry.id}: ${entry.into} has no tool ${to}`);
 }
 
 // `git ls-remote --tags` output for refs/tags/v<version>{,^{}}: the peeled (^{}) line of an

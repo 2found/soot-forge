@@ -4,6 +4,8 @@ Lets the owner and paired members talk to the Đầu mối from Telegram or Disc
 The pack is only the adapter, `soot-channel` in [`adapter/`](adapter/): it adds
 no tools, skills or grants, and installing or selecting it starts nothing.
 
+What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/domain/SKILL.md); this pack is kept separate from it on purpose: it is an adapter binary, not knowledge.
+
 The **deployment** starts it. A host binding in the deployment's `channels`
 map (Nest: Cài đặt → Kênh chat) makes the Soot runtime supervise one
 `soot-channel <telegram|discord>` process per enabled binding, with the bot

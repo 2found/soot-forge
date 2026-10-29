@@ -16,6 +16,12 @@ computer, or a Soot runtime on your server (both in preview).
 15:00 schedule ─▶ Radar      afternoon scan, merged into today's brief
 ```
 
+To get a team like this without a repository, ask Kamaji in Nest: it builds
+one from the [Marketing team template](../../groups/marketing-team/README.md),
+whose members use the product-neutral [marketing pack](../../packs/marketing/README.md)
+and a marketing hub. This example stays for a team you keep in git, with your
+own procedure pack.
+
 It follows the workflow 2found runs on its own runtime, with 2found's own feed
 reader and CMS hub swapped for Forge packs. What it learned in production is in
 the design notes at the end.

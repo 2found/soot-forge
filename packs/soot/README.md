@@ -5,7 +5,7 @@ chuẩn animation v3 đã dùng trong sản phẩm.
 
 | Capability | Nội dung |
 | --- | --- |
-| `soot/guide` | Thương hiệu, vocabulary, ranh giới runtime/pack và trạng thái pet |
+| `soot/guide` | Mọi thứ về Soot: vocabulary, Kamaji, nhóm và mẫu nhóm, pack, lịch, duyệt, hạng model, không gian làm việc, nơi tìm pack/mẫu nhóm, trạng thái pet. Thao tác trong Nest nằm ở pack `soot-nest`. |
 | `soot/create-pet` | Kiểm tra Codex, hướng dẫn cài/đăng nhập; chuẩn bị prompt/reference, xem tiến độ và ghép sprites |
 
 Recipe `packs: ["soot"]` chỉ chọn `guide`. Tạo pet cần chọn rõ

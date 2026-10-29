@@ -1,7 +1,7 @@
 import { mkdtemp, rm, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { readCatalog, materialize, run } from './catalog.mjs';
+import { readCatalog, materialize, run, checkRetiredTarget } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { readGroups } from './groups.mjs';
 import { readFileSync } from 'node:fs';
@@ -36,6 +36,12 @@ try {
       await run(soot, ['add', archive, '--config', deployment, '--json'], { timeout: 30_000, maxBuffer: 1024 * 1024 });
     }
     console.log(`Validated ${pack.id} (${pack.source.kind})`);
+  }
+  for (const entry of catalog.retired ?? []) {
+    // The loop above materialized every pack it checked; an unchecked external target is skipped with it.
+    if (catalog.packs.find(pack => pack.id === entry.into).source.kind !== 'bundled' && !remote) continue;
+    checkRetiredTarget(entry, JSON.parse(readFileSync(join(work, 'packs', entry.into, 'pack.json'), 'utf8')));
+    console.log(`Retired ${entry.id} → ${entry.into}`);
   }
   console.log(`Catalog valid: ${catalog.packs.length} entries; external content ${remote ? 'checked' : 'skipped (use --remote)'}`);
 } finally { await rm(work, { recursive: true, force: true }); }

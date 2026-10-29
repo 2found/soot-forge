@@ -1,7 +1,7 @@
 # Nest lead evals
 
 Dry-run behaviour locks for the Kamaji (`nest-lead`, `nest-manage`). Each case
-sends one message from the acceptance scenarios (S1–S4, S7, S8, S10–S13, W1–W5) and
+sends one message from the acceptance scenarios (S1–S4, S7, S8, S10–S13, W1–W5, T5–T6) and
 gates the *decision*: which tool is called, which is not, and what the reply must
 not claim. Evals read tool names only, never arguments or results.
 
@@ -27,6 +27,8 @@ Fixture the cases assume (a workspace used only for evals):
 - for the `channels` cases (T1, D1, T4), a Telegram binding with a member named
   Minh paired. The connect cases need no binding: they gate the hand-off to
   `nest://settings/channels` and that a pasted token is never repeated.
+- for the `team-template` cases (T5, T6), Soot Forge reachable (or a host
+  template whose description fits a marketing team) so `templates.list` has one.
 
 - for the `workspace` cases (W1–W5), a team `ban-hang` with `but-lohi` as a
   member; W5 reads better with an `orders` table at the workspace level, but a

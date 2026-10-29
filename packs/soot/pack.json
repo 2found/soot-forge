@@ -9,7 +9,7 @@
       "skills": [
         {
           "name": "soot-domain",
-          "description": "Soot product domain, brand vocabulary, pack boundaries and pet lifecycle.",
+          "description": "Everything about Soot: vocabulary, how Soots, Kamaji, teams, packs, schedules, approvals, tiers and the workspace fit together, where packs and team templates come from, and the pet lifecycle.",
           "file": "skills/domain/SKILL.md"
         }
       ]
