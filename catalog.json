@@ -64,19 +64,6 @@
       }
     },
     {
-      "id": "soot-pet",
-      "name": "Soot pet",
-      "description": "Create a custom Soot pet with Codex imagegen: check Codex, prepare the jobs, inspect progress and assemble the atlas.",
-      "tags": [
-        "essentials",
-        "media"
-      ],
-      "source": {
-        "kind": "bundled",
-        "path": "packs/soot-pet"
-      }
-    },
-    {
       "id": "browser-use",
       "name": "Browser use",
       "description": "Browser control skills with a separately installed browser adapter.",

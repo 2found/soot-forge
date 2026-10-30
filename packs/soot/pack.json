@@ -4,7 +4,7 @@
   "skills": [
     {
       "name": "soot-domain",
-      "description": "Everything about Soot: vocabulary, how Soots, Kamaji, teams, packs, schedules, approvals, tiers and the workspace fit together, where packs and team templates come from, and the pet lifecycle.",
+      "description": "Everything about Soot: vocabulary, how Soots, Kamaji, teams, packs, schedules, approvals, tiers and the workspace fit together, where packs and team templates come from, and the avatar lifecycle.",
       "file": "skills/domain/SKILL.md"
     },
     {

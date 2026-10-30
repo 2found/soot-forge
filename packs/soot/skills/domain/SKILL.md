@@ -1,6 +1,6 @@
 ---
 name: soot-domain
-description: Everything about Soot itself — what it is, its vocabulary, how Soots, Kamaji, teams, packs, schedules, approvals, tiers and the workspace fit together, where packs and team templates come from, and the pet lifecycle.
+description: Everything about Soot itself — what it is, its vocabulary, how Soots, Kamaji, teams, packs, schedules, approvals, tiers and the workspace fit together, where packs and team templates come from, and the avatar lifecycle.
 ---
 
 # Soot
@@ -88,15 +88,16 @@ asks for the install and existing tool grants permit it. Verify with
 `soot check --show`. If no read or install tool is granted, explain the operator
 steps instead of changing grants.
 
-## Pet lifecycle
+## Avatar lifecycle
 
-A pet is a visual companion representing session activity; creating a pet does
-not create an agent. Use one activity controller and the existing event
-transport per conversation. All pet placements for that conversation receive
-the same state. Never open an extra authenticated stream for each pet, or
-expose provider tokens in a page.
+An avatar is a visual companion representing session activity, rendered by
+code inside the app; setting an avatar does not create an agent. Use one
+activity controller and the existing event transport per conversation. All
+avatar placements for that conversation receive the same state. Never open
+an extra authenticated stream for each avatar, or expose provider tokens in
+a page.
 
-| Public signal | Pet state |
+| Public signal | Avatar state |
 | --- | --- |
 | Connecting/reconnecting, or `run.queued` | `waiting`, with a precise label |
 | `run.started`, `run.progress` | `thinking` unless work is active |
@@ -110,5 +111,3 @@ A failed tool may be recovered within a run. `message.completed` alone is not
 a run completion. Replayed historical completions must not trigger celebration.
 The public stream currently has no structured approval/input-required event;
 do not infer that state from response text or private reasoning.
-
-For creating a new pet, use the separately selected `soot-pet` pack.

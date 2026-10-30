@@ -52,7 +52,6 @@ try {
     await stat(options.python);
     await lane('media-python-tests', options.python, ['scripts/test-media.py']);
     await lane('image-gen-python-tests', options.python, ['packs/image-gen/tests/test_runner.py']);
-    await lane('soot-pet-python-tests', options.python, ['packs/soot-pet/tests/test_pet.py']);
   }
 } finally {
   if (options.report) await writeFile(options.report, JSON.stringify(report, null, 2)+'\n');
