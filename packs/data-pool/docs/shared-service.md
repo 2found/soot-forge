@@ -66,7 +66,7 @@ service stores SHA-256 token hashes; tokens are randomly generated, per Soot.
 `bindings/data-manager.ui.json` with a distinct token scoped to `view/action`
 only. Load that file into `MANAGER_DATA_POOL_UI` on the operator's Soot host and
 bind `DATA_POOL_UI` to those two operations. Explicitly select
-`data-pool/configure`. The service requires the human interface marker as well
+the `data-pool-console` pack. The service requires the human interface marker as well
 as the token scope and manager identity. Adding the marker to ordinary agent
 operations does not grant human access or change their recorded actor. Keep
 this UI token separate from the agent token; never send it to Nest's webview.
@@ -108,11 +108,11 @@ Copy each file only to its own machine and declare there:
 ```json
 "data_pool": {
   "binding": {"file": "/private/company-data/bindings/host-mac.json"},
-  "capabilities": "read-write"
+  "access": "write"
 }
 ```
 
-`capabilities` may also be an explicit operation list. What a host credential
+`access` is `read` (the default: every Soot gets `data-pool:read`) or `write` (the whole `data-pool` pack). What a host credential
 can and cannot do:
 
 - Each envelope names a Soot. A claim outside **that host's** `soots` allowlist
@@ -252,9 +252,9 @@ In that Soot host's deployment, merge this credential binding:
 }
 ```
 
-Select `data-pool/read` in the `marketing-local` definition or Nest settings.
+Select `data-pool:read` in the `marketing-local` definition or Nest settings.
 On the VM use the `marketing-vm` binding and definition. For `data-manager`,
-select read/write/manage and bind its own token to the additional write/manage
+select `data-pool` and bind its own token to the additional write/manage
 operations. Keep credentials scoped even if both Soots run in one Nest.
 
 ```sh
@@ -295,7 +295,7 @@ contains `soot`, `token_sha256` and allowed `operations`
 (pools/query/status/write/manage, or separate human view/action scopes). A host
 client entry contains `"soot":"@host"`, a unique `name`, its `soots` allowlist
 and `token_sha256`, and no `operations`. Multiple distinct tokens may
-deliberately bind one Soot identity. Removing capabilities or a pool grant is
+deliberately bind one Soot identity. Deselecting the pack or removing a pool grant is
 separate from invalidating its service token.
 
 To move a direct-mode workspace to the central service, dump the source database

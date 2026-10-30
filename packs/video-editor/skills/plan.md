@@ -16,13 +16,13 @@ Prepare portable project files: `BRIEF.md`, `STORYBOARD.md`, `frame.md`, exact
 `SCRIPT.md`, asset/source ledger and timeline/composition. Keep approved words
 unchanged through production. Hash frozen inputs when transferring to another
 producer; a review only applies to the bytes it actually checked. Carry cue IDs,
-source anchors, missing capabilities and review conditions, not paths to a
+source anchors, missing tools and review conditions, not paths to a
 private sibling checkout. Keep binaries separate with hashes/provenance.
 
 Route deliberately: FFmpeg for existing footage, stills, simple camera motion,
 cuts, captions and audio; HyperFrames for custom typography, HTML motion,
-interactive compositions and complex choreography. The separate HyperFrames
-capability is optional. Both need measured narration before final timing.
+interactive compositions and complex choreography. The HyperFrames
+tool is optional. Both need measured narration before final timing.
 TikTok default is 9:16; reserve header/footer/action controls. The supplied house
 margins are starting assumptions, not guaranteed TikTok UI dimensions.
 

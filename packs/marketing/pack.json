@@ -1,276 +1,467 @@
 {
   "api_version": "soot/v1",
   "id": "marketing",
-  "use": [],
-  "capabilities": {
-    "radar": {
-      "skills": [
-        {
-          "name": "marketing-radar",
-          "description": "Watch the sources the audience reads, triage them and keep the team's signals table and brief current.",
-          "file": "skills/radar.md"
-        }
-      ],
-      "tools": [
-        {
-          "name": "radar_feeds",
-          "title": "Xem nguồn radar",
-          "description": "List the radar's sources (Reddit, Hacker News, dev.to, Medium, Lobsters, Product Hunt, vendor blogs, X searches) with when each was last read, its last error and how many new items it found.",
-          "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
-          }
-        },
-        {
-          "name": "radar_scan",
-          "title": "Quét nguồn radar",
-          "description": "Read the sources that are due (each at most every 15 minutes; Reddit one feed per scan) and store new items once per URL. Returns the newest untriaged items. Not available from a customer conversation.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "feeds": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                  "maxLength": 48
-                },
-                "minItems": 1,
-                "maxItems": 40,
-                "description": "Feed ids from radar_feeds; omit for all."
-              },
-              "max_new": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 60,
-                "default": 30,
-                "description": "How many new items to return."
-              }
-            },
-            "required": [],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
-          }
-        },
-        {
-          "name": "radar_items",
-          "title": "Xem tin radar",
-          "description": "List radar items by triage status (default new), optionally by feed, an accent-insensitive text query, or the last N hours.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "enum": [
-                  "new",
-                  "kept",
-                  "dismissed",
-                  "used"
-                ],
-                "default": "new"
-              },
-              "feeds": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                  "maxLength": 48
-                },
-                "minItems": 1,
-                "maxItems": 40,
-                "description": "Feed ids from radar_feeds; omit for all."
-              },
-              "query": {
-                "type": "string",
-                "maxLength": 100
-              },
-              "since_hours": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 720
-              },
-              "limit": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 50,
-                "default": 25
-              }
-            },
-            "required": [],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
-          }
-        },
-        {
-          "name": "radar_mark",
-          "title": "Phân loại tin radar",
-          "description": "Triage radar items in one call: each item kept (with the angle as note), dismissed, or used once written about. All or nothing: an unknown or repeated id changes none.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "items": {
-                "type": "array",
-                "description": "Every item to triage, each once.",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "pattern": "^RI-[0-9A-F]{8}$"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "new",
-                        "kept",
-                        "dismissed",
-                        "used"
-                      ]
-                    },
-                    "note": {
-                      "type": "string",
-                      "maxLength": 500,
-                      "description": "For a kept item: product, angle and why now, one line."
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "status"
-                  ],
-                  "additionalProperties": false
-                },
-                "minItems": 1,
-                "maxItems": 50
-              }
-            },
-            "required": [
-              "items"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
-          }
-        }
-      ]
+  "skills": [
+    {
+      "name": "marketing-radar",
+      "description": "Watch the sources the audience reads, triage them and keep the team's signals table and brief current.",
+      "file": "skills/radar.md"
     },
-    "write": {
-      "skills": [
-        {
-          "name": "marketing-write",
-          "description": "Turn a signal into grounded article and social drafts in the hub; never publish.",
-          "file": "skills/write.md"
+    {
+      "name": "marketing-write",
+      "description": "Turn a signal into grounded article and social drafts in the hub; never publish.",
+      "file": "skills/write.md"
+    },
+    {
+      "name": "marketing-edit",
+      "description": "Review drafts against the brief and brand rules on a review task; fix small things, send the rest back.",
+      "file": "skills/edit.md"
+    },
+    {
+      "name": "marketing-publish",
+      "description": "Take reviewed work live through the hub, hand off what a person must post, and never repeat an uncertain post.",
+      "file": "skills/publish.md"
+    },
+    {
+      "name": "marketing-measure",
+      "description": "Read what the team shipped and what it led to, and keep the lessons in team memory.",
+      "file": "skills/measure.md"
+    }
+  ],
+  "tools": [
+    {
+      "name": "radar_feeds",
+      "title": "Xem nguồn radar",
+      "description": "List the radar's sources (Reddit, Hacker News, dev.to, Medium, Lobsters, Product Hunt, vendor blogs, X searches) with when each was last read, its last error and how many new items it found.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
         }
-      ],
-      "tools": [
-        {
-          "name": "cms_list",
-          "title": "Xem danh sách bài CMS",
-          "description": "List the newest posts of a CMS site in every status (draft, published, archived) with revision, live flag and public URL. Check it before drafting so you never duplicate a topic.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "site": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                "maxLength": 64,
-                "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-              },
-              "limit": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 50,
-                "default": 20
-              }
+      }
+    },
+    {
+      "name": "radar_scan",
+      "title": "Quét nguồn radar",
+      "description": "Read the sources that are due (each at most every 15 minutes; Reddit one feed per scan) and store new items once per URL. Returns the newest untriaged items. Not available from a customer conversation.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "feeds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 48
             },
-            "required": [
-              "site"
-            ],
-            "additionalProperties": false
+            "minItems": 1,
+            "maxItems": 40,
+            "description": "Feed ids from radar_feeds; omit for all."
           },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
+          "max_new": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60,
+            "default": 30,
+            "description": "How many new items to return."
           }
         },
-        {
-          "name": "cms_read",
-          "title": "Đọc một bài CMS",
-          "description": "Read the latest revision of a CMS post: body_markdown, revision, status and preview_url (a signed page showing exactly this revision, for anyone who reviews it before it goes live).",
-          "parameters": {
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    },
+    {
+      "name": "radar_items",
+      "title": "Xem tin radar",
+      "description": "List radar items by triage status (default new), optionally by feed, an accent-insensitive text query, or the last N hours.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "kept",
+              "dismissed",
+              "used"
+            ],
+            "default": "new"
+          },
+          "feeds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 48
+            },
+            "minItems": 1,
+            "maxItems": 40,
+            "description": "Feed ids from radar_feeds; omit for all."
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "since_hours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 720
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 25
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    },
+    {
+      "name": "radar_mark",
+      "title": "Phân loại tin radar",
+      "description": "Triage radar items in one call: each item kept (with the angle as note), dismissed, or used once written about. All or nothing: an unknown or repeated id changes none.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "Every item to triage, each once.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^RI-[0-9A-F]{8}$"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "new",
+                    "kept",
+                    "dismissed",
+                    "used"
+                  ]
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 500,
+                  "description": "For a kept item: product, angle and why now, one line."
+                }
+              },
+              "required": [
+                "id",
+                "status"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    },
+    {
+      "name": "cms_list",
+      "title": "Xem danh sách bài CMS",
+      "description": "List the newest posts of a CMS site in every status (draft, published, archived) with revision, live flag and public URL. Check it before drafting so you never duplicate a topic.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 64,
+            "description": "The hub's site id for a blog (social_channels lists this team's sites)."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20
+          }
+        },
+        "required": [
+          "site"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    },
+    {
+      "name": "cms_read",
+      "title": "Đọc một bài CMS",
+      "description": "Read the latest revision of a CMS post: body_markdown, revision, status and preview_url (a signed page showing exactly this revision, for anyone who reviews it before it goes live).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 64,
+            "description": "The hub's site id for a blog (social_channels lists this team's sites)."
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 96,
+            "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
+          }
+        },
+        "required": [
+          "site",
+          "slug"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    },
+    {
+      "name": "cms_save",
+      "title": "Lưu bản nháp CMS",
+      "description": "Save a CMS draft revision; it never goes live (a publisher does that with cms_publish after reviewing it). New post: expected_revision 0. Edit: the revision cms_read returned. Body is Markdown, at most 40000 bytes. Returns preview_url for the reviewer.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 64,
+            "description": "The hub's site id for a blog (social_channels lists this team's sites)."
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 96,
+            "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A fresh UUID per change. Reuse it only to retry the exact same change after an unknown outcome."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "One or two sentences shown in blog lists and link previews."
+          },
+          "body_markdown": {
+            "type": "string",
+            "maxLength": 40000
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "vi"
+            ]
+          }
+        },
+        "required": [
+          "site",
+          "slug",
+          "request_id",
+          "expected_revision",
+          "title",
+          "summary",
+          "body_markdown",
+          "language"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "max_input_bytes": 49152
+      }
+    },
+    {
+      "name": "social_channels",
+      "title": "Xem kênh mạng xã hội",
+      "description": "Show each social channel: its length limit, whether the hub can post to it, and what you may do there.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    },
+    {
+      "name": "social_queue",
+      "title": "Tạo bản nháp mạng xã hội",
+      "description": "Queue a social post draft for one channel. Length is checked the way the platform counts it (X: 280, a link counts 23, Vietnamese accented letters count 2). TikTok is a video: text is the caption and media_note the shot list and voice-over script.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A fresh UUID per change. Reuse it only to retry the exact same change after an unknown outcome."
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "x",
+              "facebook",
+              "tiktok"
+            ]
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "vi"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "link": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "https link the post points to, usually the CMS post URL."
+          },
+          "media_note": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "source": {
             "type": "object",
             "properties": {
               "site": {
@@ -291,579 +482,371 @@
               "slug"
             ],
             "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
           }
         },
-        {
-          "name": "cms_save",
-          "title": "Lưu bản nháp CMS",
-          "description": "Save a CMS draft revision; it never goes live (a publisher does that with cms_publish after reviewing it). New post: expected_revision 0. Edit: the revision cms_read returned. Body is Markdown, at most 40000 bytes. Returns preview_url for the reviewer.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "site": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                "maxLength": 64,
-                "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-              },
-              "slug": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                "maxLength": 96,
-                "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
-              },
-              "request_id": {
-                "type": "string",
-                "format": "uuid",
-                "description": "A fresh UUID per change. Reuse it only to retry the exact same change after an unknown outcome."
-              },
-              "expected_revision": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "title": {
-                "type": "string",
-                "maxLength": 200
-              },
-              "summary": {
-                "type": "string",
-                "maxLength": 500,
-                "description": "One or two sentences shown in blog lists and link previews."
-              },
-              "body_markdown": {
-                "type": "string",
-                "maxLength": 40000
-              },
-              "language": {
-                "type": "string",
-                "enum": [
-                  "en",
-                  "vi"
-                ]
-              }
-            },
-            "required": [
-              "site",
-              "slug",
-              "request_id",
-              "expected_revision",
-              "title",
-              "summary",
-              "body_markdown",
-              "language"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            },
-            "max_input_bytes": 49152
-          }
+        "required": [
+          "request_id",
+          "channel",
+          "language",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
         },
-        {
-          "name": "social_channels",
-          "title": "Xem kênh mạng xã hội",
-          "description": "Show each social channel: its length limit, whether the hub can post to it, and what you may do there.",
-          "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
-          }
-        },
-        {
-          "name": "social_queue",
-          "title": "Tạo bản nháp mạng xã hội",
-          "description": "Queue a social post draft for one channel. Length is checked the way the platform counts it (X: 280, a link counts 23, Vietnamese accented letters count 2). TikTok is a video: text is the caption and media_note the shot list and voice-over script.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "request_id": {
-                "type": "string",
-                "format": "uuid",
-                "description": "A fresh UUID per change. Reuse it only to retry the exact same change after an unknown outcome."
-              },
-              "channel": {
-                "type": "string",
-                "enum": [
-                  "x",
-                  "facebook",
-                  "tiktok"
-                ]
-              },
-              "language": {
-                "type": "string",
-                "enum": [
-                  "en",
-                  "vi"
-                ]
-              },
-              "text": {
-                "type": "string",
-                "maxLength": 5000
-              },
-              "link": {
-                "type": "string",
-                "maxLength": 500,
-                "description": "https link the post points to, usually the CMS post URL."
-              },
-              "media_note": {
-                "type": "string",
-                "maxLength": 4000
-              },
-              "source": {
-                "type": "object",
-                "properties": {
-                  "site": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                    "maxLength": 64,
-                    "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-                  },
-                  "slug": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                    "maxLength": 96,
-                    "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
-                  }
-                },
-                "required": [
-                  "site",
-                  "slug"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "request_id",
-              "channel",
-              "language",
-              "text"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            },
-            "max_input_bytes": 32768
-          }
-        },
-        {
-          "name": "social_list",
-          "title": "Xem bản nháp mạng xã hội",
-          "description": "List social posts, newest first, optionally by channel or status. Uncertain Facebook posts are looked up on the Page first and come back published when they landed. approved means released for X and waiting for the browser poster on the operator's computer. approval_asked_at is set on a draft whose current revision waits for an operator's decision in Nest (only when the publish tool is approval-gated).",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "channel": {
-                "type": "string",
-                "enum": [
-                  "x",
-                  "facebook",
-                  "tiktok"
-                ]
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "draft",
-                  "approved",
-                  "publishing",
-                  "published",
-                  "uncertain",
-                  "failed",
-                  "discarded"
-                ]
-              },
-              "limit": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 50,
-                "default": 20
-              }
-            },
-            "required": [],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
-          }
-        },
-        {
-          "name": "social_update",
-          "title": "Sửa bản nháp mạng xã hội",
-          "description": "Edit or discard a draft, approved or failed social post. Pass the revision you listed. Changing an approved post takes it back from the X poster (it becomes a draft again). A publisher may reopen an uncertain post as draft once a human confirmed it was not posted.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^SP-[0-9A-F]{8}$"
-              },
-              "expected_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "text": {
-                "type": "string",
-                "maxLength": 5000
-              },
-              "link": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "media_note": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 4000
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "draft",
-                  "discarded"
-                ]
-              }
-            },
-            "required": [
-              "id",
-              "expected_revision"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            },
-            "max_input_bytes": 32768
-          }
-        }
-      ]
+        "max_input_bytes": 32768
+      }
     },
-    "edit": {
-      "skills": [
-        {
-          "name": "marketing-edit",
-          "description": "Review drafts against the brief and brand rules on a review task; fix small things, send the rest back.",
-          "file": "skills/edit.md"
-        }
-      ]
-    },
-    "publish": {
-      "skills": [
-        {
-          "name": "marketing-publish",
-          "description": "Take reviewed work live through the hub, hand off what a person must post, and never repeat an uncertain post.",
-          "file": "skills/publish.md"
-        }
-      ],
-      "tools": [
-        {
-          "name": "cms_publish",
-          "title": "Đăng hoặc gỡ bài trên CMS",
-          "description": "Take one reviewed CMS revision live (status published) or take a live post down (archived). Runs at once; it is public. Copy site, slug, revision and title from cms_read of that same revision; the hub refuses anything else.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "site": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                "maxLength": 64,
-                "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-              },
-              "slug": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                "maxLength": 96,
-                "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
-              },
-              "revision": {
-                "type": "integer",
-                "minimum": 1,
-                "description": "The revision you reviewed; it must still be the latest."
-              },
-              "title": {
-                "type": "string",
-                "maxLength": 200,
-                "description": "The revision's title, exactly as cms_read returned it."
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "published",
-                  "archived"
-                ],
-                "default": "published"
-              }
-            },
-            "required": [
-              "site",
-              "slug",
-              "revision",
-              "title"
-            ],
-            "additionalProperties": false
+    {
+      "name": "social_list",
+      "title": "Xem bản nháp mạng xã hội",
+      "description": "List social posts, newest first, optionally by channel or status. Uncertain Facebook posts are looked up on the Page first and come back published when they landed. approved means released for X and waiting for the browser poster on the operator's computer. approval_asked_at is set on a draft whose current revision waits for an operator's decision in Nest (only when the publish tool is approval-gated).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "x",
+              "facebook",
+              "tiktok"
+            ]
           },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "preflight": true, "stdin": "context",
-            "mode": "write",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "publishing",
+              "published",
+              "uncertain",
+              "failed",
+              "discarded"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20
           }
         },
-        {
-          "name": "social_publish",
-          "title": "Đăng bài lên mạng xã hội",
-          "description": "Post one reviewed social draft to its connected channel (X is posted by the browser poster on the operator's computer). Runs at once; it is public. Copy channel, text and link from social_list exactly: the hub refuses anything that differs from the queued post.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^SP-[0-9A-F]{8}$"
-              },
-              "expected_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "channel": {
-                "type": "string",
-                "enum": [
-                  "x",
-                  "facebook",
-                  "tiktok"
-                ]
-              },
-              "text": {
-                "type": "string",
-                "maxLength": 10000,
-                "description": "The queued text, exactly as social_list returned it."
-              },
-              "link": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500,
-                "description": "The queued link, or null when the post has none."
-              }
-            },
-            "required": [
-              "id",
-              "expected_revision",
-              "channel",
-              "text"
-            ],
-            "additionalProperties": false
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    },
+    {
+      "name": "social_update",
+      "title": "Sửa bản nháp mạng xã hội",
+      "description": "Edit or discard a draft, approved or failed social post. Pass the revision you listed. Changing an approved post takes it back from the X poster (it becomes a draft again). A publisher may reopen an uncertain post as draft once a human confirmed it was not posted.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^SP-[0-9A-F]{8}$"
           },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
             ],
-            "preflight": true, "stdin": "context",
-            "mode": "write",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            },
-            "max_input_bytes": 32768
+            "maxLength": 500
+          },
+          "media_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "discarded"
+            ]
           }
         },
-        {
-          "name": "social_record",
-          "title": "Ghi link bài đã đăng tay",
-          "description": "Record a post a human made by hand (TikTok, or a channel the hub is not connected to) with its public URL.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^SP-[0-9A-F]{8}$"
-              },
-              "expected_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "url": {
-                "type": "string",
-                "maxLength": 500
-              }
-            },
-            "required": [
-              "id",
-              "expected_revision",
-              "url"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
-          }
-        }
-      ]
+        "required": [
+          "id",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "max_input_bytes": 32768
+      }
     },
-    "measure": {
-      "skills": [
-        {
-          "name": "marketing-measure",
-          "description": "Read what the team shipped and what it led to, and keep the lessons in team memory.",
-          "file": "skills/measure.md"
-        }
-      ],
-      "tools": [
-        {
-          "name": "content_stats",
-          "title": "Xem số liệu nội dung",
-          "description": "What this team shipped in the last days, per site: articles that went live (with URL), drafts in progress and social posts published by channel. The hub counts what went out, not who read it: visits is always null.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "site": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                "maxLength": 64,
-                "description": "One site; all of this team's sites when left out."
-              },
-              "days": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 90,
-                "description": "How many days back; 7 when left out."
-              }
-            },
-            "additionalProperties": false
+    {
+      "name": "cms_publish",
+      "title": "Đăng hoặc gỡ bài trên CMS",
+      "description": "Take one reviewed CMS revision live (status published) or take a live post down (archived). Runs at once; it is public. Copy site, slug, revision and title from cms_read of that same revision; the hub refuses anything else.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 64,
+            "description": "The hub's site id for a blog (social_channels lists this team's sites)."
           },
-          "run": {
-            "program": "soot",
-            "args": [
-              "tool-forward",
-              "--binding-env",
-              "MARKETING_HUB"
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 96,
+            "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The revision you reviewed; it must still be the latest."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "The revision's title, exactly as cms_read returned it."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "published",
+              "archived"
             ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "marketing_hub",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
-            }
+            "default": "published"
           }
+        },
+        "required": [
+          "site",
+          "slug",
+          "revision",
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "preflight": true,
+        "stdin": "context",
+        "mode": "write",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
         }
-      ]
+      }
+    },
+    {
+      "name": "social_publish",
+      "title": "Đăng bài lên mạng xã hội",
+      "description": "Post one reviewed social draft to its connected channel (X is posted by the browser poster on the operator's computer). Runs at once; it is public. Copy channel, text and link from social_list exactly: the hub refuses anything that differs from the queued post.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^SP-[0-9A-F]{8}$"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "x",
+              "facebook",
+              "tiktok"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "The queued text, exactly as social_list returned it."
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "description": "The queued link, or null when the post has none."
+          }
+        },
+        "required": [
+          "id",
+          "expected_revision",
+          "channel",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "preflight": true,
+        "stdin": "context",
+        "mode": "write",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "social_record",
+      "title": "Ghi link bài đã đăng tay",
+      "description": "Record a post a human made by hand (TikTok, or a channel the hub is not connected to) with its public URL.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^SP-[0-9A-F]{8}$"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "id",
+          "expected_revision",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    },
+    {
+      "name": "content_stats",
+      "title": "Xem số liệu nội dung",
+      "description": "What this team shipped in the last days, per site: articles that went live (with URL), drafts in progress and social posts published by channel. The hub counts what went out, not who read it: visits is always null.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 64,
+            "description": "One site; all of this team's sites when left out."
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 90,
+            "description": "How many days back; 7 when left out."
+          }
+        },
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "marketing_hub",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "MARKETING_HUB": {
+        "title": "Marketing hub",
+        "description": "Kết nối tới marketing hub của sản phẩm: các site, kênh và quyền đăng của nhóm này. Lấy ở trang quản trị hub; nhập trong Nest, không nhập trong chat."
+      }
     }
   }
 }

@@ -4,25 +4,27 @@ Cloudflare mini-stack pack: R2 file sharing (public presigned URLs),
 Workers deploys (public `workers.dev` web apps), D1 serverless SQLite, and
 bounded DNS inside one bound zone.
 
-## Capabilities
+## Skills và tools
 
-| `use` | Bạn được gì | Ops |
+Pack được chọn nguyên (`"packs": ["vibe_cf"]`); `"vibe_cf:read"` chỉ gồm các skill và tool đọc (`*_list`). Mỗi skill đi cùng nhóm tool của nó:
+
+| Skill | Bạn được gì | Tools |
 |---|---|---|
-| `vibe_cf/r2` | Share file → public URL có hạn | `r2_share`, `r2_upload`, `r2_unshare`, `r2_list` |
-| `vibe_cf/worker` | Deploy single-file Worker → `*.workers.dev` | `worker_deploy`, `worker_delete`, `worker_list` |
-| `vibe_cf/d1` | SQLite serverless | `d1_create`, `d1_exec`, `d1_list` |
-| `vibe_cf/dns` | Bản ghi trong zone đã bind | `dns_create`, `dns_delete`, `dns_list` |
-| `vibe_cf/shortlink` | Shortener trên workers.dev, không cần hostname | `shortlink_setup`, `shortlink_mint`, `shortlink_revoke`, `shortlink_list` |
+| `cloudflare_r2` | Share file → public URL có hạn | `r2_share`, `r2_upload`, `r2_unshare`, `r2_list` |
+| `cloudflare_worker` | Deploy single-file Worker → `*.workers.dev` | `worker_deploy`, `worker_delete`, `worker_list` |
+| `cloudflare_d1` | SQLite serverless | `d1_create`, `d1_exec`, `d1_list` |
+| `cloudflare_dns` | Bản ghi trong zone đã bind | `dns_create`, `dns_delete`, `dns_list` |
+| `cloudflare_shortlink` | Shortener trên workers.dev, không cần hostname | `shortlink_setup`, `shortlink_mint`, `shortlink_revoke`, `shortlink_list` |
 
-## Binding (host-side credential)
+## Credentials
 
-`CF_BINDING` JSON, supplied via `secret_env` per operation:
+Declared in `pack.json` `needs`: `CF_BINDING` (operator credential, entered per Soot in Nest or bound by a deployment `credentials` entry with `operations`) and optional `ARTIFACT_STORE`. `CF_BINDING` JSON:
 
 ```json
 {
   "api_token": "cf_api_token",           // Workers/D1/DNS REST
   "account_id": "…",                     // required for all REST ops
-  "zone_id": "…",                        // dns capability only
+  "zone_id": "…",                        // dns tools only
   "r2_access_key": "…",                  // R2 S3 creds (presign)
   "r2_secret_key": "…",
   "r2_bucket": "…",
@@ -30,7 +32,7 @@ bounded DNS inside one bound zone.
 }
 ```
 
-Model never sees the token — the host injects it per granted operation.
+Model never sees the token — the host injects it.
 `r2_share`/`r2_upload` additionally need `ARTIFACT_STORE` to resolve refs.
 
 ## Receipts & exit contract
@@ -49,8 +51,7 @@ the installed pack folder, build the standalone Go executable:
 (cd runner && go test -race ./... && go build -trimpath -o ../bin/vibe-cf .)
 ```
 
-Then select only the needed `vibe_cf/<capability>` in the Soot definition and
-bind host credentials to those operations. `vibe_cf` remains unselected in
-General. Its runner decodes the public `soot/v1` JSON envelope directly and
+Then select `vibe_cf` in the Soot definition and supply its credentials.
+`vibe_cf` remains unselected in General. Its runner decodes the public `soot/v1` JSON envelope directly and
 needs no private runtime source. For the fixture, copy the built binary into
-`fixtures/packs.d/vibe_cf/bin/vibe-cf` locally; binaries are never shared in Git.
+`fixtures/packs/vibe_cf/bin/vibe-cf` locally; binaries are never shared in Git.

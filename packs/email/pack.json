@@ -1,81 +1,109 @@
 {
   "api_version": "soot/v1",
   "id": "email",
-  "use": [],
-  "capabilities": {
-    "smtp": {
-      "skills": [
-        {
-          "name": "email_smtp",
-          "file": "skills/smtp.md",
-          "description": "Send email through the operator-bound account; read accepted/unknown receipts before assuming delivery."
-        }
-      ],
-      "tools": [
-        {
-          "name": "send",
-          "description": "Send one email via the bound SMTP account. Returns a receipt; 'unknown' means the server may have accepted it — do not resend without reconciling.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "to": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": 1,
-                "maxItems": 20,
-                "description": "Recipient addresses (1-20). No cc/bcc in this capability."
-              },
-              "subject": {
-                "type": "string",
-                "maxLength": 998
-              },
-              "text": {
-                "type": "string",
-                "description": "Plain-text body (text and/or html required)"
-              },
-              "html": {
-                "type": "string",
-                "description": "HTML body (text and/or html required)"
-              },
-              "attachments": {
-                "type": "array",
-                "maxItems": 8,
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "ref": {
-                      "type": "string",
-                      "pattern": "^art_[0-9a-f]{32}$"
-                    }
-                  },
-                  "required": ["ref"],
-                  "additionalProperties": false
-                },
-                "description": "Artifact refs from the shared artifact store"
-              },
-              "action_id": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9_-]{1,64}$",
-                "description": "Stable idempotency key; same key never sends twice"
-              }
+  "skills": [
+    {
+      "name": "email_smtp",
+      "file": "skills/smtp.md",
+      "description": "Send email through the operator-bound account; read accepted/unknown receipts before assuming delivery."
+    }
+  ],
+  "tools": [
+    {
+      "name": "send",
+      "description": "Send one email via the bound SMTP account. Returns a receipt; 'unknown' means the server may have accepted it — do not resend without reconciling.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "array",
+            "items": {
+              "type": "string"
             },
-            "required": ["to", "subject"],
-            "anyOf": [{"required": ["text"]}, {"required": ["html"]}],
-            "additionalProperties": false
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Recipient addresses (1-20). No cc/bcc in this capability."
           },
-          "run": {
-            "program": "bin/soot-email",
-            "args": ["send"],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "email_delivery",
-            "secret_env": {
-              "EMAIL_BINDING": "{{cred:EMAIL_BINDING}}",
-              "ARTIFACT_STORE": "{{cred:ARTIFACT_STORE}}"
-            }
+          "subject": {
+            "type": "string",
+            "maxLength": 998
+          },
+          "text": {
+            "type": "string",
+            "description": "Plain-text body (text and/or html required)"
+          },
+          "html": {
+            "type": "string",
+            "description": "HTML body (text and/or html required)"
+          },
+          "attachments": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^art_[0-9a-f]{32}$"
+                }
+              },
+              "required": [
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Artifact refs from the shared artifact store"
+          },
+          "action_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,64}$",
+            "description": "Stable idempotency key; same key never sends twice"
           }
+        },
+        "required": [
+          "to",
+          "subject"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "text"
+            ]
+          },
+          {
+            "required": [
+              "html"
+            ]
+          }
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "bin/soot-email",
+        "args": [
+          "send"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "email_delivery",
+        "secret_env": {
+          "EMAIL_BINDING": "{{cred:EMAIL_BINDING}}",
+          "ARTIFACT_STORE": "{{cred:ARTIFACT_STORE}}"
         }
-      ]
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "EMAIL_BINDING": {
+        "title": "Tài khoản SMTP",
+        "description": "JSON gồm máy chủ SMTP, cổng, kiểu TLS, địa chỉ gửi và thông tin đăng nhập. Lấy từ nhà cung cấp email; mẫu trong README."
+      },
+      "ARTIFACT_STORE": {
+        "title": "Kho tệp đính kèm",
+        "description": "Đường dẫn tuyệt đối tới kho artifact để đính kèm tệp vào thư. Bỏ trống nếu chỉ gửi thư không kèm tệp.",
+        "optional": true
+      }
     }
   }
 }

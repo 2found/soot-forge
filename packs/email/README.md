@@ -1,20 +1,20 @@
 # email — gửi email qua SMTP
 
-Pack `email` gói năng lực gửi email chủ động. `use: []` — không có recipe
-mặc định: gửi mail là external effect nên luôn phải chọn `email/smtp`
-tường minh trong Soot definition.
+Pack `email` gói gửi email chủ động. Gửi mail là external effect nên Soot phải chọn
+`"packs": ["email"]` tường minh; `"email:read"` chỉ cấp skill, không cấp tool gửi.
 
-| Capability | Gồm | Effect |
+| Skill | Tool | Effect |
 | --- | --- | --- |
-| `smtp` | skill `email_smtp` + tool `email_send` | gửi 1 email qua tài khoản bound |
+| `email_smtp` | `email_send` (write) | gửi 1 email qua tài khoản bound |
 
 Nhận mail (IMAP/inbox + ingress) theo blueprint BP-04/BP-06b — chưa có
 trong pack này.
 
-## Binding (operator, không phải model)
+## Credential (operator, không phải model)
 
-Deployment bind credential `EMAIL_BINDING` — một JSON string (qua `env` hoặc
-`file` trong `credentials`) chứa toàn bộ cấu hình tài khoản:
+`EMAIL_BINDING` (`pack.json` `needs`) là credential của operator — một JSON string, nhập cho
+từng Soot trong Nest hoặc bind trong deployment `credentials` (qua `env` hoặc
+`file`, kèm `operations`) — chứa toàn bộ cấu hình tài khoản:
 
 ```json
 {
@@ -40,7 +40,7 @@ Deployment bind credential `EMAIL_BINDING` — một JSON string (qua `env` ho�
 | `from_name` | | Display name |
 | `journal` | ✓ | Thư mục tuyệt đối cho durable intent/receipt |
 
-Credential reference trong deployment:
+Bind từ deployment:
 
 ```json
 {
@@ -53,9 +53,8 @@ Credential reference trong deployment:
 }
 ```
 
-`ARTIFACT_STORE` chỉ cần khi gửi attachments (ref `art_…` cùng layout với
-pack `artifacts`); vẫn bắt buộc khai báo vì `secret_env` resolve khi
-operation chạy — nhưng chỉ `send` đọc nó.
+`ARTIFACT_STORE` (tùy chọn) chỉ cần khi gửi attachments (ref `art_…` cùng layout với
+pack `artifacts`).
 
 ## Tool `email_send`
 

@@ -159,11 +159,11 @@ def main():
                 # No direct database credential or local policy binding reaches Soot.
                 del env["QA_DATA_POOL"]
                 cases.append("Operator config renderer created private per-Soot credentials without installing infrastructure")
-            deployment = {"listen": soot_addr, "data_dir": "runtime-data", "packs_dir": "packs.d", "model": {"provider": "demo"},
+            deployment = {"listen": soot_addr, "data_dir": "runtime-data", "packs_dir": "packs", "model": {"provider": "demo"},
                           "soots": ["soots/" + s + ".json" for s in binding["soots"]]}
             (root / "soots").mkdir()
             for s in binding["soots"]:
-                (root / "soots" / (s + ".json")).write_text(json.dumps({"id": s, "use": []}))
+                (root / "soots" / (s + ".json")).write_text(json.dumps({"id": s, "packs": []}))
             (root / "deployment.json").write_text(json.dumps(deployment))
             staged = root / "data-pool"
             shutil.copytree(pack, staged, ignore=shutil.ignore_patterns("bin", "__pycache__", "*.db"))
@@ -181,14 +181,14 @@ def main():
 
             example = root / "consumer-example"
             shutil.copytree(pack / "examples", example)
-            shutil.copytree(root / "packs.d", example / "packs.d")
+            shutil.copytree(root / "packs", example / "packs")
             cli("check", "--show", "--json", "--config", example / "deployment.json")
             cases.append("Unselected consumer example validates without premature credential grants")
 
             selected = {"data-manager": ["read", "write", "manage"], "marketing": ["read"], "support": ["read"], "outsider": []}
             credentials = {}
             for s, caps in selected.items():
-                (root / "soots" / (s + ".json")).write_text(json.dumps({"id": s, "use": ["data-pool/" + c for c in caps]}))
+                (root / "soots" / (s + ".json")).write_text(json.dumps({"id": s, "packs": ([] if not caps else ["data-pool" if "manage" in caps else "data-pool:read"])}))
                 operations = ["data-pool_" + op for op in (["pools", "query", "status"] if "read" in caps else []) +
                               (["write"] if "write" in caps else []) + (["manage"] if "manage" in caps else [])]
                 if operations:
@@ -205,7 +205,7 @@ def main():
                 vm_root = root / "vm-host"
                 vm_root.mkdir()
                 shutil.copytree(root / "soots", vm_root / "soots")
-                shutil.copytree(root / "packs.d", vm_root / "packs.d")
+                shutil.copytree(root / "packs", vm_root / "packs")
                 vm_addr = "127.0.0.1:" + str(port())
                 vm_env = dict(env, SOOT_HOME=str(vm_root / "soot-home"), SOOT_API_TOKEN="synthetic-vm-runtime-token-1234567890")
                 vm_deployment = dict(deployment, listen=vm_addr, soots=["soots/marketing.json", "soots/support.json"],

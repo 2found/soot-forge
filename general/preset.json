@@ -7,6 +7,7 @@
     "vibe_cf",
     "browser-use",
     "soot-nest",
+    "nest-lead",
     "office",
     "ocr",
     "image-gen"
@@ -27,6 +28,9 @@
     "soot-nest": {
       "github_latest": "2found/soot-forge"
     },
+    "nest-lead": {
+      "github_latest": "2found/soot-forge"
+    },
     "2build": {
       "github_latest": "2found/soot-forge"
     },
@@ -41,104 +45,19 @@
     }
   },
   "packs": [
+    "common",
     "toolbox",
     "2build",
     "browser-use",
-    "soot"
-  ],
-  "use": [
-    "common/guide",
-    "toolbox/write",
-    "toolbox/shell",
-    "office/read",
-    "office/write",
-    "office/render",
-    "office/convert",
-    "ocr/assess",
-    "ocr/recognize",
-    "image-gen/inspect",
-    "image-gen/generate"
+    "soot",
+    "office",
+    "ocr",
+    "image-gen"
   ],
   "nest": {
     "packs": [
-      "soot-nest"
-    ],
-    "use": [
-      "soot-nest/manage"
+      "soot-nest",
+      "nest-lead"
     ]
-  },
-  "operation_env": {
-    "browser-use_control": [
-      "PATH",
-      "HOME"
-    ],
-    "browser-use_view": [
-      "PATH",
-      "HOME"
-    ],
-    "soot_pet_preflight": [
-      "PATH",
-      "HOME",
-      "CODEX_HOME"
-    ],
-    "soot_pet_prepare": [
-      "PATH",
-      "HOME",
-      "CODEX_HOME"
-    ]
-  },
-  "credentials": {
-    "FILE_ROOT": {
-      "workspace": true,
-      "operations": [
-        "office_inspect",
-        "office_compose",
-        "office_edit",
-        "office_pdf_modify",
-        "office_render",
-        "office_convert",
-        "ocr_assess",
-        "ocr_recognize",
-        "image-gen_inspect",
-        "image-gen_generate"
-      ]
-    },
-    "PYTHON_EXECUTABLE": {
-      "env": "SOOT_MEDIA_PYTHON",
-      "operations": [
-        "office_inspect",
-        "office_compose",
-        "office_edit",
-        "office_pdf_modify",
-        "office_render",
-        "office_convert",
-        "ocr_assess",
-        "ocr_recognize",
-        "image-gen_inspect",
-        "image-gen_generate"
-      ],
-      "lazy": true
-    },
-    "OFFICE_BINDING": {
-      "env": "SOOT_OFFICE_BINDING",
-      "operations": [
-        "office_convert"
-      ],
-      "lazy": true
-    },
-    "OCR_BINDING": {
-      "env": "SOOT_OCR_BINDING",
-      "operations": [
-        "ocr_recognize"
-      ],
-      "lazy": true
-    },
-    "IMAGE_GEN_BINDING": {
-      "env": "SOOT_IMAGE_GEN_BINDING",
-      "operations": [
-        "image-gen_generate"
-      ],
-      "lazy": true
-    }
   }
 }

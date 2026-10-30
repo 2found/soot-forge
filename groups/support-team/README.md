@@ -4,10 +4,10 @@ Ask Kamaji in Nest for a support team. Kamaji asks for the product, the website
 the chat goes on, where the answers come from, what must go to a person, and the
 tone; you approve once.
 
-| member | does | capabilities |
+| member | does | packs |
 | --- | --- | --- |
-| Kamaji (lead) | the daily digest and weekly review | its own `soot-nest` playbooks |
-| Answerer | answers website visitors from the product facts, records what they ask, report or want | `live-chat/conversation` |
+| Kamaji (lead) | the daily digest and weekly review | `nest-lead` playbooks |
+| Answerer | answers website visitors from the product facts, records what they ask, report or want | `live-chat` |
 | Feedback desk | sorts each note into the workspace table `voc` and flags what a person can act on now | workspace tables |
 
 **Cycles** (run as Kamaji): *Tổng hợp phản hồi* 17:00 summarises the day's
@@ -20,7 +20,7 @@ The answerer talks to the public, so creating the team always waits for your
 approval. It reads only the knowledge you give it — never the workspace's
 tables, memory or files. Kamaji leaves one task per missing piece:
 
-- the website chat (Cài đặt → Live chat, `soot-nest/website-chat`) pointed at
+- the website chat (Cài đặt → Live chat, `website-chat`) pointed at
   the answerer, and the product facts it answers from;
 - a route for the answerer's `record_feedback` notes to the desk;
 - a write grant for the desk on the workspace table `voc` (the desk asks for it

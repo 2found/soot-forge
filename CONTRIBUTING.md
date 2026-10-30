@@ -2,8 +2,8 @@
 
 Fork `2found/soot-forge`, make your changes and open a GitHub pull request.
 Choose a stable lowercase pack ID. The ID must match `pack.json`; changing it
-creates a different pack. Metadata must describe capabilities the pack actually
-contains, dependencies the user must prepare, and required host credentials.
+creates a different pack. Metadata must describe the skills and tools the pack actually
+contains, dependencies the user must prepare, and the credentials it declares in `needs`.
 
 ## 1. Bundle the pack here
 
@@ -20,10 +20,12 @@ Place `pack.json`, skills, tools and a README in `packs/my-pack/`, then add:
 ```
 
 Use the [Soot pack authoring guide](https://github.com/2found/2agent/blob/main/docs/authoring-packs.md).
-`pack.json` uses `soot/v1`; paths stay inside the pack. No symlinks, secrets,
+`pack.json` uses `soot/v1`: `skills`, `tools`, optional `needs` and `interface`; `capabilities` and `use` are rejected. Paths stay inside the pack. No symlinks, secrets,
 vendored dependencies, compiled binaries or runtime state. Tools are installed
 as source; explain how to prepare their executable on the user's platform.
 Packs own skills/tools, not the Soot's soul, mission, schedules or host grants.
+Every executable tool states `run.mode` (`read`, `write` or `repair`); a tool named like a change is not `read`. No `run.env`: inherited names go in `needs.env`.
+Every `{{cred:NAME}}` is declared in `needs.credentials` (`title`, `description`, `from`: `operator`, `workspace`, `data_pool` or `env:VAR`) and every declared credential is used. An interface `view_tool` is a read tool.
 
 ## 2. Link an external GitHub repository
 
@@ -63,7 +65,7 @@ the exported public pack schema. The optional local --soot check additionally
 uses the official Soot installer against a temporary library. It never executes a pack's
 tools or dependency scripts and has read-only repository permissions.
 
-PR checks reject duplicate IDs, unknown metadata fields, moving external refs,
+PR checks reject duplicate IDs, duplicate skill or tool names, unknown metadata fields, moving external refs,
 unsafe folder paths, symlinks, oversized trees, missing skills and mismatched
 manifest IDs. Authoring validation uses the exported generated Soot schema, not another
 handwritten schema. The official installer remains the semantic authority.
@@ -71,7 +73,7 @@ handwritten schema. The official installer remains the semantic authority.
 Before accepting a PR, review the source, attribution/license, dependencies,
 effects and credential requirements. Inclusion is discovery, not a security
 certification or permission grant. The user remains responsible for selecting
-capabilities and host bindings.
+packs and granting `needs`.
 
 ## Maintainer release
 

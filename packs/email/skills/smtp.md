@@ -2,7 +2,7 @@ Send email through the account the operator bound to this Soot. The tool
 owns the server, credentials, sender identity and delivery journal — your
 job is the content and reading the receipt honestly.
 
-1. Compose the message: `to` (1-20 recipients, no cc/bcc — this capability
+1. Compose the message: `to` (1-20 recipients, no cc/bcc — this skill
    is direct sends only), `subject`, and `text` and/or `html`. Write in the
    recipient's language. Never place secrets, internal URLs or another
    person's data in the body unless the mission requires it.

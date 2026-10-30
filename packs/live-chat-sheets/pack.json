@@ -1,102 +1,109 @@
 {
   "api_version": "soot/v1",
   "id": "live-chat-sheets",
-  "use": [],
-  "capabilities": {
-    "sync": {
-      "skills": [
-        {
-          "name": "sheets-transcripts",
-          "description": "Connect and monitor public website transcripts through the host-owned Sheets exporter.",
-          "file": "skills/transcripts.md"
-        }
-      ],
-      "tools": [
-        {
-          "name": "view",
-          "description": "Read export status.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "action": {
-                "type": "string"
-              },
-              "site_id": {
-                "type": "string",
-                "maxLength": 100
-              },
-              "binding": {
-                "type": "string"
-              },
-              "request_id": {
-                "type": "string",
-                "maxLength": 100
-              }
-            },
-            "required": [
-              "action"
-            ],
-            "additionalProperties": false
+  "skills": [
+    {
+      "name": "sheets-transcripts",
+      "description": "Connect and monitor public website transcripts through the host-owned Sheets exporter.",
+      "file": "skills/transcripts.md"
+    }
+  ],
+  "tools": [
+    {
+      "name": "view",
+      "description": "Read export status.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
           },
-          "run": {
-            "program": "node",
-            "args": [
-              "tools/control.mjs",
-              "view"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "nest_no_code",
-            "timeout": "15s",
-            "secret_env": {
-              "SOOT_NO_CODE_URL": "{{cred:NO_CODE_URL}}",
-              "SOOT_NO_CODE_TOKEN": "{{cred:NO_CODE_TOKEN}}"
-            }
+          "site_id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "binding": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 100
           }
         },
-        {
-          "name": "action",
-          "description": "Manage owner-authorized Google connection, validate destination and reconcile blocked exports.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "action": {
-                "type": "string"
-              },
-              "site_id": {
-                "type": "string",
-                "maxLength": 100
-              },
-              "binding": {
-                "type": "string"
-              },
-              "request_id": {
-                "type": "string",
-                "maxLength": 100
-              }
-            },
-            "required": [
-              "action"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "node",
-            "args": [
-              "tools/control.mjs",
-              "action"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "nest_no_code",
-            "timeout": "15s",
-            "secret_env": {
-              "SOOT_NO_CODE_URL": "{{cred:NO_CODE_URL}}",
-              "SOOT_NO_CODE_TOKEN": "{{cred:NO_CODE_TOKEN}}"
-            }
-          }
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/control.mjs",
+          "view"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "nest_no_code",
+        "timeout": "15s",
+        "secret_env": {
+          "SOOT_NO_CODE_URL": "{{cred:NO_CODE_URL}}",
+          "SOOT_NO_CODE_TOKEN": "{{cred:NO_CODE_TOKEN}}"
         }
-      ]
+      }
+    },
+    {
+      "name": "action",
+      "description": "Manage owner-authorized Google connection, validate destination and reconcile blocked exports.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "site_id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "binding": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/control.mjs",
+          "action"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "nest_no_code",
+        "timeout": "15s",
+        "secret_env": {
+          "SOOT_NO_CODE_URL": "{{cred:NO_CODE_URL}}",
+          "SOOT_NO_CODE_TOKEN": "{{cred:NO_CODE_TOKEN}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "NO_CODE_URL": {
+        "title": "Địa chỉ cổng Live chat",
+        "description": "Địa chỉ đầy đủ của /admin/control trên cổng Live chat của chủ website."
+      },
+      "NO_CODE_TOKEN": {
+        "title": "Mã truy cập cổng Live chat",
+        "description": "Mã của chủ website cho cổng Live chat. Lấy ở cổng khi tạo kết nối; không dán vào chat."
+      }
     }
   }
 }

@@ -9,23 +9,22 @@ uv venv --python 3.12 /absolute/host-runtimes/google-workspace
 uv pip sync --python /absolute/host-runtimes/google-workspace/bin/python --require-hashes requirements.lock
 ```
 
-Python 3.12+ and uv. Google auth is the only SDK; Docs/Sheets/Drive use bounded REST. Bind `PYTHON_EXECUTABLE` to that environment's absolute `bin/python` path.
+Python 3.12+ and uv. Google auth is the only SDK; Docs/Sheets/Drive use bounded REST. Set the host env `SOOT_MEDIA_PYTHON` to that environment's absolute `bin/python` path (pack credential `PYTHON_EXECUTABLE`).
 Keep environments outside `packs_dir`: Soot snapshots pack source; virtualenv
 certificates, large native libraries and runtime caches are not pack source.
 Direct and transitive client dependencies are pinned with hashes in
 `requirements.lock`; installation never executes a setup script.
 
-Select only the capabilities you need in your Soot definition:
+A Soot selects the pack whole in `soot.json`:
 
 ```json
-{"use":["google-workspace/docs-read","google-workspace/sheets-read","google-workspace/drive-read"]}
+{"packs": ["google-workspace"]}
 ```
 
-The example lists available capabilities, not a recommended blanket grant.
-The default recipe is read/plan-only or empty; mutation capabilities are explicit.
+`"google-workspace:read"` gives all skills but only the read-mode tools (Docs/Sheets reads, Drive list/get); Docs/Sheets writes, exports, Drive downloads and uploads need the bare id.
 Then run `soot check --show --secrets`. Provider/model settings remain host-owned.
-To author JSON specs, separately select `toolbox/write` and `toolbox/read` if
-needed; there is no implicit dependency or grant.
+To author JSON specs, also select the `toolbox` pack if needed; there is
+no implicit dependency or grant.
 
 All files are relative to a host-bound absolute `FILE_ROOT`. Each output must
 be new, and its parent must already exist. Traversal, hidden paths and symlinks
@@ -35,11 +34,15 @@ the public `soot/v1` stdin envelope and fixed argv; no model-controlled shell.
 Dependency setup is an operator action; `soot add` and tools never install it.
 
 See each [skill](skills/) for workflow, limitations and operation semantics.
-Capabilities: `docs-read`, `docs-write`, `docs-export`, `sheets-read`,
-`sheets-write`, `drive-read`, `drive-download`, `drive-write`. Default selection
-is empty. The manifest lists each typed operation and its exact binding scope.
+Tools: `docs_list`, `docs_read`, `docs_create`, `docs_batch_update`, `docs_export`,
+`sheets_info`, `sheets_read`, `sheets_create`, `sheets_update`, `sheets_append`,
+`drive_list`, `drive_get`, `drive_download`, `drive_export`, `drive_folder`,
+`drive_upload`, `drive_update` (op ids `google-workspace_<tool>`). `pack.json` marks each read or write.
 
-Bindings use `secret_env` references and host credentials scoped to operation IDs.
+Credentials are declared in `pack.json` `needs`: `FILE_ROOT` comes from the workspace,
+`PYTHON_EXECUTABLE` from env `SOOT_MEDIA_PYTHON`, and `GOOGLE_WORKSPACE_BINDING` is an
+operator credential entered per Soot in Nest (or bound by a deployment `credentials` entry
+with `operations`). The host grants the non-operator sources in `pack_grants` (or `soot grant google-workspace`).
 A complete consumer example is in the repository
 [`examples/media-workspace`](../../examples/media-workspace/); it is not inside the pack.
 Use placeholder files only in Git. Credentials and endpoint URLs are never model inputs.
@@ -47,10 +50,10 @@ Use placeholder files only in Git. Credentials and endpoint URLs are never model
 
 ## Google credentials
 
-Bind `GOOGLE_WORKSPACE_BINDING` to host-only JSON with an expiring access token, OAuth
+`GOOGLE_WORKSPACE_BINDING` is host-only JSON with an expiring access token, OAuth
 refresh credential or a standard service account. See [SPEC.md](SPEC.md) for
-exact shapes, scopes and tabbed request examples. Credentials must be operation
-scoped; they are never stored in pack/config examples. OAuth consent and file
+exact shapes, scopes and tabbed request examples. Credentials are
+never stored in pack/config examples. OAuth consent and file
 sharing happen through the host/operator, not a tool's surprise login flow.
 
 Docs uses `documents` and `drive.file` scopes. Sheets/Drive refreshes request
@@ -77,17 +80,3 @@ into a folder can inherit its existing permissions; no permission API is called.
 
 Live Google account access has not been verified without host credentials.
 Transport/regression tests are not a claim of live vendor success.
-
-## Rename from google-doc
-
-This replaces the unreleased `google-doc` source folder/catalog identity.
-Install `google-workspace` separately; existing installed packs are not renamed
-or overwritten. Update host definitions explicitly:
-
-- `google-doc/read|write|export` → `google-workspace/docs-read|docs-write|docs-export`.
-- Tools now have `google-workspace_docs_*` IDs; Sheets/Drive have their own IDs.
-- Bind `GOOGLE_WORKSPACE_BINDING` and the renamed operation scopes.
-- Receipts now use `google-workspace-receipts`; reconcile any outstanding old
-  action before issuing a new one. The rename is not permission to resend it.
-
-The historical media verification record retains its old identity/hashes.

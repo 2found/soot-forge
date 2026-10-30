@@ -2,7 +2,7 @@
 
 Reviewed on 2026-10-10. These five packs provide working, bounded tools and
 production guidance. Installation is separate from dependency preparation,
-capability selection and credential binding. No release or publication is
+pack selection and credential grants. No release or publication is
 performed by this work.
 
 ## Library choices
@@ -88,10 +88,10 @@ Its upstream skills remain authoritative for the current composition contract.
 
 ## Preparation and repeatable tests
 
-Prepare each pack's dependencies outside `packs_dir`, following its README.
+Prepare each pack's dependencies outside the packs dir, following its README.
 Soot snapshots pack source: a virtualenv inside a pack is both too large and
 can contain certificate keys that the source snapshot correctly rejects.
-Bind the absolute interpreter through operation-scoped `PYTHON_EXECUTABLE`.
+Point the `PYTHON_EXECUTABLE` need (`env:SOOT_MEDIA_PYTHON`) at the absolute interpreter.
 The wrapper uses isolated Python mode and only imports its own shipped support.
 
 The [consumer example](../examples/media-workspace/README.md) contains placeholder
@@ -182,4 +182,4 @@ identity and changed scope. Client dependencies remain unchanged.
 Current expansion checks: 49 Python regression cases and 17 Node tests passed;
 the official Soot installer validated all 25 catalog entries including pinned
 external content. Workspace live QA separately selects Docs, Sheets and Drive
-read capabilities; write capabilities remain unselected in the live test.
+as `google-workspace:read`; write tools remain unselected in the live test.

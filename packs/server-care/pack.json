@@ -1,19 +1,11 @@
 {
   "api_version": "soot/v1",
   "id": "server-care",
-  "use": [
-    "care",
-    "health/probe"
-  ],
-  "capabilities": {
-    "care": {
-      "skills": [
-        {
-          "name": "server-care",
-          "description": "Inspect unhealthy apps, use granted runbooks, verify or escalate.",
-          "file": "skill.md"
-        }
-      ]
+  "skills": [
+    {
+      "name": "server-care",
+      "description": "Inspect unhealthy apps, use granted runbooks, verify or escalate.",
+      "file": "skill.md"
     }
-  }
+  ]
 }

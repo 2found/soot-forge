@@ -13,7 +13,7 @@ function unknown() {
 
 // The tool names each owner pack gives its read and write operation.
 const owners = new Map([
-  ['soot-nest', new Map([['website_view', 'view'], ['website_action', 'action']])],
+  ['website-chat', new Map([['website_view', 'view'], ['website_action', 'action']])],
   ['live-chat-sheets', new Map([['view', 'view'], ['action', 'action']])],
 ]);
 

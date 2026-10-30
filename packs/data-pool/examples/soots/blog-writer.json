@@ -1,5 +1,7 @@
 {
   "id": "blog-writer",
   "name": "Blog Writer",
-  "use": []
+  "packs": [
+    "data-pool:read"
+  ]
 }

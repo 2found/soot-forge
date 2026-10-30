@@ -1,5 +1,7 @@
 {
   "id": "data-manager",
   "name": "Data Manager",
-  "use": []
+  "packs": [
+    "data-pool"
+  ]
 }

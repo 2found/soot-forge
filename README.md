@@ -18,7 +18,7 @@ which lists every pack with its source, tags and description.
 Ask your coding agent:
 
 ```text
-Read https://github.com/2found/soot-forge/blob/main/USAGE.md and its catalog.json. Help me find a pack for my task, explain its source and required capabilities, and install the pack I choose into my Soot workspace. Verify the installation without automatically granting tools.
+Read https://github.com/2found/soot-forge/blob/main/USAGE.md and its catalog.json. Help me find a pack for my task, explain its source and needs, and install the pack I choose into my Soot workspace. Verify the installation without automatically granting tools.
 ```
 
 Or, inside a Soot workspace, pass the pack's GitHub folder link to Soot:
@@ -33,11 +33,11 @@ with its SHA-256 from `SHA256SUMS`. `soot add` requires a Soot version supportin
 GitHub tree links; earlier versions accept `2found/soot-forge/packs/health`.
 
 **Installing grants nothing.** It adds files to the workspace's pack library;
-it does not run dependency scripts, start an adapter or grant a capability.
+it does not run dependency scripts, start an adapter or grant a credential.
 Read the pack README, prepare its executable if needed, then explicitly select
-the capability (for example `health/probe`) in the Soot definition and run
-`soot check --show`. Existing packs are never overwritten. Recipes referencing
-another pack require you to install that pack separately.
+the pack (for example `"packs": ["health"]`, or `health:read` for its read
+tools only) in the Soot definition and run `soot check --show`. Existing packs
+are never overwritten. Install each pack a Soot selects.
 
 ## See whole teams
 
@@ -64,7 +64,7 @@ another pack require you to install that pack separately.
 Client dependencies are small and separately prepared. Model weights, Python
 environments, browser binaries and caches stay outside the distributed pack
 tree. Installing a pack starts none of these services. Read the individual
-README and select only the needed capabilities. See
+README and select only the needed packs. See
 [library choices and verification](docs/media-packs.md) for measured sizes,
 actual Soot/provider evidence, limitations and reproducible test commands.
 
@@ -96,7 +96,7 @@ after the Soot website refreshes its catalog snapshot.
 so a changed branch cannot silently change a reviewed pack. Agents discover
 packs from it: `id`, `name`, `description`, `tags` and `source` are
 machine-readable metadata. Each installed pack has its own `pack.json`
-describing capabilities, skills and tools. Follow [USAGE.md](USAGE.md) to turn
+describing skills, tools and needs. Follow [USAGE.md](USAGE.md) to turn
 a catalog entry into an installation command.
 
 A release materializes the same pinned content as one archive per catalog
@@ -112,10 +112,10 @@ that leaves it alone runs the checks and publishes nothing.
 The General Soot installs default pack archives from a stable Forge release;
 its 2build pack still resolves the latest stable 2build release from upstream.
 Keep a Forge release containing `toolbox`, `soot`, `browser-use`, `soot-nest`,
-`vibe_cf`, `office`, `ocr` and `image-gen` available before releasing that Soot
+`nest-lead`, `vibe_cf`, `office`, `ocr` and `image-gen` available before releasing that Soot
 default. Source on `main` alone does not make those archives available to a
 fresh Nest installation: the installer resolves the latest published stable
-release. The selected browser capability also needs the host preparation in
+release. The browser pack also needs the host preparation in
 [Browser use](packs/browser-use/README.md): Node.js 24+ and the standalone
 `soot-browser` executable on the Soot host's PATH. Pack installation does not
 install that executable or its browser dependencies.
@@ -128,7 +128,7 @@ node scripts/validate.mjs                         # catalog + bundled content
 node scripts/validate.mjs --soot /path/to/soot --remote  # all pinned content + official installer
 node scripts/build.mjs 0.1.0                     # dist/, no publication
 node scripts/test-packs.mjs                      # trusted source: all Go race + pack Node tests
-# Full Python lane: prepare Office's hashed requirements outside packs_dir,
+# Full Python lane: prepare Office's hashed requirements outside the packs dir,
 # install FFmpeg/FFprobe and a local Arial/DejaVu font, then:
 node scripts/test-packs.mjs --python /absolute/office-runtime/bin/python --report /tmp/pack-tests.json
 ```

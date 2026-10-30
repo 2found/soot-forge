@@ -1,9 +1,9 @@
 # Pack routing eval
 
-One mixed Soot (`soots/forge`) with 15 Forge capabilities and `evals/routing.eval.json`: does the model pick the
+One mixed Soot (`soots/forge`) with 14 Forge packs (`:read` where the eval only reads) and `evals/routing.eval.json`: does the model pick the
 right pack tool for a plain request, and stay tool-free for small talk, out-of-scope asks and missing recipients?
 
-Copy this folder next to a `packs.d/` that holds the packs named in `soots/forge/soot.json`, set a provider in
+Copy this folder next to a `packs/` that holds the packs named in `soots/forge/soot.json`, set a provider in
 `deployment.example.json` (saved as `deployment.json`), then:
 
 ```sh

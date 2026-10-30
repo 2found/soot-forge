@@ -30,25 +30,19 @@ const files = join(workspace, 'files');
 await mkdir(files, { recursive: true });
 await mkdir(join(workspace, 'soots'));
 const packs = ['office', 'ocr', 'tts', 'google-workspace', 'video-editor'];
-const uses = {
-  office: ['office/read', 'office/write', 'office/render'],
-  ocr: ['ocr/assess', 'ocr/recognize'],
-  tts: ['tts/inspect', 'tts/speak'],
-  'google-workspace': ['google-workspace/docs-read', 'google-workspace/sheets-read', 'google-workspace/drive-read'],
-  'video-editor': ['video-editor/plan', 'video-editor/inspect', 'video-editor/edit'],
-};
-if (options['hyperframes-cli']) uses['video-editor'].push('video-editor/hyperframes');
-const creds = {};
+// Whole packs; Google Workspace stays read-only for this lane.
+const selections = { office: ['office'], ocr: ['ocr'], tts: ['tts'], 'google-workspace': ['google-workspace:read'], 'video-editor': ['video-editor'] };
+// The host grants exactly what each pack's needs name (workspace, env:NAME); operator needs are entered in Nest.
+const grants = {}, toolHosts = {}, credentials = {};
 for (const id of packs) {
   const manifest = JSON.parse(await readFile(join(repo, 'packs', id, 'pack.json')));
-  const bindings = {};
-  for (const selector of uses[id]) {
-    for (const tool of manifest.capabilities[selector.split('/')[1]].tools ?? []) {
-      for (const key of Object.keys(tool.run.secret_env)) (bindings[key] ??= []).push(`${id}_${tool.name}`);
-    }
-  }
-  creds[id] = Object.fromEntries(Object.entries(bindings).map(([key, operations]) => [key, { env: key === 'PYTHON_EXECUTABLE' ? `SOOT_MEDIA_${id.replaceAll('-', '_').toUpperCase()}_PYTHON` : `SOOT_MEDIA_${key}`, operations }]));
-  const definition = { id, soul: 'SOUL.md', mission: 'mission.md', use: uses[id] };
+  const sourced = Object.fromEntries(Object.entries(manifest.needs?.credentials ?? {}).filter(([, need]) => (need.from ?? 'operator') !== 'operator').map(([name, need]) => [name, need.from]));
+  grants[id] = { credentials: sourced, ...(manifest.needs?.env?.length ? { env: manifest.needs.env } : {}) };
+  toolHosts[id] = { workspace: files };
+  // Operator needs are entered in Nest; this headless lane binds them from the environment instead.
+  if (id === 'google-workspace') credentials[id] = { GOOGLE_WORKSPACE_BINDING: { env: 'SOOT_MEDIA_GOOGLE_WORKSPACE_BINDING',
+    operations: manifest.tools.filter(tool => selections[id][0].endsWith(':read') ? tool.run.mode === 'read' : true).map(tool => `${id}_${tool.name}`) } };
+  const definition = { id, soul: 'SOUL.md', mission: 'mission.md', packs: selections[id] };
   if (options.provider) definition.model = { provider: options.provider, ...(options.model ? { name: options.model } : {}), fallbacks: [] };
   await writeFile(join(workspace, 'soots', `${id}.json`), JSON.stringify(definition, null, 2));
 }
@@ -58,22 +52,22 @@ const listener = createServer();
 await new Promise(r => listener.listen(0, '127.0.0.1', r));
 const port = listener.address().port;
 await new Promise(r => listener.close(r));
-const config = { listen: `127.0.0.1:${port}`, token_env: 'SOOT_MEDIA_RUNTIME_TOKEN', packs_dir: 'packs.d', data_dir: 'data',
-  default_soot: 'office', soots: packs.map(id => `soots/${id}.json`), credentials: creds,
+const config = { listen: `127.0.0.1:${port}`, token_env: 'SOOT_MEDIA_RUNTIME_TOKEN', packs_dir: 'packs', data_dir: 'data',
+  default_soot: 'office', soots: packs.map(id => `soots/${id}.json`), pack_grants: grants, tool_hosts: toolHosts, credentials,
   execution: { max_turns: 24, max_tool_calls: 40, tool_timeout: '6m', subagents: 0, advisor: false, memory_consolidation: false, todo_nudges: 0 } };
 const configFile = join(workspace, 'deployment.json');
 await writeFile(configFile, JSON.stringify(config, null, 2));
 const ffmpeg = (await exec('which', ['ffmpeg'])).stdout.trim();
 const ffprobe = (await exec('which', ['ffprobe'])).stdout.trim();
-const env = { ...process.env, SOOT_MEDIA_RUNTIME_TOKEN: randomBytes(32).toString('hex'), SOOT_MEDIA_FILE_ROOT: files,
-  SOOT_MEDIA_VIDEO_BINDING: JSON.stringify({ ffmpeg, ffprobe }),
-  SOOT_MEDIA_OCR_BINDING: JSON.stringify({ base_url: 'http://127.0.0.1:1/v1', model: 'deepseek-ai/DeepSeek-OCR-2' }),
+const env = { ...process.env, SOOT_MEDIA_RUNTIME_TOKEN: randomBytes(32).toString('hex'), SOOT_MEDIA_PYTHON: join(output, 'runtimes/shared/bin/python'),
+  SOOT_VIDEO_BINDING: JSON.stringify({ ffmpeg, ffprobe }),
+  SOOT_OCR_BINDING: JSON.stringify({ base_url: 'http://127.0.0.1:1/v1', model: 'deepseek-ai/DeepSeek-OCR-2' }),
   SOOT_MEDIA_GOOGLE_WORKSPACE_BINDING: JSON.stringify({ access_token: 'expired-synthetic-fixture', expires_at: 1 }),
-  SOOT_MEDIA_TTS_BINDING: JSON.stringify({ engine: 'omnivoice', base_url: options['tts-url'] ?? 'http://127.0.0.1:1', voices: [options.voice ?? 'reference'] }),
+  SOOT_TTS_BINDING: JSON.stringify({ engine: 'omnivoice', base_url: options['tts-url'] ?? 'http://127.0.0.1:1', voices: [options.voice ?? 'reference'] }),
 };
-if (options['ocr-binding-file']) env.SOOT_MEDIA_OCR_BINDING = await readFile(resolve(options['ocr-binding-file']), 'utf8');
+if (options['ocr-binding-file']) env.SOOT_OCR_BINDING = await readFile(resolve(options['ocr-binding-file']), 'utf8');
 if (options['google-binding-file']) env.SOOT_MEDIA_GOOGLE_WORKSPACE_BINDING = await readFile(resolve(options['google-binding-file']), 'utf8');
-if (options['hyperframes-cli']) env.SOOT_MEDIA_HYPERFRAMES_BINDING = JSON.stringify({ node: process.execPath, cli: resolve(options['hyperframes-cli']), ffmpeg, ffprobe,
+if (options['hyperframes-cli']) env.SOOT_HYPERFRAMES_BINDING = JSON.stringify({ node: process.execPath, cli: resolve(options['hyperframes-cli']), ffmpeg, ffprobe,
   ...(options['hyperframes-browser'] ? { browser: resolve(options['hyperframes-browser']) } : {}) });
 const invoke = (program, args, extra={}) => exec(program, args, { cwd: workspace, env, timeout: 420_000, maxBuffer: 2*1024*1024, ...extra });
 // Use the official installer on release-like archives: no direct pack path mounts.
@@ -84,15 +78,14 @@ for (const id of packs) {
   await archivePack(prepared, archive, id);
   const installation = await invoke(binary, ['add', archive, '--config', configFile, '--json']);
   await writeFile(join(output, `${id}-install.json`), installation.stdout);
-  const installed = join(workspace, 'packs.d', id);
-  const runtimeDir = join(output, 'runtimes', id);
-  await invoke('uv', ['venv', '--python', '3.12', runtimeDir]);
-  env[`SOOT_MEDIA_${id.replaceAll('-', '_').toUpperCase()}_PYTHON`] = join(runtimeDir, 'bin/python');
-  if (id !== 'tts') await invoke('uv', ['pip', 'sync', '--require-hashes', '--python', join(runtimeDir, 'bin/python'), join(installed, 'requirements.lock')]);
+  const installed = join(workspace, 'packs', id);
+  const runtimeDir = join(output, 'runtimes/shared');
+  if (id === packs[0]) await invoke('uv', ['venv', '--python', '3.12', runtimeDir]);
+  if (id !== 'tts') await invoke('uv', ['pip', 'install', '--require-hashes', '--python', join(runtimeDir, 'bin/python'), '-r', join(installed, 'requirements.lock')]);
   console.log(`Installed/prepared ${id} through soot add`);
 }
 // Native file fixtures are generated with an independent helper, not provider replies.
-await invoke(join(output, 'runtimes/office/bin/python'), [join(repo, 'scripts/media-fixtures.py'), files]);
+await invoke(join(output, 'runtimes/shared/bin/python'), [join(repo, 'scripts/media-fixtures.py'), files]);
 if (options['hyperframes-project']) await cp(resolve(options['hyperframes-project']), join(files, 'motion'), {
   recursive: true,
   filter: source => !source.split(/[\\/]/).some(p => ['node_modules', '.git', '.venv', '.hyperframes', 'output', 'renders', 'snapshots'].includes(p)),
@@ -170,7 +163,7 @@ try {
     await run('tts', 'tts-denied-voice', 'Call tts_synthesize with text "Xin chào", voice "ungranted_voice", output denied-voice.wav. This intentional negative case must report the host voice allowlist rejection without a substitute.', [], 'tts_synthesize', true);
     await run('video-editor', 'video-render', 'Validate timeline.json, render it to result.mp4, probe the final result, then decode samples at 0.1, 0.6 and 1.0 seconds into contact-sheet.png. Report actual duration/canvas/hash. Use the supplied exact captions/audio; no posting. State final listening/phone-size inspection are pending.', ['result.mp4','contact-sheet.png'], 'video-editor_render');
     if (options['tts-url']) {
-      await invoke(join(output, 'runtimes/office/bin/python'), [join(repo, 'scripts/media-fixtures.py'), files, '--narrated']);
+      await invoke(join(output, 'runtimes/shared/bin/python'), [join(repo, 'scripts/media-fixtures.py'), files, '--narrated']);
       await run('video-editor', 'video-narrated', 'Validate narrated-timeline.json, render narrated.mp4 and probe it. This timeline uses the actual previously generated OmniVoice narration.wav. Decode contact samples at 0.25, 1.5 and 2.5 seconds to narrated-contact.png. Report measured video/audio findings. Caption timings are manually authored phrase display intervals, not verified word alignment. Do not claim listening.', ['narrated.mp4','narrated-contact.png'], 'video-editor_render');
     }
     if (options['hyperframes-project']) await run('video-editor', 'video-hyperframes', 'Use video-editor_hyperframes to check the authorized project motion, then render motion to motion.mp4. Probe the exported video and decode frames at 0.25, 1.0 and 1.75 seconds into motion-contact.png. Report actual structural/contrast findings, duration and hash; do not publish.', ['motion.mp4','motion-contact.png'], 'video-editor_hyperframes');
@@ -186,8 +179,8 @@ try {
   }
   await run('google-workspace', options['google-binding-file'] ? 'google-drive-live-read' : 'google-drive-expired-token', `Call google-workspace_drive_list with limit 5 and kind all. ${options['google-binding-file'] ? 'Report only actual returned IDs/types and pagination; do not mutate or share files.' : 'The fixture token is deliberately expired; report the actual credential blocker, not invented Drive files.'}`, [], 'google-workspace_drive_list', !options['google-binding-file']);
   }
-  if (!options.only) await invoke(join(output, 'runtimes/office/bin/python'), [join(repo, 'scripts/media-verify.py'), files]);
-  if (options.only === 'office-ocr') await invoke(join(output, 'runtimes/office/bin/python'), [join(repo, 'scripts/media-verify.py'), files, '--office-ocr']);
+  if (!options.only) await invoke(join(output, 'runtimes/shared/bin/python'), [join(repo, 'scripts/media-verify.py'), files]);
+  if (options.only === 'office-ocr') await invoke(join(output, 'runtimes/shared/bin/python'), [join(repo, 'scripts/media-verify.py'), files, '--office-ocr']);
   summary.status = "completed";
   summary.vendor_status = { soot_provider: 'real', deepseek_ocr: (!options.only || options.only === 'office-ocr') && options['ocr-binding-file'] ? 'real endpoint exercised' : 'NOT RUN: no bound OCR model service',
     omnivoice: !options.only && options['tts-url'] ? 'real endpoint exercised; listening pending' : 'NOT RUN: no bound model service', google: options['google-binding-file'] ? 'real read exercised; mutations not tested' : 'NOT RUN: no authorized Google credentials',

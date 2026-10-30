@@ -1,22 +1,21 @@
 # writing — viết bài, copy và export draft
 
 Pack `writing` cung cấp kỷ năng viết (skills) và một executable xuất draft
-thành artifact. Ba capabilities chọn độc lập:
+thành artifact. Pack được chọn nguyên (`"packs": ["writing"]`):
 
-| Capability | Gồm | Recipe |
-| --- | --- | --- |
-| `article` | skill `writing_article` — dàn ý, viết có nguồn, tự biên tập | mặc định |
-| `copy` | skill `writing_copy` — biến thể copy theo angle, tôn trọng giới hạn | mặc định |
-| `export` | skill `writing_export` + tool `writing_export` (executable) | chọn riêng |
+| Skill | Gồm |
+| --- | --- |
+| `writing_article` | dàn ý, viết có nguồn, tự biên tập |
+| `writing_copy` | biến thể copy theo angle, tôn trọng giới hạn |
+| `writing_export` | hướng dẫn dùng tool `export` (executable, mode write) |
 
-Recipe mặc định (`use: ["article","copy"]`) chỉ cấp skills — `export` có
-effect ghi artifact nên phải được chọn tường minh.
+`"writing:read"` chỉ cấp các skill — tool `export` ghi artifact nên cần id đầy đủ `writing`.
 
 ## Export tool
 
 `writing_export` nhận **một trong hai** nguồn draft:
 
-- `ref` — `art_…` từ `artifacts/create` hoặc producer khác (draft dài).
+- `ref` — `art_…` từ `artifacts_create` hoặc producer khác (draft dài).
 - `text` — nội dung inline, ≤ ~64 KiB.
 
 và `format` = `markdown` | `html`. `source_format` (mặc định = `format`)
@@ -28,7 +27,7 @@ http/https/relative link, không script/style/iframe/event handler.
 Output: `{"kind":"artifact","artifact":{ref,mimeType,sha256,bytes,name}}` —
 artifact nằm trong store của operator, không phải URL public.
 
-## Runtime và binding
+## Runtime và credential
 
 Runner là Go binary `bin/soot-writing` trong folder pack; build từ module độc lập:
 
@@ -36,8 +35,9 @@ Runner là Go binary `bin/soot-writing` trong folder pack; build từ module đ�
 (cd packs/writing/runner && go build -o ../bin/soot-writing .)
 ```
 
-Pack khai báo `secret_env.ARTIFACT_STORE = {{cred:ARTIFACT_STORE}}` —
-deployment bind đường dẫn tuyệt đối của artifact store qua env hoặc file:
+Pack khai báo credential tùy chọn `ARTIFACT_STORE` (`pack.json` `needs`) — đường dẫn
+tuyệt đối của artifact store, do operator nhập cho từng Soot trong Nest, hoặc bind trong
+deployment qua env hoặc file:
 
 ```json
 {
@@ -66,7 +66,7 @@ printf '%s\n' '{"api_version":"soot/v1","hook":"tool.call","soot":"helper","oper
   | ARTIFACT_STORE=/tmp/art-store packs/writing/bin/soot-writing export
 ```
 
-Fixture độc lập ở `fixtures/` (pack copy trong `packs.d`):
+Fixture độc lập ở `fixtures/` (pack copy trong `packs`):
 
 ```sh
 export SOOT_TEST_ARTIFACT_STORE=/tmp/art-store

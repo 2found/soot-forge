@@ -28,8 +28,8 @@ export function validateGroup(t) {
   for (const p of t.packs) { keys(p,['id','archive','sha256']); if (!ident(p.id) || packs.has(p.id) || !/^[a-f0-9]{64}$/.test(p.sha256) || p.archive !== `dependencies/${p.id}.tar.gz`) throw new Error('Invalid group dependency'); packs.add(p.id); }
   const members = new Set();
   for (const m of t.members) {
-    keys(m,['id','name','role','soul','mission','use','channels']);
-    if (!ident(m.id) || m.id === 'self' || members.has(m.id) || !text(m.name,80) || !text(m.role,300) || !text(m.soul,8192) || !text(m.mission,16384) || !Array.isArray(m.use) || m.use.length > 32 || new Set(m.use).size !== m.use.length || m.use.some(u => { const parts = u.split('/'); return parts.length !== 2 || !packs.has(parts[0]) || !ident(parts[1]); })) throw new Error('Invalid group member'); members.add(m.id);
+    keys(m,['id','name','role','soul','mission','packs','channels']);
+    if (!ident(m.id) || m.id === 'self' || members.has(m.id) || !text(m.name,80) || !text(m.role,300) || !text(m.soul,8192) || !text(m.mission,16384) || !Array.isArray(m.packs) || m.packs.length > 32 || m.packs.some(u => typeof u !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,47}(:read)?$/.test(u) || !packs.has(u.replace(/:read$/, ''))) || new Set(m.packs.map(u => u.replace(/:read$/, ''))).size !== m.packs.length) throw new Error('Invalid group member'); members.add(m.id);
     if (m.channels && (!Array.isArray(m.channels) || m.channels.length > 8 || new Set(m.channels.map(c => c.id)).size !== m.channels.length)) throw new Error('Invalid channels');
     for (const c of m.channels ?? []) { keys(c,['id','name']); if (!ident(c.id) || !text(c.name,80)) throw new Error('Invalid channel'); }
   }

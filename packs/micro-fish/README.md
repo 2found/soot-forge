@@ -2,7 +2,7 @@
 
 Run a simulated society on the thing you need to decide about: a feature, a product, a price, a video, an ad or a campaign. A population of personas reacts to it alone first, then again after reading what the others posted; an expert panel reviews it independently; deterministic statistics turn the records into a report. Node.js 22+ is required. Installing runs no scripts and grants nothing.
 
-Use the [Simulated society template](../../groups/society-sim/README.md) to create the moderator, population architect, crowd, expert panel and analyst. The pack works with any Soot that is granted its capabilities; the template is the tested shape.
+Use the [Simulated society template](../../groups/society-sim/README.md) to create the moderator, population architect, crowd, expert panel and analyst. The pack works with any Soot that selects it; the template is the tested shape.
 
 ## Method
 
@@ -18,9 +18,11 @@ Inspired by multi-agent social simulations such as MiroFish/OASIS, scaled down t
 
 Every number comes from `micro-fish_tally`; the model never computes statistics. A simulation shows direction, objections and wording problems, never a market forecast.
 
-## Capabilities
+## Skills and tools
 
-| Capability | Skills | Tools |
+The pack is selected whole (`"packs": ["micro-fish"]`); `"micro-fish:read"` gives all skills and only the read-mode tools (`status`, `packet`, `profile`, `plan_round`, `tally`). Roles are separated by each Soot's mission.
+
+| Role | Skills | Tools |
 | --- | --- | --- |
 | `coordinate` | micro-fish-coordinate, micro-fish-product, micro-fish-media | `create`, `stimulus`, `plan_round` |
 | `populate` | micro-fish-populate | `add_personas` |

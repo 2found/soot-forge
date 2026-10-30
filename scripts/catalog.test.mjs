@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateCatalog, validatePack, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
+import { validateCatalog, validatePack, checkPackModel, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -47,24 +47,38 @@ test('PR metadata rejects duplicate IDs, unknown fields, traversal and moving re
   }
 });
 
-test('a retired pack merges into a listed one by explicit capability and tool maps', () => {
-  const retired = { id: 'old', into: 'example', capabilities: { configure: 'website' }, tools: { view: 'website_view' } };
+test('a retired pack merges into a listed one by an explicit tool map', () => {
+  const retired = { id: 'old', into: 'example', tools: { view: 'website_view' } };
   validateCatalog({ ...catalog(), retired: [retired] });
   for (const bad of [
-    { ...retired, id: 'example' }, { ...retired, into: 'missing' }, { ...retired, capabilities: {} },
-    { ...retired, capabilities: { configure: 'Bad Name' } }, { ...retired, tools: ['view'] }, { ...retired, extra: true },
+    { ...retired, id: 'example' }, { ...retired, into: 'missing' },
+    { ...retired, capabilities: { configure: 'website' } }, { ...retired, tools: ['view'] }, { ...retired, extra: true },
   ]) assert.throws(() => validateCatalog({ ...catalog(), retired: [bad] }), JSON.stringify(bad));
   assert.throws(() => validateCatalog({ ...catalog(), retired: [retired, retired] }));
-  const manifest = { capabilities: { website: { tools: [{ name: 'website_view' }] } } };
+  const manifest = { tools: [{ name: 'website_view' }] };
   checkRetiredTarget(retired, manifest);
-  assert.throws(() => checkRetiredTarget({ ...retired, capabilities: { configure: 'other' } }, manifest), /no capability other/);
   assert.throws(() => checkRetiredTarget({ ...retired, tools: { view: 'view' } }, manifest), /no tool view/);
 });
 
-test('materialization rejects symlink ancestors, missing skills, mismatched ID and forbidden manifest fields', async t => {
+test('the pack model: write tools are marked, and needs match the credentials tools read', () => {
+  const need = { title: 'Key', description: 'The key.' };
+  const tool = (name, mode, cred) => ({ name, run: { program: 'tools/run', mode, ...(cred ? { secret_env: { KEY: `{{cred:${cred}}}` } } : {}) } });
+  const pack = { id: 'p', skills: [{ name: 's', file: 'skills/s.md' }], tools: [tool('list', 'read', 'KEY'), tool('save', 'write', 'KEY')], needs: { credentials: { KEY: need } } };
+  checkPackModel(pack, 'p');
+  const bad = (change, pattern) => assert.throws(() => checkPackModel(change(structuredClone(pack)), 'p'), pattern);
+  bad(p => { delete p.tools[1].run.mode; return p; }, /run\.mode/);
+  bad(p => { p.tools[1].run.mode = 'read'; return p; }, /named like a change/);
+  bad(p => { delete p.needs; return p; }, /not declared/);
+  bad(p => { p.needs.credentials.SPARE = need; return p; }, /declared but no tool/);
+  bad(p => { p.needs.credentials.KEY.from = 'keychain'; return p; }, /unknown source/);
+  bad(p => { p.tools[0].run.env = ['PATH']; return p; }, /run\.env/);
+  bad(p => { p.tools.push(tool('list', 'read')); return p; }, /duplicate tool/);
+});
+
+test('materialization rejects symlink ancestors, missing skills, mismatched ID and forbidden or retired manifest fields', async t => {
   const root = await mkdtemp(join(tmpdir(), 'forge-test-')); t.after(() => rm(root, { recursive: true, force: true }));
   const directory = join(root, 'packs/example'); await mkdir(directory, { recursive: true });
-  const manifest = { api_version: 'soot/v1', id: 'example', use: [], capabilities: { guide: { skills: [{ name: 'guide', file: 'guide.md' }] } } };
+  const manifest = { api_version: 'soot/v1', id: 'example', skills: [{ name: 'guide', file: 'guide.md' }] };
   await writeFile(join(directory, 'pack.json'), JSON.stringify(manifest));
   await assert.rejects(validatePack(directory, 'example'), /ENOENT/);
   await writeFile(join(directory, 'guide.md'), 'Read first.');
@@ -72,6 +86,10 @@ test('materialization rejects symlink ancestors, missing skills, mismatched ID a
   await assert.rejects(validatePack(directory, 'wrong'), /mismatch/);
   await writeFile(join(directory, 'pack.json'), JSON.stringify({ ...manifest, schedules: [] }));
   await assert.rejects(validatePack(directory, 'example'), /Invalid pack manifest/);
+  for (const retired of [{ use: [] }, { capabilities: {} }]) {
+    await writeFile(join(directory, 'pack.json'), JSON.stringify({ ...manifest, ...retired }));
+    await assert.rejects(validatePack(directory, 'example'), /retired|Invalid pack manifest/);
+  }
   await writeFile(join(directory, 'pack.json'), JSON.stringify(manifest));
   await symlink('guide.md', join(directory, 'link.md'));
   await assert.rejects(validatePack(directory, 'example'), /non-regular/);

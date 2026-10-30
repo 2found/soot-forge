@@ -3,8 +3,7 @@
   "name": "Text to speech",
   "soul": "SOUL.md",
   "mission": "mission.md",
-  "use": [
-    "tts/inspect",
-    "tts/speak"
+  "packs": [
+    "tts"
   ]
 }

@@ -1,8 +1,8 @@
 # Artifacts pack (BP-02)
 
-Pack quản lý kho lưu trữ artifact content-addressed trên filesystem cục bộ, dùng làm nền tảng lưu trữ file/media cho các pack khác (`writing/export`, `email` attachments, `live-chat` media refs).
+Pack quản lý kho lưu trữ artifact content-addressed trên filesystem cục bộ, dùng làm nền tảng lưu trữ file/media cho các pack khác (`writing_export`, `email` attachments, `live-chat` media refs).
 
-Binary runner `soot-artifacts` được viết bằng Go stdlib cùng public wire contract `soot/v1` được đóng gói trong module runner, biên dịch độc lập và giao tiếp qua stdin JSON `soot/v1`. Đường dẫn thư mục lưu trữ được cấp hoàn toàn từ host binding qua `secret_env`; model input không bao giờ được chạm vào argv, env hay đường dẫn tùy ý trên host.
+Binary runner `soot-artifacts` được viết bằng Go stdlib cùng public wire contract `soot/v1` được đóng gói trong module runner, biên dịch độc lập và giao tiếp qua stdin JSON `soot/v1`. Đường dẫn thư mục lưu trữ được cấp hoàn toàn từ credential `ARTIFACT_STORE` do operator khai báo; model input không bao giờ được chạm vào argv, env hay đường dẫn tùy ý trên host.
 
 ## Build và kiểm tra
 
@@ -23,19 +23,19 @@ soot check --show --config packs/artifacts/fixtures/deployment.json
 SOOT_TEST_ARTIFACT_STORE=/tmp/test-artifact-store soot check --secrets --config packs/artifacts/fixtures/deployment.json
 ```
 
-## Khai báo Capability và Binding
-Pack cung cấp 4 capabilities:
+## Skills, tools và credential
+Pack được chọn nguyên (`"packs": ["artifacts"]`); `"artifacts:read"` chỉ gồm skills và tool `read`. Pack cung cấp 4 skill/tool cùng tên:
 
-1. `read` (mặc định trong recipe `use: ["read"]`): Đọc metadata và nội dung artifact qua immutable reference (`art_<32hex>`).
+1. `read`: Đọc metadata và nội dung artifact qua immutable reference (`art_<32hex>`).
 2. `create`: Lưu nội dung mới vào kho content-addressed, trả về reference.
 3. `export`: Sao chép artifact ra thư mục export công khai kèm sidecar thời hạn (`expiry.json`).
 4. `remove`: Xóa artifact theo `ref` và/hoặc gỡ shared export theo `exportId`. Xóa `ref` cũng xóa export đã ghi `ref` vào sidecar. R2 unshare thuộc `vibe_cf`.
-### Gắn Credential trong Deployment
+### Credential
 
-Pack không hardcode bất kỳ đường dẫn nào. Operator gắn credential qua `secret_env`:
+Pack không hardcode bất kỳ đường dẫn nào. Credential khai báo trong `pack.json` `needs`; operator nhập cho từng Soot trong Nest, hoặc bind trong deployment `credentials` (kèm `operations`):
 
 - `ARTIFACT_STORE`: Thư mục gốc tuyệt đối cho kho artifact (bắt buộc cho `read` và `create`).
-- `ARTIFACT_EXPORT`: Thư mục tuyệt đối cho file export (bắt buộc khi chọn capability `export`).
+- `ARTIFACT_EXPORT`: Thư mục tuyệt đối cho file export (chỉ cần cho `export` và `remove`; tùy chọn).
 
 Ví dụ cấu hình trong `deployment.json`:
 
@@ -73,7 +73,7 @@ Phạm vi truy cập (authorization scope) được xác định trực tiếp b
 
 ### Định danh và ghi dữ liệu
 
-`create`, `export`, `remove` và `writing/export` phối hợp qua cùng khoá filesystem
+`create`, `export`, `remove` và `writing_export` phối hợp qua cùng khoá filesystem
 trên Linux/macOS. Chờ tối đa một giây; kho bận thì từ chối trước khi thay đổi
 artifact. Hệ điều hành tự nhả khoá khi process dừng/chết; không xoá lockfile.
 Nâng cả hai pack writer cùng lúc khi chúng dùng chung store; writer cũ hoặc

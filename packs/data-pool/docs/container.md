@@ -22,8 +22,8 @@ install (new tokens for every host). Point a Soot host at the result:
 
 ```json
 {
-  "data_pool": {"binding": {"file": "/Users/you/.soot/data-pool/service/bindings/host-local.json"}, "capabilities": "read-write"},
-  "credentials": {"general": {"DATA_POOL_UI": {"file": "/Users/you/.soot/data-pool/service/bindings/general.ui.json", "operations": ["data-pool_view", "data-pool_action"]}}}
+  "data_pool": {"binding": {"file": "/Users/you/.soot/data-pool/service/bindings/host-local.json"}, "access": "write"},
+  "credentials": {"general": {"DATA_POOL_UI": {"file": "/Users/you/.soot/data-pool/service/bindings/general.ui.json", "operations": ["data-pool-console_view", "data-pool-console_action"]}}}
 }
 ```
 

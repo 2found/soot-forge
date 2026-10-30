@@ -1,13 +1,142 @@
 {
   "api_version": "soot/v1",
   "id": "browser-use",
-  "use": [
-    "browser"
+  "skills": [
+    {
+      "name": "browser-use",
+      "description": "Browse and interact with websites using the persistent conversation browser, tabs, snapshots, refs, and CloakBrowser.",
+      "file": "skills/browser.md"
+    }
   ],
+  "tools": [
+    {
+      "name": "control",
+      "description": "Control the conversation browser with agent-browser and CloakBrowser. Read browser-use skill first. Session is supplied by the host; never choose a session/profile.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "command",
+              "navigate",
+              "tab_new",
+              "tab_select",
+              "tab_close",
+              "resize",
+              "click",
+              "key",
+              "text",
+              "scroll",
+              "close"
+            ]
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 240,
+            "maximum": 2400
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 240,
+            "maximum": 2400
+          },
+          "x": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2400
+          },
+          "y": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2400
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ]
+          },
+          "tab": {
+            "type": "string",
+            "pattern": "^t[0-9]+$"
+          },
+          "delta_x": {
+            "type": "integer",
+            "minimum": -2400,
+            "maximum": 2400,
+            "description": "Optional precise wheel delta in pixels; preserves legacy direction when omitted."
+          },
+          "delta_y": {
+            "type": "integer",
+            "minimum": -2400,
+            "maximum": 2400,
+            "description": "Optional precise wheel delta in pixels; preserves legacy direction when omitted."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot-browser",
+        "args": [
+          "control"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
+        "max_output_bytes": 32768
+      }
+    },
+    {
+      "name": "view",
+      "description": "Inspect conversation browser availability without launching it. Nest subscribes to its live screencast.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot-browser",
+        "args": [
+          "view"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "90s",
+        "max_output_bytes": 32768
+      }
+    }
+  ],
+  "needs": {
+    "env": [
+      "PATH",
+      "HOME"
+    ]
+  },
   "interface": {
     "tool_area": {
       "id": "browser",
-      "label": "Tr\u00ecnh duy\u1ec7t",
+      "label": "Trình duyệt",
       "kind": "browser",
       "view_tool": "view",
       "action_tool": "control",
@@ -18,144 +147,6 @@
       "aspect_height": 10,
       "resizable": true,
       "stream": "websocket"
-    }
-  },
-  "capabilities": {
-    "browser": {
-      "skills": [
-        {
-          "name": "browser-use",
-          "description": "Browse and interact with websites using the persistent conversation browser, tabs, snapshots, refs, and CloakBrowser.",
-          "file": "skills/browser.md"
-        }
-      ],
-      "tools": [
-        {
-          "name": "control",
-          "description": "Control the conversation browser with agent-browser and CloakBrowser. Read browser-use skill first. Session is supplied by the host; never choose a session/profile.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "action": {
-                "type": "string",
-                "enum": [
-                  "command",
-                  "navigate",
-                  "tab_new",
-                  "tab_select",
-                  "tab_close",
-                  "resize",
-                  "click",
-                  "key",
-                  "text",
-                  "scroll",
-                  "close"
-                ]
-              },
-              "args": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "maxItems": 32
-              },
-              "url": {
-                "type": "string",
-                "maxLength": 4096
-              },
-              "width": {
-                "type": "integer",
-                "minimum": 240,
-                "maximum": 2400
-              },
-              "height": {
-                "type": "integer",
-                "minimum": 240,
-                "maximum": 2400
-              },
-              "x": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 2400
-              },
-              "y": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 2400
-              },
-              "text": {
-                "type": "string",
-                "maxLength": 8000
-              },
-              "direction": {
-                "type": "string",
-                "enum": [
-                  "up",
-                  "down"
-                ]
-              },
-              "tab": {
-                "type": "string",
-                "pattern": "^t[0-9]+$"
-              },
-              "delta_x": {
-                "type": "integer",
-                "minimum": -2400,
-                "maximum": 2400,
-                "description": "Optional precise wheel delta in pixels; preserves legacy direction when omitted."
-              },
-              "delta_y": {
-                "type": "integer",
-                "minimum": -2400,
-                "maximum": 2400,
-                "description": "Optional precise wheel delta in pixels; preserves legacy direction when omitted."
-              }
-            },
-            "required": [
-              "action"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot-browser",
-            "args": [
-              "control"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "timeout": "90s",
-            "max_output_bytes": 32768,
-            "env": [
-              "PATH",
-              "HOME"
-            ]
-          }
-        },
-        {
-          "name": "view",
-          "description": "Inspect conversation browser availability without launching it. Nest subscribes to its live screencast.",
-          "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot-browser",
-            "args": [
-              "view"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "timeout": "90s",
-            "max_output_bytes": 32768,
-            "env": [
-              "PATH",
-              "HOME"
-            ]
-          }
-        }
-      ]
     }
   }
 }

@@ -4,7 +4,7 @@ Use `office_compose` for a new file and `office_edit` for a changed copy.
 Keep the original. Every output must be new with an existing parent folder;
 returned SHA-256 binds the actual artifact. Inputs over tool limits belong in
 workspace JSON files, written only through a separately granted file tool
-(such as `toolbox/write`); don't assume the pack grants shell or file editing.
+(such as the `toolbox` pack); don't assume the pack grants shell or file editing.
 
 Read [the exact spec examples](../SPEC.md). Compose accepts:
 
@@ -38,4 +38,4 @@ text or drawing a rectangle is not secure PDF redaction.
 Verify by reading the output again, check replacement counts and formulas,
 then render representative pages/slides when layout matters. Distinguish
 structural checks from visual approval. Conversion/recalculation through
-LibreOffice is optional and requires `office/convert`.
+LibreOffice is optional and requires `office_convert`.

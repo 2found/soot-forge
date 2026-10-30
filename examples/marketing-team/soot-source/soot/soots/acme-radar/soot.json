@@ -6,12 +6,11 @@
   "tier": "flash",
   "soul": "SOUL.md",
   "mission": "mission.md",
-  "packs": [],
-  "use": [
-    "acme-marketing/team"
+  "packs": [
+    "acme-marketing"
   ],
-  "host_use": [
-    "research/web"
+  "host_packs": [
+    "research"
   ],
   "conversation": {
     "publish": "final"

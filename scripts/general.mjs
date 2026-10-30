@@ -12,12 +12,13 @@ import { identifier, stableVersion } from './catalog.mjs';
 
 const RELEASE_API = 'soot/release-v1';
 const FORGE = '2found/soot-forge';
-const PACKS_DIR = 'packs.d';
+const PACKS_DIR = 'packs';
 const SOOT = 'soots/general/soot.json';
 // Source file in general/ -> path inside the release. The soot.json order is the manifest order.
 const DEFINITION = [['soot.json', SOOT], ['SOUL.md', 'soots/general/SOUL.md'], ['mission.md', 'soots/general/mission.md']];
-// pack/capability, as 2agent's ParseGeneralPreset requires.
-const selector = /^[a-z0-9][a-z0-9_-]{0,63}\/[a-z0-9][a-z0-9_-]{0,63}$/;
+// A pack selection: a pack id, or `<id>:read` for its skills and read-mode tools only.
+const selector = /^[a-z0-9][a-z0-9_-]{0,63}(:read)?$/;
+const LEAD = 'nest-lead';
 
 // The release's integer version. It must grow with the Forge version, so a client that
 // compares integers never sees a newer Forge as older (the legacy baseline is 1).
@@ -52,17 +53,18 @@ export function validatePreset(preset, catalog) {
     if (!install.includes(id) || !source || typeof source !== 'object' || Object.keys(source).length !== 1) throw new Error(`Invalid General preset source for ${id}`);
   }
   const packs = list(preset.packs, 'packs');
-  if (packs.some(id => !install.includes(id))) throw new Error('General preset packs must be installed');
   const nest = preset.nest;
   if (!nest || typeof nest !== 'object') throw new Error('Invalid General preset nest');
   const nestPacks = list(nest.packs, 'nest.packs');
-  if (nestPacks.some(id => !install.includes(id))) throw new Error('General preset nest packs must be installed');
-  for (const item of [...list(preset.use, 'use'), ...list(nest.use, 'nest.use')]) {
-    if (!selector.test(item)) throw new Error(`Invalid General preset selector: ${item}`);
-    const pack = item.split('/')[0];
-    // `common` is the built-in capability group; everything else names an installed pack.
-    if (pack !== 'common' && !install.includes(pack)) throw new Error(`General preset uses ${pack}, which it does not install`);
+  // `common` is the runtime's built-in pack; everything else names an installed pack.
+  for (const [label, group] of [['packs', packs], ['nest.packs', nestPacks]]) {
+    for (const item of group) {
+      if (!selector.test(item)) throw new Error(`Invalid General preset ${label} selection: ${item}`);
+      const id = item.replace(/:read$/, '');
+      if (id !== 'common' && !install.includes(id)) throw new Error(`General preset ${label} selects ${id}, which it does not install`);
+    }
   }
+  if (packs.some(item => item.replace(/:read$/, '') === LEAD)) throw new Error(`Only the default Soot may select ${LEAD}`);
   return preset;
 }
 
@@ -103,7 +105,7 @@ function releaseManifest(version, files, preset) {
     [path, { sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }]));
   return {
     api_version: RELEASE_API, id: 'general', version: deriveVersion(version), source_version: version,
-    packs_dir: PACKS_DIR, soots: [SOOT], nest: { packs: preset.nest.packs, use: preset.nest.use }, files: sorted,
+    packs_dir: PACKS_DIR, soots: [SOOT], nest: { packs: preset.nest.packs }, files: sorted,
   };
 }
 

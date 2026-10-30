@@ -1,116 +1,110 @@
 {
   "api_version": "soot/v1",
   "id": "casework",
-  "capabilities": {
-    "records": {
-      "skills": [
-        {
-          "file": "skill.md",
-          "description": "Optional persistent records for work that needs tracking or handoff"
-        }
-      ],
-      "tools": [
-        {
-          "name": "read",
-          "description": "Read this conversation's case record (title, summary, status, owner). A missing record is normal and means nothing has been tracked yet.",
-          "run": {
-            "program": "bin/soot-case",
-            "args": [
-              "read",
-              "data"
-            ],
-            "stdin": "context",
-            "resource": "casework_records",
-            "timeout": "15s"
-          },
-          "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": false
-          }
-        },
-        {
-          "name": "upsert",
-          "description": "Create or update this conversation's case record when work needs durable tracking: a short title, a summary of evidence and next step, and status open or resolved. It records state only; it does not do or announce the real-world work.",
-          "run": {
-            "program": "bin/soot-case",
-            "args": [
-              "upsert",
-              "data"
-            ],
-            "stdin": "context",
-            "resource": "casework_records",
-            "mode": "write",
-            "timeout": "15s"
-          },
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "title": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "summary": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 4096
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "open",
-                  "resolved"
-                ]
-              }
-            },
-            "required": [
-              "title",
-              "summary",
-              "status"
-            ],
-            "additionalProperties": false
-          }
-        },
-        {
-          "name": "handoff",
-          "description": "Record that a human now owns this case, with a summary of the evidence and the next action. It does not message anyone or start another agent; after it, an operator must intervene before the record can be updated again.",
-          "run": {
-            "program": "bin/soot-case",
-            "args": [
-              "handoff",
-              "data"
-            ],
-            "stdin": "context",
-            "resource": "casework_records",
-            "mode": "write",
-            "timeout": "15s"
-          },
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "summary": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 4096
-              },
-              "to": {
-                "type": "string",
-                "const": "human"
-              }
-            },
-            "required": [
-              "summary",
-              "to"
-            ],
-            "additionalProperties": false
-          }
-        }
-      ]
+  "skills": [
+    {
+      "file": "skill.md",
+      "description": "Optional persistent records for work that needs tracking or handoff"
     }
-  },
-  "use": [
-    "records"
+  ],
+  "tools": [
+    {
+      "name": "read",
+      "description": "Read this conversation's case record (title, summary, status, owner). A missing record is normal and means nothing has been tracked yet.",
+      "run": {
+        "program": "bin/soot-case",
+        "args": [
+          "read",
+          "data"
+        ],
+        "stdin": "context",
+        "resource": "casework_records",
+        "timeout": "15s",
+        "mode": "read"
+      },
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "upsert",
+      "description": "Create or update this conversation's case record when work needs durable tracking: a short title, a summary of evidence and next step, and status open or resolved. It records state only; it does not do or announce the real-world work.",
+      "run": {
+        "program": "bin/soot-case",
+        "args": [
+          "upsert",
+          "data"
+        ],
+        "stdin": "context",
+        "resource": "casework_records",
+        "mode": "write",
+        "timeout": "15s"
+      },
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved"
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "summary",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "handoff",
+      "description": "Record that a human now owns this case, with a summary of the evidence and the next action. It does not message anyone or start another agent; after it, an operator must intervene before the record can be updated again.",
+      "run": {
+        "program": "bin/soot-case",
+        "args": [
+          "handoff",
+          "data"
+        ],
+        "stdin": "context",
+        "resource": "casework_records",
+        "mode": "write",
+        "timeout": "15s"
+      },
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "to": {
+            "type": "string",
+            "const": "human"
+          }
+        },
+        "required": [
+          "summary",
+          "to"
+        ],
+        "additionalProperties": false
+      }
+    }
   ]
 }

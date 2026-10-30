@@ -3,14 +3,7 @@
   "name": "Google Workspace",
   "soul": "SOUL.md",
   "mission": "mission.md",
-  "use": [
-    "google-workspace/docs-read",
-    "google-workspace/docs-write",
-    "google-workspace/docs-export",
-    "google-workspace/sheets-read",
-    "google-workspace/sheets-write",
-    "google-workspace/drive-read",
-    "google-workspace/drive-download",
-    "google-workspace/drive-write"
+  "packs": [
+    "google-workspace"
   ]
 }

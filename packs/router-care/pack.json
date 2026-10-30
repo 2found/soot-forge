@@ -1,45 +1,38 @@
 {
   "api_version": "soot/v1",
   "id": "router-care",
-  "capabilities": {
-    "release-care": {
-      "skills": [
-        {
-          "name": "release-care",
-          "description": "Interpret 9router release observations and uncertain rollout fences; read before diagnosing a maintenance event.",
-          "file": "skill.md"
-        }
-      ]
-    },
-    "status": {
-      "tools": [
-        {
-          "name": "status",
-          "description": "Read the host-bound sanitized 9router worker observation. No deployment or repair. The timestamp is the last worker check, not live health.",
-          "parameters": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "node",
-            "args": [
-              "tools/status.mjs"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "router",
-            "timeout": "5s",
-            "max_output_bytes": 8192,
-            "env": [
-              "ROUTER_CARE_STATUS_FILE"
-            ]
-          }
-        }
-      ]
+  "skills": [
+    {
+      "name": "release-care",
+      "description": "Interpret 9router release observations and uncertain rollout fences; read before diagnosing a maintenance event.",
+      "file": "skill.md"
     }
-  },
-  "use": [
-    "release-care"
-  ]
+  ],
+  "tools": [
+    {
+      "name": "status",
+      "description": "Read the host-bound sanitized 9router worker observation. No deployment or repair. The timestamp is the last worker check, not live health.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/status.mjs"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "router",
+        "timeout": "5s",
+        "max_output_bytes": 8192
+      }
+    }
+  ],
+  "needs": {
+    "env": [
+      "ROUTER_CARE_STATUS_FILE"
+    ]
+  }
 }

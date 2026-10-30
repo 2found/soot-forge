@@ -3,146 +3,154 @@
   "id": "tts",
   "name": "Text to speech",
   "description": "Generate measured WAV narration with OmniVoice through a resident host-owned service.",
-  "use": [],
-  "capabilities": {
-    "inspect": {
-      "skills": [
-        {
-          "name": "tts_inspect",
-          "file": "skills/inspect.md",
-          "description": "Inspect real PCM audio duration and host-authorized voice references."
-        }
-      ],
-      "tools": [
-        {
-          "name": "inspect",
-          "description": "Measure PCM WAV from samples; reject truncated audio. Does not claim acoustic word alignment or listening quality.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "path": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 512,
-                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
-              }
-            },
-            "required": [
-              "path"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "tools/run",
-            "args": [
-              "inspect"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "file_workspace",
-            "timeout": "60s",
-            "secret_env": {
-              "FILE_ROOT": "{{cred:FILE_ROOT}}",
-              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
-            }
+  "skills": [
+    {
+      "name": "tts_inspect",
+      "file": "skills/inspect.md",
+      "description": "Inspect real PCM audio duration and host-authorized voice references."
+    },
+    {
+      "name": "tts_speak",
+      "file": "skills/speak.md",
+      "description": "Synthesize exact approved words with an explicitly authorized OmniVoice reference voice."
+    }
+  ],
+  "tools": [
+    {
+      "name": "inspect",
+      "description": "Measure PCM WAV from samples; reject truncated audio. Does not claim acoustic word alignment or listening quality.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
           }
         },
-        {
-          "name": "voices",
-          "description": "List voice references served by the bound OmniVoice service.",
-          "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "tools/run",
-            "args": [
-              "voices"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "file_workspace",
-            "timeout": "60s",
-            "secret_env": {
-              "FILE_ROOT": "{{cred:FILE_ROOT}}",
-              "TTS_BINDING": "{{cred:TTS_BINDING}}",
-              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
-            }
-          }
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/run",
+        "args": [
+          "inspect"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "file_workspace",
+        "timeout": "60s",
+        "secret_env": {
+          "FILE_ROOT": "{{cred:FILE_ROOT}}",
+          "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
         }
-      ]
+      }
     },
-    "speak": {
-      "skills": [
-        {
-          "name": "tts_speak",
-          "file": "skills/speak.md",
-          "description": "Synthesize exact approved words with an explicitly authorized OmniVoice reference voice."
+    {
+      "name": "voices",
+      "description": "List voice references served by the bound OmniVoice service.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/run",
+        "args": [
+          "voices"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "file_workspace",
+        "timeout": "60s",
+        "secret_env": {
+          "FILE_ROOT": "{{cred:FILE_ROOT}}",
+          "TTS_BINDING": "{{cred:TTS_BINDING}}",
+          "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
         }
-      ],
-      "tools": [
-        {
-          "name": "synthesize",
-          "description": "Synthesize exact text with OmniVoice, validate WAV, publish a new file and return duration/transcript/hash. No voice fallback.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "text": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 6000,
-                "description": "Exact spoken words; no stage directions."
-              },
-              "voice": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100,
-                "description": "Authorized host voice ID"
-              },
-              "language": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 30,
-                "description": "Language code, defaults vi"
-              },
-              "speed": {
-                "type": "number",
-                "minimum": 0.5,
-                "maximum": 2
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 512,
-                "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
-              }
-            },
-            "required": [
-              "text",
-              "voice",
-              "output"
-            ],
-            "additionalProperties": false
+      }
+    },
+    {
+      "name": "synthesize",
+      "description": "Synthesize exact text with OmniVoice, validate WAV, publish a new file and return duration/transcript/hash. No voice fallback.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 6000,
+            "description": "Exact spoken words; no stage directions."
           },
-          "run": {
-            "program": "tools/run",
-            "args": [
-              "synthesize"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "file_workspace",
-            "timeout": "6m",
-            "secret_env": {
-              "FILE_ROOT": "{{cred:FILE_ROOT}}",
-              "TTS_BINDING": "{{cred:TTS_BINDING}}",
-              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
-            }
+          "voice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Authorized host voice ID"
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30,
+            "description": "Language code, defaults vi"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2
+          },
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Clean path relative to host FILE_ROOT. Output parents must exist; outputs must be new."
           }
+        },
+        "required": [
+          "text",
+          "voice",
+          "output"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/run",
+        "args": [
+          "synthesize"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "file_workspace",
+        "timeout": "6m",
+        "secret_env": {
+          "FILE_ROOT": "{{cred:FILE_ROOT}}",
+          "TTS_BINDING": "{{cred:TTS_BINDING}}",
+          "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
         }
-      ]
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "FILE_ROOT": {
+        "title": "Thư mục làm việc",
+        "description": "Thư mục làm việc của cuộc trò chuyện. Nest cấp tự động; công cụ chỉ đọc và ghi tệp trong thư mục này.",
+        "from": "workspace"
+      },
+      "PYTHON_EXECUTABLE": {
+        "title": "Python của máy chủ",
+        "description": "Đường dẫn tuyệt đối tới trình Python đã cài sẵn thư viện của pack (xem README). Máy chủ đặt biến môi trường SOOT_MEDIA_PYTHON.",
+        "from": "env:SOOT_MEDIA_PYTHON"
+      },
+      "TTS_BINDING": {
+        "title": "Dịch vụ giọng đọc",
+        "description": "JSON gồm điểm cuối OmniVoice và danh sách giọng được phép dùng. Máy chủ đặt biến môi trường SOOT_TTS_BINDING; mẫu trong README.",
+        "from": "env:SOOT_TTS_BINDING"
+      }
     }
   }
 }

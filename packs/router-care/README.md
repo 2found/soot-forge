@@ -11,33 +11,35 @@ soot add https://github.com/2found/soot-forge/tree/main/packs/router-care
 ```
 
 Pin a reviewed full commit with `--ref` when installing a release workspace.
-Installation neither grants capabilities nor runs dependency/build scripts.
-The default recipe selects only `release-care`; status is an explicit opt-in:
+Installation neither grants anything nor runs dependency/build scripts.
+The pack is selected whole; it supplies:
 
-| Selector | Supplies | Preparation |
+| Part | Supplies | Preparation |
 | --- | --- | --- |
-| `router-care/release-care` | Guidance for interpreting maintenance evidence and fences | None |
-| `router-care/status` | Typed `router-care_status` tool, called with `{}` | Node.js 22+ on operator PATH; host-approved status-file environment binding |
+| skill `release-care` | Guidance for interpreting maintenance evidence and fences | None |
+| tool `router-care_status` (read) | Typed status tool, called with `{}` | Node.js 22+ on operator PATH; host-approved status-file environment binding |
 
-Select the desired capabilities in a Soot definition **outside this pack**:
+Select it in a Soot definition **outside this pack**:
 
 ```json
 {"id":"router-keeper","soul":"SOUL.md","mission":"mission.md",
- "use":["router-care/release-care","router-care/status"]}
+ "packs":["router-care"]}
 ```
 
-Authorize only the required non-secret environment variable in the deployment:
+The pack declares `needs.env: ["ROUTER_CARE_STATUS_FILE"]`; the host grants that one non-secret variable in the deployment:
 
 ```json
-{"operation_env":{"router-care_status":["ROUTER_CARE_STATUS_FILE"]}}
+{"pack_grants":{"router-care":{"env":["ROUTER_CARE_STATUS_FILE"]}}}
 ```
+
+(or `soot grant router-care`).
 
 Set `ROUTER_CARE_STATUS_FILE` to the absolute path of the worker’s sanitized
 `status.json` in the Soot service environment. It must be a regular file readable
 by that daemon. Bind neither its private journal nor runner configuration.
 There are no npm dependencies, build step, tokens or network calls for this tool.
 The path cannot come from model input. Run `soot check --show --secrets` to
-validate selection and host approvals, then call the selected status tool to
+validate selection and host grants, then call the selected status tool to
 verify its binding and file readability. `--secrets` alone permits a missing
 non-secret variable and does not probe the status file.
 A guide-only consumer does not need Node.js or this environment binding.

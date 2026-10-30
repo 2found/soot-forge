@@ -3,7 +3,7 @@
   "id": "general",
   "soul": "SOUL.md",
   "mission": "mission.md",
-  "use": [
-    "common/guide"
+  "packs": [
+    "common"
   ]
 }

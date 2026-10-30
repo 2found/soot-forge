@@ -32,22 +32,21 @@ test('bounded stdin reader handles chunks and rejects invalid UTF-8/oversize', a
   await assert.rejects(() => readToolCall(invalid()));
 });
 test('manifest shape is strict at every level and accepts Go defaults/null recipe', () => {
-  const pack = { id: 'sample', api_version: 'soot/v1', use: [], capabilities: { inspect: { tools: [{ name: 'inspect', run: { program: 'tools/inspect.mjs', stdin: 'context' } }] } } };
+  const pack = { id: 'sample', api_version: 'soot/v1', tools: [{ name: 'inspect', run: { program: 'tools/inspect.mjs', stdin: 'context', mode: 'read' } }] };
   assert.deepEqual(decodePack(JSON.stringify(pack)), pack);
-	const typed = structuredClone(pack);
-	typed.capabilities.inspect.tools[0].description = 'Inspect status';
-	typed.capabilities.inspect.tools[0].parameters = { type: 'object', properties: { service: { type: 'string', enum: ['api'] } }, required: ['service'], additionalProperties: false };
-	assert.deepEqual(decodePack(JSON.stringify(typed)), typed);
-  assert.deepEqual(validatePack({ use: null }), { use: null });
-  for (const bad of [ { ...pack, credentials: {} }, { ...pack, capabilities: { inspect: { mission: 'evil' } } }, { ...pack, capabilities: { inspect: { tools: ['inspect'] } } }, { ...pack, use: Array(129).fill('inspect') } ]) assert.throws(() => validatePack(bad), ContractError);
-  assert.throws(() => validatePack({ capabilities: { inspect: { tools: [{ name: 'inspect', run: { program: 'node', args: [1] } }] } } }), ContractError);
+  const typed = structuredClone(pack);
+  typed.tools[0].description = 'Inspect status';
+  typed.tools[0].parameters = { type: 'object', properties: { service: { type: 'string', enum: ['api'] } }, required: ['service'], additionalProperties: false };
+  assert.deepEqual(decodePack(JSON.stringify(typed)), typed);
+  for (const bad of [ { ...pack, credentials: {} }, { ...pack, capabilities: {} }, { ...pack, use: [] }, { ...pack, tools: [{ name: 'inspect', mission: 'evil' }] }, { ...pack, tools: ['inspect'] }, { ...pack, skills: Array(129).fill({ file: 'skills/s.md' }) } ]) assert.throws(() => validatePack(bad), ContractError);
+  assert.throws(() => validatePack({ tools: [{ name: 'inspect', run: { program: 'node', args: [1] } }] }), ContractError);
 });
 test('contract entrypoint has no client or node dependencies', () => {
   const source = readFileSync(new URL('../sdk/contract.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /from ['"](?:node:|\.\/client|\.\/tool)/);
 });
 test('generated schema constraints are all supported by the codec', () => {
-  const supported = new Set(['type', 'const', 'properties', 'required', 'additionalProperties', 'items', 'pattern', 'minLength', 'minItems', 'maxItems', 'maxProperties', '$schema', 'title', 'description']);
+  const supported = new Set(['type', 'const', 'properties', 'required', 'additionalProperties', 'items', 'pattern', 'minLength', 'minItems', 'maxItems', 'maxProperties', 'maxLength', 'enum', 'uniqueItems', 'minimum', 'maximum', '$schema', 'title', 'description']);
   const walk = schema => {
     for (const key of Object.keys(schema)) assert(supported.has(key), `Extend codec for new schema keyword ${key}`);
     for (const child of Object.values(schema.properties ?? {})) walk(child);

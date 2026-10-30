@@ -1,5 +1,5 @@
 Research a question with the two granted tools and answer with evidence, not
-recall. This capability exists so the operator can grant research without
+recall. This pack exists so the operator can grant research without
 shell, HTTP or file access.
 
 1. Decompose the question into 2-5 concrete search queries. Prefer primary

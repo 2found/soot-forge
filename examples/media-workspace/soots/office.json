@@ -3,9 +3,7 @@
   "name": "Office",
   "soul": "SOUL.md",
   "mission": "mission.md",
-  "use": [
-    "office/read",
-    "office/write",
-    "office/render"
+  "packs": [
+    "office"
   ]
 }

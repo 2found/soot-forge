@@ -24,8 +24,8 @@ locks and caches stay outside the distributed pack tree.
 
 ## Host binding
 
-Bind an existing absolute FILE_ROOT, absolute PYTHON_EXECUTABLE and
-IMAGE_GEN_BINDING JSON. Example (paths are placeholders):
+FILE_ROOT is the workspace; PYTHON_EXECUTABLE comes from env `SOOT_MEDIA_PYTHON` (absolute path) and
+IMAGE_GEN_BINDING from env `SOOT_IMAGE_GEN_BINDING` (JSON). Example (paths are placeholders):
 
 ```json
 {
@@ -42,10 +42,9 @@ IMAGE_GEN_BINDING JSON. Example (paths are placeholders):
 }
 ```
 
-Scope FILE_ROOT and PYTHON_EXECUTABLE to `image-gen_inspect` / `image-gen_generate`;
-scope IMAGE_GEN_BINDING only to `image-gen_generate`. Select `image-gen/inspect`
-and/or `image-gen/generate` in the Soot definition, then `soot check --show`.
-The default `use` is empty; installation grants nothing. The host owns executable
+Credentials are declared in `pack.json` `needs`; the host grants the non-operator
+ones in `pack_grants`. Select `"image-gen"` (or `"image-gen:read"` for inspection
+only) in `soot.json`, then `soot check --show`. Installation grants nothing. The host owns executable
 paths and memory budgets; the model cannot supply command flags or model URLs.
 Text encoding and VAE stages default to the chosen `backend` (Metal by default).
 The host may set `text_backend: "cpu"` and/or `vae_backend: "cpu"` for a CPU

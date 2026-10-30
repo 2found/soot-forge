@@ -1,6 +1,6 @@
 # Inspect a PNG
 
-Use `image-gen/inspect` to decode a completed PNG, read its dimensions, mode and
+Use `image-gen_inspect` to decode a completed PNG, read its dimensions, mode and
 actual alpha extrema, and obtain byte count and SHA-256. Paths are relative to
 the host FILE_ROOT; hidden paths, traversal and symlinks are rejected. The tool
 accepts single-frame PNGs only and detects truncated pixel data.
@@ -17,4 +17,4 @@ was made by the pinned model from its filename or the inspection receipt.
 
 Inspection uses only Pillow; it does not load model weights, invoke inference,
 contact a network service or require IMAGE_GEN_BINDING. Installing this pack
-grants neither inspection nor generation: select capabilities explicitly.
+grants nothing: a Soot selects the pack in `soot.json`; `image-gen:read` gives inspection only.

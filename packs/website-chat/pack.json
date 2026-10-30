@@ -1,0 +1,170 @@
+{
+  "api_version": "soot/v1",
+  "id": "website-chat",
+  "name": "Website chat",
+  "description": "Configure the Live chat on the owner's websites through one scoped host authority.",
+  "skills": [
+    {
+      "name": "website-chat",
+      "description": "Configure the Live chat on the owner's websites from chat or Nest through one scoped host authority: read, draft, publish, pause, resume and roll back.",
+      "file": "skills/website-chat.md"
+    }
+  ],
+  "tools": [
+    {
+      "name": "website_view",
+      "title": "Xem Live chat trên website",
+      "description": "Read canonical website configurations and host capabilities.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "site_id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "after": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "binding": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/control.mjs",
+          "website_view"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "nest_no_code",
+        "timeout": "15s",
+        "secret_env": {
+          "SOOT_NO_CODE_URL": "{{cred:NO_CODE_URL}}",
+          "SOOT_NO_CODE_TOKEN": "{{cred:NO_CODE_TOKEN}}"
+        }
+      }
+    },
+    {
+      "name": "website_action",
+      "title": "Đổi Live chat trên website",
+      "description": "Apply owner-authorized website drafts, publication and integration changes; requires current revision and stable request ID.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "site_id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "after": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "binding": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/control.mjs",
+          "website_action"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "nest_no_code",
+        "timeout": "15s",
+        "secret_env": {
+          "SOOT_NO_CODE_URL": "{{cred:NO_CODE_URL}}",
+          "SOOT_NO_CODE_TOKEN": "{{cred:NO_CODE_TOKEN}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "NO_CODE_URL": {
+        "title": "Địa chỉ cổng Live chat",
+        "description": "Địa chỉ đầy đủ của /admin/control trên cổng Live chat của chủ website."
+      },
+      "NO_CODE_TOKEN": {
+        "title": "Mã truy cập cổng Live chat",
+        "description": "Mã của chủ website cho cổng Live chat. Lấy ở cổng khi tạo kết nối; không dán vào chat."
+      }
+    }
+  },
+  "interface": {
+    "tool_area": {
+      "id": "live-chat",
+      "label": "Live chat",
+      "kind": "live-chat",
+      "view_tool": "website_view",
+      "action_tool": "website_action",
+      "width": 680,
+      "min_width": 320,
+      "max_width": 1200,
+      "aspect_width": 4,
+      "aspect_height": 3,
+      "resizable": true
+    }
+  }
+}

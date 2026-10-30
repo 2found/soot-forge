@@ -1,11 +1,7 @@
 {
   "id": "helper",
   "mission": "mission.md",
-  "use": [
-    "vibe_cf/r2",
-    "vibe_cf/worker",
-    "vibe_cf/d1",
-    "vibe_cf/dns",
-    "vibe_cf/shortlink"
+  "packs": [
+    "vibe_cf"
   ]
 }

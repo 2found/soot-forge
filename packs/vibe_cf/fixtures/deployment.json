@@ -1,5 +1,5 @@
 {
-  "packs_dir": "packs.d",
+  "packs_dir": "packs",
   "model": {
     "provider": "demo"
   },

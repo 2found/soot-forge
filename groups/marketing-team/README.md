@@ -6,12 +6,12 @@ blog's hub site, the channels, the voice and the languages — and offers its
 budget profiles. You approve once; Kamaji builds the team, writes the brief into
 the team's memory and sets its cycles. **Hoàn tác** removes it all.
 
-| member | does | capabilities |
+| member | does | packs |
 | --- | --- | --- |
-| Kamaji (lead) | runs the cycles, hands out tasks, reports once in the team thread | its own `soot-nest` playbooks |
-| Radar | watches the sources the audience reads, keeps the `signals` table | `marketing/radar`, `research/web` |
-| Writer | turns signals into article and social drafts; never publishes | `marketing/write`, `writing/article`, `writing/copy` |
-| Editor | reviews, publishes what passes, hands off what a person must post, measures | `marketing/write`, `edit`, `publish`, `measure` |
+| Kamaji (lead) | runs the cycles, hands out tasks, reports once in the team thread | `nest-lead` playbooks |
+| Radar | watches the sources the audience reads, keeps the `signals` table | `marketing`, `research` |
+| Writer | turns signals into article and social drafts; never publishes | `marketing`, `writing` |
+| Editor | reviews, publishes what passes, hands off what a person must post, measures | `marketing` |
 
 **Cycles** (run as Kamaji): *Chu kỳ sáng* 08:00 plans the day from the signals
 and the goal; *Duyệt chiều* 16:00 reviews and publishes; *Tổng kết tuần* reads

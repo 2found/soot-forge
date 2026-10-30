@@ -230,13 +230,11 @@
         "null"
       ]
     },
-    "host_use": {
-      "description": "Repository Soots only: host pack-id/capability-name refs to ask the host for, such as browser-use/browser. Nothing changes until the host allows each one in Nest.",
+    "host_packs": {
+      "description": "Repository Soots only: host packs to ask the host for, such as browser-use or data-pool:read. Nothing changes until the host allows each one in Nest.",
       "items": {
-        "type": [
-          "string",
-          "null"
-        ]
+        "pattern": "^[a-z0-9][a-z0-9_-]{0,63}(:read)?$",
+        "type": "string"
       },
       "maxItems": 16,
       "type": [
@@ -481,14 +479,12 @@
       ]
     },
     "packs": {
-      "description": "Advanced: select explicitly declared pack.use recipes. Missing recipe is an error.",
+      "description": "Installed packs this Soot uses: \"office\" grants all of the pack's skills and tools, \"office:read\" its skills and read-only tools.",
       "items": {
-        "type": [
-          "string",
-          "null"
-        ]
+        "pattern": "^[a-z0-9][a-z0-9_-]{0,63}(:read)?$",
+        "type": "string"
       },
-      "maxItems": 16,
+      "maxItems": 32,
       "type": [
         "array",
         "null"
@@ -561,20 +557,6 @@
           "null"
         ]
       },
-      "type": [
-        "array",
-        "null"
-      ]
-    },
-    "use": {
-      "description": "Explicit pack-id/capability-name selections. Additive with packs; [] does not revoke a pack recipe.",
-      "items": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "maxItems": 16,
       "type": [
         "array",
         "null"

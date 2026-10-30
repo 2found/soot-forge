@@ -62,32 +62,27 @@ export function validateCatalog(catalog) {
 }
 
 // A retired pack was merged into a listed one. Installers move every grant of
-// <id>/<capability> and <id>_<tool> onto the names mapped here, then remove
-// the old copy; a capability or tool left out of the maps blocks that move.
+// <id> and <id>_<tool> onto the pack and the tool names mapped here, then remove
+// the old copy; a tool left out of the map keeps its name.
 function validateRetired(retired, ids) {
   if (!Array.isArray(retired) || retired.length > 64) throw new Error('Invalid retired list');
   const seen = new Set();
   for (const entry of retired) {
-    keys(entry, ['id', 'into', 'capabilities', 'tools'], 'retired entry');
+    keys(entry, ['id', 'into', 'tools'], 'retired entry');
     if (typeof entry.id !== 'string' || !identifier.test(entry.id) || ids.has(entry.id) || seen.has(entry.id))
       throw new Error(`Retired pack ${entry.id} must be a unique id no longer listed`);
     seen.add(entry.id);
     if (!ids.has(entry.into)) throw new Error(`Retired pack ${entry.id} must merge into a listed pack`);
-    for (const field of ['capabilities', 'tools']) {
-      const map = entry[field] ?? {};
-      if (!map || typeof map !== 'object' || Array.isArray(map) || Object.keys(map).length > 64 ||
-          Object.entries(map).some(([from, to]) => !identifier.test(from) || typeof to !== 'string' || !identifier.test(to)))
-        throw new Error(`Invalid ${field} map for retired pack ${entry.id}`);
-    }
-    if (!Object.keys(entry.capabilities ?? {}).length) throw new Error(`Retired pack ${entry.id} maps no capability`);
+    const map = entry.tools ?? {};
+    if (!map || typeof map !== 'object' || Array.isArray(map) || Object.keys(map).length > 64 ||
+        Object.entries(map).some(([from, to]) => !identifier.test(from) || typeof to !== 'string' || !identifier.test(to)))
+      throw new Error(`Invalid tools map for retired pack ${entry.id}`);
   }
 }
 
-// Every name a retired entry maps to exists in the pack it merged into.
+// Every tool a retired entry maps to exists in the pack it merged into.
 export function checkRetiredTarget(entry, manifest) {
-  const tools = new Set(Object.values(manifest.capabilities).flatMap(capability => (capability.tools ?? []).map(tool => tool.name)));
-  for (const to of Object.values(entry.capabilities ?? {}))
-    if (!Object.hasOwn(manifest.capabilities, to)) throw new Error(`Retired pack ${entry.id}: ${entry.into} has no capability ${to}`);
+  const tools = new Set((manifest.tools ?? []).map(tool => tool.name));
   for (const to of Object.values(entry.tools ?? {}))
     if (!tools.has(to)) throw new Error(`Retired pack ${entry.id}: ${entry.into} has no tool ${to}`);
 }
@@ -128,6 +123,57 @@ export async function validateTree(root) {
   await walk(root, 0);
 }
 
+const envName = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const credName = /^[A-Z][A-Z0-9_]{0,63}$/;
+const credUse = /\{\{cred:([A-Z][A-Z0-9_]*)\}\}/g;
+// A tool whose name says it changes something outside the conversation cannot be a read.
+const writeVerb = /(^|_)(create|save|send|publish|delete|remove|unshare|upload|write|edit|update|append|post|deploy|revoke|mint|setup|export|download|convert|render|generate|synthesize|compose|assemble|prepare|action|manage|configure|record|handoff|upsert|mark|scan|queue|react|expert|stimulus|control)(_|$)/;
+
+// The model a pack must satisfy beyond the schema: skills and tools are unique and
+// exist, every executable tool declares its mode, every {{cred:NAME}} is declared in
+// needs.credentials and every declared one is used, and tools never set run.env.
+export function checkPackModel(manifest, expectedID) {
+  const problems = [];
+  const skills = new Set(), tools = new Set(), used = new Set();
+  for (const skill of manifest.skills ?? []) {
+    const name = skill.name || `${expectedID}_${posix.basename(skill.file, posix.extname(skill.file))}`;
+    if (!identifier.test(name) || skills.has(name)) problems.push(`Invalid or duplicate skill: ${name}`);
+    skills.add(name);
+  }
+  for (const tool of manifest.tools ?? []) {
+    if (!identifier.test(tool.name) || tools.has(tool.name)) problems.push(`Invalid or duplicate tool: ${tool.name}`);
+    tools.add(tool.name);
+    const run = tool.run;
+    if (!run) continue;
+    if (!['read', 'write', 'repair'].includes(run.mode)) problems.push(`Tool ${tool.name} must declare run.mode read, write or repair`);
+    else if (run.mode === 'read' && writeVerb.test(tool.name)) problems.push(`Tool ${tool.name} is named like a change but declares run.mode read`);
+    if (!identifier.test(run.resource || `${expectedID}_${tool.name}`)) problems.push(`Tool ${tool.name} has an invalid resource`);
+    if (run.env?.length) problems.push(`Tool ${tool.name} sets run.env; inherited names belong to needs.env`);
+    for (const ref of Object.values(run.secret_env ?? {})) for (const match of ref.matchAll(credUse)) used.add(match[1]);
+  }
+  const needs = manifest.needs ?? {};
+  const declared = new Set(Object.keys(needs.credentials ?? {}));
+  for (const name of used) if (!declared.has(name)) problems.push(`Credential ${name} is used by a tool but not declared in needs.credentials`);
+  for (const [name, need] of Object.entries(needs.credentials ?? {})) {
+    if (!credName.test(name)) problems.push(`Invalid credential name: ${name}`);
+    if (!used.has(name)) problems.push(`Credential ${name} is declared but no tool reads {{cred:${name}}}`);
+    const from = need.from ?? 'operator';
+    if (!['operator', 'workspace', 'data_pool'].includes(from) && !(from.startsWith('env:') && envName.test(from.slice(4))))
+      problems.push(`Credential ${name} has an unknown source: ${from}`);
+    if (!need.title || !need.description) problems.push(`Credential ${name} needs a title and a description for the person who supplies it`);
+    if ([...(need.title ?? '')].length > 80 || [...(need.description ?? '')].length > 500) problems.push(`Credential ${name}: title is at most 80 and description at most 500 characters`);
+  }
+  for (const [index, name] of (needs.env ?? []).entries())
+    if (!envName.test(name) || needs.env.indexOf(name) !== index) problems.push(`Invalid or duplicate needs.env name: ${name}`);
+  const area = manifest.interface?.tool_area;
+  if (area) {
+    const byName = new Map((manifest.tools ?? []).map(tool => [tool.name, tool]));
+    if (area.view_tool && byName.get(area.view_tool)?.run?.mode !== 'read') problems.push(`Interface view_tool ${area.view_tool} must be a read tool of the pack`);
+    if (area.action_tool && !byName.has(area.action_tool)) problems.push(`Interface action_tool ${area.action_tool} is not a tool of the pack`);
+  }
+  if (problems.length) throw new Error(`Pack ${expectedID}: ${problems.join('; ')}`);
+}
+
 export async function validatePack(root, expectedID) {
   await validateTree(root);
   const raw = await readFile(join(root, 'pack.json'));
@@ -135,34 +181,17 @@ export async function validatePack(root, expectedID) {
   const manifest = JSON.parse(raw);
   if (!checkManifest(manifest)) throw new Error(`Invalid pack manifest: ${JSON.stringify(checkManifest.errors)}`);
   if (manifest.api_version !== 'soot/v1' || manifest.id !== expectedID) throw new Error(`Pack manifest id/version mismatch: ${expectedID}`);
-  if (!manifest.capabilities || Array.isArray(manifest.capabilities) || typeof manifest.capabilities !== 'object') throw new Error(`Invalid capabilities: ${expectedID}`);
-  for (const selector of manifest.use ?? []) {
-    const parts = selector.split('/');
-    if (parts.length > 2 || parts.some(part => !identifier.test(part)) ||
-        ((parts.length === 1 || parts[0] === expectedID) && !Object.hasOwn(manifest.capabilities, parts.at(-1))))
-      throw new Error(`Unknown or invalid recipe selector: ${selector}`);
+  for (const retired of ['capabilities', 'use']) if (retired in manifest) throw new Error(`Pack ${expectedID} has retired field ${retired}`);
+  checkPackModel(manifest, expectedID);
+  for (const skill of manifest.skills ?? []) {
+    safePath(skill.file);
+    const info = await lstat(join(root, skill.file));
+    if (!info.isFile() || info.size > 128 * 1024) throw new Error(`Missing/oversized skill: ${skill.file}`);
   }
-  for (const [name, capability] of Object.entries(manifest.capabilities)) {
-    if (!identifier.test(name) || !capability || typeof capability !== 'object') throw new Error(`Invalid capability: ${name}`);
-    const skills = new Set(), tools = new Set();
-    for (const skill of capability.skills ?? []) {
-      const skillName = skill.name || `${expectedID}_${posix.basename(skill.file, posix.extname(skill.file))}`;
-      if (!identifier.test(skillName) || skills.has(skillName)) throw new Error(`Invalid or duplicate skill: ${skillName}`);
-      skills.add(skillName);
-      safePath(skill.file);
-      const info = await lstat(join(root, skill.file));
-      if (!info.isFile() || info.size > 128 * 1024) throw new Error(`Missing/oversized skill: ${skill.file}`);
-    }
-    for (const tool of capability.tools ?? []) {
-      if (!identifier.test(tool.name) || tools.has(tool.name)) throw new Error(`Invalid or duplicate tool: ${tool.name}`);
-      tools.add(tool.name);
-      if (tool.run) {
-        safePath(tool.run.program);
-        if (tool.run.directory && tool.run.directory !== '.') safePath(tool.run.directory);
-        if (!['read', 'write', 'repair'].includes(tool.run.mode || 'read') || !identifier.test(tool.run.resource || `${expectedID}_${tool.name}`))
-          throw new Error(`Executable tool ${tool.name} needs a mode and resource`);
-      }
-    }
+  for (const tool of manifest.tools ?? []) {
+    if (!tool.run) continue;
+    safePath(tool.run.program);
+    if (tool.run.directory && tool.run.directory !== '.') safePath(tool.run.directory);
   }
   return manifest;
 }

@@ -1,5 +1,5 @@
 {
-  "packs_dir": "packs.d",
+  "packs_dir": "packs",
   "listen": "127.0.0.1:7788",
   "data_dir": "data",
   "workers": 2,

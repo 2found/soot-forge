@@ -25,4 +25,4 @@ covering the intended table and adjust it as the table grows. No invented row
 number or duplicate replay. Persisted pending/unknown action receipts block
 automatic retries after timeout, Stop or restart. Inspect the real sheet before
 submitting a new action ID. Apps Script, permissions and arbitrary batch requests
-are not implied capabilities. Use selected Drive export to obtain XLSX/PDF/CSV.
+are not implied. Use selected Drive export to obtain XLSX/PDF/CSV.

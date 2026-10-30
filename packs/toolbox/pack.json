@@ -1,60 +1,36 @@
 {
   "api_version": "soot/v1",
   "id": "toolbox",
-  "use": [
-    "read",
-    "research"
-  ],
-  "capabilities": {
-    "read": {
-      "tools": [
-        {
-          "name": "read_file"
-        },
-        {
-          "name": "grep"
-        },
-        {
-          "name": "glob"
-        }
-      ]
+  "tools": [
+    {
+      "name": "read_file"
     },
-    "write": {
-      "tools": [
-        {
-          "name": "write_file"
-        },
-        {
-          "name": "edit_file"
-        },
-        {
-          "name": "edit_lines"
-        }
-      ]
+    {
+      "name": "grep"
     },
-    "research": {
-      "tools": [
-        {
-          "name": "web_fetch"
-        },
-        {
-          "name": "web_search"
-        }
-      ]
+    {
+      "name": "glob"
     },
-    "http": {
-      "tools": [
-        {
-          "name": "http_request"
-        }
-      ]
+    {
+      "name": "write_file"
     },
-    "shell": {
-      "tools": [
-        {
-          "name": "run_shell"
-        }
-      ]
+    {
+      "name": "edit_file"
+    },
+    {
+      "name": "edit_lines"
+    },
+    {
+      "name": "web_fetch"
+    },
+    {
+      "name": "web_search"
+    },
+    {
+      "name": "http_request"
+    },
+    {
+      "name": "run_shell"
     }
-  }
+  ]
 }

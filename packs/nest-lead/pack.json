@@ -1,0 +1,540 @@
+{
+  "api_version": "soot/v1",
+  "id": "nest-lead",
+  "name": "Nest lead",
+  "description": "Kamaji's authority: change this Nest's Soots, schedules, teams, approvals, data access and model tiers, with person approval for what is not the lead's to decide alone.",
+  "skills": [
+    {
+      "name": "nest-lead",
+      "description": "Act as Kamaji, the person's lead in Nest who leads every team. Load it first for a message that starts nest:first-run (greet in one short message, call no tool, read nothing) or nest:morning-brief (write the brief). Otherwise split work across the team as tasks (task), keep shared tables, memory and files at the right level (workspace, team, Soot), honor @Tên addressing one member, report once at the end, build a team from a template (one approval) and run each team cycle (brief, tasks, one summary), and make or propose new Soots, teams and schedules, changes to a Soot, a job taught to a Soot and approval changes (as draft links the person saves when they want to see them first), and walk the person through connecting Telegram or Discord (load it before answering: the steps, then the Kênh chat link; no read).",
+      "file": "skills/nest-lead.md"
+    },
+    {
+      "name": "nest-manage",
+      "description": "Change this Nest's settings yourself as Kamaji, its lead: Soots, schedules, teams (built from a template in one approval), approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, access grants and chat channel pairings; report once with a link and Hoàn tác.",
+      "file": "skills/nest-manage.md"
+    }
+  ],
+  "tools": [
+    {
+      "name": "manage",
+      "title": "Đổi cài đặt Nest",
+      "description": "Read and change this Nest's settings as Kamaji, its lead: Soots, schedules, teams, tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "read",
+              "soot.save",
+              "soot.delete",
+              "schedule.save",
+              "schedule.delete",
+              "templates.list",
+              "group.create",
+              "group.policy.create",
+              "group.policy.save",
+              "group.policy.delete",
+              "approval.policy",
+              "soot.data_pool",
+              "soot.host_packs",
+              "pack.grant",
+              "tier.save",
+              "tier.delete",
+              "client.create",
+              "client.save",
+              "client.enable",
+              "client.disable",
+              "client.key.rotate",
+              "client.delete",
+              "soot.improve",
+              "updates.status",
+              "updates.apply",
+              "updates.policy",
+              "usage.read",
+              "budget.save",
+              "access.grant",
+              "access.revoke",
+              "channel.status",
+              "channel.unpair",
+              "undo"
+            ],
+            "description": "read (the default) lists Soots, schedules, teams, gated tools and model tiers with the revision to pass back; id reads one Soot with its Markdown. updates.status, usage.read, channel.status and templates.list only read. undo reverses an earlier change named by undo."
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "A fresh id for each change. Reuse it only to retry the same input after a lost reply, or to send a change refused for approval to manage_gated; after any other refusal use a new id."
+          },
+          "revision": {
+            "type": "string",
+            "description": "The revision from your last read. If settings changed since, the change is refused: read again and redo it."
+          },
+          "id": {
+            "type": "string",
+            "description": "The Soot, schedule, team, tool, tier or website client the change is about. Empty with soot.save creates a Soot."
+          },
+          "changes": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "soot.save: only the fields to change; name, description, mascot, avatar, tier, packs (pack refs such as \"office\" or \"data-pool:read\"), soul, mission. A new Soot needs name, mission and soul."
+          },
+          "schedule": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "schedule.save: {soot, name, text, every, at, timezone, group, paused}; every like 24h, at like 08:00."
+          },
+          "approval": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "operator",
+              "default"
+            ],
+            "description": "approval.policy for tool id: operator waits for the person, auto runs alone, default follows its Pack."
+          },
+          "data_pool": {
+            "type": "boolean",
+            "description": "soot.data_pool: the host's shared data pool on or off for Soot id."
+          },
+          "host_pack": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "granted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "ref",
+              "granted"
+            ],
+            "additionalProperties": false,
+            "description": "soot.host_packs: answer a source Soot's request for a host pack; ref is the pack (\"browser-use\" or \"data-pool:read\")."
+          },
+          "pack_grant": {
+            "type": "object",
+            "properties": {
+              "pack": {
+                "type": "string"
+              },
+              "granted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "pack",
+              "granted"
+            ],
+            "additionalProperties": false,
+            "description": "pack.grant: grant (true) or withdraw (false) what an installed pack declares it needs from this host — its credentials, the workspace folder, env variables. Granting always asks the person."
+          },
+          "group": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "group.create: {template, name, title, profile, brief, binding_files}; template from templates.list, name the team's short id, title what the person calls it, profile one of the template's profiles, brief the answers by input id."
+          },
+          "team": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "group.policy.create or save: {name, description, entries, members}; members maps Soot ids to {}."
+          },
+          "model": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "tier.save: the tier as read, with only what you mean to change. tier.delete takes only id."
+          },
+          "client": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "client.create or client.save: {soots, origins, limits, widget}; only what changes. Never a key."
+          },
+          "improve": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "soot.improve: {schedule: {every, at, budget, paused}}; a null schedule switches improvement off."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pack",
+              "software",
+              "general",
+              "team"
+            ],
+            "description": "updates.apply: the kind of the update item, as updates.status names it; its id goes in id."
+          },
+          "update_policy": {
+            "type": "object",
+            "properties": {
+              "general": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "manual"
+                ]
+              },
+              "packs": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "manual"
+                ]
+              },
+              "teams": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "manual"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "description": "updates.policy: only the kinds that change; auto applies by itself, manual waits for the person."
+          },
+          "budget": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "budget.save: {daily_tokens, max_run_tokens} for Soot id; only what changes."
+          },
+          "channel": {
+            "type": "object",
+            "properties": {
+              "binding": {
+                "type": "string"
+              },
+              "pairing": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "binding",
+              "pairing"
+            ],
+            "additionalProperties": false,
+            "description": "channel.unpair: {binding, pairing} exactly as channel.status lists them. Never a bot token."
+          },
+          "access": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string",
+                "description": "soot:<id> or team:<id>: who gets it."
+              },
+              "scope": {
+                "type": "string",
+                "description": "workspace, team:<id> or soot:<id>: the level it reaches."
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "data",
+                    "memory",
+                    "files"
+                  ]
+                },
+                "description": "access.grant: the whole list for this subject and level; it replaces what they had there."
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write"
+                ]
+              }
+            },
+            "required": [
+              "subject",
+              "scope"
+            ],
+            "additionalProperties": false,
+            "description": "access.grant or access.revoke: who reaches the tables (data), memory and files of a level. read returns the current grants under access."
+          },
+          "undo": {
+            "type": "string",
+            "description": "With action undo: the request_id of the change to reverse."
+          }
+        },
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "manage",
+          "--config",
+          "../../deployment.json"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "soot_configuration",
+        "timeout": "30s"
+      }
+    },
+    {
+      "name": "manage_gated",
+      "title": "Đổi cài đặt quan trọng của Nest",
+      "description": "The same change as manage, held for the person's approval in Cần bạn with a preview of exactly what changes. Use it when manage said the change needs approval, or when you already know it is one only the person approves (the list in nest-manage): then skip manage and send it here.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "read",
+              "soot.save",
+              "soot.delete",
+              "schedule.save",
+              "schedule.delete",
+              "templates.list",
+              "group.create",
+              "group.policy.create",
+              "group.policy.save",
+              "group.policy.delete",
+              "approval.policy",
+              "soot.data_pool",
+              "soot.host_packs",
+              "pack.grant",
+              "tier.save",
+              "tier.delete",
+              "client.create",
+              "client.save",
+              "client.enable",
+              "client.disable",
+              "client.key.rotate",
+              "client.delete",
+              "soot.improve",
+              "updates.status",
+              "updates.apply",
+              "updates.policy",
+              "usage.read",
+              "budget.save",
+              "access.grant",
+              "access.revoke",
+              "channel.status",
+              "channel.unpair",
+              "undo"
+            ],
+            "description": "read (the default) lists Soots, schedules, teams, gated tools and model tiers with the revision to pass back; id reads one Soot with its Markdown. updates.status, usage.read, channel.status and templates.list only read. undo reverses an earlier change named by undo."
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "A fresh id for each change. Reuse it only to retry the same input after a lost reply, or to send a change refused for approval to manage_gated; after any other refusal use a new id."
+          },
+          "revision": {
+            "type": "string",
+            "description": "The revision from your last read. If settings changed since, the change is refused: read again and redo it."
+          },
+          "id": {
+            "type": "string",
+            "description": "The Soot, schedule, team, tool, tier or website client the change is about. Empty with soot.save creates a Soot."
+          },
+          "changes": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "soot.save: only the fields to change; name, description, mascot, avatar, tier, packs (pack refs such as \"office\" or \"data-pool:read\"), soul, mission. A new Soot needs name, mission and soul."
+          },
+          "schedule": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "schedule.save: {soot, name, text, every, at, timezone, group, paused}; every like 24h, at like 08:00."
+          },
+          "approval": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "operator",
+              "default"
+            ],
+            "description": "approval.policy for tool id: operator waits for the person, auto runs alone, default follows its Pack."
+          },
+          "data_pool": {
+            "type": "boolean",
+            "description": "soot.data_pool: the host's shared data pool on or off for Soot id."
+          },
+          "host_pack": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "granted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "ref",
+              "granted"
+            ],
+            "additionalProperties": false,
+            "description": "soot.host_packs: answer a source Soot's request for a host pack; ref is the pack (\"browser-use\" or \"data-pool:read\")."
+          },
+          "pack_grant": {
+            "type": "object",
+            "properties": {
+              "pack": {
+                "type": "string"
+              },
+              "granted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "pack",
+              "granted"
+            ],
+            "additionalProperties": false,
+            "description": "pack.grant: grant (true) or withdraw (false) what an installed pack declares it needs from this host — its credentials, the workspace folder, env variables. Granting always asks the person."
+          },
+          "group": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "group.create: {template, name, title, profile, brief, binding_files}; template from templates.list, name the team's short id, title what the person calls it, profile one of the template's profiles, brief the answers by input id."
+          },
+          "team": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "group.policy.create or save: {name, description, entries, members}; members maps Soot ids to {}."
+          },
+          "model": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "tier.save: the tier as read, with only what you mean to change. tier.delete takes only id."
+          },
+          "client": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "client.create or client.save: {soots, origins, limits, widget}; only what changes. Never a key."
+          },
+          "improve": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "soot.improve: {schedule: {every, at, budget, paused}}; a null schedule switches improvement off."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pack",
+              "software",
+              "general",
+              "team"
+            ],
+            "description": "updates.apply: the kind of the update item, as updates.status names it; its id goes in id."
+          },
+          "update_policy": {
+            "type": "object",
+            "properties": {
+              "general": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "manual"
+                ]
+              },
+              "packs": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "manual"
+                ]
+              },
+              "teams": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "manual"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "description": "updates.policy: only the kinds that change; auto applies by itself, manual waits for the person."
+          },
+          "budget": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "budget.save: {daily_tokens, max_run_tokens} for Soot id; only what changes."
+          },
+          "channel": {
+            "type": "object",
+            "properties": {
+              "binding": {
+                "type": "string"
+              },
+              "pairing": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "binding",
+              "pairing"
+            ],
+            "additionalProperties": false,
+            "description": "channel.unpair: {binding, pairing} exactly as channel.status lists them. Never a bot token."
+          },
+          "access": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string",
+                "description": "soot:<id> or team:<id>: who gets it."
+              },
+              "scope": {
+                "type": "string",
+                "description": "workspace, team:<id> or soot:<id>: the level it reaches."
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "data",
+                    "memory",
+                    "files"
+                  ]
+                },
+                "description": "access.grant: the whole list for this subject and level; it replaces what they had there."
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write"
+                ]
+              }
+            },
+            "required": [
+              "subject",
+              "scope"
+            ],
+            "additionalProperties": false,
+            "description": "access.grant or access.revoke: who reaches the tables (data), memory and files of a level. read returns the current grants under access."
+          },
+          "undo": {
+            "type": "string",
+            "description": "With action undo: the request_id of the change to reverse."
+          }
+        },
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "manage",
+          "--config",
+          "../../deployment.json"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "soot_configuration",
+        "timeout": "30s",
+        "approval": "operator",
+        "preflight": true
+      }
+    }
+  ]
+}

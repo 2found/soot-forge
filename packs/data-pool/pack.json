@@ -1,481 +1,417 @@
 {
   "api_version": "soot/v1",
   "id": "data-pool",
-  "use": [],
-  "capabilities": {
-    "read": {
-      "skills": [
-        {
-          "name": "data-pool-read",
-          "file": "skills/read.md",
-          "description": "Use shared company data with citations instead of recrawling sources."
-        }
-      ],
-      "tools": [
-        {
-          "name": "pools",
-          "description": "Discover accessible collections and subcollections in this workspace. Returns paths and paginated results. Existing pool IDs are collection IDs.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "pool": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "after": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "limit": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 20
-              },
-              "parent": {
-                "type": "string",
-                "description": "List immediate subcollections of this ID; empty string lists roots. Omit to discover all accessible collections."
-              }
-            },
-            "required": [],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "pools"],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "data_pool",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "DATA_POOL": "{{cred:DATA_POOL}}"
-            }
-          }
-        },
-        {
-          "name": "query",
-          "description": "Read/search collection documents, or inspect bounded conversation/run references. Permissions are always rechecked.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "action": {
-                "type": "string",
-                "enum": [
-                  "list",
-                  "read",
-                  "search",
-                  "references"
-                ]
-              },
-              "pool": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$",
-                "description": "Collection ID, required for list/read/search; optional collection filter for references."
-              },
-              "id": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "ids": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-                },
-                "maxItems": 8,
-                "description": "read: up to 8 document IDs read in one call (with id, if set), e.g. the documents a list returned. Each comes back as its first page; missing names IDs not in the collection."
-              },
-              "query": {
-                "type": "string",
-                "maxLength": 512
-              },
-              "after": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "limit": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 8192,
-                "description": "list/search: results per page, 1-20 (default 10). read: bytes of content per document, 4-8192 (default 4096); several documents share 48 KiB."
-              },
-              "offset": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 131072,
-                "description": "read: byte offset into one document, start at 0 and pass next_offset. search: result offset up to 980. list pages with after instead."
-              },
-              "conversation_id": {
-                "type": "string",
-                "maxLength": 256,
-                "description": "For references: host conversation ID. Returns your own permitted read/write references; workspace managers can inspect team references."
-              },
-              "run_id": {
-                "type": "string",
-                "maxLength": 256,
-                "description": "Optional run filter for references."
-              }
-            },
-            "required": [
-              "action"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "query"],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "data_pool",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "DATA_POOL": "{{cred:DATA_POOL}}"
-            },
-            "resource_fields": [
-              "@soot",
-              "pool",
-              "id",
-              "query"
-            ]
-          }
-        },
-        {
-          "name": "status",
-          "description": "Inspect a saved request receipt without resubmitting it. A pool manager can specify the original owner to inspect an interrupted or revoked writer.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "request_id": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "owner": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              }
-            },
-            "required": [
-              "request_id"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "status"],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "data_pool",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "DATA_POOL": "{{cred:DATA_POOL}}"
-            }
-          }
-        }
-      ]
+  "skills": [
+    {
+      "name": "data-pool-read",
+      "file": "skills/read.md",
+      "description": "Use shared company data with citations instead of recrawling sources."
     },
-    "write": {
-      "skills": [
-        {
-          "name": "data-pool-write",
-          "file": "skills/write.md",
-          "description": "Import or update explicitly supplied company data and inspect stable request receipts."
-        }
-      ],
-      "tools": [
-        {
-          "name": "write",
-          "description": "Append independent entries quickly (duplicate content allowed, omit id); or upsert/remove a stable document. A request_id identifies one intent; retry with the same ID. PostgreSQL enforces grants, revisions and per-document serialization.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "action": {
-                "type": "string",
-                "enum": [
-                  "upsert",
-                  "remove",
-                  "append"
-                ]
-              },
-              "pool": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$",
-                "description": "Collection ID. Omit only to use the operator-configured default for this Soot; this never grants access."
-              },
-              "id": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "request_id": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "title": {
-                "type": "string",
-                "maxLength": 256
-              },
-              "content": {
-                "type": "string",
-                "maxLength": 12288
-              },
-              "source": {
-                "type": "string",
-                "maxLength": 2048,
-                "description": "Where written content came from, as a URI (https://… or soot://…). Provenance only; nothing is fetched."
-              },
-              "url": {
-                "type": "string",
-                "maxLength": 2048,
-                "description": "Import: fetch this public page and store its text instead of content. Omit when you supply content."
-              },
-              "tags": {
-                "type": "array",
-                "maxItems": 16,
-                "items": {
-                  "type": "string",
-                  "maxLength": 64
-                }
-              },
-              "generation": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 64
-              },
-              "expected_revision": {
-                "type": "integer",
-                "minimum": 0,
-                "description": "Revision you last read, to refuse a stale overwrite. Omit to create a new document or to overwrite regardless."
-              }
-            },
-            "required": [
-              "action",
-              "request_id"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "write"],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "data_pool",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "DATA_POOL": "{{cred:DATA_POOL}}"
-            },
-            "resource_fields": [
-              "@soot",
-              "pool",
-              "id",
-              "request_id"
-            ]
-          }
-        }
-      ]
+    {
+      "name": "data-pool-write",
+      "file": "skills/write.md",
+      "description": "Import or update explicitly supplied company data and inspect stable request receipts."
     },
-    "manage": {
-      "skills": [
-        {
-          "name": "data-pool-manage",
-          "file": "skills/manage.md",
-          "description": "Manage shared company pools and explicit access for bound Soots."
-        }
-      ],
-      "tools": [
-        {
-          "name": "manage",
-          "description": "Manage collections: create, rename/move, set inheritance, grant/revoke a bound Soot, group or the whole workspace (group \"@workspace\"). Removing a collection with children is rejected.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "action": {
-                "type": "string",
-                "enum": [
-                  "pool_create",
-                  "pool_remove",
-                  "grant",
-                  "revoke",
-                  "pool_update"
-                ]
-              },
-              "pool": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "request_id": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "name": {
-                "type": "string",
-                "maxLength": 128
-              },
-              "soot": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
-              },
-              "level": {
-                "type": "string",
-                "enum": [
-                  "read",
-                  "write",
-                  "manage"
-                ]
-              },
-              "generation": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 64
-              },
-              "expected_policy_revision": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "parent": {
-                "type": "string",
-                "description": "Parent collection ID; empty string creates or moves to workspace root."
-              },
-              "inherit": {
-                "type": "boolean",
-                "description": "Inherit access from parent; false is a private boundary. New collections default true; legacy roots retain old privacy."
-              },
-              "group": {
-                "type": "string",
-                "description": "Operator-bound group ID for grant/revoke, mutually exclusive with soot; \"@workspace\" targets every bound Soot (read or write only). Cannot create groups or change their membership."
-              },
-              "scope": {
-                "type": "string",
-                "enum": [
-                  "own",
-                  "group",
-                  "workspace"
-                ],
-                "description": "pool_create audience shortcut: own grants only the creator; group requires subject, the bound group; workspace grants every bound Soot (grant subject @workspace). Group/workspace use level read (default) or write. Defaults to own."
-              },
-              "subject": {
-                "type": "string",
-                "description": "Bound group ID when scope is group."
-              }
-            },
-            "required": [
-              "action",
-              "pool",
-              "request_id"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "manage"],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "data_pool",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "DATA_POOL": "{{cred:DATA_POOL}}"
-            }
-          }
-        }
-      ]
-    },
-    "configure": {
-      "skills": [],
-      "tools": [
-        {
-          "name": "view",
-          "description": "Human operator data-pool view. Requires an authenticated Nest interface; unavailable to model calls.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "overview",
-                  "pools",
-                  "query",
-                  "activity",
-                  "status"
-                ]
-              },
-              "input": {
-                "type": "object"
-              }
-            },
-            "required": [
-              "kind",
-              "input"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "view"],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "data_pool",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "DATA_POOL": "{{cred:DATA_POOL_UI}}"
-            }
-          }
-        },
-        {
-          "name": "action",
-          "description": "Human operator data-pool action. Requires an authenticated Nest interface; unavailable to model calls.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "write",
-                  "manage"
-                ]
-              },
-              "input": {
-                "type": "object"
-              }
-            },
-            "required": [
-              "kind",
-              "input"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "soot",
-            "args": ["tool-forward", "--binding-env", "DATA_POOL", "--direct", "bin/soot-data-pool", "--", "action"],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "data_pool",
-            "timeout": "20s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "DATA_POOL": "{{cred:DATA_POOL_UI}}"
-            }
-          }
-        }
-      ]
+    {
+      "name": "data-pool-manage",
+      "file": "skills/manage.md",
+      "description": "Manage shared company pools and explicit access for bound Soots."
     }
-  },
-  "interface": {
-    "tool_area": {
-      "id": "data",
-      "label": "Data pools",
-      "kind": "data-pool",
-      "access": "operator",
-      "view_tool": "view",
-      "action_tool": "action",
-      "width": 640,
-      "min_width": 320,
-      "max_width": 1200,
-      "aspect_width": 4,
-      "aspect_height": 3,
-      "resizable": true
+  ],
+  "tools": [
+    {
+      "name": "pools",
+      "description": "Discover accessible collections and subcollections in this workspace. Returns paths and paginated results. Existing pool IDs are collection IDs.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pool": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "after": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "parent": {
+            "type": "string",
+            "description": "List immediate subcollections of this ID; empty string lists roots. Omit to discover all accessible collections."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "DATA_POOL",
+          "--direct",
+          "bin/soot-data-pool",
+          "--",
+          "pools"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "data_pool",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "DATA_POOL": "{{cred:DATA_POOL}}"
+        }
+      }
+    },
+    {
+      "name": "query",
+      "description": "Read/search collection documents, or inspect bounded conversation/run references. Permissions are always rechecked.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "read",
+              "search",
+              "references"
+            ]
+          },
+          "pool": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$",
+            "description": "Collection ID, required for list/read/search; optional collection filter for references."
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+            },
+            "maxItems": 8,
+            "description": "read: up to 8 document IDs read in one call (with id, if set), e.g. the documents a list returned. Each comes back as its first page; missing names IDs not in the collection."
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "after": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8192,
+            "description": "list/search: results per page, 1-20 (default 10). read: bytes of content per document, 4-8192 (default 4096); several documents share 48 KiB."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 131072,
+            "description": "read: byte offset into one document, start at 0 and pass next_offset. search: result offset up to 980. list pages with after instead."
+          },
+          "conversation_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "For references: host conversation ID. Returns your own permitted read/write references; workspace managers can inspect team references."
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional run filter for references."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "DATA_POOL",
+          "--direct",
+          "bin/soot-data-pool",
+          "--",
+          "query"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "data_pool",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "DATA_POOL": "{{cred:DATA_POOL}}"
+        },
+        "resource_fields": [
+          "@soot",
+          "pool",
+          "id",
+          "query"
+        ]
+      }
+    },
+    {
+      "name": "status",
+      "description": "Inspect a saved request receipt without resubmitting it. A pool manager can specify the original owner to inspect an interrupted or revoked writer.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "DATA_POOL",
+          "--direct",
+          "bin/soot-data-pool",
+          "--",
+          "status"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "data_pool",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "DATA_POOL": "{{cred:DATA_POOL}}"
+        }
+      }
+    },
+    {
+      "name": "write",
+      "description": "Append independent entries quickly (duplicate content allowed, omit id); or upsert/remove a stable document. A request_id identifies one intent; retry with the same ID. PostgreSQL enforces grants, revisions and per-document serialization.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "upsert",
+              "remove",
+              "append"
+            ]
+          },
+          "pool": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$",
+            "description": "Collection ID. Omit only to use the operator-configured default for this Soot; this never grants access."
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 12288
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Where written content came from, as a URI (https://… or soot://…). Provenance only; nothing is fetched."
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Import: fetch this public page and store its text instead of content. Omit when you supply content."
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "generation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Revision you last read, to refuse a stale overwrite. Omit to create a new document or to overwrite regardless."
+          }
+        },
+        "required": [
+          "action",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "DATA_POOL",
+          "--direct",
+          "bin/soot-data-pool",
+          "--",
+          "write"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "data_pool",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "DATA_POOL": "{{cred:DATA_POOL}}"
+        },
+        "resource_fields": [
+          "@soot",
+          "pool",
+          "id",
+          "request_id"
+        ]
+      }
+    },
+    {
+      "name": "manage",
+      "description": "Manage collections: create, rename/move, set inheritance, grant/revoke a bound Soot, group or the whole workspace (group \"@workspace\"). Removing a collection with children is rejected.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "pool_create",
+              "pool_remove",
+              "grant",
+              "revoke",
+              "pool_update"
+            ]
+          },
+          "pool": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "request_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "soot": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "manage"
+            ]
+          },
+          "generation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "expected_policy_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "parent": {
+            "type": "string",
+            "description": "Parent collection ID; empty string creates or moves to workspace root."
+          },
+          "inherit": {
+            "type": "boolean",
+            "description": "Inherit access from parent; false is a private boundary. New collections default true; legacy roots retain old privacy."
+          },
+          "group": {
+            "type": "string",
+            "description": "Operator-bound group ID for grant/revoke, mutually exclusive with soot; \"@workspace\" targets every bound Soot (read or write only). Cannot create groups or change their membership."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "own",
+              "group",
+              "workspace"
+            ],
+            "description": "pool_create audience shortcut: own grants only the creator; group requires subject, the bound group; workspace grants every bound Soot (grant subject @workspace). Group/workspace use level read (default) or write. Defaults to own."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Bound group ID when scope is group."
+          }
+        },
+        "required": [
+          "action",
+          "pool",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "DATA_POOL",
+          "--direct",
+          "bin/soot-data-pool",
+          "--",
+          "manage"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "data_pool",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "DATA_POOL": "{{cred:DATA_POOL}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "DATA_POOL": {
+        "title": "Kho dữ liệu chung",
+        "description": "Kết nối tới dịch vụ data-pool của máy chủ. Nest cấp khi bật Kho dữ liệu chung cho Soot; hoặc người vận hành gắn binding riêng cho từng Soot.",
+        "from": "data_pool"
+      }
     }
   }
 }

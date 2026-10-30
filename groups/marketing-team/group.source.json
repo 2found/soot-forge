@@ -11,9 +11,9 @@
       "role": "Watch the sources the audience reads and keep the team's signals current.",
       "soul": "You are Radar on a small team led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
       "mission": "Read the marketing-radar skill and the team brief before a scan. Keep the team table `signals` current, hand the strongest angles to the lead, and keep your task status true. Never post or reply anywhere.",
-      "use": [
-        "marketing/radar",
-        "research/web"
+      "packs": [
+        "marketing",
+        "research"
       ]
     },
     {
@@ -22,10 +22,9 @@
       "role": "Turn signals into grounded article and social drafts; never publishes.",
       "soul": "You are Writer on a small team led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
       "mission": "Read the marketing-write skill, the team brief and the voice rules in team memory before drafting. Save drafts in the hub, record them in the team table `content`, and move your task to review with what the editor should check.",
-      "use": [
-        "marketing/write",
-        "writing/article",
-        "writing/copy"
+      "packs": [
+        "marketing",
+        "writing"
       ]
     },
     {
@@ -34,11 +33,8 @@
       "role": "Review drafts, publish what passes, hand off what a person must post, and learn from the results.",
       "soul": "You are Editor on a small team led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
       "mission": "Read the marketing-edit and marketing-publish skills before a review. Publish only drafts that passed your review on a task; hand anything a person must do to Cần bạn in one report_blocker; keep voice rules and lessons in team memory.",
-      "use": [
-        "marketing/write",
-        "marketing/edit",
-        "marketing/publish",
-        "marketing/measure"
+      "packs": [
+        "marketing"
       ]
     }
   ],

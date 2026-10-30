@@ -15,207 +15,6 @@
         "null"
       ]
     },
-    "capabilities": {
-      "additionalProperties": {
-        "additionalProperties": false,
-        "properties": {
-          "skills": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "description": {
-                  "description": "Explain when the agent should use this skill. Optional in packs; required for inline Soot skills.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "file": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "file"
-              ],
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "tools": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "name": {
-                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-                  "type": "string"
-                },
-                "parameters": {
-                  "additionalProperties": {},
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "run": {
-                  "additionalProperties": false,
-                  "description": "Fixed executable settings; omitted selects a native host tool. Model input never changes argv/environment.",
-                  "properties": {
-                    "args": {
-                      "items": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "type": [
-                        "array",
-                        "null"
-                      ]
-                    },
-                    "description": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "directory": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "env": {
-                      "items": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "type": [
-                        "array",
-                        "null"
-                      ]
-                    },
-                    "max_output_bytes": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "mode": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "parameters": {
-                      "additionalProperties": {},
-                      "type": [
-                        "object",
-                        "null"
-                      ]
-                    },
-                    "preauthorized": {
-                      "type": [
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "program": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "resource": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "secret_env": {
-                      "additionalProperties": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "type": [
-                        "object",
-                        "null"
-                      ]
-                    },
-                    "stdin": {
-                      "description": "context delivers a soot/v1 tool.call envelope with model JSON input through stdin.",
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "timeout": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "verify_target": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "program"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "name"
-              ],
-              "type": [
-                "object",
-                "null"
-              ]
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          }
-        },
-        "type": [
-          "object",
-          "null"
-        ]
-      },
-      "maxProperties": 128,
-      "type": [
-        "object",
-        "null"
-      ]
-    },
     "description": {
       "type": [
         "string",
@@ -330,11 +129,295 @@
         "null"
       ]
     },
-    "use": {
-      "description": "Explicit recipe: local capability names or installed pack-id/capability-name. [] selects none; omitted/null provides no recipe.",
+    "needs": {
+      "additionalProperties": false,
+      "description": "What the pack's tools need from the host: credentials they reference as {{cred:NAME}} and env variables they inherit. Installing shows these; nothing reaches the tools until the operator enters or the host grants them.",
+      "properties": {
+        "credentials": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "maxLength": 240,
+                "type": "string"
+              },
+              "from": {
+                "description": "Where the value comes from: operator (default, entered per Soot in Nest), workspace (the Soot's workspace folder), data_pool (the shared pool connection), env:VAR (a host environment variable).",
+                "pattern": "^(operator|workspace|data_pool|env:[A-Za-z_][A-Za-z0-9_]*)$",
+                "type": "string"
+              },
+              "optional": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "title": {
+                "description": "What the operator is asked for in Nest, e.g. \"Khoá API Google\".",
+                "maxLength": 80,
+                "type": "string"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "env": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "skills": {
+      "description": "Skill files every Soot selecting this pack reads.",
       "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "description": "Explain when the agent should use this skill. Omitted: read from the file's YAML frontmatter description (Agent Skills SKILL.md); a pack skill without either gets a generic one. A file named SKILL.md takes its folder name.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "file"
+        ],
         "type": [
-          "string",
+          "object",
+          "null"
+        ]
+      },
+      "maxItems": 128,
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "tools": {
+      "description": "Tools the pack provides. A Soot selecting \"\u003cpack\u003e:read\" gets only those whose mode is read.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": {},
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "run": {
+            "additionalProperties": false,
+            "description": "Fixed executable settings; omitted selects a native host tool. Model input never changes argv/environment.",
+            "properties": {
+              "approval": {
+                "description": "operator holds each call until an operator approves that exact input in Nest (Cần duyệt); the approval runs the call once. Use for actions a human must sign off, such as publishing.",
+                "enum": [
+                  "operator"
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "args": {
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "background": {
+                "description": "The tool can be slow (a crawl, a build, a long upload): offer the Soot async, to start it as a background job and collect it with job_wait. Omitted: every call runs inline, and the Soot is not shown the option.",
+                "type": "boolean"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "directory": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "env": {
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "max_input_bytes": {
+                "description": "Raise the 16 KiB model-input limit (bytes of JSON input) for a tool whose parameters legitimately carry more text, such as a document draft. Up to 128 KiB; keep blobs out of tool input.",
+                "maximum": 131072,
+                "minimum": 1,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "max_output_bytes": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parameters": {
+                "additionalProperties": {},
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "preauthorized": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "preflight": {
+                "description": "With stdin context: the tool answers hook tool.preflight without changing anything. Exit 0 with a short summary (text, or JSON {\"preview\":\"…\"}); exit 1 refuses with a message. Used before filing an approval (summary on the approval card, a refusal goes to the Soot instead) and in place of the call in a dry run (soot eval, soot tool call), so evals see what a write tool would do.",
+                "type": "boolean"
+              },
+              "program": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "resource": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "resource_fields": {
+                "description": "Explicit top-level scalar input fields hashed into the effect resource key; @soot selects the host-bound Soot identity. Omitted keeps exclusive resource-wide admission. Use only when the backend independently enforces cross-key grants, consistency and uncertainty.",
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "maxItems": 4,
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "uniqueItems": true
+              },
+              "secret_env": {
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "stdin": {
+                "description": "context delivers a soot/v1 tool.call envelope with model JSON input through stdin.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timeout": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "description": "Short name of the action for people, shown in Nest approvals.",
+                "maxLength": 80,
+                "type": "string"
+              },
+              "verify_target": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "program"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "title": {
+            "description": "Short name of the action for people, shown in Nest approvals, e.g. \"Đăng bài lên CMS\". The description stays the model's instruction.",
+            "maxLength": 80,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": [
+          "object",
           "null"
         ]
       },

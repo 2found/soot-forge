@@ -1,6 +1,6 @@
 {
   "id": "helper",
-  "use": [
-    "research/web"
+  "packs": [
+    "research"
   ]
 }

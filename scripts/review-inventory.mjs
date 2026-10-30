@@ -15,13 +15,10 @@ try{
     const folder=await materialize(entry,root,work);
     const manifest=JSON.parse(await readFile(join(folder,'pack.json')));
     const archive=join(work,`${entry.id}.tar.gz`);await archivePack(folder,archive,entry.id);
-    const capabilities=[];
-    for(const [name,cap] of Object.entries(manifest.capabilities)){
-      let bytes=0;for(const skill of cap.skills??[])bytes+=(await stat(join(folder,skill.file))).size;
-      capabilities.push({name,skills:(cap.skills??[]).length,skill_bytes:bytes,tools:(cap.tools??[]).length});
-    }
+    let skillBytes=0;for(const skill of manifest.skills??[])skillBytes+=(await stat(join(folder,skill.file))).size;
+    const tools=manifest.tools??[],writeTools=tools.filter(tool=>tool.run?.mode&&tool.run.mode!=='read').length;
     const blob=await readFile(archive);
-    packs.push({id:entry.id,source:entry.source,archive_sha256:createHash('sha256').update(blob).digest('hex'),archive_bytes:blob.length,use:manifest.use??null,capabilities});
+    packs.push({id:entry.id,source:entry.source,archive_sha256:createHash('sha256').update(blob).digest('hex'),archive_bytes:blob.length,skills:(manifest.skills??[]).length,skill_bytes:skillBytes,tools:tools.length,write_tools:writeTools,needs:Object.keys(manifest.needs?.credentials??{})});
   }
   await writeFile(resolve(process.argv[3]),JSON.stringify({scope:'Deterministic materialized source archives; excludes fixtures/bin/data/dependency caches exactly as release packaging does',packs},null,2)+'\n');
   console.log(`Recorded ${packs.length} validated source archives`);

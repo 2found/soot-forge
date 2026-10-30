@@ -6,9 +6,8 @@
   "tier": "pro",
   "soul": "SOUL.md",
   "mission": "mission.md",
-  "packs": [],
-  "use": [
-    "acme-marketing/team"
+  "packs": [
+    "acme-marketing"
   ],
   "knowledge": [
     "acme-products"

@@ -1,0 +1,119 @@
+{
+  "api_version": "soot/v1",
+  "id": "data-pool-console",
+  "name": "Data pool console",
+  "description": "The human data-pool interface in Nest: view and manage pools through the operator binding.",
+  "tools": [
+    {
+      "name": "view",
+      "description": "Human operator data-pool view. Requires an authenticated Nest interface; unavailable to model calls.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "overview",
+              "pools",
+              "query",
+              "activity",
+              "status"
+            ]
+          },
+          "input": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind",
+          "input"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "DATA_POOL",
+          "--",
+          "view"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "data_pool",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "DATA_POOL": "{{cred:DATA_POOL_UI}}"
+        }
+      }
+    },
+    {
+      "name": "action",
+      "description": "Human operator data-pool action. Requires an authenticated Nest interface; unavailable to model calls.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "write",
+              "manage"
+            ]
+          },
+          "input": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind",
+          "input"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "soot",
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "DATA_POOL",
+          "--",
+          "action"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "data_pool",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "DATA_POOL": "{{cred:DATA_POOL_UI}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "DATA_POOL_UI": {
+        "title": "Khoá giao diện Data Pool",
+        "description": "Binding của người quản lý cho giao diện Data Pool trong Nest (khác khoá của Soot). Người vận hành tạo theo hướng dẫn trong README của pack."
+      }
+    }
+  },
+  "interface": {
+    "tool_area": {
+      "id": "data",
+      "label": "Data pools",
+      "kind": "data-pool",
+      "access": "operator",
+      "view_tool": "view",
+      "action_tool": "action",
+      "width": 640,
+      "min_width": 320,
+      "max_width": 1200,
+      "aspect_width": 4,
+      "aspect_height": 3,
+      "resizable": true
+    }
+  }
+}

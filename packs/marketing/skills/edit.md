@@ -32,7 +32,7 @@ draft. Update a rule rather than adding a near-copy of it.
 
 ## After review
 
-A draft that passes goes to publishing in the same turn when you hold the
-`publish` capability; otherwise comment "approved for publishing" with the ids
+A draft that passes goes to publishing in the same turn when your hub
+token may publish (`cms_publish`, `social_publish`); otherwise comment "approved for publishing" with the ids
 and revisions and move the task to `done`. Update each draft's row in the
 `content` table.

@@ -4,7 +4,7 @@ publish anywhere.
 
 1. Input is exactly one of:
    - `ref`: an `art_…` artifact ref holding the draft (preferred for long
-     drafts — create it via `artifacts/create` when granted).
+     drafts — create it via `artifacts_create` when available).
    - `text`: inline draft content, at most ~64 KiB. Never paste a longer
      draft; store it first.
    Supplying both or neither fails validation.

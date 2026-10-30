@@ -21,15 +21,15 @@ const env={...process.env,FORGE_REVIEW_TOKEN:randomBytes(32).toString('hex'),FOR
 const config=join(output,'deployment.json');
 await writeFile(join(output,'SOUL.md'),'You are a Soot. Exercise authorized local fixtures with real tools. Preserve exact bytes and report observed tool results. Do not invent success.\n');
 await writeFile(join(output,'MISSION.md'),'Verify installed artifact/writing/casework tools. No external writes or messages.\n');
-await writeFile(join(output,'review.json'),JSON.stringify({id:'review',soul:'SOUL.md',mission:'MISSION.md',use:['artifacts/read','artifacts/create','artifacts/remove','writing/export','casework/records'],model:{provider:args.provider,name:args.model,fallbacks:[]}}));
-await writeFile(config,JSON.stringify({listen:`127.0.0.1:${port}`,token_env:'FORGE_REVIEW_TOKEN',packs_dir:'packs.d',data_dir:'data',default_soot:'review',soots:['review.json'],credentials:{review:{ARTIFACT_STORE:{env:'FORGE_REVIEW_STORE',operations:['artifacts_read','artifacts_create','artifacts_remove','writing_export']},ARTIFACT_EXPORT:{env:'FORGE_REVIEW_EXPORT',operations:['artifacts_remove']}}},execution:{max_turns:16,max_tool_calls:24,tool_timeout:'30s',subagents:0,advisor:false,memory_consolidation:false,todo_nudges:0}}));
+await writeFile(join(output,'review.json'),JSON.stringify({id:'review',soul:'SOUL.md',mission:'MISSION.md',packs:['artifacts','writing','casework'],model:{provider:args.provider,name:args.model,fallbacks:[]}}));
+await writeFile(config,JSON.stringify({listen:`127.0.0.1:${port}`,token_env:'FORGE_REVIEW_TOKEN',packs_dir:'packs',data_dir:'data',default_soot:'review',soots:['review.json'],credentials:{review:{ARTIFACT_STORE:{env:'FORGE_REVIEW_STORE',operations:['artifacts_read','artifacts_create','artifacts_remove','writing_export']},ARTIFACT_EXPORT:{env:'FORGE_REVIEW_EXPORT',operations:['artifacts_remove']}}},execution:{max_turns:16,max_tool_calls:24,tool_timeout:'30s',subagents:0,advisor:false,memory_consolidation:false,todo_nudges:0}}));
 const invoke=(program,argv)=>execute(program,argv,{cwd:output,env,timeout:420000,maxBuffer:2*1024*1024});
 const catalog=await readCatalog(root);
 for(const [id,name] of [['artifacts','soot-artifacts'],['writing','soot-writing'],['casework','soot-case']]){
   const source=await materialize(catalog.packs.find(p=>p.id===id),root,join(output,'materialized'));
   const archive=join(output,`${id}.tar.gz`);await archivePack(source,archive,id);
   await writeFile(join(output,`${id}-install.json`),(await invoke(binary,['add',archive,'--config',config,'--json'])).stdout);
-  const installed=join(output,'packs.d',id);await mkdir(join(installed,'bin'),{recursive:true});
+  const installed=join(output,'packs',id);await mkdir(join(installed,'bin'),{recursive:true});
   // Explicit operator preparation after installation, never shipped binaries.
   await execute('go',['build','-o',join(installed,'bin',name),'.'],{cwd:join(installed,'runner'),env,timeout:120000,maxBuffer:1024*1024});
   console.log(`Installed and operator-built ${id}`);

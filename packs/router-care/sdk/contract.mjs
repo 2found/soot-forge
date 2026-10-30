@@ -17,6 +17,13 @@ export class ContractError extends Error {
         this.name = 'ContractError';
     }
 }
+function canonical(value) {
+    if (Array.isArray(value))
+        return '[' + value.map(canonical).join(',') + ']';
+    if (value !== null && typeof value === 'object')
+        return '{' + Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, item]) => JSON.stringify(key) + ':' + canonical(item)).join(',') + '}';
+    return JSON.stringify(value);
+}
 const bytes = (s) => new TextEncoder().encode(s).byteLength;
 const fail = (path, code) => { throw new ContractError(path, code); };
 const token = (s) => s.replaceAll('~', '~0').replaceAll('/', '~1');
@@ -30,17 +37,29 @@ function validate(value, schema, path = '', depth = 0) {
         fail(path, 'type');
     if ('const' in schema && schema.const !== value)
         fail(path, 'unsupported_value');
+    if (schema.enum && !schema.enum.includes(value))
+        fail(path, 'unsupported_value');
     if (typeof value === 'string') {
         if (schema.pattern && !new RegExp(schema.pattern).test(value))
             fail(path, 'pattern');
         if (schema.minLength !== undefined && [...value].length < schema.minLength)
             fail(path, 'min_length');
+        if (schema.maxLength !== undefined && [...value].length > schema.maxLength)
+            fail(path, 'max_length');
+    }
+    if (typeof value === 'number') {
+        if (schema.minimum !== undefined && value < schema.minimum)
+            fail(path, 'minimum');
+        if (schema.maximum !== undefined && value > schema.maximum)
+            fail(path, 'maximum');
     }
     if (Array.isArray(value)) {
         if (schema.minItems !== undefined && value.length < schema.minItems)
             fail(path, 'min_items');
         if (schema.maxItems !== undefined && value.length > schema.maxItems)
             fail(path, 'max_items');
+        if (schema.uniqueItems && new Set(value.map(canonical)).size !== value.length)
+            fail(path, 'unique_items');
         if (schema.items)
             value.forEach((item, i) => validate(item, schema.items, `${path}/${i}`, depth + 1));
     }

@@ -6,13 +6,15 @@ is, who it is for and how it sounds come from the team's brief (`team.brief` in
 team memory, asked by Kamaji when it builds the team) and from a product's own
 skill, never from this pack. Installing it grants nothing.
 
-| capability | for | tools |
+| skill | for | tools |
 | --- | --- | --- |
-| `radar` | the Soot that watches sources | `radar_feeds`, `radar_scan`, `radar_items`, `radar_mark` |
-| `write` | writers | `cms_list`, `cms_read`, `cms_save`, `social_channels`, `social_queue`, `social_list`, `social_update` |
-| `edit` | the editor (a skill: review, voice rules) | — |
-| `publish` | the editor, or a publisher | `cms_publish`, `social_publish`, `social_record` |
-| `measure` | the editor or the lead's review | `content_stats` |
+| `marketing-radar` | the Soot that watches sources | `radar_feeds`, `radar_scan`, `radar_items`, `radar_mark` |
+| `marketing-write` | writers | `cms_list`, `cms_read`, `cms_save`, `social_channels`, `social_queue`, `social_list`, `social_update` |
+| `marketing-edit` | the editor (a skill: review, voice rules) | — |
+| `marketing-publish` | the editor, or a publisher | `cms_publish`, `social_publish`, `social_record` |
+| `marketing-measure` | the editor or the lead's review | `content_stats` |
+
+A Soot selects the pack whole (`"packs": ["marketing"]`); `"marketing:read"` gives all skills and only the read-mode tools (`radar_feeds`, `radar_items`, `cms_list`, `cms_read`, `social_channels`, `social_list`, `content_stats`). The roles in the table are separated by each Soot's mission and by the hub token, not by selecting parts of the pack.
 
 The [Marketing team](../../groups/marketing-team/README.md) template puts these
 together: Kamaji leads, a radar, a writer and an editor work on tasks, keep
@@ -30,7 +32,7 @@ The contract is public: each tool's name, parameters and read/write mode are in
 its own hub privately; any service that answers the same `soot/v1` tool calls
 works.
 
-Bind `MARKETING_HUB` per Soot in Nest (Cài đặt → Kết nối) to
+`MARKETING_HUB` is an operator credential declared in `pack.json` `needs`: enter it per Soot in Nest (Cài đặt → Kết nối) as
 `{"service_url": "https://…/api/hub", "service_token": "…"}`. The token is the
 hub's client for this team: the hub decides which sites it writes for, which
 channels it queues and whether it may publish, so a writer's token cannot
@@ -49,12 +51,5 @@ person in **Cần bạn**. An uncertain post is never published again.
 `content_stats` counts what went out — articles, drafts, social posts by
 channel — and never who read it (`visits` is `null`). Reader numbers come from a
 product's own data pack when it has one.
-
-## Moving from 2found-hub or the ledger
-
-This replaces the earlier draft/plan/approval ledger (`MARKETING_TEAM`), which
-nothing used. A source that copied the `2found-hub` pack can grant
-`marketing/<capability>` instead and rename its `FOUND_HUB` binding to
-`MARKETING_HUB`; the hub contract is the same.
 
 Tests: `node --test packs/marketing/tests/*.test.mjs` (no network, no posts).

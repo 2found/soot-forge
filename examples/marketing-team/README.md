@@ -77,7 +77,7 @@ your own.
    the four missions, the `knowledge.sources` URL in `source.json` (a page
    listing your product pages; see [llms.txt](https://llmstxt.org)), and the
    schedules' `timezone`.
-3. **Install the capabilities** the Soots ask for in your host (Nest or a
+3. **Install the packs** the Soots borrow (`host_packs`) in your host (Nest or a
    server runtime):
 
    ```sh

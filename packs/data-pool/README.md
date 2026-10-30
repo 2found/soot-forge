@@ -44,7 +44,7 @@ operator runs PostgreSQL 16+ separately and supplies a DSN; the service or
 direct connector creates the trusted `pg_trgm` extension and the `data_pool`
 schema (including its tables and search indexes) on start. The Pack never
 installs or starts PostgreSQL, provisions a VM, or installs a service as a
-consequence of selecting capabilities. Use a dedicated database and role: the
+consequence of selecting the pack. Use a dedicated database and role: the
 role needs `CREATE` on the database (`pg_trgm` is a trusted extension), and one
 database holds one namespace. Service bindings require HTTPS or loopback HTTP;
 direct DSNs may use TLS anywhere, or cleartext only to loopback, a literal
@@ -65,11 +65,10 @@ soot add /tmp/data-pool.tar.gz
 soot check --show
 ```
 
-Installation grants no capability and starts no service. `use: []` is
-intentional. Once this source is published, Git folder installation uses
+Installation grants nothing and starts no service: no Soot selects the pack until you choose it. Once this source is published, Git folder installation uses
 `soot add 2found/soot-forge/packs/data-pool --ref <reviewed-commit>`.
 That channel does not include a built binary: build explicitly in the installed
-`packs.d/data-pool/runner` before selecting capabilities. No installer executes
+`packs/data-pool/runner` before selecting the pack. No installer executes
 dependency scripts. The runner builds independently without a sibling checkout.
 
 ## Connect local and VM Soots to one shared pool
@@ -117,7 +116,7 @@ environment bindings, for example `MANAGER_DATA_POOL`,
 `MARKETING_DATA_POOL` and `SUPPORT_DATA_POOL`, then map each Soot's `DATA_POOL`
 credential to its own variable and selected operations. Never bind a manager's
 token to a reader. The service validates token, Soot identity, operation scope
-and pool grant independently. Selecting a Pack capability still grants no pool.
+and pool grant independently. Selecting the Pack still grants no pool.
 Remote bindings cannot be mixed with the direct database fields below.
 
 ## Direct database binding on one host (optional)
@@ -128,7 +127,7 @@ hosts use the same database and namespace. Do not point two independently
 managed namespaces at one database; use the shared service above for local + VM
 access.
 
-## Bind credentials and select capabilities
+## Bind credentials and select the pack
 
 Prepare a private JSON file outside Git, mode 0600, with this shape. Values below
 are placeholders, not working credentials:
@@ -168,13 +167,13 @@ starting the runtime:
 export COMPANY_DATA_POOL="$(cat /private/absolute/path/data-pool-binding.json)"
 ```
 
-Soot definition selections (or Nest's existing capability settings):
+Soot definition selections (or Nest's pack settings). The pack has the read, write and manage skills and tools in one; `:read` keeps the skills and only the read tools:
 
-| Soot | Explicit `use` selectors |
+| Soot | `packs` |
 | --- | --- |
-| data-manager | `data-pool/read`, `data-pool/write`, `data-pool/manage`; optionally `data-pool/configure` for Nest |
-| marketing, support, blog-writer | `data-pool/read` |
-| optional curator | `data-pool/read`, `data-pool/write` |
+| data-manager | `data-pool`; add `data-pool-console` for Nest's Data area |
+| marketing, support, blog-writer | `data-pool:read` |
+| optional curator | `data-pool` (its pool grant stays at write) |
 
 Declare the curator in the binding if you use one. Pack selection exposes tools;
 pool access still requires a grant. Neither a reader nor a curator can grant
@@ -237,9 +236,9 @@ same document ID when the source changes. Identical content/metadata keeps its
 revision. Stable IDs let all Soots read the same document; answers cite it by
 title and source link, and show IDs or revisions only when asked.
 
-Tools available to selected capabilities:
+Tools of the pack (`:read` keeps the read rows):
 
-| Capability | Tool / input | Result |
+| Mode | Tool / input | Result |
 | --- | --- | --- |
 | read | `data-pool_pools`: optional pool; otherwise after/limit | Granted pools or detail; managers also see effective grants |
 | read | `data-pool_query`: action=list, pool, after/limit | Paginated metadata |
@@ -256,7 +255,7 @@ Tools available to selected capabilities:
 
 Permissions: read < write < manage. Only host managers create pools; a delegated
 pool manager can manage that pool and grant only host-bound Soot identities.
-Changing a pool grant does not modify host capabilities, credentials or shell
+Changing a pool grant does not modify host packs, credentials or shell
 rights. Readers receive no metadata, snippets, counts or receipt results from
 unauthorized pools. A successful revoke is serialized with reads and blocks
 subsequent calls. Each pool has a unique generation; reusing a deleted pool ID
@@ -328,16 +327,16 @@ idempotent. Credential files and the private DSN remain host-owned and need a
 separate private backup. For a managed service, use its snapshot facility with
 the same all-or-nothing rule.
 
-For a Pack upgrade, quiesce work, back up state, remove selections in Nest's
-existing settings/Soot definition, stop the runtime, preserve the old Pack,
+For a Pack upgrade, quiesce work, back up state, remove the selection in Nest's
+settings/Soot definition, stop the runtime, preserve the old Pack,
 and install the reviewed replacement with `soot add`. That command rejects
 duplicate IDs and never overwrites a Pack in place. Build its executable,
-validate with check, then reselect explicitly. The service creates or upgrades
+validate with check, then select the pack again. The service creates or upgrades
 its schema (`schema_version` 1) on start under an advisory lock; future versions
 must document any migration. PostgreSQL major-version upgrades follow
 PostgreSQL's `pg_upgrade`/dump-and-restore guidance, not this Pack's installer.
 
-To disable, deselect the capabilities in Nest settings or definitions. To
+To disable, deselect the pack in Nest settings or definitions. To
 uninstall, stop work/runtime, remove the now-unselected Pack directory and its
 credential bindings. Data remains stored; deleting data requires an explicit
 pool/document removal or dropping the dedicated database. There is currently no
@@ -389,14 +388,14 @@ quality evaluation is claimed.
 ## Human management in Nest
 
 Nest's **Data** area is independent of Chat and Settings. Installing this Pack
-does not make its management interface available. Explicitly select
-`data-pool/configure` for a conversational Soot that is a namespace manager in
+does not make its management interface available. Explicitly select the
+[`data-pool-console`](../data-pool-console/README.md) pack for a conversational Soot that is a namespace manager in
 the host binding. The interface requires the runtime's operator credential;
 fixed-user and trusted-backend conversation keys cannot use it. Opening Data
 creates a setup conversation without starting a model run.
 
-Bind a separate `DATA_POOL_UI` credential to **only** `data-pool_view` and
-`data-pool_action`. In shared mode the operator generates a separate token with
+Bind a separate `DATA_POOL_UI` credential to **only** `data-pool-console_view` and
+`data-pool-console_action`. In shared mode the operator generates a separate token with
 `--configurator data-manager` in the [service helper](docs/shared-service.md).
 The ordinary agent token retains its original scopes. Never distribute the UI
 binding to a reader or put it in client JavaScript. Direct mode uses the same
@@ -408,7 +407,7 @@ authoritative database binding with separate host operation scopes.
     "data-manager": {
       "DATA_POOL_UI": {
         "env": "MANAGER_DATA_POOL_UI",
-        "operations": ["data-pool_view", "data-pool_action"]
+        "operations": ["data-pool-console_view", "data-pool-console_action"]
       }
     }
   }

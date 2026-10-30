@@ -13,7 +13,7 @@ import tracemalloc
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location("atlas", ROOT / "packs/soot/tools/atlas.py")
+spec = importlib.util.spec_from_file_location("atlas", ROOT / "packs/soot-pet/tools/atlas.py")
 atlas = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(atlas)
 

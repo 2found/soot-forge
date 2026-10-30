@@ -1,7 +1,7 @@
 // Footprint of every bundled pack: what the repository tracks, what a release
 // archive installs, and how big the archive is. Use --json to save a baseline
 // before slimming and --compare to print the before/after table; --compare fails
-// when any pack, capability, tool or skill id disappeared.
+// when any pack, tool or skill id disappeared.
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -24,28 +24,22 @@ async function sizes(base, paths) {
 }
 const sum = values => values.reduce((total, value) => total + value, 0);
 
-// Capability, tool and skill ids as the validator names them.
+// Tool and skill ids as the validator names them.
 export function packIds(manifest) {
-  const capabilities = Object.keys(manifest.capabilities ?? {}).sort(), tools = [], skills = [];
-  for (const [name, capability] of Object.entries(manifest.capabilities ?? {})) {
-    for (const tool of capability.tools ?? []) tools.push(`${name}/${tool.name}`);
-    for (const skill of capability.skills ?? [])
-      skills.push(`${name}/${skill.name || `${manifest.id}_${posix.basename(skill.file, posix.extname(skill.file))}`}`);
-  }
-  return { capabilities, tools: tools.sort(), skills: skills.sort() };
+  const tools = (manifest.tools ?? []).map(tool => tool.name).sort();
+  const skills = (manifest.skills ?? []).map(skill => skill.name || `${manifest.id}_${posix.basename(skill.file, posix.extname(skill.file))}`).sort();
+  return { tools, skills };
 }
 
 // Files a manifest points at: skill files and tool programs/args that exist in the pack.
 export async function referencedFiles(manifest, directory) {
   const referenced = [];
-  for (const capability of Object.values(manifest.capabilities ?? {})) {
-    for (const skill of capability.skills ?? []) referenced.push(skill.file);
-    for (const tool of capability.tools ?? []) {
-      if (!tool.run) continue;
-      for (const candidate of [tool.run.program, ...(tool.run.args ?? [])]) {
-        const path = posix.join(tool.run.directory ?? '.', candidate);
-        if (await stat(join(directory, path)).then(info => info.isFile(), () => false)) referenced.push(path);
-      }
+  for (const skill of manifest.skills ?? []) referenced.push(skill.file);
+  for (const tool of manifest.tools ?? []) {
+    if (!tool.run) continue;
+    for (const candidate of [tool.run.program, ...(tool.run.args ?? [])]) {
+      const path = posix.join(tool.run.directory ?? '.', candidate);
+      if (await stat(join(directory, path)).then(info => info.isFile(), () => false)) referenced.push(path);
     }
   }
   return referenced;
@@ -99,7 +93,7 @@ export function removedIds(before, after) {
   for (const pack of before.packs) {
     const current = now.get(pack.id);
     if (!current) { removed.push(`pack ${pack.id}`); continue; }
-    for (const [kind, label] of [['capabilities', 'capability'], ['tools', 'tool'], ['skills', 'skill']])
+    for (const [kind, label] of [['tools', 'tool'], ['skills', 'skill']])
       for (const id of pack.ids[kind]) if (!current.ids[kind].includes(id)) removed.push(`${label} ${pack.id}:${id}`);
   }
   return removed;

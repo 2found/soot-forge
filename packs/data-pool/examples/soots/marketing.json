@@ -1,5 +1,7 @@
 {
   "id": "marketing",
   "name": "Marketing",
-  "use": []
+  "packs": [
+    "data-pool:read"
+  ]
 }

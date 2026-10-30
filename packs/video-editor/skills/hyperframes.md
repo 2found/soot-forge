@@ -27,7 +27,7 @@ OmniVoice WAVs are adopted as files, not an invented `--provider omnivoice`.
 The fixed `video-editor_hyperframes` tool accepts `lint`, `check`, `snapshot`
 (with times) or `render` (new output). `check` includes lint and browser audits;
 missing Chromium is a real blocker. It can create local QA snapshots/history,
-so this capability is classified as write.
+so this tool is classified as write.
 `check`/`lint` return a structured `passed` verdict and upstream findings,
 including failing audits. Repair those findings before rendering; a successful
 tool call with `passed:false` is not a QA pass.

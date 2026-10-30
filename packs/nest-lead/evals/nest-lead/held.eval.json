@@ -1,0 +1,37 @@
+{
+  "tags": [
+    "nest-lead"
+  ],
+  "timeout": "4m",
+  "cases": [
+    {
+      "id": "lost-reply-is-unknown",
+      "tags": [
+        "s10"
+      ],
+      "description": "S10: after a write that lost its reply, the lead reads before anything else, says the result is unclear, and neither claims the change nor sends it again blindly. (The runtime held-effect itself is covered by runtime tests; this locks the wording.)",
+      "turns": [
+        {
+          "send": "Vừa rồi bạn đổi tên Soot cskh thành \"CSKH LoHi\" thì mất kết nối, không thấy phản hồi gì. Giờ sao rồi?",
+          "expect": {
+            "called": [
+              "nest-lead_manage"
+            ],
+            "not_called": [
+              "nest-lead_manage_gated"
+            ],
+            "max_tool_calls": 6,
+            "reply_excludes": [
+              "đã đổi tên thành",
+              "đổi tên xong",
+              "đã áp dụng thay đổi"
+            ],
+            "reply_matches": [
+              "(?i)(chưa rõ|không chắc|chưa xác nhận|không kiểm tra|không có bằng chứng|chưa thể xác nhận|chưa xác minh|chưa kiểm chứng|vẫn là|chưa đổi)"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

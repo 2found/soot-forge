@@ -1,18 +1,11 @@
 {
   "api_version": "soot/v1",
   "id": "live-chat",
-  "use": [
-    "conversation"
-  ],
-  "capabilities": {
-    "conversation": {
-      "skills": [
-        {
-          "name": "live-chat",
-          "file": "skills/conversation.md",
-          "description": "Customer-facing chat, truthful progress, member handoff and confidential internal guidance."
-        }
-      ]
+  "skills": [
+    {
+      "name": "live-chat",
+      "file": "skills/conversation.md",
+      "description": "Customer-facing chat, truthful progress, member handoff and confidential internal guidance."
     }
-  }
+  ]
 }

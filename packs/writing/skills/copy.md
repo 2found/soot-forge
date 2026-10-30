@@ -18,5 +18,5 @@ variants with a testable angle, never a single take.
 5. Format for the channel: headline + body + CTA blocks for ads; caption +
    hashtags for social; subject + preview + body for email. Keep each
    variant self-contained and copy-paste ready.
-6. `writing/export` can store the selected variant as an artifact when
-   the operator grants it; otherwise return the variants in the reply.
+6. `writing_export` can store the selected variant as an artifact when
+   the `writing` pack is selected in full; otherwise return the variants in the reply.

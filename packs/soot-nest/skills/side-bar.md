@@ -2,7 +2,7 @@
 
 Nest renders each selected pack's `interface.tool_area` in the right sidebar.
 This skill describes the desktop surface; it does not grant browser access.
-Browser access comes from the browser-use capability selected by the Soot.
+Browser access comes from the browser-use pack selected by the Soot.
 
 Use the tool's existing actions; Nest renders the same conversation's session.
 Do not open a second browser or invent an iframe URL. Tabs belong to the browser
@@ -10,7 +10,7 @@ session, not to an agent run. Returning to a conversation reattaches its session
 Closing the sidebar only hides it. Explicitly closing a browser ends its live
 session while keeping the profile for later use.
 
-When the task needs browser work, invoke the selected browser capability yourself;
+When the task needs browser work, invoke the selected browser tools yourself;
 do not require a separate user prompt to open a browser or Nest's Browser tab.
 An availability/view probe alone does not open a page. Use the browser's open or
 navigate action with the relevant URL. Nest shows Browser automatically on the

@@ -14,7 +14,7 @@ team, links) the `soot-nest` pack has the steps.
 
 - **Soot**: the product and the desktop app, and each agent in it; `soot` in
   commands and technical identifiers. A Soot is a soul (how it talks), a mission
-  (what it does), a model tier and the capabilities it was granted.
+  (what it does), a model tier and the packs it selects.
 - **Nest**: the person's workspace, in the Soot app. **Kamaji** is the lead
   Soot of a Nest (the host's default Soot; the person may rename it): they hand
   it everything, and it leads every team.
@@ -23,10 +23,9 @@ team, links) the `soot-nest` pack has the steps.
   budget profiles and schedules; Kamaji builds a team from one in a single
   approval. **Swarm** is the idea of many Soots cooperating, not a separate
   object to chat with.
-- **Pack**: an installable bundle of **capabilities**; each capability holds
-  skills (know-how in Markdown) and tools (programs a Soot may call). A Soot
-  holds `<pack>/<capability>` refs; a pack's `use` recipe is what a whole-pack
-  grant selects.
+- **Pack**: an installable bundle of skills (know-how in Markdown) and tools
+  (programs a Soot may call). A Soot's `packs` list selects whole packs by id;
+  `<id>:read` selects the pack's skills and only its read-only tools.
 - **Soot Forge**: the public catalog of packs and team templates
   (`2found/soot-forge`). `trysoot.com` is the brand address, not a source from
   which to guess service endpoints. **Soot Pocket** is a planned name, not a
@@ -36,7 +35,7 @@ team, links) the `soot-nest` pack has the steps.
 
 ## How the parts fit
 
-- **Packs grant nothing by being installed.** A Soot reaches a capability only
+- **Packs grant nothing by being installed.** A Soot reaches a pack only
   when its definition selects it. Tools that write or reach out ask the person
   first unless an approval policy lets them run alone.
 - **Approvals.** Deleting things, granting more than the lead holds, relaxing an
@@ -63,7 +62,7 @@ team, links) the `soot-nest` pack has the steps.
 
 ## Work within the runtime
 
-Pack manifests contain only capabilities, skills, tools and explicit recipes.
+Pack manifests contain only skills, tools, the credentials and env they need, and an optional interface.
 Soul and mission belong to Soot definitions; routes, schedules, bindings,
 secrets and providers belong to the deployment. New domain work belongs in packs
 and team templates; reuse the one agent runtime rather than adding an agent
@@ -112,4 +111,4 @@ a run completion. Replayed historical completions must not trigger celebration.
 The public stream currently has no structured approval/input-required event;
 do not infer that state from response text or private reasoning.
 
-For creating a new pet, use the separately selected `soot/create-pet` capability.
+For creating a new pet, use the separately selected `soot-pet` pack.

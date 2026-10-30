@@ -3,126 +3,134 @@
   "id": "image-gen",
   "name": "Image generation",
   "description": "Generate PNGs locally with Qwen Image 2.1 Turbo Q4_K_M and a host-owned Metal/CPU runtime.",
-  "use": [],
-  "capabilities": {
-    "inspect": {
-      "skills": [
-        {
-          "name": "image_gen_inspect",
-          "file": "skills/inspect.md",
-          "description": "Inspect actual PNG dimensions and alpha; does not judge prompt fidelity."
-        }
-      ],
-      "tools": [
-        {
-          "name": "inspect",
-          "description": "Inspect actual PNG dimensions and alpha; does not judge prompt fidelity.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "path": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 512
-              }
-            },
-            "required": [
-              "path"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "tools/run",
-            "args": [
-              "inspect"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "file_workspace",
-            "timeout": "2m",
-            "secret_env": {
-              "FILE_ROOT": "{{cred:FILE_ROOT}}",
-              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
-            }
-          }
-        }
-      ]
+  "skills": [
+    {
+      "name": "image_gen_inspect",
+      "file": "skills/inspect.md",
+      "description": "Inspect actual PNG dimensions and alpha; does not judge prompt fidelity."
     },
-    "generate": {
-      "skills": [
-        {
-          "name": "image_gen_generate",
-          "file": "skills/generate.md",
-          "description": "Generate one new PNG with the pinned Turbo Q4_K_M model, CFG=1 and its exact 8-step schedule. Never download or install dependencies."
-        }
-      ],
-      "tools": [
-        {
-          "name": "generate",
-          "description": "Generate or edit one PNG with pinned Qwen Image 2.1 Turbo Q4_K_M. Pass the attached image path as reference for edits.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "prompt": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 4000
-              },
-              "output": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 512,
-                "description": "New PNG relative to FILE_ROOT; parent must exist."
-              },
-              "width": {
-                "type": "integer",
-                "minimum": 256,
-                "maximum": 768,
-                "description": "Multiple of 32; defaults 512. Host also limits total pixels."
-              },
-              "height": {
-                "type": "integer",
-                "minimum": 256,
-                "maximum": 768
-              },
-              "seed": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 2147483647
-              },
-              "transparent": {
-                "type": "boolean"
-              },
-              "reference": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 512,
-                "description": "Optional attached PNG/JPEG relative to FILE_ROOT. Apply prompt as an edit; never fetch URLs."
-              }
-            },
-            "required": [
-              "prompt",
-              "output"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "tools/run",
-            "args": [
-              "generate"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "file_workspace",
-            "timeout": "30m",
-            "secret_env": {
-              "FILE_ROOT": "{{cred:FILE_ROOT}}",
-              "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
-              "IMAGE_GEN_BINDING": "{{cred:IMAGE_GEN_BINDING}}"
-            }
+    {
+      "name": "image_gen_generate",
+      "file": "skills/generate.md",
+      "description": "Generate one new PNG with the pinned Turbo Q4_K_M model, CFG=1 and its exact 8-step schedule. Never download or install dependencies."
+    }
+  ],
+  "tools": [
+    {
+      "name": "inspect",
+      "description": "Inspect actual PNG dimensions and alpha; does not judge prompt fidelity.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
           }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/run",
+        "args": [
+          "inspect"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "file_workspace",
+        "timeout": "2m",
+        "secret_env": {
+          "FILE_ROOT": "{{cred:FILE_ROOT}}",
+          "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}"
         }
-      ]
+      }
+    },
+    {
+      "name": "generate",
+      "description": "Generate or edit one PNG with pinned Qwen Image 2.1 Turbo Q4_K_M. Pass the attached image path as reference for edits.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "New PNG relative to FILE_ROOT; parent must exist."
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 768,
+            "description": "Multiple of 32; defaults 512. Host also limits total pixels."
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 768
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "transparent": {
+            "type": "boolean"
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Optional attached PNG/JPEG relative to FILE_ROOT. Apply prompt as an edit; never fetch URLs."
+          }
+        },
+        "required": [
+          "prompt",
+          "output"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/run",
+        "args": [
+          "generate"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "file_workspace",
+        "timeout": "30m",
+        "secret_env": {
+          "FILE_ROOT": "{{cred:FILE_ROOT}}",
+          "PYTHON_EXECUTABLE": "{{cred:PYTHON_EXECUTABLE}}",
+          "IMAGE_GEN_BINDING": "{{cred:IMAGE_GEN_BINDING}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "FILE_ROOT": {
+        "title": "Thư mục làm việc",
+        "description": "Thư mục làm việc của cuộc trò chuyện. Nest cấp tự động; công cụ chỉ đọc và ghi tệp trong thư mục này.",
+        "from": "workspace"
+      },
+      "PYTHON_EXECUTABLE": {
+        "title": "Python của máy chủ",
+        "description": "Đường dẫn tuyệt đối tới trình Python đã cài sẵn thư viện của pack (xem README). Máy chủ đặt biến môi trường SOOT_MEDIA_PYTHON.",
+        "from": "env:SOOT_MEDIA_PYTHON"
+      },
+      "IMAGE_GEN_BINDING": {
+        "title": "Môi trường sinh ảnh",
+        "description": "JSON gồm sd-cli, trọng số Qwen đã tải, khoá chia sẻ và giới hạn bộ nhớ. Máy chủ đặt biến môi trường SOOT_IMAGE_GEN_BINDING; mẫu trong README.",
+        "from": "env:SOOT_IMAGE_GEN_BINDING"
+      }
     }
   }
 }

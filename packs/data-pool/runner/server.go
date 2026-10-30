@@ -20,6 +20,23 @@ import (
 	"time"
 )
 
+// toolOperation names the service operation a tool call asks for. The model
+// tools are data-pool_<op>; the human view and action tools ship in the
+// data-pool-console pack as data-pool-console_view and data-pool-console_action.
+// Anything else yields "", which no credential allows.
+func toolOperation(operation string) string {
+	if op, ok := strings.CutPrefix(operation, "data-pool-console_"); ok {
+		if op == "view" || op == "action" {
+			return op
+		}
+		return ""
+	}
+	if op, ok := strings.CutPrefix(operation, "data-pool_"); ok && slices.Contains(operations, op) {
+		return op
+	}
+	return ""
+}
+
 var operations = []string{"pools", "query", "write", "manage", "status", "view", "action"}
 
 const (
@@ -311,8 +328,8 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 	if identifier.MatchString(call.Soot) {
 		entry.Soot = call.Soot
 	}
-	op := strings.TrimPrefix(call.Operation, "data-pool_")
-	if call.Operation == "data-pool_"+op && slices.Contains(operations, op) {
+	op := toolOperation(call.Operation)
+	if op != "" {
 		entry.Op = op
 	}
 	allowed := principal.Operations

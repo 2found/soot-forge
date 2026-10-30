@@ -27,12 +27,12 @@ const post=async(path,body)=>{const response=await fetch(api+path,{method:'POST'
 try {
  await writeFile(join(output,'SOUL.md'),'Use real tools on the authorized local fixture. Never invent success.\n');
  await writeFile(join(output,'MISSION.md'),'Verify the conversation browser. No external writes or messages.\n');
- await writeFile(join(output,'review.json'),JSON.stringify({id:'review',soul:'SOUL.md',mission:'MISSION.md',use:['browser-use/browser'],model:{provider:options.provider,name:options.model,fallbacks:[]}}));
- await writeFile(config,JSON.stringify({listen:`127.0.0.1:${port}`,token_env:'FORGE_BROWSER_TOKEN',packs_dir:'packs.d',data_dir:'data',default_soot:'review',soots:['review.json'],operation_env:{'browser-use_control':['PATH','HOME'],'browser-use_view':['PATH','HOME']},execution:{max_turns:16,max_tool_calls:24,tool_timeout:'90s',subagents:0,advisor:false,memory_consolidation:false,todo_nudges:0}}));
+ await writeFile(join(output,'review.json'),JSON.stringify({id:'review',soul:'SOUL.md',mission:'MISSION.md',packs:['browser-use'],model:{provider:options.provider,name:options.model,fallbacks:[]}}));
+ await writeFile(config,JSON.stringify({listen:`127.0.0.1:${port}`,token_env:'FORGE_BROWSER_TOKEN',packs_dir:'packs',data_dir:'data',default_soot:'review',soots:['review.json'],pack_grants:{'browser-use':{env:['PATH','HOME']}},execution:{max_turns:16,max_tool_calls:24,tool_timeout:'90s',subagents:0,advisor:false,memory_consolidation:false,todo_nudges:0}}));
  const catalog=await readCatalog(root),source=await materialize(catalog.packs.find(p=>p.id==='browser-use'),root,join(output,'materialized'));
  const archive=join(output,'browser-use.tar.gz');await archivePack(source,archive,'browser-use');
  await writeFile(join(output,'install.json'),(await invoke(binary,['add',archive,'--config',config,'--json'])).stdout);
- await invoke('npm',['install','--global','--install-links','--ignore-scripts','--no-audit','--no-fund','--prefix',join(output,'host'),join(output,'packs.d/browser-use/adapter')]);
+ await invoke('npm',['install','--global','--install-links','--ignore-scripts','--no-audit','--no-fund','--prefix',join(output,'host'),join(output,'packs/browser-use/adapter')]);
  runtime=spawn(binary,['serve','--config',config],{cwd:output,env,stdio:['ignore','pipe','pipe']});for(const pipe of [runtime.stdout,runtime.stderr])pipe.on('data',chunk=>logs+=chunk);
  api=`http://127.0.0.1:${port}`;headers={Authorization:`Bearer ${env.FORGE_BROWSER_TOKEN}`};
  for(let i=0;i<100;i++){if(runtime.exitCode!==null)throw Error('Runtime exited');try{if((await fetch(api+'/v1/conversations/soots',{headers})).ok)break;}catch{}if(i===99)throw Error('Runtime unavailable');await new Promise(r=>setTimeout(r,200));}

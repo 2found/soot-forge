@@ -8,28 +8,22 @@ soot add https://github.com/2found/soot-forge/tree/main/packs/tts
 uv venv --python 3.12 /absolute/host-runtimes/tts
 ```
 
-Python 3.12+ and uv. The client uses only Python standard library. OmniVoice model serving is separate. Bind `PYTHON_EXECUTABLE` to that environment's absolute `bin/python` path.
+Python 3.12+ and uv. The client uses only Python standard library. OmniVoice model serving is separate. Set the host env `SOOT_MEDIA_PYTHON` to that environment's absolute `bin/python` path (pack credential `PYTHON_EXECUTABLE`).
 Keep environments outside `packs_dir`: Soot snapshots pack source; virtualenv
 certificates, large native libraries and runtime caches are not pack source.
 Direct and transitive client dependencies are pinned with hashes in
 `requirements.lock`; installation never executes a setup script.
 
-Select only the capabilities you need in your Soot definition:
+A Soot selects the pack whole in `soot.json`:
 
 ```json
-{
-  "use": [
-    "tts/inspect",
-    "tts/speak"
-  ]
-}
+{"packs": ["tts"]}
 ```
 
-The example lists available capabilities, not a recommended blanket grant.
-The default recipe is read/plan-only or empty; mutation capabilities are explicit.
+`"tts:read"` gives all skills but only the read-mode tools (`tts_inspect` and `tts_voices`); the write tools (`tts_synthesize`) need the bare id.
 Then run `soot check --show --secrets`. Provider/model settings remain host-owned.
-To author JSON specs, separately select `toolbox/write` and `toolbox/read` if
-needed; there is no implicit dependency or grant.
+To author JSON specs, also select the `toolbox` pack if needed; there is
+no implicit dependency or grant.
 
 All files are relative to a host-bound absolute `FILE_ROOT`. Each output must
 be new, and its parent must already exist. Traversal, hidden paths and symlinks
@@ -45,7 +39,8 @@ before publishing. These checks do not prove pronunciation or transcript fidelit
 listening and content comparison remain part of audio QA.
 Operation IDs: `tts_inspect`, `tts_voices`, `tts_synthesize`.
 
-Bindings use `secret_env` references and host credentials scoped to operation IDs.
+Credentials are declared in `pack.json` `needs`: `FILE_ROOT` comes from the workspace, `PYTHON_EXECUTABLE` from env `SOOT_MEDIA_PYTHON`, `TTS_BINDING` from env `SOOT_TTS_BINDING`.
+The host grants the non-operator sources in `pack_grants`, e.g. `"pack_grants": {"tts": {"credentials": {"FILE_ROOT": "workspace"}}}` (or `soot grant tts`).
 A complete consumer example is in the repository
 [`examples/media-workspace`](../../examples/media-workspace/); it is not inside the pack.
 Use placeholder files only in Git. Credentials and endpoint URLs are never model inputs.

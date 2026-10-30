@@ -1,6 +1,6 @@
 {
   "listen": "127.0.0.1:7789",
-  "packs_dir": "packs.d",
+  "packs_dir": "packs",
   "data_dir": "data",
   "default_soot": "office",
   "soots": [
@@ -11,193 +11,47 @@
     "soots/video-editor.json",
     "soots/image-gen.json"
   ],
-  "credentials": {
+  "pack_grants": {
     "office": {
-      "FILE_ROOT": {
-        "env": "SOOT_MEDIA_FILE_ROOT",
-        "operations": [
-          "office_inspect",
-          "office_compose",
-          "office_edit",
-          "office_pdf_modify",
-          "office_render"
-        ]
-      },
-      "PYTHON_EXECUTABLE": {
-        "env": "SOOT_MEDIA_OFFICE_PYTHON",
-        "operations": [
-          "office_compose",
-          "office_edit",
-          "office_inspect",
-          "office_pdf_modify",
-          "office_render"
-        ]
+      "credentials": {
+        "FILE_ROOT": "workspace",
+        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+        "OFFICE_BINDING": "env:SOOT_OFFICE_BINDING"
       }
     },
     "ocr": {
-      "FILE_ROOT": {
-        "env": "SOOT_MEDIA_FILE_ROOT",
-        "operations": [
-          "ocr_assess",
-          "ocr_recognize"
-        ]
-      },
-      "OCR_BINDING": {
-        "env": "SOOT_MEDIA_OCR_BINDING",
-        "operations": [
-          "ocr_recognize"
-        ]
-      },
-      "PYTHON_EXECUTABLE": {
-        "env": "SOOT_MEDIA_OCR_PYTHON",
-        "operations": [
-          "ocr_assess",
-          "ocr_recognize"
-        ]
+      "credentials": {
+        "FILE_ROOT": "workspace",
+        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+        "OCR_BINDING": "env:SOOT_OCR_BINDING"
       }
     },
     "tts": {
-      "FILE_ROOT": {
-        "env": "SOOT_MEDIA_FILE_ROOT",
-        "operations": [
-          "tts_inspect",
-          "tts_voices",
-          "tts_synthesize"
-        ]
-      },
-      "TTS_BINDING": {
-        "env": "SOOT_MEDIA_TTS_BINDING",
-        "operations": [
-          "tts_voices",
-          "tts_synthesize"
-        ]
-      },
-      "PYTHON_EXECUTABLE": {
-        "env": "SOOT_MEDIA_TTS_PYTHON",
-        "operations": [
-          "tts_inspect",
-          "tts_synthesize",
-          "tts_voices"
-        ]
+      "credentials": {
+        "FILE_ROOT": "workspace",
+        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+        "TTS_BINDING": "env:SOOT_TTS_BINDING"
       }
     },
     "google-workspace": {
-      "FILE_ROOT": {
-        "env": "SOOT_MEDIA_FILE_ROOT",
-        "operations": [
-          "google-workspace_docs_list",
-          "google-workspace_docs_read",
-          "google-workspace_docs_create",
-          "google-workspace_docs_batch_update",
-          "google-workspace_docs_export",
-          "google-workspace_sheets_info",
-          "google-workspace_sheets_read",
-          "google-workspace_sheets_create",
-          "google-workspace_sheets_update",
-          "google-workspace_sheets_append",
-          "google-workspace_drive_list",
-          "google-workspace_drive_get",
-          "google-workspace_drive_download",
-          "google-workspace_drive_export",
-          "google-workspace_drive_folder",
-          "google-workspace_drive_upload",
-          "google-workspace_drive_update"
-        ]
-      },
-      "GOOGLE_WORKSPACE_BINDING": {
-        "env": "SOOT_MEDIA_GOOGLE_WORKSPACE_BINDING",
-        "operations": [
-          "google-workspace_docs_list",
-          "google-workspace_docs_read",
-          "google-workspace_docs_create",
-          "google-workspace_docs_batch_update",
-          "google-workspace_docs_export",
-          "google-workspace_sheets_info",
-          "google-workspace_sheets_read",
-          "google-workspace_sheets_create",
-          "google-workspace_sheets_update",
-          "google-workspace_sheets_append",
-          "google-workspace_drive_list",
-          "google-workspace_drive_get",
-          "google-workspace_drive_download",
-          "google-workspace_drive_export",
-          "google-workspace_drive_folder",
-          "google-workspace_drive_upload",
-          "google-workspace_drive_update"
-        ]
-      },
-      "PYTHON_EXECUTABLE": {
-        "env": "SOOT_MEDIA_GOOGLE_WORKSPACE_PYTHON",
-        "operations": [
-          "google-workspace_docs_list",
-          "google-workspace_docs_read",
-          "google-workspace_docs_create",
-          "google-workspace_docs_batch_update",
-          "google-workspace_docs_export",
-          "google-workspace_sheets_info",
-          "google-workspace_sheets_read",
-          "google-workspace_sheets_create",
-          "google-workspace_sheets_update",
-          "google-workspace_sheets_append",
-          "google-workspace_drive_list",
-          "google-workspace_drive_get",
-          "google-workspace_drive_download",
-          "google-workspace_drive_export",
-          "google-workspace_drive_folder",
-          "google-workspace_drive_upload",
-          "google-workspace_drive_update"
-        ]
+      "credentials": {
+        "FILE_ROOT": "workspace",
+        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON"
       }
     },
     "video-editor": {
-      "FILE_ROOT": {
-        "env": "SOOT_MEDIA_FILE_ROOT",
-        "operations": [
-          "video-editor_probe",
-          "video-editor_validate",
-          "video-editor_render",
-          "video-editor_contact_sheet"
-        ]
-      },
-      "VIDEO_BINDING": {
-        "env": "SOOT_MEDIA_VIDEO_BINDING",
-        "operations": [
-          "video-editor_probe",
-          "video-editor_validate",
-          "video-editor_render",
-          "video-editor_contact_sheet"
-        ]
-      },
-      "PYTHON_EXECUTABLE": {
-        "env": "SOOT_MEDIA_VIDEO_EDITOR_PYTHON",
-        "operations": [
-          "video-editor_contact_sheet",
-          "video-editor_probe",
-          "video-editor_render",
-          "video-editor_validate"
-        ]
+      "credentials": {
+        "FILE_ROOT": "workspace",
+        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+        "VIDEO_BINDING": "env:SOOT_VIDEO_BINDING",
+        "HYPERFRAMES_BINDING": "env:SOOT_HYPERFRAMES_BINDING"
       }
     },
     "image-gen": {
-      "FILE_ROOT": {
-        "env": "SOOT_MEDIA_FILE_ROOT",
-        "operations": [
-          "image-gen_inspect",
-          "image-gen_generate"
-        ]
-      },
-      "PYTHON_EXECUTABLE": {
-        "env": "SOOT_MEDIA_IMAGE_GEN_PYTHON",
-        "operations": [
-          "image-gen_inspect",
-          "image-gen_generate"
-        ]
-      },
-      "IMAGE_GEN_BINDING": {
-        "env": "SOOT_MEDIA_IMAGE_GEN_BINDING",
-        "operations": [
-          "image-gen_generate"
-        ]
+      "credentials": {
+        "FILE_ROOT": "workspace",
+        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+        "IMAGE_GEN_BINDING": "env:SOOT_IMAGE_GEN_BINDING"
       }
     }
   },

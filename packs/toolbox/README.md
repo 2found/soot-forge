@@ -1,30 +1,28 @@
 # Toolbox pack
 
-Reusable workspace and research tools, selected with the existing pack/capability
-mechanism. These are linked Go tools from `agentray/sandbox`; no second plugin
-loader or agent loop is introduced.
+Reusable workspace and research tools. These are linked Go tools from
+`agentray/sandbox`; no second plugin loader or agent loop is introduced.
 
-| Capability | Tools |
+| Group | Tools |
 | --- | --- |
-| `toolbox/read` | `read_file`, `grep`, `glob` |
-| `toolbox/write` | `write_file`, `edit_file`, `edit_lines` |
-| `toolbox/research` | `web_fetch`, `web_search` |
-| `toolbox/http` | `http_request` |
-| `toolbox/shell` | `run_shell` |
+| read | `read_file`, `grep`, `glob` |
+| write | `write_file`, `edit_file`, `edit_lines` |
+| research | `web_fetch`, `web_search` |
+| http | `http_request` |
+| shell | `run_shell` |
 
-Copy this directory into the deployment's `packs_dir`. Attach
-`"packs": ["toolbox"]` to a Soot to select read and research tools. Add individual
-capabilities through `use`, for example:
+Copy this directory into the deployment's `packs_dir`. The pack is selected
+whole: `"packs": ["toolbox"]` gives every tool above, including write, HTTP and
+shell. `"toolbox:read"` gives only its read-mode tools.
 
 ```json
 {
   "id": "analyst",
-  "packs": ["toolbox"],
-  "use": ["toolbox/write", "toolbox/shell", "toolbox/http"]
+  "packs": ["toolbox"]
 }
 ```
 
-Put tool selection in a Soot definition file, not pack.json. Host bindings are
+Put pack selection in a Soot definition file, not pack.json. Host bindings are
 keyed by the root Soot ID in deployment.json, outside packs:
 
 ```json
@@ -45,7 +43,7 @@ uses `<workspace>/<conversation-id>` (Nest: `work/<conversation-id>`). File
 tools enforce relative paths and reject escapes;
 edits support content hashes from reads. Shell uses the same directory and
 spills large output into files for follow-up reads. Web search uses DuckDuckGo;
-web fetch is for public research and deliberately has no `save_as` capability.
+web fetch is for public research and deliberately has no `save_as` option.
 HTTP requests use the explicit host allowlist and guarded DNS/IP checks.
 
 `read_file` supports line windows or `byte_offset`/`byte_limit` (up to 64KiB).
@@ -65,9 +63,9 @@ Listings are bounded at 100000 files; narrow `path`/`glob` when needed. Host and
 sandbox substrates share the same Go matching and paging behavior.
 
 `run_shell` executes on the host under the Soot process's OS permissions. Its
-working directory is **not OS isolation**. Enable this capability only on a host/account
+working directory is **not OS isolation**. Select the pack whole only on a host/account
 trusted with model-authored commands. It does not inherit the daemon's environment.
-Credentials for fixed runbooks still use operation-scoped `secret_env`; this
+Credentials for fixed runbooks are declared in the owning pack's `needs`; this
 pack does not expose a global credential resolver to the model.
 
 Every toolbox tool accepts `async: true`. It returns a jobs receipt; use

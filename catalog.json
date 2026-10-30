@@ -54,13 +54,26 @@
     {
       "id": "soot",
       "name": "Soot",
-      "description": "Everything about Soot: what it is, how Soots, packs, teams, schedules and approvals work, and custom pets.",
+      "description": "Everything about Soot: what it is, how Soots, packs, teams, schedules and approvals work, and a Soot editing its own settings.",
       "tags": [
         "essentials"
       ],
       "source": {
         "kind": "bundled",
         "path": "packs/soot"
+      }
+    },
+    {
+      "id": "soot-pet",
+      "name": "Soot pet",
+      "description": "Create a custom Soot pet with Codex imagegen: check Codex, prepare the jobs, inspect progress and assemble the atlas.",
+      "tags": [
+        "essentials",
+        "media"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/soot-pet"
       }
     },
     {
@@ -90,13 +103,37 @@
     {
       "id": "soot-nest",
       "name": "Nest",
-      "description": "Everything for working in Nest with Kamaji: the lead, settings, team building, links, the side tool area and website Live chat.",
+      "description": "Skills for working in Nest: the side tool area and nest:// links to Soots, teams, pages and drafts.",
       "tags": [
         "essentials"
       ],
       "source": {
         "kind": "bundled",
         "path": "packs/soot-nest"
+      }
+    },
+    {
+      "id": "nest-lead",
+      "name": "Nest lead",
+      "description": "Kamaji's authority over this Nest: Soots, teams, schedules, approvals, data access, model tiers and updates, with the person approving what only they decide. Only the default Soot may select it.",
+      "tags": [
+        "essentials"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/nest-lead"
+      }
+    },
+    {
+      "id": "website-chat",
+      "name": "Website chat",
+      "description": "Configure the Live chat on the owner's websites from chat or Nest through one scoped host authority.",
+      "tags": [
+        "communication"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/website-chat"
       }
     },
     {
@@ -150,6 +187,18 @@
       "source": {
         "kind": "bundled",
         "path": "packs/data-pool"
+      }
+    },
+    {
+      "id": "data-pool-console",
+      "name": "Data pool console",
+      "description": "The human data-pool interface in Nest: browse, edit and manage pools through the operator binding.",
+      "tags": [
+        "data"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/data-pool-console"
       }
     },
     {
@@ -361,10 +410,7 @@
   "retired": [
     {
       "id": "nest-no-code",
-      "into": "soot-nest",
-      "capabilities": {
-        "configure": "website-chat"
-      },
+      "into": "website-chat",
       "tools": {
         "view": "website_view",
         "action": "website_action"

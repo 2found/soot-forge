@@ -1,0 +1,37 @@
+{
+  "tags": [
+    "nest-lead"
+  ],
+  "timeout": "4m",
+  "cases": [
+    {
+      "id": "update-all-keeps-major-for-person",
+      "tags": [
+        "s11",
+        "needs-runtime"
+      ],
+      "description": "S11: reads the update state, applies only what the lead may, sends a MAJOR one to the person, and does not claim everything was updated.",
+      "turns": [
+        {
+          "send": "Có cập nhật gì không? Cập nhật hết đi",
+          "expect": {
+            "state_in": [
+              "completed",
+              "waiting_human",
+              "blocked"
+            ],
+            "called": [
+              "nest-lead_manage"
+            ],
+            "max_tool_calls": 10,
+            "reply_excludes": [
+              "đã cập nhật hết",
+              "đã cập nhật tất cả",
+              "đã cập nhật xong"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

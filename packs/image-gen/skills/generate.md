@@ -1,6 +1,6 @@
 # Generate an image
 
-Use `image-gen/generate` when image creation or editing is authorized. Use the
+Use `image-gen_generate` when image creation or editing is authorized. Use the
 user’s prompt and attached image directly; choose one 512×512 draft
 and a fixed seed. `generate` accepts prompt, new output PNG, dimensions in
 multiples of 32, seed and optional transparent/reference. The host can restrict pixels

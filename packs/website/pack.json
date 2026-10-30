@@ -1,326 +1,333 @@
 {
   "api_version": "soot/v1",
   "id": "website",
-  "use": [],
-  "capabilities": {
-    "publish": {
-      "skills": [
-        {
-          "name": "website-marketing",
-          "description": "Own and publish the bounded marketing region on trysoot.com.",
-          "file": "skills/marketing.md"
-        }
-      ],
-      "tools": [
-        {
-          "name": "publish",
-          "description": "Publish one locale of your bounded marketing region. IDs are globally unique; replay only identical content including language presence/omission.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[a-zA-Z0-9-]{1,64}$"
-              },
-              "language": {
-                "type": "string",
-                "enum": ["en", "vi"],
-                "description": "Intended language; omission means legacy English. Preserve presence/omission on replay; use distinct EN and VI IDs."
-              },
-              "title": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100
-              },
-              "intro": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 400
-              },
-              "blocks": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 6,
-                "items": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "type": {
-                          "const": "paragraph"
-                        },
-                        "text": {
-                          "type": "string",
-                          "maxLength": 1200
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "text"
-                      ],
-                      "additionalProperties": false
+  "skills": [
+    {
+      "name": "website-marketing",
+      "description": "Own and publish the bounded marketing region on trysoot.com.",
+      "file": "skills/marketing.md"
+    },
+    {
+      "name": "website-care",
+      "description": "Develop and maintain the Soot website using already-granted repository tools.",
+      "file": "skills/care.md"
+    },
+    {
+      "name": "website-cms",
+      "description": "Author and archive honest CMS blog posts with revision and replay discipline.",
+      "file": "skills/cms.md"
+    }
+  ],
+  "tools": [
+    {
+      "name": "publish",
+      "description": "Publish one locale of your bounded marketing region. IDs are globally unique; replay only identical content including language presence/omission.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9-]{1,64}$"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "vi"
+            ],
+            "description": "Intended language; omission means legacy English. Preserve presence/omission on replay; use distinct EN and VI IDs."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "intro": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "blocks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "const": "paragraph"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "type": {
-                          "const": "note"
-                        },
-                        "text": {
-                          "type": "string",
-                          "maxLength": 1200
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "text"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "type": {
-                          "const": "list"
-                        },
-                        "title": {
-                          "type": "string",
-                          "maxLength": 100
-                        },
-                        "items": {
-                          "type": "array",
-                          "maxItems": 5,
-                          "items": {
-                            "type": "string",
-                            "maxLength": 200
-                          }
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "title",
-                        "items"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "type": {
-                          "const": "cta"
-                        },
-                        "label": {
-                          "type": "string",
-                          "maxLength": 80
-                        },
-                        "href": {
-                          "type": "string",
-                          "enum": [
-                            "/download",
-                            "/#how-it-works",
-                            "/#nest",
-                            "/#showcase",
-                            "/blog",
-                            "/vi/download",
-                            "/vi/blog",
-                            "/vi#how-it-works",
-                            "/vi#nest",
-                            "/vi#showcase"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "type",
-                        "label",
-                        "href"
-                      ],
-                      "additionalProperties": false
+                    "text": {
+                      "type": "string",
+                      "maxLength": 1200
                     }
-                  ]
+                  },
+                  "required": [
+                    "type",
+                    "text"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "const": "note"
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 1200
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "text"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "const": "list"
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "items": {
+                      "type": "array",
+                      "maxItems": 5,
+                      "items": {
+                        "type": "string",
+                        "maxLength": 200
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "title",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "const": "cta"
+                    },
+                    "label": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "href": {
+                      "type": "string",
+                      "enum": [
+                        "/download",
+                        "/#how-it-works",
+                        "/#nest",
+                        "/#showcase",
+                        "/blog",
+                        "/vi/download",
+                        "/vi/blog",
+                        "/vi#how-it-works",
+                        "/vi#nest",
+                        "/vi#showcase"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "label",
+                    "href"
+                  ],
+                  "additionalProperties": false
                 }
-              }
-            },
-            "required": [
-              "id",
-              "title",
-              "intro",
-              "blocks"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "node",
-            "args": [
-              "tools/publish.mjs",
-              "publish"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "website_marketing",
-            "timeout": "15s",
-            "max_output_bytes": 8192,
-            "secret_env": {
-              "WEBSITE_DATA": "{{cred:WEBSITE_DATA}}"
+              ]
             }
           }
         },
-        {
-          "name": "inspect",
-          "description": "Read the exact locale's published marketing snapshot. Missing VI is null; omission means English.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "language": {
-                "type": "string",
-                "enum": ["en", "vi"]
-              }
-            },
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "node",
-            "args": [
-              "tools/publish.mjs",
-              "inspect"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "website_marketing",
-            "timeout": "15s",
-            "max_output_bytes": 24000,
-            "secret_env": {
-              "WEBSITE_DATA": "{{cred:WEBSITE_DATA}}"
-            }
-          }
+        "required": [
+          "id",
+          "title",
+          "intro",
+          "blocks"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/publish.mjs",
+          "publish"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "website_marketing",
+        "timeout": "15s",
+        "max_output_bytes": 8192,
+        "secret_env": {
+          "WEBSITE_DATA": "{{cred:WEBSITE_DATA}}"
         }
-      ]
+      }
     },
-    "care": {
-      "skills": [
-        {
-          "name": "website-care",
-          "description": "Develop and maintain the Soot website using already-granted repository tools.",
-          "file": "skills/care.md"
-        }
-      ]
-    },
-    "cms": {
-      "skills": [
-        {
-          "name": "website-cms",
-          "description": "Author and archive honest CMS blog posts with revision and replay discipline.",
-          "file": "skills/cms.md"
-        }
-      ],
-      "tools": [
-        {
-          "name": "cms_save",
-          "description": "Save a CMS draft, publish or archive with revision checking. Never automatically retry an uncertain write; retain requestId and identical payload.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "slug": {
-                "type": "string",
-                "maxLength": 96,
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-              },
-              "requestId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "expectedRevision": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "title": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 200
-              },
-              "summary": {
-                "type": "string",
-                "maxLength": 500
-              },
-              "language": {
-                "type": "string",
-                "enum": ["en", "vi"],
-                "description": "Post language. Omit for legacy English payloads; preserve exact presence/value on replay and inspected language on archive."
-              },
-              "bodyMarkdown": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 40000
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "draft",
-                  "published",
-                  "archived"
-                ]
-              }
-            },
-            "required": [
-              "slug",
-              "requestId",
-              "expectedRevision",
-              "title",
-              "summary",
-              "bodyMarkdown",
-              "status"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "node",
-            "args": [
-              "tools/cms.mjs",
-              "save"
-            ],
-            "stdin": "context",
-            "mode": "write",
-            "resource": "website_cms",
-            "timeout": "10s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "WEBSITE_CMS": "{{cred:WEBSITE_CMS}}"
-            }
+    {
+      "name": "inspect",
+      "description": "Read the exact locale's published marketing snapshot. Missing VI is null; omission means English.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "vi"
+            ]
           }
         },
-        {
-          "name": "cms_inspect",
-          "description": "Inspect the authenticated latest CMS revision and Markdown for a slug; missing post returns post:null.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "slug": {
-                "type": "string",
-                "maxLength": 96,
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-              }
-            },
-            "required": [
-              "slug"
-            ],
-            "additionalProperties": false
-          },
-          "run": {
-            "program": "node",
-            "args": [
-              "tools/cms.mjs",
-              "inspect"
-            ],
-            "stdin": "context",
-            "mode": "read",
-            "resource": "website_cms",
-            "timeout": "10s",
-            "max_output_bytes": 131072,
-            "secret_env": {
-              "WEBSITE_CMS": "{{cred:WEBSITE_CMS}}"
-            }
-          }
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/publish.mjs",
+          "inspect"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "website_marketing",
+        "timeout": "15s",
+        "max_output_bytes": 24000,
+        "secret_env": {
+          "WEBSITE_DATA": "{{cred:WEBSITE_DATA}}"
         }
-      ]
+      }
+    },
+    {
+      "name": "cms_save",
+      "description": "Save a CMS draft, publish or archive with revision checking. Never automatically retry an uncertain write; retain requestId and identical payload.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "vi"
+            ],
+            "description": "Post language. Omit for legacy English payloads; preserve exact presence/value on replay and inspected language on archive."
+          },
+          "bodyMarkdown": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ]
+          }
+        },
+        "required": [
+          "slug",
+          "requestId",
+          "expectedRevision",
+          "title",
+          "summary",
+          "bodyMarkdown",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/cms.mjs",
+          "save"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "website_cms",
+        "timeout": "10s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "WEBSITE_CMS": "{{cred:WEBSITE_CMS}}"
+        }
+      }
+    },
+    {
+      "name": "cms_inspect",
+      "description": "Inspect the authenticated latest CMS revision and Markdown for a slug; missing post returns post:null.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        },
+        "required": [
+          "slug"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/cms.mjs",
+          "inspect"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "website_cms",
+        "timeout": "10s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "WEBSITE_CMS": "{{cred:WEBSITE_CMS}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "WEBSITE_DATA": {
+        "title": "Dữ liệu website",
+        "description": "Đường dẫn tuyệt đối tới thư mục dữ liệu mà website đọc để hiển thị vùng nội dung công khai. Người vận hành sở hữu thư mục này."
+      },
+      "WEBSITE_CMS": {
+        "title": "CMS của website",
+        "description": "JSON {origin, site, token} của API CMS blog. Lấy ở trang quản trị website; chỉ cần để viết bài.",
+        "optional": true
+      }
     }
   }
 }

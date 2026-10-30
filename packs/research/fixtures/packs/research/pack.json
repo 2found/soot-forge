@@ -1,0 +1,21 @@
+{
+  "api_version": "soot/v1",
+  "id": "research",
+  "name": "Nghiên cứu",
+  "description": "Tìm hiểu, phân tích và tổng hợp thông tin.",
+  "skills": [
+    {
+      "name": "research_web",
+      "file": "skills/web.md",
+      "description": "Search the web, cross-check sources, and report cited evidence with gaps."
+    }
+  ],
+  "tools": [
+    {
+      "name": "web_search"
+    },
+    {
+      "name": "web_fetch"
+    }
+  ]
+}

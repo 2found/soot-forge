@@ -42,15 +42,16 @@ test('the release integer grows with the Forge version and refuses what it canno
 });
 
 test('General is the 2agent template, with 2build fetched from Forge', async () => {
-  // Digests of 2agent/internal/scaffold/template/soots/general/* at the time General moved here.
-  const sources = { 'soot.json': '5c1f1623c33f05741a664be71ef4775666476b801b710c6ba8a036bcc407c72d',
+  // Digests of general/* (the General Soot definition).
+  const sources = { 'soot.json': '4287b895e06cbedf48e8f44e3a2baf34ad9855f550d9ba7960b575e0bf90c9ac',
     'SOUL.md': '43b7134ff212166c8960e356295f5b975f6f3e79cef528a20394a438ec63bed4',
-    'mission.md': '271081b1fe518d5d239144631ab9a7b5b1393d950ffbd1dd392e600fba7cabed' };
+    'mission.md': '8d117b67719b82bc1e60fa7c64e2acfc783198c6d0c5b2ccb4fc4d96ac3b62cb' };
   for (const [name, digest] of Object.entries(sources)) assert.equal(sha256(await readFile(join(root, 'general', name))), digest, name);
   const { preset } = await readGeneral(root, catalog);
   assert.deepEqual(Object.values(preset.sources).map(source => source.github_latest), Array(preset.install.length).fill('2found/soot-forge'));
   assert.deepEqual(preset.sources['2build'], { github_latest: '2found/soot-forge' });
   assert.ok(preset.install.includes('2build') && preset.packs.includes('2build'));
+  assert.ok(preset.nest.packs.includes('nest-lead') && !preset.packs.includes('nest-lead'));
 });
 
 test('the creation preset must resolve from this repository alone', async () => {
@@ -61,11 +62,11 @@ test('the creation preset must resolve from this repository alone', async () => 
     p => { p.sources.extra = { github_latest: '2found/soot-forge' }; },
     p => { p.install.push('not-in-the-catalog'); },
     p => { p.packs.push('not-installed'); },
-    p => { p.use.push('missing/skill'); },
-    p => { p.use.push('Bad Selector'); },
+    p => { p.packs.push('Bad Selector'); },
+    p => { p.packs.push('nest-lead'); },
+    p => { p.nest.packs.push('toolbox:write'); },
     p => { p.nest.packs.push('not-installed'); },
     p => { p.version = 2; },
-    p => { p.use.push('toolbox'); },
     p => { p.sources.toolbox = null; },
     p => { p.install.push(p.install[0]); },
   ];
@@ -88,7 +89,7 @@ test('the release archive is a bounded soot/release-v1 definition with no pack f
   const manifest = JSON.parse(entries[0].content);
   assert.deepEqual(Object.keys(manifest), ['api_version', 'id', 'version', 'source_version', 'packs_dir', 'soots', 'nest', 'files']);
   assert.deepEqual({ ...manifest, files: undefined }, { api_version: 'soot/release-v1', id: 'general', version: 3000, source_version: '0.3.0',
-    packs_dir: 'packs.d', soots: ['soots/general/soot.json'], nest: preset.nest, files: undefined });
+    packs_dir: 'packs', soots: ['soots/general/soot.json'], nest: preset.nest, files: undefined });
   assert.deepEqual(Object.keys(manifest.files), entries.slice(1).map(entry => entry.name.slice('files/'.length)));
   assert.ok(Object.keys(manifest.files).every(path => path.startsWith('soots/general/')), 'no pack files');
   for (const entry of entries.slice(1)) {

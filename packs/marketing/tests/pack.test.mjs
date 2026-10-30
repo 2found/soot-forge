@@ -7,7 +7,7 @@ import Ajv from 'ajv';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pack = JSON.parse(readFileSync(join(root, 'pack.json'), 'utf8'));
-const tools = Object.fromEntries(Object.values(pack.capabilities).flatMap(c => c.tools ?? []).map(t => [t.name, t]));
+const tools = Object.fromEntries(pack.tools.map(t => [t.name, t]));
 const ajv = new Ajv({ strict: false, validateFormats: false });
 const accepts = (tool, input) => ajv.compile(tools[tool].parameters)(input);
 
@@ -16,12 +16,13 @@ const accepts = (tool, input) => ajv.compile(tools[tool].parameters)(input);
 const HUB = ['cms_list', 'cms_read', 'cms_save', 'cms_publish', 'social_channels', 'social_queue', 'social_list', 'social_update', 'social_publish', 'social_record', 'radar_feeds', 'radar_scan', 'radar_items', 'radar_mark', 'content_stats'];
 const READS = ['cms_list', 'cms_read', 'social_channels', 'social_list', 'radar_feeds', 'radar_items', 'content_stats'];
 
-test('the capabilities are the team roles, and every hub tool is in exactly one', () => {
-  assert.deepEqual(Object.keys(pack.capabilities), ['radar', 'write', 'edit', 'publish', 'measure']);
-  assert.deepEqual(Object.keys(tools).sort(), [...HUB].sort());
-  assert.deepEqual(pack.capabilities.publish.tools.map(t => t.name), ['cms_publish', 'social_publish', 'social_record']);
-  assert.deepEqual(pack.capabilities.measure.tools.map(t => t.name), ['content_stats']);
-  assert.equal(pack.capabilities.edit.tools, undefined, 'review is a skill, not a tool');
+test('the pack is one flat set: five role skills and every hub tool once', () => {
+  assert.deepEqual(pack.skills.map(s => s.name), ['marketing-radar', 'marketing-write', 'marketing-edit', 'marketing-publish', 'marketing-measure']);
+  assert.deepEqual(pack.tools.map(t => t.name).sort(), [...HUB].sort());
+  assert.equal(new Set(pack.tools.map(t => t.name)).size, HUB.length);
+  assert.equal(pack.capabilities, undefined);
+  assert.equal(pack.use, undefined);
+  assert.deepEqual(pack.needs.credentials.MARKETING_HUB.from ?? 'operator', 'operator');
 });
 
 test('every tool forwards to the hub through the MARKETING_HUB binding and nothing else', () => {
@@ -58,7 +59,7 @@ test('publishing still binds the reviewed revision', () => {
 });
 
 test('the pack is product-neutral: brands live in each product\'s own skill', () => {
-  const files = [join(root, 'pack.json'), ...Object.values(pack.capabilities).flatMap(c => c.skills).map(s => join(root, s.file))];
+  const files = [join(root, 'pack.json'), ...pack.skills.map(s => join(root, s.file))];
   for (const file of files) {
     assert.ok(existsSync(file), file);
     assert.doesNotMatch(readFileSync(file, 'utf8'), /2found|2novel|lohi|trysoot|FOUND_HUB|found_hub/i, file);

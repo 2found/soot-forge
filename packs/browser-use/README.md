@@ -24,13 +24,13 @@ nothing else about the Soot changes.
 
 `soot spawn` selects browser-use for the general Soot from the latest stable Forge release.
 Nest selects both browser-use and soot-nest. Existing customized Soot definitions
-are preserved; opt them in with `packs: ["browser-use", "soot-nest"]` alongside
-their existing selections. In the deployment, authorize PATH and HOME for both
-`browser-use_control` and `browser-use_view` under `operation_env`.
+are preserved; opt them in with `"packs": ["browser-use", "soot-nest"]` alongside
+their existing selections. The pack declares `needs.env: ["PATH", "HOME"]`; the host grants them in
+`pack_grants`: `{"browser-use": {"env": ["PATH", "HOME"]}}` (or `soot grant browser-use`).
 
 The manifest's `interface.tool_area` declares label, renderer, read/action tools,
 width/min/max, aspect width/height and resizability. Nest owns rendering. Installing
-the pack alone grants nothing: both executable capabilities must be selected.
+the pack alone grants nothing: a Soot selects the pack whole (`browser-use`; `browser-use:read` gives the skill and `browser-use_view` only, not `browser-use_control`).
 The manifest invokes the installed `soot-browser` directly; no per-call `npx` lookup or download. `--install-links` copies the adapter and pinned dependencies into the operator’s global prefix, outside the pack/configuration snapshot. Keep that prefix on the Soot host’s PATH.
 
 One profile per conversation ID under the installed pack's private `.browser/`
