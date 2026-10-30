@@ -1,13 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"time"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/jackc/pgx/v5"
 )
 
 // Admission is the state-held half of the bound-Soot list. storage.soots is
@@ -30,34 +30,41 @@ type admission struct {
 	At    string `json:"at"`
 }
 
-func readAdmissions(tx *bolt.Tx) map[string]admission {
-	out := map[string]admission{}
-	b := tx.Bucket([]byte("admitted"))
-	if b == nil {
-		return out
+func readAdmissions(ctx context.Context, tx pgx.Tx) (map[string]admission, error) {
+	rows, err := tx.Query(ctx, `SELECT soot, host, level, by, at FROM `+databaseSchema+`.admissions`)
+	if err != nil {
+		return nil, err
 	}
-	_ = b.ForEach(func(k, v []byte) error {
+	defer rows.Close()
+	out := map[string]admission{}
+	for rows.Next() {
+		var soot string
 		var a admission
-		if json.Unmarshal(v, &a) == nil {
-			out[string(k)] = a
+		var at time.Time
+		if err := rows.Scan(&soot, &a.Host, &a.Level, &a.By, &at); err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	return out
+		a.At = at.UTC().Format(time.RFC3339)
+		out[soot] = a
+	}
+	return out, rows.Err()
 }
 
-func (s *service) admissions() map[string]admission {
+func (s *service) admissions(ctx context.Context) map[string]admission {
 	out := map[string]admission{}
-	_ = s.db.View(func(tx *bolt.Tx) error { out = readAdmissions(tx); return nil })
+	_ = s.db.view(ctx, func(tx pgx.Tx) error {
+		out, _ = readAdmissions(ctx, tx)
+		return nil
+	})
 	return out
 }
 
 // withAdmitted widens this session's bound and writer lists by the admitted
 // Soots, so every bound-Soot check (grant targets, manage listings) sees them.
 // It derives from the static lists and never mutates a shared slice.
-func (s *service) withAdmitted() {
+func (s *service) withAdmitted(ctx context.Context) {
 	soots, writers := slices.Clone(s.static.Soots), slices.Clone(s.static.Writers)
-	for id, a := range s.admissions() {
+	for id, a := range s.admissions(ctx) {
 		if !slices.Contains(soots, id) {
 			soots = append(soots, id)
 		}
@@ -71,31 +78,28 @@ func (s *service) withAdmitted() {
 
 // admitted reports whether machine credential host may act as soot through
 // an admission (static allowlists are checked by the caller).
-func (s *service) admitted(soot, host string) bool {
-	var a admission
-	found := false
-	_ = s.db.View(func(tx *bolt.Tx) error {
-		if b := tx.Bucket([]byte("admitted")); b != nil {
-			if v := b.Get([]byte(soot)); v != nil {
-				found = json.Unmarshal(v, &a) == nil
-			}
-		}
-		return nil
+func (s *service) admitted(ctx context.Context, soot, host string) (bool, error) {
+	var stored string
+	err := s.db.view(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT host FROM `+databaseSchema+`.admissions WHERE soot = $1`, soot).Scan(&stored)
 	})
-	return found && a.Host == host
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return stored == host, err
 }
 
 // admittedLevels maps each admitted (not config-bound) Soot to its level, so
 // Nest can tell a Soot whose pool is on but not yet admitted.
-func (s *service) admittedLevels() map[string]string {
+func (s *service) admittedLevels(ctx context.Context) map[string]string {
 	out := map[string]string{}
-	for id, a := range s.admissions() {
+	for id, a := range s.admissions(ctx) {
 		out[id] = a.Level
 	}
 	return out
 }
 
-func (s *service) manageAdmission(in manageInput) (any, error) {
+func (s *service) manageAdmission(ctx context.Context, in manageInput) (any, error) {
 	if in.Pool != "" || in.Group != "" || in.Name != "" || in.Parent != nil || in.Inherit != nil || in.Scope != "" || in.Subject != "" || in.Generation != "" || in.ExpectedPolicyRevision != nil {
 		return nil, inputError{in.Action + " takes only soot, host, level and request_id"}
 	}
@@ -117,8 +121,11 @@ func (s *service) manageAdmission(in manageInput) (any, error) {
 		if in.Level != "" || in.Host != "" {
 			return nil, inputError{"dismiss takes only soot and request_id"}
 		}
-		err := s.db.Update(func(tx *bolt.Tx) error { return tx.Bucket([]byte("admitted")).Delete([]byte(in.Soot)) })
-		s.withAdmitted()
+		err := s.db.update(ctx, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `DELETE FROM `+databaseSchema+`.admissions WHERE soot = $1`, in.Soot)
+			return err
+		})
+		s.withAdmitted(ctx)
 		return map[string]any{"soot": in.Soot, "admitted": false}, err
 	}
 	level := in.Level
@@ -139,18 +146,27 @@ func (s *service) manageAdmission(in manageInput) (any, error) {
 	case host != "" && !slices.Contains(s.hosts, host):
 		return nil, inputError{fmt.Sprintf("unknown host %s; host is one of %v", host, s.hosts)}
 	}
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("admitted"))
-		if b.Get([]byte(in.Soot)) == nil && len(s.static.Soots)+len(readAdmissions(tx)) >= maxBound {
+	err := s.db.update(ctx, func(tx pgx.Tx) error {
+		var existing bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM `+databaseSchema+`.admissions WHERE soot = $1)`, in.Soot).Scan(&existing); err != nil {
+			return err
+		}
+		var count int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM `+databaseSchema+`.admissions`).Scan(&count); err != nil {
+			return err
+		}
+		if !existing && len(s.static.Soots)+count >= maxBound {
 			return inputError{fmt.Sprintf("this data service already binds %d Soots", maxBound)}
 		}
-		data, _ := json.Marshal(admission{Host: host, Level: level, By: s.actor, At: time.Now().UTC().Format(time.RFC3339)})
-		return b.Put([]byte(in.Soot), data)
+		_, err := tx.Exec(ctx, `INSERT INTO `+databaseSchema+`.admissions (soot, host, level, by, at) VALUES ($1,$2,$3,$4,$5)
+			ON CONFLICT (soot) DO UPDATE SET host = EXCLUDED.host, level = EXCLUDED.level, by = EXCLUDED.by, at = EXCLUDED.at`,
+			in.Soot, host, level, s.actor, time.Now().UTC())
+		return err
 	})
 	var invalid inputError
 	if errors.As(err, &invalid) {
 		return nil, invalid
 	}
-	s.withAdmitted()
+	s.withAdmitted(ctx)
 	return map[string]any{"soot": in.Soot, "admitted": true, "level": level, "host": host}, err
 }

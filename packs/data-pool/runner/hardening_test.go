@@ -15,22 +15,24 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 const macHostToken = "synthetic-mac-host-token-1234567890"
 const vmHostToken = "synthetic-vm-host-token-12345678900"
 
 // Two machines, each with its own host credential bounded to its own Soots.
-func hostConfig(t *testing.T, endpoint string) serverConfig {
-	c := gatewayConfig(t, endpoint)
+func hostConfig(t *testing.T) serverConfig {
+	c := serverConfig{Storage: freshBinding(t), Listen: "127.0.0.1:0", Clients: []serviceClient{
+		{Soot: "manager", TokenSHA256: hash(managerToken), Operations: operations},
+		{Soot: "marketing", TokenSHA256: hash(readerToken), Operations: []string{"pools", "query", "status"}},
+		{Soot: "support", TokenSHA256: hash(vmToken), Operations: []string{"pools", "query", "status"}},
+		{Soot: hostClient, Name: "mac", Soots: []string{"manager", "marketing"}, TokenSHA256: hash(macHostToken)},
+		{Soot: hostClient, Name: "vm", Soots: []string{"support"}, TokenSHA256: hash(vmHostToken)},
+	}}
 	c.Storage.Writers = []string{"support"}
-	c.Clients = append(c.Clients,
-		serviceClient{Soot: hostClient, Name: "mac", Soots: []string{"manager", "marketing"}, TokenSHA256: hash(macHostToken)},
-		serviceClient{Soot: hostClient, Name: "vm", Soots: []string{"support"}, TokenSHA256: hash(vmHostToken)})
 	return c
 }
+
 func toolRequest(t *testing.T, g *gateway, token, actor, op string, human bool, in any) *httptest.ResponseRecorder {
 	t.Helper()
 	raw, _ := json.Marshal(in)
@@ -43,28 +45,22 @@ func toolRequest(t *testing.T, g *gateway, token, actor, op string, human bool, 
 }
 
 func TestGatewayParallelReadsShareNoRequestState(t *testing.T) {
-	_, backend := newFake(t)
-	g, err := newGateway(hostConfig(t, backend.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewServer(g)
-	t.Cleanup(func() { server.Close(); g.base.close() })
-	for i := 0; i < 8; i++ {
+	g, server := newTestGatewayWith(t, hostConfig(t))
+	for i := range 8 {
 		mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_create", Pool: fmt.Sprintf("pool-%d", i), Name: "Pool", RequestID: fmt.Sprintf("create-%d", i)})
 	}
 	mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "grant", Pool: "pool-0", Soot: "marketing", Level: "read", RequestID: "grant"})
-	// Four principals at their concurrency cap: 64 requests in flight, readers
-	// probing ungranted pools so every one fills its permission memo.
+	// Four principals at their concurrency cap: readers probing ungranted pools
+	// so every one fills its permission memo.
 	principals := []struct{ token, actor string }{{readerToken, "marketing"}, {vmToken, "support"}, {macHostToken, "marketing"}, {vmHostToken, "support"}}
 	var wg sync.WaitGroup
 	failures := make(chan string, 64*6)
 	for _, p := range principals {
-		for i := 0; i < perPrincipal; i++ {
+		for range perPrincipal {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				for round := 0; round < 3; round++ {
+				for range 3 {
 					if w := toolRequest(t, g, p.token, p.actor, "pools", false, poolsInput{}); w.Code != 200 {
 						failures <- fmt.Sprint(p.actor, w.Code)
 					}
@@ -87,13 +83,13 @@ func TestGatewayParallelReadsShareNoRequestState(t *testing.T) {
 }
 
 func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
-	_, backend := newFake(t)
-	c := hostConfig(t, backend.URL)
+	c := hostConfig(t)
 	var log bytes.Buffer
-	g, err := newGateway(c)
+	g, err := newGateway(context.Background(), c)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { g.base.close() })
 	g.accessLog = &log
 	call := func(token, actor, op string, human bool, in any) int {
 		return toolRequest(t, g, token, actor, op, human, in).Code
@@ -107,7 +103,7 @@ func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
 		human            bool
 		in               any
 	}{
-		{macHostToken, "marketing", "write", false, secret},      // reader role
+		{macHostToken, "marketing", "write", false, secret}, // reader role
 		{macHostToken, "manager", "view", true, uiInput("overview", map[string]any{})},
 		{macHostToken, "manager", "view", false, uiInput("overview", map[string]any{})},
 		{macHostToken, "manager", "pools", true, poolsInput{}}, // no human marker on machine credentials
@@ -163,7 +159,7 @@ func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
 	// Revoking one machine is removing its client entry; the other keeps working.
 	g.base.close()
 	c.Clients = c.Clients[:len(c.Clients)-1]
-	g, err = newGateway(c)
+	g, err = newGateway(context.Background(), c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +173,7 @@ func TestHostCredentialsAreBoundedPerMachine(t *testing.T) {
 }
 
 func TestHostClientConfigurationIsExplicit(t *testing.T) {
-	base := hostConfig(t, "http://127.0.0.1:7700")
+	base := hostConfig(t)
 	if err := validateServerConfig(base); err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +186,7 @@ func TestHostClientConfigurationIsExplicit(t *testing.T) {
 		"operations":     func(c *serviceClient) { c.Operations = []string{"pools"} },
 		"invalid name":   func(c *serviceClient) { c.Name = "mac/../x" },
 	} {
-		c := hostConfig(t, "http://127.0.0.1:7700")
+		c := hostConfig(t)
 		mutate(&c.Clients[3])
 		err := validateServerConfig(c)
 		if err == nil {
@@ -200,7 +196,7 @@ func TestHostClientConfigurationIsExplicit(t *testing.T) {
 			t.Fatal("unclear startup error", err)
 		}
 	}
-	c := hostConfig(t, "http://127.0.0.1:7700")
+	c := hostConfig(t)
 	c.Clients[0].Soots = []string{"manager"}
 	if validateServerConfig(c) == nil {
 		t.Fatal("per-Soot client accepted an allowlist")
@@ -248,25 +244,32 @@ func TestWorkspaceGrantIsVisibleCappedAndRevocable(t *testing.T) {
 }
 
 func TestPrivateNetworkOptIn(t *testing.T) {
-	c := gatewayConfig(t, "http://meilisearch:7700")
+	c := hostConfig(t)
 	c.Listen = "0.0.0.0:8091"
 	if validateServerConfig(c) == nil {
-		t.Fatal("cleartext public listen or named http backend without private_network")
+		t.Fatal("cleartext public listen without private_network")
 	}
 	c.PrivateNetwork = true
+	c.Storage.DatabaseURL = "postgres://user:secret@postgres:5432/app?sslmode=disable"
 	if err := validateServerConfig(c); err != nil {
 		t.Fatal(err)
 	}
-	for endpoint, ok := range map[string]bool{"http://10.1.2.3:7700": true, "http://[fd00::5]:7700": true, "http://8.8.8.8:7700": false, "http://169.254.169.254": false, "ftp://meilisearch": false} {
-		c.Storage.Endpoint = endpoint
+	for dsn, ok := range map[string]bool{
+		"postgres://user:secret@10.1.2.3:5432/app?sslmode=disable":   true,
+		"postgres://user:secret@[fd00::5]:5432/app?sslmode=disable":  true,
+		"postgres://user:secret@8.8.8.8:5432/app?sslmode=disable":    false,
+		"postgres://user:secret@169.254.169.254/app?sslmode=disable": false,
+		"mysql://user:secret@10.1.2.3/app":                           false,
+	} {
+		c.Storage.DatabaseURL = dsn
 		if (validateServerConfig(c) == nil) != ok {
-			t.Fatal("private backend validation", endpoint)
+			t.Fatal("private database validation", dsn)
 		}
 	}
 	// Direct-mode bindings never gain the opt-in.
-	raw, _ := json.Marshal(binding{Endpoint: "http://meilisearch:7700", APIKey: "synthetic-backend-key-1234567890", Namespace: "company", StateDir: "/tmp/x", Soots: []string{"manager"}, Managers: []string{"manager"}})
+	raw, _ := json.Marshal(binding{DatabaseURL: "postgres://user:secret@postgres:5432/app?sslmode=disable", Namespace: "company", Soots: []string{"manager"}, Managers: []string{"manager"}})
 	if _, err := loadBinding(string(raw)); err == nil {
-		t.Fatal("direct mode accepted named http backend")
+		t.Fatal("direct mode accepted a named cleartext database")
 	}
 	dials := []string{}
 	dial := func(_ context.Context, _, address string) (net.Conn, error) {
@@ -285,36 +288,23 @@ func TestPrivateNetworkOptIn(t *testing.T) {
 		}
 	}
 	for _, bad := range [][]string{{"172.18.0.2", "93.184.216.34"}, {"169.254.169.254"}, {"100.64.0.1"}} {
-		if _, err := guardedDial(context.Background(), "tcp", "meilisearch:7700", privateAddress, answers(bad...), dial); err == nil {
-			t.Fatal("dialed non-private backend answer", bad)
+		if _, err := guardedDial(context.Background(), "tcp", "source.example:443", publicAddress, answers(bad...), dial); err == nil {
+			t.Fatal("dialed non-public source answer", bad)
 		}
 	}
-	conn, err := guardedDial(context.Background(), "tcp", "meilisearch:7700", privateAddress, answers("172.18.0.2", "::ffff:10.0.0.9"), dial)
-	if err != nil || len(dials) != 1 || dials[0] != "172.18.0.2:7700" {
-		t.Fatal("private backend not pinned", err, dials)
+	conn, err := guardedDial(context.Background(), "tcp", "source.example:443", publicAddress, answers("93.184.216.34"), dial)
+	if err != nil || len(dials) != 1 || dials[0] != "93.184.216.34:443" {
+		t.Fatal("public source not pinned", err, dials)
 	}
 	conn.Close()
-	if newBackend(binding{Endpoint: "https://search.example.com"}).client.Transport.(*http.Transport).DialContext != nil {
-		t.Fatal("HTTPS backend should use the default dialer")
-	}
-	if newBackend(binding{Endpoint: "http://meilisearch:7700"}).client.Transport.(*http.Transport).DialContext == nil {
-		t.Fatal("cleartext backend dial is unguarded")
-	}
 }
 
 func TestStatusSharesAdmissionAndPrincipalsAreCapped(t *testing.T) {
-	f, backend := newFake(t)
-	g, err := newGateway(gatewayConfig(t, backend.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer g.base.close()
-	s := g.session("manager")
+	g, _ := newTestGatewayWith(t, serverConfig{Storage: freshBinding(t)})
+	s := g.session(context.Background(), "manager")
 	create(t, s, "company")
 	grant(t, s, "company", "marketing", "read")
-	f.pending = true
 	writeDoc(t, s, "company", "doc", "pending", "Pending text")
-	f.pending = false
 	status := func(token, actor string) chan int {
 		done := make(chan int, 1)
 		go func() {
@@ -322,7 +312,7 @@ func TestStatusSharesAdmissionAndPrincipalsAreCapped(t *testing.T) {
 		}()
 		return done
 	}
-	// An in-flight read holds shared admission; status no longer waits on it.
+	// An in-flight read holds shared admission; status does not wait on it.
 	read, _ := g.policy.acquire(context.Background(), false)
 	select {
 	case code := <-status(readerToken, "marketing"):
@@ -332,12 +322,12 @@ func TestStatusSharesAdmissionAndPrincipalsAreCapped(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("status waited for exclusive admission")
 	}
-	// Reconciling the pending write serializes with that request's own key.
+	// Status rides with the original request's key.
 	held, _ := g.keys.acquire(context.Background(), "request/manager/pending")
 	done := status(managerToken, "manager")
 	select {
 	case <-done:
-		t.Fatal("status reconciled while its request was in flight")
+		t.Fatal("status read while its request was in flight")
 	case <-time.After(100 * time.Millisecond):
 	}
 	held()
@@ -345,24 +335,9 @@ func TestStatusSharesAdmissionAndPrincipalsAreCapped(t *testing.T) {
 		t.Fatal(code)
 	}
 	read()
-	// An unresolved pool removal still takes exclusive admission.
-	if err := g.base.db.Update(func(tx *bolt.Tx) error {
-		return putJSON(tx.Bucket([]byte("receipts")), "manager/removal", receipt{ID: "removal", Owner: "manager", Pool: "company", Action: "pool_remove", Status: "uncertain"})
-	}); err != nil {
-		t.Fatal(err)
-	}
-	read, _ = g.policy.acquire(context.Background(), false)
-	short, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	input, _ := json.Marshal(statusInput{RequestID: "removal"})
-	if release, err := g.admit(short, "status", "manager", toolCall{Input: input}); err == nil {
-		release()
-		t.Fatal("pool removal reconciliation shared admission")
-	}
-	read()
 	// One principal cannot hold more than its share of the global slots.
 	key := hash(readerToken) + "/marketing"
-	for i := 0; i < perPrincipal; i++ {
+	for range perPrincipal {
 		g.enter(key)
 	}
 	if w := toolRequest(t, g, readerToken, "marketing", "pools", false, poolsInput{}); w.Code != 429 || strings.Contains(w.Body.String(), "marketing") {
@@ -371,7 +346,7 @@ func TestStatusSharesAdmissionAndPrincipalsAreCapped(t *testing.T) {
 	if w := toolRequest(t, g, vmToken, "support", "pools", false, poolsInput{}); w.Code != 200 {
 		t.Fatal("cap leaked to another principal", w.Code)
 	}
-	for i := 0; i < perPrincipal; i++ {
+	for range perPrincipal {
 		g.leave(key)
 	}
 	if w := toolRequest(t, g, readerToken, "marketing", "pools", false, poolsInput{}); w.Code != 200 || len(g.active) != 0 {
@@ -380,12 +355,14 @@ func TestStatusSharesAdmissionAndPrincipalsAreCapped(t *testing.T) {
 }
 
 func TestReadinessConfigEnvAndHealthcheck(t *testing.T) {
-	_, backend := newFake(t)
-	c := gatewayConfig(t, backend.URL)
-	g, err := newGateway(c)
+	c := serverConfig{Storage: freshBinding(t), Listen: "127.0.0.1:0", Clients: []serviceClient{
+		{Soot: "manager", TokenSHA256: hash(managerToken), Operations: operations},
+	}}
+	g, err := newGateway(context.Background(), c)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer g.base.close()
 	probe := func(path string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		g.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
@@ -394,21 +371,13 @@ func TestReadinessConfigEnvAndHealthcheck(t *testing.T) {
 	if w := probe("/readyz"); w.Code != 200 || w.Body.String() != "{\"status\":\"ready\"}\n" {
 		t.Fatal(w.Code, w.Body)
 	}
-	backend.Close()
+	g.base.close()
 	g.readyAt = time.Time{}
-	if w := probe("/readyz"); w.Code != 503 || strings.Contains(w.Body.String(), "127.0.0.1") {
-		t.Fatal("unready backend reported ready", w.Code, w.Body)
+	if w := probe("/readyz"); w.Code != 503 || strings.Contains(w.Body.String(), "postgres://") {
+		t.Fatal("unready database reported ready", w.Code, w.Body)
 	}
 	if w := probe("/healthz"); w.Code != 200 {
-		t.Fatal("liveness depends on backend")
-	}
-	g.base.close()
-	_, backend = newFake(t)
-	c.Storage.Endpoint = backend.URL
-	g.readyAt = time.Time{}
-	g.base.backend = newBackend(binding{Endpoint: backend.URL, APIKey: "synthetic-backend-key-1234567890"})
-	if w := probe("/readyz"); w.Code != 503 {
-		t.Fatal("closed policy DB reported ready")
+		t.Fatal("liveness depends on database")
 	}
 
 	data, _ := json.Marshal(c)

@@ -7,9 +7,10 @@ separate `DATA_POOL_UI` binding. Ordinary model operations ignore a human marker
 The shared gateway derives identity from its operation-scoped token.
 
 Nest uses the existing conversation interface transport; it never connects to
-Meilisearch or opens the policy database. Inputs and responses contain no backend
-key, service token, state directory or host environment. No installation,
-backend startup, implicit grant or model run occurs on opening the interface.
+PostgreSQL or opens the `data_pool` schema directly. Inputs and responses
+contain no database URL, database role, service token or host environment. No
+installation, database startup, implicit grant or model run occurs on opening
+the interface.
 
 `view` input is `{ "kind": "overview|pools|query|activity|status", "input": {} }`:
 
@@ -25,17 +26,18 @@ backend startup, implicit grant or model run occurs on opening the interface.
 write/manage fields. Human writes additionally require `generation` and
 `expected_revision` (zero for a new document). Human management requires
 `generation` and `expected_policy_revision`, except `pool_create`. These guards
-are checked while holding the namespace policy lock through publication. The
-saved request fingerprint covers the guards as well as the data. Always retain
-the original request ID; reconcile using `view` / `status`, without replaying a
-POST automatically.
+are checked in the same transaction that publishes the document, receipt and
+activity. The saved request fingerprint covers the guards as well as the data.
+Always retain the original request ID; check it with `status` instead of blindly
+replaying a POST.
 
-A successful mutation returns its durable receipt. `pending` and `uncertain`
-are not success. A validation/permission rejection returns
+A successful mutation returns its durable `succeeded` receipt; the same request
+replays it. A validation/permission rejection returns
 `{ "status": "error", "code": "rejected", "message": "..." }`; a stale revision
-uses `code: conflict`. A known durable pending/uncertain receipt stays visible
-after an error following submission. A transport failure provides no outcome:
-keep the original request and check its receipt before any further mutation.
+uses `code: conflict`. There is no pending or uncertain receipt: the document,
+receipt and activity commit in one transaction or the call fails. A transport
+failure still provides no outcome; keep the original request and check its
+receipt before any further mutation.
 
 Pool details expose `policy_revision`, effective `grants`, `host_managers` and
 `bound_soots`. Namespace administrators cannot be revoked through pool grants.

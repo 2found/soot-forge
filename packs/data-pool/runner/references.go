@@ -1,13 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"strconv"
 	"strings"
 	"time"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/jackc/pgx/v5"
 )
 
 // Correlation fields originate in the host envelope, never model input. They
@@ -60,28 +60,23 @@ type dataReference struct {
 	Origin     originRef `json:"origin"`
 }
 
-func appendReference(tx *bolt.Tx, origin *originRef, pool, generation, action string, d *document) error {
+func appendReference(ctx context.Context, tx pgx.Tx, origin *originRef, pool, generation, action string, d *document) error {
 	if origin == nil || origin.Conversation == "" || d == nil {
 		return nil
 	}
-	b, err := tx.Bucket([]byte("references")).CreateBucketIfNotExists([]byte(origin.Conversation))
-	if err != nil {
+	var seq uint64
+	if err := tx.QueryRow(ctx, `INSERT INTO `+databaseSchema+`.references_log
+		(conversation, at, pool, generation, id, revision, sha256, action, origin)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING seq`,
+		origin.Conversation, time.Now().UTC(), pool, generation, d.ID, d.Revision, d.SHA256, action, jsonBytes(*origin)).Scan(&seq); err != nil {
 		return err
 	}
-	seq, err := b.NextSequence()
-	if err != nil {
-		return err
-	}
-	r := dataReference{Sequence: seq, At: time.Now().UTC().Format(time.RFC3339Nano), Pool: pool, Generation: generation, ID: d.ID, Revision: d.Revision, SHA256: d.SHA256, Action: action, Origin: *origin}
-	if err := putJSON(b, string(sequenceKey(seq)), r); err != nil {
-		return err
-	}
-	if seq > referenceRetention {
-		return b.Delete(sequenceKey(seq - referenceRetention))
-	}
-	return nil
+	_, err := tx.Exec(ctx, `DELETE FROM `+databaseSchema+`.references_log
+		WHERE conversation = $1 AND seq <= (SELECT max(seq) - $2 FROM `+databaseSchema+`.references_log WHERE conversation = $1)`, origin.Conversation, referenceRetention)
+	return err
 }
-func (s *service) references(in queryInput) (any, error) {
+
+func (s *service) references(ctx context.Context, in queryInput) (any, error) {
 	limit, err := pageSize(in.Limit)
 	if err != nil || !validContextID(in.Conversation) || in.Run != "" && !validContextID(in.Run) || in.ID != "" || in.Query != "" || in.Offset != 0 {
 		return nil, errors.New("invalid reference query")
@@ -93,39 +88,65 @@ func (s *service) references(in queryInput) (any, error) {
 			return nil, errors.New("invalid reference cursor")
 		}
 	}
-	rows := []dataReference{}
-	next := ""
-	oldest := uint64(0)
-	err = s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("references")).Bucket([]byte(in.Conversation))
-		if b == nil {
-			return nil
+	rowsOut := []dataReference{}
+	var oldest uint64
+	err = s.db.view(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `SELECT COALESCE(min(seq), 0) FROM `+databaseSchema+`.references_log WHERE conversation = $1`, in.Conversation).Scan(&oldest); err != nil {
+			return err
 		}
-		if b.Sequence() > referenceRetention {
-			oldest = b.Sequence() - referenceRetention + 1
-		} else if b.Sequence() > 0 {
-			oldest = 1
-		}
-		c := b.Cursor()
-		for k, v := c.Seek(sequenceKey(after + 1)); k != nil; k, v = c.Next() {
-			var r dataReference
-			if err := json.Unmarshal(v, &r); err != nil {
+		cursor, more := after, true
+		for more && len(rowsOut) <= limit {
+			rows, err := tx.Query(ctx, `SELECT r.seq, r.at, r.pool, p.generation, r.id, r.revision, r.sha256, r.action, r.origin
+				FROM `+databaseSchema+`.references_log r JOIN `+databaseSchema+`.pools p ON p.id = r.pool
+				WHERE r.conversation = $1 AND r.seq > $2 AND p.generation = r.generation
+				ORDER BY r.seq LIMIT 100`, in.Conversation, cursor)
+			if err != nil {
 				return err
 			}
-			if in.Pool != "" && r.Pool != in.Pool || in.Run != "" && r.Origin.Run != in.Run || r.Origin.Soot != s.actor && !s.manager() || !s.allowed(tx, r.Pool, "read") {
-				continue
+			candidates := []dataReference{}
+			rawCount := 0
+			for rows.Next() {
+				rawCount++
+				var r dataReference
+				var at time.Time
+				var origin []byte
+				if err := rows.Scan(&r.Sequence, &at, &r.Pool, &r.Generation, &r.ID, &r.Revision, &r.SHA256, &r.Action, &origin); err != nil {
+					rows.Close()
+					return err
+				}
+				cursor = r.Sequence
+				r.At = at.UTC().Format(time.RFC3339Nano)
+				_ = jsonUnmarshal(origin, &r.Origin)
+				if in.Pool != "" && r.Pool != in.Pool || in.Run != "" && r.Origin.Run != in.Run || r.Origin.Soot != s.actor && !s.manager() {
+					continue
+				}
+				candidates = append(candidates, r)
 			}
-			var p pool
-			if getJSON(tx.Bucket([]byte("pools")), r.Pool, &p) != nil || p.Generation != r.Generation {
-				continue
+			if err := rows.Err(); err != nil {
+				rows.Close()
+				return err
 			}
-			if len(rows) == limit {
-				next = strconv.FormatUint(rows[len(rows)-1].Sequence, 10)
-				break
+			rows.Close()
+			for _, r := range candidates {
+				allowed, err := s.allowed(ctx, tx, r.Pool, "read")
+				if err != nil {
+					return err
+				}
+				if allowed {
+					rowsOut = append(rowsOut, r)
+				}
 			}
-			rows = append(rows, r)
+			more = rawCount == 100
 		}
 		return nil
 	})
-	return map[string]any{"references": rows, "next": next, "oldest_sequence": oldest}, err
+	if err != nil {
+		return nil, err
+	}
+	next := ""
+	if len(rowsOut) > limit {
+		rowsOut = rowsOut[:limit]
+		next = strconv.FormatUint(rowsOut[len(rowsOut)-1].Sequence, 10)
+	}
+	return map[string]any{"references": rowsOut, "next": next, "oldest_sequence": oldest}, nil
 }

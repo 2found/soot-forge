@@ -1,32 +1,32 @@
 # Concurrent collection and duplicate-friendly ingestion
 
-Use the shared service for many Soots. Direct mode still takes the policy DB's
-single-process lock per connector call and is intended for one host's small
-workloads. Shared mode supports up to 4,096 bound Soots/client tokens and admits
-at most 256 active requests; overload returns 503 without retrying mutations.
-One principal — a token plus the Soot it claims — may hold at most 16 of those
-at once; the 17th gets a generic 429, so one caller cannot occupy every slot.
-These are bounds, not a promised production capacity.
+Use the shared service for many Soots. Direct mode opens a short-lived
+PostgreSQL connection pool per connector call and is intended for one host's
+small workloads. Shared mode supports up to 4,096 bound Soots/client tokens and
+admits at most 256 active requests; overload returns 503 without retrying
+mutations. One principal — a token plus the Soot it claims — may hold at most 16
+of those at once; the 17th gets a generic 429, so one caller cannot occupy every
+slot. These are bounds, not a promised production capacity.
 
 Independent document writes, queries and `status` share policy admission and
-can reach Meilisearch concurrently. Requests targeting one document serialize;
+reach PostgreSQL concurrently. Requests targeting one document serialize;
 identical request IDs for one Soot serialize before checking the saved receipt.
 `status` takes the same request key as the original write, then that write's
-document key, so a reconciliation can never commit a receipt while its own
-submission is still running. Reconciling an unresolved `pool_remove` rewrites
-policy and therefore still takes exclusive admission. Management and human UI
-operations retain exclusive policy admission.
+document key, so a status read never observes a half-published receipt.
+Management and human UI operations retain exclusive policy admission.
 A waiting revoke blocks new admissions and completes only after earlier responses
-are flushed. Slow backend work is bounded by existing request deadlines; different
-documents do not wait behind a namespace-wide write mutex.
+are flushed. Slow database work is bounded by existing request deadlines;
+different documents do not wait behind a namespace-wide write mutex. Writes are
+synchronous transactions: commit publishes the document, receipt and activity
+together, and rollback publishes nothing.
 
 The host Pack's `resource_fields` separates independent tool calls without
 changing credentials or privileges. Write keys include the host-bound `@soot`
 identity, pool, document and request ID; read keys include identity, pool, document
 and query. A model cannot spoof `@soot` through its input. It requires a Soot runtime supporting that
 field; upgrade runtime and Pack together. Existing runtimes reject the new field.
-The backend remains authoritative for same-document concurrency and unresolved
-effects even when host resource keys differ.
+PostgreSQL remains authoritative for same-document concurrency even when host
+resource keys differ.
 
 ## Append observations; update curated documents deliberately
 
@@ -54,10 +54,11 @@ per-document serialization. Supply `expected_revision` when a caller must detect
 an intervening change. Human interface edits continue to require both revision
 and pool generation. `remove` remains explicit.
 
-A successful response means the backend task and metadata committed. A pending
-or uncertain response is not permission to invent another ID and retry. Inspect
-the original request receipt; the per-document fence survives restart. Append's
-acceptance of duplicate content does not waive this uncertainty rule.
+A successful response means the transaction committed the document, receipt and
+activity. An error means it rolled back, so no asynchronous task is left behind.
+A transport failure still provides no outcome; inspect the receipt with the
+original request ID rather than inventing another ID. Append's acceptance of
+duplicate content does not weaken request-ID deduplication.
 
 ## Evidence and limits
 
@@ -71,7 +72,7 @@ not hundreds of simultaneous paid model calls or a production capacity claim.
 Unit tests hold 16 (one principal's cap) real gateway submissions at a
 transport rendezvous; a global
 write mutex fails that test. Competing guarded writes to one document admit
-exactly one expected revision. Existing loss/restart/revocation tests remain.
+exactly one expected revision. Existing replay/restart/revocation tests remain.
 
 Display metadata is optional: an omitted/blank title uses the provenance URL or
 document ID as a bounded default. When inline `content` and `url` are both given,

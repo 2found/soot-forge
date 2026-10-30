@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Run the shared data-pool service and Meilisearch on this machine with Docker.
+"""Run the shared data-pool service and PostgreSQL on this machine with Docker.
 
-install    build the service image, start Meilisearch and the service, render
+install    build the service image, start PostgreSQL 16 and the service, render
            bindings into HOME/data-pool (mode 0700)
 status     show containers, readiness and the binding files
 upgrade    rebuild the service image from this checkout and replace only the
-           service container; data, keys and bindings are kept
-uninstall  remove containers, networks and images; keep data and bindings
-           (--purge also deletes volumes and HOME/data-pool)
+           service container; PostgreSQL data and bindings are kept
+uninstall  remove containers, networks and images; keep PostgreSQL data and
+           bindings (--purge also deletes the pgdata volume and HOME/data-pool)
 
-Meilisearch is reachable only on a private internal Docker network. The service
-publishes 127.0.0.1:PORT and nothing else. Keys never appear in arguments or
-output; every resource carries the label io.soot.data-pool=local.
+PostgreSQL is reachable only on a private internal Docker network. The service
+publishes 127.0.0.1:PORT and nothing else. Generated passwords and DSNs never
+appear in arguments or output; every resource carries the label
+io.soot.data-pool=local.
 """
 import argparse
 import json
@@ -27,14 +28,16 @@ import urllib.request
 
 PREFIX = 'soot-data-pool-local'
 LABEL = 'io.soot.data-pool=local'
-MEILI_IMAGE = 'getmeili/meilisearch:v1.54.3'
+# Postgres major 16 is the supported minimum. Pin a digest for reproducible
+# pulls, for example postgres:16-alpine@sha256:<digest>.
+POSTGRES_IMAGE = 'postgres:16-alpine'
 INTERNAL, EGRESS = PREFIX, PREFIX + '-egress'
-MEILI, SERVICE = PREFIX + '-meili', PREFIX + '-service'
-MEILI_VOLUME, STATE_VOLUME = PREFIX + '-meili', PREFIX + '-state'
+POSTGRES, SERVICE = PREFIX + '-postgres', PREFIX + '-service'
+# A pre-PostgreSQL install owned these Meilisearch/state containers and volumes.
+LEGACY_CONTAINERS = [PREFIX + '-meili']
+LEGACY_VOLUMES = [PREFIX + '-meili', PREFIX + '-state']
+PGDATA_VOLUME = PREFIX + '-postgres'
 MARKER = '.soot-data-pool-local'
-# The service backend key can touch only data-pool indexes, never other products'.
-KEY_ACTIONS = ['search', 'documents.add', 'documents.get', 'documents.delete',
-               'indexes.create', 'indexes.get', 'indexes.delete', 'tasks.get']
 OPERATOR = Path(__file__).resolve().parent
 RUNNER = OPERATOR.parent / 'runner'
 
@@ -61,15 +64,10 @@ def root_of(args):
     return Path(args.home).expanduser().resolve() / 'data-pool'
 
 
-def meili_request(method, path, master, body=None):
-    # curl inside the Meilisearch container reads the key from stdin, so it
-    # never reaches a process argument or the host network.
-    config = f'header = "Authorization: Bearer {master}"\nrequest = "{method}"\nurl = "http://127.0.0.1:7700{path}"\nsilent\nshow-error\n'
-    if body is not None:
-        config += 'header = "Content-Type: application/json"\ndata = ' + json.dumps(json.dumps(body)) + '\n'
-    out = docker('exec', '-i', MEILI, 'curl', '-K', '-', '-w', '\n%{http_code}', stdin=config)
-    payload, _, status = out.rpartition('\n')
-    return int(status), json.loads(payload) if payload.strip() else None
+def postgres_ready():
+    # pg_isready has no credential side effects and reads no secret from argv.
+    return subprocess.run(['docker', 'exec', POSTGRES, 'pg_isready', '-U', 'soot', '-d', 'soot'],
+                          capture_output=True).returncode == 0
 
 
 def wait_ready(check, what, seconds=60):
@@ -104,7 +102,7 @@ def run_service(root, image, port):
         private_write(env, 'DATA_POOL_SERVICE_CONFIG=' + json.dumps(config, separators=(',', ':')) + '\n')
         docker('create', '--name', SERVICE, '--label', LABEL, '--restart', 'unless-stopped',
                '--network', INTERNAL, '--env-file', str(env), '-p', f'127.0.0.1:{port}:8091',
-               '-v', f'{STATE_VOLUME}:/data', '--read-only', '--cap-drop', 'ALL',
+               '--read-only', '--cap-drop', 'ALL',
                '--security-opt', 'no-new-privileges:true', '--memory', '256m', '--cpus', '0.5',
                '--pids-limit', '128', '--stop-timeout', '30', image)
     docker('network', 'connect', EGRESS, SERVICE)  # outbound HTTPS for URL imports
@@ -112,41 +110,49 @@ def run_service(root, image, port):
     wait_ready(lambda: service_ready(port), 'data-pool service')
 
 
+def legacy_install(root):
+    config = root / 'service/service.json'
+    if not config.exists():
+        return False
+    try:
+        storage = json.load(open(config)).get('storage') or {}
+    except (ValueError, OSError):
+        return True
+    return 'database_url' not in storage
+
+
 def install(args):
     root = root_of(args)
+    if legacy_install(root):
+        sys.exit(f'{root} was created for the Meilisearch backend. Run uninstall --purge to discard that local pool state (read any documents you need first), or move {root} aside; then install again.')
     soots = [s.strip() for s in args.soots.split(',') if s.strip()]
     if args.manager not in soots:
         sys.exit('--manager must be one of --soots')
-    if exists('container', SERVICE) or exists('container', MEILI):
+    if exists('container', SERVICE) or exists('container', POSTGRES):
         sys.exit('Already installed; use status, upgrade or uninstall.')
     fresh = not (root / MARKER).exists()
+    password = None
     if fresh:
         if root.exists() and any(root.iterdir()):
             sys.exit(f'{root} exists and was not created by this tool; move it away first.')
         root.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chmod(root, 0o700)
         private_write(root / MARKER, 'soot-data-pool-local\n')
-        private_write(root / 'meili.env', 'MEILI_MASTER_KEY=' + secrets.token_urlsafe(48) + '\nMEILI_ENV=production\nMEILI_NO_ANALYTICS=true\n'
-                      'MEILI_MAX_INDEXING_MEMORY=256 MiB\nMEILI_MAX_INDEXING_THREADS=1\n')
+        password = secrets.token_urlsafe(32)
+        private_write(root / 'postgres.env', 'POSTGRES_USER=soot\nPOSTGRES_PASSWORD=' + password + '\nPOSTGRES_DB=soot\n')
     image = build_image()
     for net, internal in ((INTERNAL, True), (EGRESS, False)):
         if not exists('network', net):
             docker('network', 'create', '--label', LABEL, *(['--internal'] if internal else []), net)
-    for vol in (MEILI_VOLUME, STATE_VOLUME):
-        if not exists('volume', vol):
-            docker('volume', 'create', '--label', LABEL, vol)
-    docker('run', '-d', '--name', MEILI, '--label', LABEL, '--restart', 'unless-stopped', '--network', INTERNAL,
-           '--env-file', str(root / 'meili.env'), '-v', f'{MEILI_VOLUME}:/meili_data', '--cap-drop', 'ALL',
-           '--security-opt', 'no-new-privileges:true', '--memory', '512m', '--cpus', '0.5', '--pids-limit', '128', MEILI_IMAGE)
-    master = next(l.split('=', 1)[1] for l in open(root / 'meili.env').read().splitlines() if l.startswith('MEILI_MASTER_KEY='))
-    wait_ready(lambda: meili_request('GET', '/health', master)[0] == 200, 'Meilisearch')
+    if not exists('volume', PGDATA_VOLUME):
+        docker('volume', 'create', '--label', LABEL, PGDATA_VOLUME)
+    docker('run', '-d', '--name', POSTGRES, '--label', LABEL, '--restart', 'unless-stopped', '--network', INTERNAL,
+           '--env-file', str(root / 'postgres.env'), '-v', f'{PGDATA_VOLUME}:/var/lib/postgresql/data',
+           '--security-opt', 'no-new-privileges:true', '--memory', '512m', '--cpus', '0.5', '--pids-limit', '128', POSTGRES_IMAGE)
+    wait_ready(postgres_ready, 'PostgreSQL')
     if fresh:
-        status, key = meili_request('POST', '/keys', master, {'name': 'soot-data-pool', 'description': 'Soot data-pool service backend',
-                                                              'actions': KEY_ACTIONS, 'indexes': ['soot_*'], 'expiresAt': None})
-        if status != 201:
-            sys.exit(f'Could not create the restricted Meilisearch key (HTTP {status}).')
-        backend = {'endpoint': f'http://{MEILI}:7700', 'api_key': key['key'], 'namespace': args.namespace,
-                   'state_dir': '/data/state', 'soots': soots, 'managers': [args.manager]}
+        backend = {'database_url': f'postgres://soot:{password}@{POSTGRES}:5432/soot?sslmode=disable',
+                   'namespace': args.namespace, 'soots': soots, 'managers': [args.manager]}
         private_write(root / 'backend.json', json.dumps(backend, indent=2) + '\n')
         cmd = [sys.executable, str(OPERATOR / 'configure-service.py'), '--backend-config', str(root / 'backend.json'),
                '--service-url', f'http://127.0.0.1:{args.port}', '--listen', '0.0.0.0:8091', '--private-network',
@@ -173,6 +179,8 @@ def upgrade(args):
     root = root_of(args)
     if not exists('container', SERVICE):
         sys.exit('Not installed.')
+    if legacy_install(root):
+        sys.exit(f'{root} was created for the Meilisearch backend and cannot be upgraded in place. Run uninstall --purge, then install with a PostgreSQL-backed binding.')
     port = docker('port', SERVICE, '8091').rpartition(':')[2]
     old = docker('inspect', '-f', '{{.Config.Image}}', SERVICE)
     image = build_image()
@@ -186,13 +194,14 @@ def upgrade(args):
         raise
     if old != image:
         docker('image', 'rm', old, check=False)
-    print(f'Upgraded to {image}; data and bindings unchanged.')
+    print(f'Upgraded to {image}; PostgreSQL data and bindings unchanged.')
 
 
 def uninstall(args):
     root = root_of(args)
-    images = {docker('inspect', '-f', '{{.Config.Image}}', c, check=False) for c in (SERVICE,) if exists('container', c)}
-    for c in (SERVICE, MEILI):
+    containers = [SERVICE, POSTGRES, *LEGACY_CONTAINERS]
+    images = {docker('inspect', '-f', '{{.Config.Image}}', c, check=False) for c in containers if exists('container', c)}
+    for c in containers:
         docker('rm', '-f', c, check=False)
     for net in (INTERNAL, EGRESS):
         docker('network', 'rm', net, check=False)
@@ -200,10 +209,10 @@ def uninstall(args):
     for image in filter(None, images):
         docker('image', 'rm', image, check=False)
     if not args.purge:
-        print(f'Removed containers, networks and images. Kept volumes and {root}; rerun install to resume, or uninstall --purge.')
+        print(f'Removed containers, networks and images. Kept the PostgreSQL volume and {root}; rerun install to resume, or uninstall --purge.')
         return
-    for vol in (MEILI_VOLUME, STATE_VOLUME):
-        docker('volume', 'rm', vol, check=False)
+    for volume in [PGDATA_VOLUME, *LEGACY_VOLUMES]:
+        docker('volume', 'rm', volume, check=False)
     if root.exists():
         if not (root / MARKER).exists():
             sys.exit(f'{root} was not created by this tool; left in place.')
@@ -211,7 +220,7 @@ def uninstall(args):
     left = docker('ps', '-a', '-q', '--filter', 'label=' + LABEL) + docker('volume', 'ls', '-q', '--filter', 'label=' + LABEL) + docker('network', 'ls', '-q', '--filter', 'label=' + LABEL)
     if left:
         sys.exit('Some labeled resources remain: ' + left.replace('\n', ' '))
-    print('Purged: containers, networks, images, volumes, keys and bindings. Remove the data_pool block from each Soot host.')
+    print('Purged: containers, networks, images, the PostgreSQL volume and bindings. Remove the data_pool block from each Soot host.')
 
 
 def main():
@@ -227,7 +236,7 @@ def main():
     sub.add_parser('status')
     sub.add_parser('upgrade')
     u = sub.add_parser('uninstall')
-    u.add_argument('--purge', action='store_true', help='also delete data volumes, keys and bindings')
+    u.add_argument('--purge', action='store_true', help='also delete the PostgreSQL volume, generated credentials and bindings')
     args = ap.parse_args()
     {'install': install, 'status': status, 'upgrade': upgrade, 'uninstall': uninstall}[args.command](args)
 

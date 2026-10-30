@@ -10,32 +10,33 @@ import (
 	"strings"
 	"testing"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func organizationFixture(t *testing.T) (*gateway, *httptest.Server, serverConfig) {
 	t.Helper()
-	_, backend := newFake(t)
-	c := gatewayConfig(t, backend.URL)
+	c := serverConfig{Storage: freshBinding(t), Clients: []serviceClient{
+		{Soot: "manager", TokenSHA256: hash(managerToken), Operations: operations},
+		{Soot: "marketing", TokenSHA256: hash(readerToken), Operations: operations},
+		{Soot: "support", TokenSHA256: hash(vmToken), Operations: []string{"pools", "query", "status"}},
+	}}
 	c.Storage.Groups = map[string][]string{"creative": {"marketing"}, "sales": {"support"}}
 	c.Storage.Defaults = map[string]string{"marketing": "project"}
-	c.Clients[1].Operations = operations
-	g, err := newGateway(c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewServer(g)
-	t.Cleanup(func() { server.Close(); g.base.close() })
+	g, server := newTestGatewayWith(t, c)
 	return g, server, c
 }
+
 func orgManage(t *testing.T, server *httptest.Server, in manageInput) []byte {
 	t.Helper()
 	return mustRemote(t, server.URL, managerToken, "manager", "manage", in)
 }
+
 func orgCreate(t *testing.T, server *httptest.Server, id, parent string, inherit *bool) {
 	t.Helper()
 	orgManage(t, server, manageInput{Action: "pool_create", Pool: id, Name: id, Parent: &parent, Inherit: inherit, RequestID: "create-" + id})
 }
+
 func orgPage(t *testing.T, server *httptest.Server, token, actor string, in poolsInput) []pool {
 	t.Helper()
 	var page struct{ Pools []pool }
@@ -44,14 +45,7 @@ func orgPage(t *testing.T, server *httptest.Server, token, actor string, in pool
 	}
 	return page.Pools
 }
-func contextCall(t *testing.T, server *httptest.Server, token string, call toolCall) ([]byte, error) {
-	t.Helper()
-	data, _ := json.Marshal(call)
-	binding, _ := json.Marshal(binding{ServiceURL: server.URL, ServiceToken: token})
-	var out bytes.Buffer
-	err := execute(context.Background(), []string{strings.TrimPrefix(call.Operation, "data-pool_")}, bytes.NewReader(data), &out, string(binding))
-	return out.Bytes(), err
-}
+
 func TestCollectionHierarchyGroupInheritanceAndMove(t *testing.T) {
 	_, server, _ := organizationFixture(t)
 	orgCreate(t, server, "company", "", nil)
@@ -94,12 +88,13 @@ func TestCollectionHierarchyGroupInheritanceAndMove(t *testing.T) {
 		t.Fatal("direct access to moved collection missing")
 	}
 }
+
 func TestCollectionRejectsCyclesParentsAndStalePolicy(t *testing.T) {
-	g, server, _ := organizationFixture(t)
+	_, server, _ := organizationFixture(t)
 	orgCreate(t, server, "company", "", nil)
 	orgCreate(t, server, "project", "company", nil)
 	var detail struct{ Pool pool }
-	json.Unmarshal(orgManageRead(t, server, "project"), &detail)
+	json.Unmarshal(mustRemote(t, server.URL, managerToken, "manager", "pools", poolsInput{Pool: "project"}), &detail)
 	orgManage(t, server, manageInput{Action: "grant", Pool: "company", Group: "creative", Level: "read", RequestID: "grant"})
 	raw, _ := json.Marshal(manageInput{Action: "pool_update", Pool: "project", Name: "Stale edit", RequestID: "stale", Generation: detail.Pool.Generation, ExpectedPolicyRevision: &detail.Pool.PolicyRevision})
 	envelope, _ := json.Marshal(interfaceInput{Kind: "manage", Input: raw})
@@ -114,20 +109,10 @@ func TestCollectionRejectsCyclesParentsAndStalePolicy(t *testing.T) {
 	if _, err := remoteCall(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_remove", Pool: "company", RequestID: "delete-parent"}); err == nil {
 		t.Fatal("recursive deletion allowed")
 	}
-	if err := g.base.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket([]byte("fences")).Put([]byte("project/*"), []byte("unknown"))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := remoteCall(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_create", Pool: "orphan", Name: "Orphan", Parent: &p, RequestID: "orphan"}); err == nil {
-		t.Fatal("created under unresolved removal")
-	}
 }
-func orgManageRead(t *testing.T, server *httptest.Server, id string) []byte {
-	return mustRemote(t, server.URL, managerToken, "manager", "pools", poolsInput{Pool: id})
-}
+
 func TestCollectionReferencesRevokeAndRestart(t *testing.T) {
-	g, server, c := organizationFixture(t)
+	g, server, cfg := organizationFixture(t)
 	orgCreate(t, server, "company", "", nil)
 	orgCreate(t, server, "project", "company", nil)
 	orgManage(t, server, manageInput{Action: "grant", Pool: "company", Group: "creative", Level: "write", RequestID: "grant"})
@@ -165,12 +150,12 @@ func TestCollectionReferencesRevokeAndRestart(t *testing.T) {
 	}
 	server.Close()
 	g.base.close()
-	next, err := newGateway(c)
+	cfg.Listen = "127.0.0.1:0"
+	next, err := newGateway(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.base = next.base
-	g.clients = next.clients
+	t.Cleanup(next.base.close)
 	restarted := httptest.NewServer(next)
 	defer restarted.Close()
 	if len(orgPage(t, restarted, readerToken, "marketing", poolsInput{})) != 0 {
@@ -180,8 +165,9 @@ func TestCollectionReferencesRevokeAndRestart(t *testing.T) {
 		t.Fatal("default destination bypassed revoke")
 	}
 }
-func TestCollectionDepthBoundAndPrivateLegacyMigration(t *testing.T) {
-	g, server, _ := organizationFixture(t)
+
+func TestCollectionDepthBound(t *testing.T) {
+	_, server, _ := organizationFixture(t)
 	parent := ""
 	for i := 0; i < maxCollectionDepth; i++ {
 		id := fmt.Sprintf("c%d", i)
@@ -191,35 +177,13 @@ func TestCollectionDepthBoundAndPrivateLegacyMigration(t *testing.T) {
 	if _, err := remoteCall(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_create", Pool: "too-deep", Name: "Deep", Parent: &parent, RequestID: "deep"}); err == nil {
 		t.Fatal("unbounded collection depth")
 	}
-	if err := g.base.db.Update(func(tx *bolt.Tx) error {
-		// Exact old metadata shape: no parent/inherit, and direct grant index only.
-		if err := tx.Bucket([]byte("pools")).Put([]byte("legacy"), []byte(`{"id":"legacy","name":"Legacy","generation":"legacy-generation","policy_revision":0}`)); err != nil {
-			return err
-		}
-		if _, err := tx.Bucket([]byte("documents")).CreateBucket([]byte("legacy")); err != nil {
-			return err
-		}
-		if err := tx.Bucket([]byte("grants")).Put([]byte("legacy/support"), []byte("read")); err != nil {
-			return err
-		}
-		if err := tx.Bucket([]byte("config")).Delete([]byte("collections-v1")); err != nil {
-			return err
-		}
-		return g.base.initializeCollections(tx)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	page := orgPage(t, server, vmToken, "support", poolsInput{})
-	if len(page) != 1 || page[0].ID != "legacy" || page[0].Inherit {
-		t.Fatal("legacy root privacy/visibility changed", page)
-	}
 }
 
 func TestCollectionMergedPaginationAndMembershipRestart(t *testing.T) {
 	g, server, cfg := organizationFixture(t)
 	orgCreate(t, server, "company", "", nil)
 	orgManage(t, server, manageInput{Action: "grant", Pool: "company", Group: "creative", Level: "read", RequestID: "group"})
-	for i := 0; i < 27; i++ {
+	for i := range 27 {
 		id := fmt.Sprintf("child-%02d", i)
 		orgCreate(t, server, id, "company", nil)
 		if i%2 == 0 {
@@ -255,16 +219,16 @@ func TestCollectionMergedPaginationAndMembershipRestart(t *testing.T) {
 			t.Fatal("unstable ordering or duplicate", ids)
 		}
 	}
-	// Group index persists, but current host membership is authoritative on restart.
+	// Membership is operator configuration: changing it is authoritative on restart.
 	server.Close()
 	g.base.close()
 	cfg.Storage.Groups = map[string][]string{"creative": {"support"}}
-	next, err := newGateway(cfg)
+	cfg.Listen = "127.0.0.1:0"
+	next, err := newGateway(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.base = next.base
-	g.clients = next.clients
+	t.Cleanup(next.base.close)
 	restarted := httptest.NewServer(next)
 	defer restarted.Close()
 	page := orgPage(t, restarted, readerToken, "marketing", poolsInput{Limit: 20})
@@ -280,18 +244,25 @@ func TestCollectionReferenceRetentionAndGeneration(t *testing.T) {
 	g, server, _ := organizationFixture(t)
 	orgCreate(t, server, "project", "", nil)
 	orgManage(t, server, manageInput{Action: "grant", Pool: "project", Group: "creative", Level: "read", RequestID: "grant"})
-	var p pool
-	if err := g.base.db.Update(func(tx *bolt.Tx) error {
-		if err := getJSON(tx.Bucket([]byte("pools")), "project", &p); err != nil {
-			return err
-		}
-		origin := &originRef{Workspace: "company", Soot: "marketing", Conversation: "retention", Run: "run"}
-		for i := 0; i < referenceRetention+3; i++ {
-			if err := appendReference(tx, origin, p.ID, p.Generation, "read", &document{ID: "doc", Revision: 1, SHA256: hash("content")}); err != nil {
-				return err
-			}
-		}
-		return nil
+	pool, err := pgxpool.New(context.Background(), g.base.b.DatabaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var generation string
+	if err := pool.QueryRow(context.Background(), `SELECT generation FROM data_pool.pools WHERE id = 'project'`).Scan(&generation); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `INSERT INTO data_pool.references_log
+		(conversation, at, pool, generation, id, revision, sha256, action, origin)
+		SELECT 'retention', now(), 'project', $1, 'doc', 1, $2, 'read',
+			'{"workspace":"company","soot":"marketing","conversation_id":"retention","run_id":"run"}'
+		FROM generate_series(1, $3)`, generation, hash("content"), referenceRetention+2); err != nil {
+		t.Fatal(err)
+	}
+	// One more append applies the retained window to the seeded history.
+	if err := g.base.db.update(context.Background(), func(tx pgx.Tx) error {
+		return appendReference(context.Background(), tx, &originRef{Workspace: "company", Soot: "marketing", Conversation: "retention", Run: "run"}, "project", generation, "read", &document{ID: "doc", Revision: 1, SHA256: hash("content")})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +282,7 @@ func TestCollectionReferenceRetentionAndGeneration(t *testing.T) {
 	var other struct{ References []dataReference }
 	json.Unmarshal(mustRemote(t, server.URL, vmToken, "support", "query", query), &other)
 	if len(other.References) != 0 {
-		t.Fatal("another actor's conversation references leaked")
+		t.Fatal("another actor's conversation references leaked", len(other.References))
 	}
 	orgManage(t, server, manageInput{Action: "pool_remove", Pool: "project", RequestID: "remove"})
 	orgManage(t, server, manageInput{Action: "pool_create", Pool: "project", Name: "Reused ID", RequestID: "recreate"})

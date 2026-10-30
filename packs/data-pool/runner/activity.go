@@ -1,12 +1,12 @@
 package main
 
 import (
-	"encoding/binary"
+	"context"
 	"errors"
 	"strconv"
 	"time"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/jackc/pgx/v5"
 )
 
 const activityRetention = 1000
@@ -52,34 +52,26 @@ func activityForReceipt(r receipt) activity {
 	}
 	return a
 }
-func sequenceKey(seq uint64) []byte {
-	key := make([]byte, 8)
-	binary.BigEndian.PutUint64(key, seq)
-	return key
-}
-func appendActivity(tx *bolt.Tx, a activity) error {
-	b, err := tx.Bucket([]byte("activity")).CreateBucketIfNotExists([]byte(a.Pool))
-	if err != nil {
-		return err
-	}
-	a.Sequence, err = b.NextSequence()
-	if err != nil {
-		return err
-	}
+
+// appendActivity writes one audit row and drops everything older than the
+// pool's retained window, so the table stays bounded without a janitor.
+func appendActivity(ctx context.Context, tx pgx.Tx, a activity) error {
 	a.At = time.Now().UTC().Format(time.RFC3339Nano)
-	if err := putJSON(b, string(sequenceKey(a.Sequence)), a); err != nil {
+	if err := tx.QueryRow(ctx, `INSERT INTO `+databaseSchema+`.activity
+		(pool_id, at, generation, actor, action, status, request_id, documents, target_soot, target_group, level)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING seq`,
+		a.Pool, time.Now().UTC(), a.Generation, jsonBytes(a.Actor), a.Action, a.Status, a.RequestID, jsonBytes(a.Documents), a.TargetSoot, a.TargetGroup, a.Level).Scan(&a.Sequence); err != nil {
 		return err
 	}
-	if a.Sequence > activityRetention {
-		return b.Delete(sequenceKey(a.Sequence - activityRetention))
-	}
-	return nil
+	_, err := tx.Exec(ctx, `DELETE FROM `+databaseSchema+`.activity
+		WHERE pool_id = $1 AND seq <= (SELECT max(seq) - $2 FROM `+databaseSchema+`.activity WHERE pool_id = $1)`, a.Pool, activityRetention)
+	return err
 }
 
 // Query results are already bounded and integrity-checked. Never store query
 // text, snippets, document content or credentials in the activity index.
-func (s *service) recordQuery(in queryInput, result any) error {
-	generation, err := s.poolGeneration(in.Pool)
+func (s *service) recordQuery(ctx context.Context, in queryInput, result any) error {
+	generation, err := s.poolGeneration(ctx, in.Pool)
 	if err != nil {
 		return err
 	}
@@ -109,13 +101,13 @@ func (s *service) recordQuery(in queryInput, result any) error {
 			a.Documents = append(a.Documents, revisionRef{ID: d.ID, Revision: d.Revision})
 		}
 	}
-	return s.db.Update(func(tx *bolt.Tx) error {
-		if err := appendActivity(tx, a); err != nil {
+	return s.db.update(ctx, func(tx pgx.Tx) error {
+		if err := appendActivity(ctx, tx, a); err != nil {
 			return err
 		}
 		if in.Action == "read" {
 			for _, d := range read {
-				if err := appendReference(tx, s.origin, in.Pool, generation, "read", &d); err != nil {
+				if err := appendReference(ctx, tx, s.origin, in.Pool, generation, "read", &d); err != nil {
 					return err
 				}
 			}
@@ -130,8 +122,8 @@ type activityInput struct {
 	Limit int    `json:"limit,omitempty"`
 }
 
-func (s *service) activities(in activityInput) (any, error) {
-	if err := s.authorize(in.Pool, "manage"); err != nil {
+func (s *service) activities(ctx context.Context, in activityInput) (any, error) {
+	if err := s.authorize(ctx, in.Pool, "manage"); err != nil {
 		return nil, err
 	}
 	limit, err := pageSize(in.Limit)
@@ -146,39 +138,45 @@ func (s *service) activities(in activityInput) (any, error) {
 		}
 	}
 	items := []activity{}
-	next := ""
-	oldest := uint64(0)
-	err = s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("activity")).Bucket([]byte(in.Pool))
-		if b == nil {
-			return nil
+	var oldest uint64
+	if err := s.db.view(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `SELECT COALESCE(min(seq), 0) FROM `+databaseSchema+`.activity WHERE pool_id = $1`, in.Pool).Scan(&oldest); err != nil {
+			return err
 		}
-		c := b.Cursor()
-		k, _ := c.First()
-		if k != nil {
-			oldest = binary.BigEndian.Uint64(k)
-		}
-		k, _ = c.Last()
+		query := `SELECT seq, pool_id, at, generation, actor, action, status, request_id, documents, target_soot, target_group, level
+			FROM ` + databaseSchema + `.activity WHERE pool_id = $1`
+		args := []any{in.Pool}
 		if before > 0 {
-			k, _ = c.Seek(sequenceKey(before))
-			if k == nil {
-				k, _ = c.Last()
-			} else {
-				k, _ = c.Prev()
-			}
+			query += ` AND seq < $2`
+			args = append(args, before)
 		}
-		for ; k != nil; k, _ = c.Prev() {
-			if len(items) == limit {
-				next = strconv.FormatUint(items[len(items)-1].Sequence, 10)
-				break
-			}
+		query += ` ORDER BY seq DESC LIMIT $` + strconv.Itoa(len(args)+1)
+		args = append(args, limit+1)
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
 			var a activity
-			if err := getJSON(b, string(k), &a); err != nil {
+			var at time.Time
+			var actor, documents []byte
+			if err := rows.Scan(&a.Sequence, &a.Pool, &at, &a.Generation, &actor, &a.Action, &a.Status, &a.RequestID, &documents, &a.TargetSoot, &a.TargetGroup, &a.Level); err != nil {
 				return err
 			}
+			a.At = at.UTC().Format(time.RFC3339Nano)
+			_ = jsonUnmarshal(actor, &a.Actor)
+			_ = jsonUnmarshal(documents, &a.Documents)
 			items = append(items, a)
 		}
-		return nil
-	})
-	return map[string]any{"activity": items, "next": next, "retention": activityRetention, "oldest_sequence": oldest}, err
+		return rows.Err()
+	}); err != nil {
+		return nil, err
+	}
+	next := ""
+	if len(items) > limit {
+		items = items[:limit]
+		next = strconv.FormatUint(items[len(items)-1].Sequence, 10)
+	}
+	return map[string]any{"activity": items, "next": next, "retention": activityRetention, "oldest_sequence": oldest}, nil
 }

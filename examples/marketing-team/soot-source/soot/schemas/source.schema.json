@@ -13,6 +13,39 @@
       "additionalProperties": {
         "additionalProperties": false,
         "properties": {
+          "brief": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "description": {
             "type": [
               "string",
@@ -28,6 +61,12 @@
             },
             "type": [
               "array",
+              "null"
+            ]
+          },
+          "lead": {
+            "type": [
+              "boolean",
               "null"
             ]
           },

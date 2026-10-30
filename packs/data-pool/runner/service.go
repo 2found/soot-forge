@@ -12,7 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type poolsInput struct {
@@ -69,6 +70,12 @@ type writeInput struct {
 type statusInput struct {
 	RequestID string `json:"request_id"`
 	Owner     string `json:"owner,omitempty"`
+}
+
+// likeEscaped makes model text a literal LIKE pattern: "%" and "_" lose their
+// wildcard meaning, so a query cannot turn into an accidental match-all.
+func likeEscaped(text string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(text)
 }
 
 func fingerprint(v any) string { data, _ := json.Marshal(v); return hash(string(data)) }
@@ -173,7 +180,7 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 		if err := decodeInput(raw, &in); err != nil {
 			return nil, err
 		}
-		return s.pools(in)
+		return s.pools(ctx, in)
 	case "query":
 		var in queryInput
 		if err := decodeInput(raw, &in); err != nil {
@@ -181,7 +188,7 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 		}
 		result, err := s.query(ctx, in)
 		if err == nil && in.Action != "references" {
-			err = s.recordQuery(in, result)
+			err = s.recordQuery(ctx, in, result)
 		}
 		return result, err
 	case "write":
@@ -217,7 +224,7 @@ func (s *service) dispatch(ctx context.Context, op string, raw json.RawMessage) 
 	return nil, errors.New("unsupported operation")
 }
 
-func (s *service) pools(in poolsInput) (any, error) {
+func (s *service) pools(ctx context.Context, in poolsInput) (any, error) {
 	limit, err := pageSize(in.Limit)
 	if err != nil || !cursorValid(in.After) {
 		return nil, inputError{"invalid pool page: limit is 1..20 and after must be a returned cursor"}
@@ -225,65 +232,74 @@ func (s *service) pools(in poolsInput) (any, error) {
 	if in.Pool != "" {
 		// after and limit page the collection list; a detail has no pages, so
 		// placeholders a model filled in ("after":"0","limit":20) are ignored.
-		if err = s.authorize(in.Pool, "read"); err != nil {
+		if err = s.authorize(ctx, in.Pool, "read"); err != nil {
 			return nil, err
 		}
 		var p pool
-		var count uint64
+		var count int
 		var level string
 		grants := map[string]string{}
 		effective := map[string]string{}
 		effectiveGroups := map[string]string{}
 		var path []collectionCrumb
-		err = s.db.View(func(tx *bolt.Tx) error {
-			if err := getJSON(tx.Bucket([]byte("pools")), in.Pool, &p); err != nil {
-				return err
+		err = s.db.view(ctx, func(tx pgx.Tx) error {
+			var e error
+			if p, e = s.poolByID(ctx, tx, in.Pool); e != nil {
+				return e
 			}
-			count = docsBucket(tx, in.Pool).Sequence()
-			path = s.collectionPath(tx, in.Pool)
-			level = s.permission(tx, in.Pool)
+			if e = tx.QueryRow(ctx, `SELECT count(*) FROM `+databaseSchema+`.documents WHERE pool_id = $1`, in.Pool).Scan(&count); e != nil {
+				return e
+			}
+			if path, e = s.collectionPath(ctx, tx, in.Pool); e != nil {
+				return e
+			}
+			if level, e = s.permission(ctx, tx, in.Pool); e != nil {
+				return e
+			}
 			if s.manager() {
 				level = "manage"
 			}
-			if level == "manage" {
-				for group := range s.b.Groups {
-					effectiveGroups[group] = string(tx.Bucket([]byte("by-group")).Get([]byte(group + "/" + in.Pool)))
+			if level != "manage" {
+				return nil
+			}
+			own, e := grantMap(ctx, tx, in.Pool)
+			if e != nil {
+				return e
+			}
+			resolved, e := resolvedGrants(ctx, tx, in.Pool)
+			if e != nil {
+				return e
+			}
+			for group := range s.b.Groups {
+				effectiveGroups[group] = forSubject(resolved, "@group/"+group)
+			}
+			all := groupMembership(s.b)
+			for _, actor := range s.b.Soots {
+				level := forSubject(resolved, actor)
+				if other := forSubject(resolved, workspaceSubject); rank(other) > rank(level) {
+					level = other
 				}
-				// The 'effective' bucket already stores this collection's
-				// resolved subject→level map (inheritance included); expand it
-				// instead of re-running permission() per bound Soot.
-				resolved := map[string]string{}
-				if err := getJSON(tx.Bucket([]byte("effective")), in.Pool, &resolved); err != nil {
-					return err
-				}
-				all := groupMembership(s.b)
-				for _, actor := range s.b.Soots {
-					level := resolved[actor]
-					if other := resolved[workspaceSubject]; rank(other) > rank(level) {
+				for _, g := range all[actor] {
+					if other := forSubject(resolved, "@group/"+g); rank(other) > rank(level) {
 						level = other
 					}
-					for _, g := range all[actor] {
-						if other := resolved["@group/"+g]; rank(other) > rank(level) {
-							level = other
-						}
-					}
-					if slices.Contains(s.b.Managers, actor) {
-						level = "manage"
-					}
-					effective[actor] = level
-					permission := string(tx.Bucket([]byte("grants")).Get([]byte(in.Pool + "/" + actor)))
-					if slices.Contains(s.b.Managers, actor) {
-						permission = "manage"
-					}
-					if permission != "" {
-						grants[actor] = permission
-					}
 				}
-				// The workspace subject is a grant like any Soot's: visible here,
-				// revocable with group "@workspace".
-				if level := string(tx.Bucket([]byte("grants")).Get([]byte(in.Pool + "/" + workspaceSubject))); level != "" {
-					grants[workspaceSubject] = level
+				if contains(s.b.Managers, actor) {
+					level = "manage"
 				}
+				effective[actor] = level
+				permission := own[actor]
+				if contains(s.b.Managers, actor) {
+					permission = "manage"
+				}
+				if permission != "" {
+					grants[actor] = permission
+				}
+			}
+			// The workspace subject is a grant like any Soot's: visible here,
+			// revocable with group "@workspace".
+			if level := own[workspaceSubject]; level != "" {
+				grants[workspaceSubject] = level
 			}
 			return nil
 		})
@@ -295,22 +311,52 @@ func (s *service) pools(in poolsInput) (any, error) {
 			result["host_managers"] = s.b.Managers
 			result["bound_soots"] = s.b.Soots
 			result["groups"] = s.b.Groups
-			result["group_grants"], result["inherited_grants"] = s.collectionGrantDetails(in.Pool)
+			result["group_grants"], result["inherited_grants"] = s.collectionGrantDetails(ctx, in.Pool)
 		}
 		return result, err
 	}
-	return s.collectionPage(in, limit)
-
+	return s.collectionPage(ctx, in, limit)
 }
+
+// resolvedGrants maps every subject with access through the collection's
+// inheriting ancestors to its strongest level.
+func resolvedGrants(ctx context.Context, tx pgx.Tx, id string) (map[string]string, error) {
+	rows, err := tx.Query(ctx, `
+		WITH RECURSIVE chain AS (
+			SELECT id, parent, inherit FROM `+databaseSchema+`.pools WHERE id = $1
+			UNION ALL
+			SELECT p.id, p.parent, p.inherit FROM `+databaseSchema+`.pools p
+			JOIN chain c ON p.id = c.parent
+			WHERE c.inherit AND c.parent <> ''
+		)
+		SELECT g.subject, g.level FROM `+databaseSchema+`.grants g JOIN chain c ON c.id = g.pool_id`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var subject, level string
+		if err := rows.Scan(&subject, &level); err != nil {
+			return nil, err
+		}
+		if rank(level) > rank(out[subject]) {
+			out[subject] = level
+		}
+	}
+	return out, rows.Err()
+}
+
+func forSubject(resolved map[string]string, subject string) string { return resolved[subject] }
 
 func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 	if in.Action == "references" {
-		return s.references(in)
+		return s.references(ctx, in)
 	}
 	if in.Conversation != "" || in.Run != "" {
 		return nil, errors.New("correlation filters require references action")
 	}
-	if err := s.authorize(in.Pool, "read"); err != nil {
+	if err := s.authorize(ctx, in.Pool, "read"); err != nil {
 		return nil, err
 	}
 	switch in.Action {
@@ -321,24 +367,26 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 		limit, _ := pageSize(in.Limit)
 		items := []document{}
 		next := ""
-		err := s.db.View(func(tx *bolt.Tx) error {
-			c := docsBucket(tx, in.Pool).Cursor()
-			for k, v := c.Seek([]byte(in.After)); k != nil; k, v = c.Next() {
-				if string(k) <= in.After {
-					continue
-				}
-				if len(items) == limit {
-					next = items[len(items)-1].ID
-					break
-				}
-				var d document
-				if err := json.Unmarshal(v, &d); err != nil {
+		err := s.db.view(ctx, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, `SELECT `+documentMetaColumns+` FROM `+databaseSchema+`.documents
+				WHERE pool_id = $1 AND id > $2 ORDER BY id LIMIT $3`, in.Pool, in.After, limit+1)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				d, err := scanMeta(rows)
+				if err != nil {
 					return err
 				}
 				items = append(items, d)
 			}
-			return nil
+			return rows.Err()
 		})
+		if len(items) > limit {
+			items = items[:limit]
+			next = items[len(items)-1].ID
+		}
 		return map[string]any{"documents": items, "next": next}, err
 	case "read":
 		if err := queryShape(in); err != nil {
@@ -355,7 +403,7 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 				return nil, inputError{fmt.Sprintf("document %s is not in collection %s; list the collection to find it, or create it with an upsert that omits expected_revision", targets[0], in.Pool)}
 			}
 			if errors.Is(err, errChanging) {
-				return nil, errors.New("document is changing or backend integrity check failed; inspect its request status")
+				return nil, errors.New("document content failed its integrity check; inspect its request status")
 			}
 			if err != nil {
 				return nil, err
@@ -390,32 +438,38 @@ func (s *service) query(ctx context.Context, in queryInput) (any, error) {
 			return nil, err
 		}
 		limit, _ := pageSize(in.Limit)
-		var result struct {
-			Hits []storedDocument `json:"hits"`
-		}
-		body := map[string]any{"q": normalize(in.Query), "limit": limit, "offset": in.Offset, "attributesToRetrieve": []string{"id", "title", "source", "tags", "sha256", "revision", "updated_at", "content", "writer"}}
-		err := s.backend.call(ctx, "POST", "/indexes/"+s.index(in.Pool)+"/search", body, &result)
-		var be backendError
-		if errors.As(err, &be) && be.status == 404 {
-			var count uint64
-			s.db.View(func(tx *bolt.Tx) error { count = docsBucket(tx, in.Pool).Sequence(); return nil })
-			if count == 0 {
-				return map[string]any{"hits": []any{}, "next_offset": 0}, nil
+		terms := strings.TrimSpace(normalize(in.Query))
+		pattern := "%" + likeEscaped(terms) + "%"
+		hits := []any{}
+		err := s.db.view(ctx, func(tx pgx.Tx) error {
+			// Trigram indexes serve both the ILIKE substring and the fuzzy
+			// `%` match; ranking uses the short title field so the sort does
+			// not re-read every matched document body.
+			rows, err := tx.Query(ctx, `SELECT `+documentColumns+` FROM `+databaseSchema+`.documents
+				WHERE pool_id = $1 AND (title_norm LIKE $2 ESCAPE '\' OR content_norm LIKE $2 ESCAPE '\' OR title_norm % $3 OR content_norm % $3)
+				ORDER BY title_norm = $3 DESC, similarity(title_norm, $3) DESC, id
+				LIMIT $4 OFFSET $5`, in.Pool, pattern, terms, limit, in.Offset)
+			if err != nil {
+				return err
 			}
-		}
+			defer rows.Close()
+			for rows.Next() {
+				d, err := scanDocument(rows)
+				if err != nil {
+					return err
+				}
+				if !validText(d.Content, maxContent) || hash(d.Content) != d.SHA256 {
+					continue
+				}
+				hits = append(hits, map[string]any{"document": d.document, "snippet": snippet(d.Content, in.Query)})
+			}
+			return rows.Err()
+		})
 		if err != nil {
 			return nil, err
 		}
-		hits := []any{}
-		for _, d := range result.Hits[:min(limit, len(result.Hits))] {
-			meta, err := s.doc(in.Pool, d.ID)
-			if err != nil || !sameDocument(meta, d.document) || !validText(d.Content, maxContent) || hash(d.Content) != meta.SHA256 {
-				continue
-			}
-			hits = append(hits, map[string]any{"document": meta, "snippet": snippet(d.Content, in.Query)})
-		}
 		next := 0
-		if len(result.Hits) >= limit && in.Offset+limit <= 980 {
+		if len(hits) == limit && in.Offset+limit <= 980 {
 			next = in.Offset + limit
 		}
 		return map[string]any{"hits": hits, "next_offset": next}, nil
@@ -437,15 +491,19 @@ var (
 
 // readPage reads limit bytes of a document's verified text from offset.
 func (s *service) readPage(ctx context.Context, pool, id string, offset, limit int) (readPage, error) {
-	meta, err := s.doc(pool, id)
-	if err != nil {
+	var d storedDocument
+	err := s.db.view(ctx, func(tx pgx.Tx) error {
+		var err error
+		d, err = scanDocument(tx.QueryRow(ctx, `SELECT `+documentColumns+` FROM `+databaseSchema+`.documents WHERE pool_id = $1 AND id = $2`, pool, id))
+		return err
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return readPage{}, errNotInPool
 	}
-	var d storedDocument
-	if err = s.backend.call(ctx, "GET", "/indexes/"+s.index(pool)+"/documents/"+id, nil, &d); err != nil {
+	if err != nil {
 		return readPage{}, err
 	}
-	if !sameDocument(meta, d.document) || hash(d.Content) != meta.SHA256 || !validText(d.Content, maxContent) {
+	if hash(d.Content) != d.SHA256 || !validText(d.Content, maxContent) {
 		return readPage{}, errChanging
 	}
 	if offset > len(d.Content) || offset < len(d.Content) && !utf8.RuneStart(d.Content[offset]) {
@@ -458,50 +516,55 @@ func (s *service) readPage(ctx context.Context, pool, id string, offset, limit i
 	if end == offset && end < len(d.Content) {
 		return readPage{}, errors.New("read limit must fit the next UTF-8 character; use at least 4 bytes")
 	}
-	return readPage{meta, d.Content[offset:end], end, end == len(d.Content)}, nil
+	return readPage{d.document, d.Content[offset:end], end, end == len(d.Content)}, nil
 }
 
 func (s *service) manage(ctx context.Context, in manageInput) (any, error) {
 	if in.Action == "admit" || in.Action == "dismiss" {
-		return s.manageAdmission(in)
+		return s.manageAdmission(ctx, in)
 	}
 	if in.Action != "pool_remove" {
-		return s.manageCollection(in)
+		return s.manageCollection(ctx, in)
 	}
 	if !identifier.MatchString(in.Pool) || !identifier.MatchString(in.RequestID) || in.Parent != nil || in.Inherit != nil || in.Name != "" || in.Soot != "" || in.Group != "" || in.Level != "" {
 		return nil, errors.New("invalid collection removal")
 	}
 	fp := fingerprint(in)
-	if r, exists, err := s.replay(in.RequestID, fp); exists || err != nil {
+	if r, exists, err := s.replay(ctx, in.RequestID, fp); exists || err != nil {
 		return r, err
 	}
-	if err := s.authorize(in.Pool, "manage"); err != nil {
+	if err := s.authorize(ctx, in.Pool, "manage"); err != nil {
 		return nil, err
 	}
-	if err := s.checkPolicyRevision(in); err != nil {
+	if err := s.checkPolicyRevision(ctx, in); err != nil {
 		return nil, err
 	}
-	if err := s.requireLeaf(in.Pool); err != nil {
+	if err := s.requireLeaf(ctx, in.Pool); err != nil {
 		return nil, err
 	}
-	generation, err := s.poolGeneration(in.Pool)
+	generation, err := s.poolGeneration(ctx, in.Pool)
 	if err != nil {
 		return nil, err
 	}
-	r := receipt{ID: in.RequestID, Owner: s.actor, Actor: s.actorReference(), Pool: in.Pool, PoolGeneration: generation, Action: in.Action, Fingerprint: fp, Status: "uncertain"}
-	var probe any
-	err = s.backend.call(ctx, "GET", "/indexes/"+s.index(in.Pool), nil, &probe)
-	var be backendError
-	if errors.As(err, &be) && be.status == 404 {
-		if err := s.begin(r); err != nil {
-			return nil, err
+	r := receipt{ID: in.RequestID, Owner: s.actor, Actor: s.actorReference(), Pool: in.Pool, PoolGeneration: generation, Action: in.Action, Fingerprint: fp, Status: "succeeded"}
+	err = s.db.update(ctx, func(tx pgx.Tx) error {
+		// Receipts and retained history outlive the pool; documents and grants
+		// cascade with the row. A reused pool ID starts private and empty.
+		if _, err := tx.Exec(ctx, `DELETE FROM `+databaseSchema+`.activity WHERE pool_id = $1`, in.Pool); err != nil {
+			return err
 		}
-		return s.finish(r, "succeeded")
+		if _, err := tx.Exec(ctx, `DELETE FROM `+databaseSchema+`.pools WHERE id = $1`, in.Pool); err != nil {
+			return err
+		}
+		if err := appendActivity(ctx, tx, activityForReceipt(r)); err != nil {
+			return err
+		}
+		return s.saveReceipt(ctx, tx, r)
+	})
+	if err == nil {
+		clear(s.perms)
 	}
-	if err != nil {
-		return nil, err
-	}
-	return s.submit(ctx, r, "DELETE", "/indexes/"+s.index(in.Pool), nil)
+	return r, err
 }
 
 // writeShape names the one field a write got wrong, as queryShape does for
@@ -611,13 +674,38 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 		// No default for this Soot: name the collections it may write, so the
 		// next call can succeed without a detour through data-pool_pools.
 		var writable []string
-		s.db.View(func(tx *bolt.Tx) error {
-			return tx.Bucket([]byte("pools")).ForEach(func(k, _ []byte) error {
-				if len(writable) < 8 && s.allowed(tx, string(k), "write") {
-					writable = append(writable, string(k))
+		_ = s.db.view(ctx, func(tx pgx.Tx) error {
+			rows, err := tx.Query(ctx, `SELECT id FROM `+databaseSchema+`.pools ORDER BY id`)
+			if err != nil {
+				return err
+			}
+			candidates := []string{}
+			for rows.Next() {
+				var id string
+				if err := rows.Scan(&id); err != nil {
+					rows.Close()
+					return err
 				}
-				return nil
-			})
+				candidates = append(candidates, id)
+			}
+			if err := rows.Err(); err != nil {
+				rows.Close()
+				return err
+			}
+			rows.Close()
+			for _, id := range candidates {
+				if len(writable) == 8 {
+					break
+				}
+				ok, err := s.allowed(ctx, tx, id, "write")
+				if err != nil {
+					return err
+				}
+				if ok {
+					writable = append(writable, id)
+				}
+			}
+			return nil
 		})
 		if len(writable) == 0 {
 			return nil, fieldError{"pool", inputError{in.Action + ": pool is required, and this Soot may write to no collection; ask the operator to grant one"}}
@@ -627,35 +715,12 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 	if err := writeShape(in); err != nil {
 		return nil, err
 	}
-	if err := s.authorize(in.Pool, "write"); err != nil {
+	if err := s.authorize(ctx, in.Pool, "write"); err != nil {
 		return nil, err
 	}
 	fp := fingerprint(in)
-	if r, exists, err := s.replay(in.RequestID, fp); exists || err != nil {
+	if r, exists, err := s.replay(ctx, in.RequestID, fp); exists || err != nil {
 		return r, err
-	}
-	if err := s.db.View(func(tx *bolt.Tx) error { return ensureUnfenced(tx, in.Pool, in.ID) }); err != nil {
-		return nil, err
-	}
-	old, oldErr := s.doc(in.Pool, in.ID)
-	if oldErr != nil && in.Action == "upsert" && in.ExpectedRevision != nil && *in.ExpectedRevision != 0 {
-		return nil, inputError{fmt.Sprintf("document %s does not exist yet; omit expected_revision to create it", in.ID)}
-	}
-	if err := s.checkDocumentRevision(in, old); err != nil {
-		return nil, err
-	}
-	r := receipt{ID: in.RequestID, Owner: s.actor, Actor: s.actorReference(), Pool: in.Pool, Action: in.Action, Fingerprint: fp, Status: "uncertain", Origin: s.origin}
-	var err error
-	r.PoolGeneration, err = s.poolGeneration(in.Pool)
-	if err != nil {
-		return nil, err
-	}
-	if in.Action == "remove" {
-		if oldErr != nil {
-			return nil, oldErr
-		}
-		r.Document = &old
-		return s.submit(ctx, r, "DELETE", "/indexes/"+s.index(in.Pool)+"/documents/"+in.ID, nil)
 	}
 	content := in.Content
 	source := in.Source
@@ -674,30 +739,108 @@ func (s *service) write(ctx context.Context, in writeInput) (any, error) {
 		}
 		source = in.URL
 	}
-	if !validText(content, maxContent) || strings.TrimSpace(content) == "" {
+	if in.Action != "remove" && (!validText(content, maxContent) || strings.TrimSpace(content) == "") {
 		return nil, inputError{"document content is empty, not UTF-8 text, or over 128 KiB; shorten or split it"}
 	}
-	if source == "" {
-		source = "soot://" + s.b.Namespace + "/" + in.Pool + "/" + in.ID
-	}
-	meta := document{ID: in.ID, Title: in.Title, Source: source, Tags: in.Tags, SHA256: hash(content), Revision: old.Revision + 1, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano), Writer: s.actorReference(), Origin: s.origin}
-	if oldErr == nil && old.SHA256 == meta.SHA256 && old.Title == meta.Title && old.Source == meta.Source && slices.Equal(old.Tags, meta.Tags) {
-		r.Document = &old
-		r.Status = "succeeded"
-		return r, s.db.Update(func(tx *bolt.Tx) error {
-			if err := putJSON(tx.Bucket([]byte("receipts")), s.requestKey(r.ID), r); err != nil {
+	r := receipt{ID: in.RequestID, Owner: s.actor, Actor: s.actorReference(), Pool: in.Pool, Action: in.Action, Fingerprint: fp, Status: "succeeded", Origin: s.origin}
+	err := s.db.update(ctx, func(tx pgx.Tx) error {
+		var generation string
+		if err := tx.QueryRow(ctx, `SELECT generation FROM `+databaseSchema+`.pools WHERE id = $1 FOR SHARE`, in.Pool).Scan(&generation); err != nil {
+			return errors.New("collection no longer exists")
+		}
+		r.PoolGeneration = generation
+		if in.Generation != "" && in.Generation != generation {
+			return conflictError{fmt.Sprintf("collection %s is not at generation %s; omit generation, or copy it from data-pool_pools", in.Pool, in.Generation)}
+		}
+		var old document
+		var oldStored storedDocument
+		oldErr := error(nil)
+		stored, err := scanDocument(tx.QueryRow(ctx, `SELECT `+documentColumns+` FROM `+databaseSchema+`.documents WHERE pool_id = $1 AND id = $2 FOR UPDATE`, in.Pool, in.ID))
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			oldErr = errNotInPool
+		case err != nil:
+			return err
+		default:
+			old, oldStored = stored.document, stored
+		}
+		if in.Action == "remove" {
+			if oldErr != nil {
+				return oldErr
+			}
+			if in.ExpectedRevision != nil && (*in.ExpectedRevision < 0 || *in.ExpectedRevision != old.Revision) {
+				return conflictError{fmt.Sprintf("document %s is at revision %d, not %d; read it again, merge, and retry with a new request_id", in.ID, old.Revision, *in.ExpectedRevision)}
+			}
+			if _, err := tx.Exec(ctx, `DELETE FROM `+databaseSchema+`.documents WHERE pool_id = $1 AND id = $2`, in.Pool, in.ID); err != nil {
 				return err
 			}
-			if err := appendActivity(tx, activityForReceipt(r)); err != nil {
+			r.Document = &old
+			if err := appendReference(ctx, tx, r.Origin, r.Pool, r.PoolGeneration, r.Action, r.Document); err != nil {
 				return err
 			}
-			return appendReference(tx, r.Origin, r.Pool, r.PoolGeneration, r.Action, r.Document)
-		})
+			if err := appendActivity(ctx, tx, activityForReceipt(r)); err != nil {
+				return err
+			}
+			return s.saveReceipt(ctx, tx, r)
+		}
+		if oldErr != nil {
+			var count int
+			if err := tx.QueryRow(ctx, `SELECT count(*) FROM `+databaseSchema+`.documents WHERE pool_id = $1`, in.Pool).Scan(&count); err != nil {
+				return err
+			}
+			if count >= maxDocuments {
+				return errors.New("document limit reached")
+			}
+		}
+		if oldErr != nil && in.Action == "upsert" && in.ExpectedRevision != nil && *in.ExpectedRevision != 0 {
+			return inputError{fmt.Sprintf("document %s does not exist yet; omit expected_revision to create it", in.ID)}
+		}
+		if oldErr == nil && in.ExpectedRevision != nil && (*in.ExpectedRevision < 0 || *in.ExpectedRevision != old.Revision) {
+			return conflictError{fmt.Sprintf("document %s is at revision %d, not %d; read it again, merge, and retry with a new request_id", in.ID, old.Revision, *in.ExpectedRevision)}
+		}
+		if source == "" {
+			source = "soot://" + s.b.Namespace + "/" + in.Pool + "/" + in.ID
+		}
+		meta := document{ID: in.ID, Title: in.Title, Source: source, Tags: in.Tags, SHA256: hash(content), Revision: old.Revision + 1, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano), Writer: s.actorReference(), Origin: s.origin}
+		r.Document = &meta
+		if oldErr == nil && oldStored.SHA256 == meta.SHA256 && oldStored.Title == meta.Title && oldStored.Source == meta.Source && slices.Equal(oldStored.Tags, meta.Tags) {
+			// Identical content and metadata keeps the stored revision.
+			r.Document = &old
+			if err := appendReference(ctx, tx, r.Origin, r.Pool, r.PoolGeneration, r.Action, r.Document); err != nil {
+				return err
+			}
+			if err := appendActivity(ctx, tx, activityForReceipt(r)); err != nil {
+				return err
+			}
+			return s.saveReceipt(ctx, tx, r)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO `+databaseSchema+`.documents
+			(pool_id, id, title, source, tags, sha256, revision, updated_at, writer, origin, content, title_norm, content_norm, receipt)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+			ON CONFLICT (pool_id, id) DO UPDATE SET title = EXCLUDED.title, source = EXCLUDED.source, tags = EXCLUDED.tags,
+				sha256 = EXCLUDED.sha256, revision = EXCLUDED.revision, updated_at = EXCLUDED.updated_at,
+				writer = EXCLUDED.writer, origin = EXCLUDED.origin, content = EXCLUDED.content,
+				title_norm = EXCLUDED.title_norm, content_norm = EXCLUDED.content_norm, receipt = EXCLUDED.receipt`,
+			in.Pool, meta.ID, meta.Title, meta.Source, jsonBytes(meta.Tags), meta.SHA256, meta.Revision, time.Now().UTC(),
+			jsonBytes(meta.Writer), jsonBytes(meta.Origin), content, normalize(meta.Title), normalize(content), receiptToken(s, r)); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return conflictError{fmt.Sprintf("document %s was created concurrently; read it again and retry with a new request_id", in.ID)}
+			}
+			return err
+		}
+		if err := appendReference(ctx, tx, r.Origin, r.Pool, r.PoolGeneration, r.Action, r.Document); err != nil {
+			return err
+		}
+		if err := appendActivity(ctx, tx, activityForReceipt(r)); err != nil {
+			return err
+		}
+		return s.saveReceipt(ctx, tx, r)
+	})
+	if err != nil {
+		return nil, err
 	}
-	r.Document = &meta
-	r.NewDocument = oldErr != nil
-	d := storedDocument{document: meta, Content: content, TitleNorm: normalize(in.Title), ContentNorm: normalize(content), Receipt: receiptToken(s, r)}
-	return s.submit(ctx, r, "POST", "/indexes/"+s.index(in.Pool)+"/documents?primaryKey=id", []storedDocument{d})
+	return r, nil
 }
 
 func (s *service) status(ctx context.Context, in statusInput) (any, error) {
@@ -711,24 +854,16 @@ func (s *service) status(ctx context.Context, in statusInput) (any, error) {
 	// One answer for missing, someone else's and no-longer-granted, so it is no
 	// existence oracle, but actionable: status is a read and changed nothing.
 	unavailable := inputError{"request " + safeID(in.RequestID) + " is not visible to this Soot (never submitted by it, submitted by another Soot, or its collection is no longer granted); status only checks a request_id that your own data-pool_write or data-pool_manage call returned. Nothing was changed; to inspect data, read or list the collection instead"}
-	var r receipt
-	if err := s.db.View(func(tx *bolt.Tx) error { return getJSON(tx.Bucket([]byte("receipts")), owner+"/"+in.RequestID, &r) }); err != nil {
-		return nil, unavailable
-	}
-	if r.Owner != owner {
+	r, err := s.loadReceipt(ctx, owner, in.RequestID)
+	if err != nil || r.Owner != owner {
 		return nil, unavailable
 	}
 	level := "read"
 	if owner != s.actor {
 		level = "manage"
 	}
-	if err := s.authorizeReceipt(r, level); err != nil {
+	if err := s.authorizeReceipt(ctx, r, level); err != nil {
 		return nil, unavailable
 	}
-	// Reconciliation keeps the original owner's receipt key, even when an
-	// explicitly authorized pool manager checks a revoked writer's request.
-	actor := s.actor
-	s.actor = owner
-	defer func() { s.actor = actor }()
-	return s.reconcile(ctx, r)
+	return r, nil
 }

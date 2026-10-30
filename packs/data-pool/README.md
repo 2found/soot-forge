@@ -6,8 +6,8 @@ Give this prompt to a coding agent working in your Soot checkout:
 Read packs/data-pool/README.md and set up the optional data-pool Pack
 in my Nest. Use a private binding file for credentials; never print its values.
 Connect to the existing shared data-pool service using a per-Soot binding.
-Do not install, start or provision Meilisearch; show the operator its local Docker
-and VM installation guides if infrastructure is missing.
+Do not install, start or provision PostgreSQL; point the operator to the local
+Docker and container guides if infrastructure is missing.
 Create a company pool, import the company documentation I provide once,
 and grant my marketing, support and writing Soots read access. Verify they
 reuse the saved data, a reader cannot write, and revoking a grant blocks access.
@@ -16,9 +16,10 @@ Do not publish, deploy, overwrite existing configuration, or grant host shell.
 
 This Pack stores company documents once so multiple Soots can use the same
 handbook, product information, support policy and brand material. Documents have
-stable IDs, source URIs, tags, hashes and revisions. Meilisearch provides indexed
-search that tolerates typos and missing Vietnamese accents. Pool grants belong
-to the plugin and are checked before every operation.
+stable IDs, source URIs, tags, hashes and revisions. PostgreSQL 16+ provides
+indexed search through `pg_trgm` GIN indexes over normalized titles and content,
+tolerating typos and missing Vietnamese accents. Pool grants belong to the
+plugin and are checked before every operation.
 
 ## Organize a workspace
 
@@ -37,16 +38,18 @@ and timeout only), such as a Soot on a 2server VM. Install the Pack as it is
 and skip to [the shared pool](#connect-local-and-vm-soots-to-one-shared-pool).
 The runtime must include `soot tool-forward`.
 
-Direct mode, where the Soot host itself talks to Meilisearch, needs the built
-runner. You need Go 1.25+ to build the connector and a Soot workspace. The operator
-installs and runs the search infrastructure separately: see the [Meilisearch
-Docker and VM guide](docs/meilisearch.md). Meilisearch Community Edition
-v1.54.3 is the tested backend. The Pack never installs or starts Meilisearch,
-provisions a VM, or installs a service as a consequence of selecting capabilities.
-Meilisearch's [release](https://github.com/meilisearch/meilisearch/releases/tag/v1.54.3)
-has CE binaries and checksums. Use the CE binary, not the separately licensed
-enterprise binary. Local HTTP is accepted only on loopback; remote backends
-require HTTPS. Ingestion/search in this version uses no embedding service.
+Direct mode, where the Soot host itself connects to PostgreSQL, needs the built
+runner. You need Go 1.25+ to build the connector and a Soot workspace. The
+operator runs PostgreSQL 16+ separately and supplies a DSN; the service or
+direct connector creates the trusted `pg_trgm` extension and the `data_pool`
+schema (including its tables and search indexes) on start. The Pack never
+installs or starts PostgreSQL, provisions a VM, or installs a service as a
+consequence of selecting capabilities. Use a dedicated database and role: the
+role needs `CREATE` on the database (`pg_trgm` is a trusted extension), and one
+database holds one namespace. Service bindings require HTTPS or loopback HTTP;
+direct DSNs may use TLS anywhere, or cleartext only to loopback, a literal
+private address, or a container name under `private_network`.
+Ingestion/search in this version uses no embedding service.
 
 From this repository, build and package the standalone Pack:
 
@@ -62,7 +65,7 @@ soot add /tmp/data-pool.tar.gz
 soot check --show
 ```
 
-Installation grants no capability and starts no backend. `use: []` is
+Installation grants no capability and starts no service. `use: []` is
 intentional. Once this source is published, Git folder installation uses
 `soot add 2found/soot-forge/packs/data-pool --ref <reviewed-commit>`.
 That channel does not include a built binary: build explicitly in the installed
@@ -71,10 +74,11 @@ dependency scripts. The runner builds independently without a sibling checkout.
 
 ## Connect local and VM Soots to one shared pool
 
-Recommended: operate one platform Meilisearch on a VM and run the optional
-[data-pool service](docs/shared-service.md) beside it. This service
-owns the policy database, document metadata, grants and mutation receipts.
-Each Soot connects with its own host-bound credential:
+Recommended: operate one PostgreSQL 16+ database on a VM and run the optional
+[data-pool service](docs/shared-service.md) beside it. This service owns every
+pool, grant, document, receipt, activity entry and admission in that database;
+there is no separate search server or policy store. Each Soot connects with its
+own host-bound credential:
 
 ```json
 {
@@ -83,8 +87,8 @@ Each Soot connects with its own host-bound credential:
 }
 ```
 
-There is no local `state_dir`, Meilisearch key or separate grant database in this
-mode. A local Soot and a VM Soot use the same service URL. Distinct Soot identities
+There is no local state directory, search server or separate grant database in
+this mode. A local Soot and a VM Soot use the same service URL. Distinct Soot identities
 get distinct tokens and explicit grants to the same pool. If the operator
 intentionally reuses one identity on both machines, each may have a separate token
 for that identity; they share permissions and request-ID history.
@@ -105,7 +109,7 @@ runtime, and never list a public or untrusted Soot. See [the data-pool
 resource](docs/shared-service.md#ambient-data_pool-resource).
 
 To run the service as a container behind an HTTPS proxy next to a private
-Meilisearch, see [container.md](docs/container.md) and the `private_network`
+PostgreSQL, see [container.md](docs/container.md) and the `private_network`
 opt-in in [shared-service.md](docs/shared-service.md#private-network-containers).
 
 **Per-Soot bindings (direct attach).** Without `data_pool`, use separate
@@ -114,14 +118,15 @@ environment bindings, for example `MANAGER_DATA_POOL`,
 credential to its own variable and selected operations. Never bind a manager's
 token to a reader. The service validates token, Soot identity, operation scope
 and pool grant independently. Selecting a Pack capability still grants no pool.
-Remote bindings cannot be mixed with the direct-backend fields below.
+Remote bindings cannot be mixed with the direct database fields below.
 
-## Direct backend on one host (optional)
+## Direct database binding on one host (optional)
 
-This alternative keeps policy state on one host. It works with either local
-or remote Meilisearch, but it does **not** share policy with a second machine.
-Do not point two independent policy directories at the same namespace/backend;
-use the shared service above for local + VM access.
+This alternative keeps all state in one PostgreSQL database reached directly by
+the Soot host. It does **not** share state with a second machine unless both
+hosts use the same database and namespace. Do not point two independently
+managed namespaces at one database; use the shared service above for local + VM
+access.
 
 ## Bind credentials and select capabilities
 
@@ -130,20 +135,31 @@ are placeholders, not working credentials:
 
 ```json
 {
-  "endpoint": "http://127.0.0.1:7700",
-  "api_key": "<private Meilisearch credential>",
+  "database_url": "postgres://soot:change-me@127.0.0.1:5432/soot?sslmode=disable",
   "namespace": "company",
-  "state_dir": "/private/absolute/path/company-data-policy",
   "soots": ["data-manager", "marketing", "support", "blog-writer"],
-  "managers": ["data-manager"]
+  "managers": ["data-manager"],
+  "writers": ["data-manager"],
+  "pool_managers": [],
+  "groups": {"creative": ["marketing", "blog-writer"]},
+  "defaults": {"blog-writer": "drafts"}
 }
 ```
 
-In direct mode, use one shared namespace/state directory on the same host. Different
-customers or deployments require separate namespaces and policy directories.
-The state file is bound to its original namespace/backend; pointing it at a
-different backend is rejected. This plugin identifies Soots, not individual
-users of a shared Soot. Host filesystem/shell access is not an OS sandbox.
+`database_url` replaces the former `endpoint`, `api_key` and `state_dir`; those
+fields are rejected. In direct mode, use one database and namespace per
+workspace. Different customers or deployments require separate databases. The
+database records its namespace on first use and refuses a binding with another
+namespace. This plugin identifies Soots, not individual users of a shared Soot.
+Host filesystem/shell access is not an OS sandbox.
+
+An installation still backed by Meilisearch or a local state directory is not
+readable by this version: there is no automatic import, because the old service
+never stored a portable export. Keep the old containers stopped until you have
+read the documents you need through `query`, then write them into a fresh
+PostgreSQL-backed namespace and grant access again. Pools, grants, receipts and
+activity history start empty by design; `request_id`s from the old service are
+not replayable.
 
 Load the private file into an environment variable **without echoing it** before
 starting the runtime:
@@ -188,10 +204,10 @@ the deployment's `credentials`. Direct-mode manager example (in shared mode use 
 ```
 
 Repeat the reader binding for support and blog-writer. Merge with existing
-deployment credentials; do not replace them. Choose an API key with only the
-backend actions needed for this dedicated namespace: documents/search/tasks and
-index creation/removal. Key management is never exposed as a model tool. Keep
-the backend private; its access credential is held by the host, not the model.
+deployment credentials; do not replace them. Give the database role only the
+access this workspace needs: `CREATE` on its database (for the schema and
+`pg_trgm` on first start) plus normal table access. Keep PostgreSQL private and
+its DSN host-owned, never in model input or tool output.
 
 ```sh
 soot check --show --secrets
@@ -201,7 +217,7 @@ soot serve --watch
 Existing runtimes need the new environment binding when started. Check/reload
 does not inherit environment changes made in a different terminal. Use an
 existing configured model; provider setup remains Soot's normal Settings/login
-flow, independent of the data backend.
+flow, independent of the data store.
 
 ## Use through CLI or Nest
 
@@ -227,10 +243,10 @@ Tools available to selected capabilities:
 | --- | --- | --- |
 | read | `data-pool_pools`: optional pool; otherwise after/limit | Granted pools or detail; managers also see effective grants |
 | read | `data-pool_query`: action=list, pool, after/limit | Paginated metadata |
-| read | `data-pool_query`: action=search, pool, query, offset/limit | Indexed matches, bounded snippets (768 bytes around the query's rarest words; the opening when that is where they are) and source/revision metadata |
+| read | `data-pool_query`: action=search, pool, query, offset/limit | pg_trgm-ranked matches, bounded snippets (768 bytes around the query's rarest words; the opening when that is where they are) and source/revision metadata |
 | read | `data-pool_query`: action=read, pool, id, offset/limit | Verified original text page with next_offset and complete |
 | read | `data-pool_query`: action=read, pool, ids (up to 8), limit | One verified first page per document, sharing 48 KiB; `missing` lists IDs not in the collection |
-| read | `data-pool_status`: request_id, optional owner | Reconcile a saved mutation; inspecting another owner requires pool manage |
+| read | `data-pool_status`: request_id, optional owner | Inspect a saved mutation receipt; inspecting another owner requires pool manage |
 | write | `data-pool_write`: action=append, pool, title, content OR url, source/tags, request_id (omit id) | New independent entry; duplicate content accepted, same-intent retry idempotent |
 | write | `data-pool_write`: action=upsert, pool, id, title, content OR url, source/tags, request_id | Import/update receipt |
 | write | `data-pool_write`: action=remove, pool, id, request_id | Removal receipt |
@@ -241,7 +257,7 @@ Tools available to selected capabilities:
 Permissions: read < write < manage. Only host managers create pools; a delegated
 pool manager can manage that pool and grant only host-bound Soot identities.
 Changing a pool grant does not modify host capabilities, credentials or shell
-rights. Readers receive no metadata, snippets, counts or task results from
+rights. Readers receive no metadata, snippets, counts or receipt results from
 unauthorized pools. A successful revoke is serialized with reads and blocks
 subsequent calls. Each pool has a unique generation; reusing a deleted pool ID
 grants no access to its retained historical receipts. Host administrators retain
@@ -263,59 +279,70 @@ Lists/search return at most 20 items; search offsets stop at 980. Reads return
 4096 bytes by default, at most 8192, and next_offset preserves UTF-8 boundaries. A read of up to 8 `ids` returns each
 document's first page within 48 KiB in total, so a digest of a day's documents is one list and one read. A limit too small to fit the next
 character returns an error; use at least 4 bytes for any UTF-8 character.
-There are at most 256 pools and 10,000 documents per pool. Direct-mode operations serialize through a private state lock. Shared-service
-queries and independent document writes run concurrently; same-document writes
-and policy changes retain consistency boundaries. See [concurrent ingestion](docs/concurrency.md).
-Shared mode holds that state only in the central service; client hosts need no
-policy filesystem or Meilisearch credential.
+There are at most 256 pools and 10,000 documents per pool. In direct mode each
+connector call opens a database connection pool; shared-mode queries and
+independent document writes run concurrently. Same-document writes, identical
+request IDs and policy changes retain consistency boundaries. See
+[concurrent ingestion](docs/concurrency.md).
+Shared mode holds all state only in the central PostgreSQL database; client
+hosts need no policy filesystem, search credential or database role.
 Use bounded pages rather than asking a Soot to copy a whole pool into context.
 
-## Pending, uncertain and failed writes
+## Synchronous writes and stable receipts
 
 Use a stable `request_id` for each intended mutation and preserve both it and
 the input when checking a duplicate. Reusing an ID with different input fails.
+Writes are synchronous and transactional: the document change, receipt and
+activity entry commit together. There are only two outcomes: a `succeeded`
+receipt, or an error after rollback. No asynchronous task exists, so `pending`
+and `uncertain` no longer occur.
 
-- `succeeded`: the backend task completed and local document metadata committed.
-- `pending`: accepted by the backend; inspect `data-pool_status` with the saved ID.
-- `uncertain`: submission response was lost or malformed. The saved intent fences
-  the document/pool; status can prove an imported revision or completed deletion.
-  It never resubmits the original mutation.
-- `failed`: an observed backend rejection or failed task. Correct the cause
-  before explicitly submitting a new intended request.
+- `succeeded`: the transaction committed. The same `request_id` and exact input
+  replay the stored receipt (`replay: true`) without another change.
+- An error means the transaction rolled back. Correct the cause and submit a new
+  intended request; a rejected attempt is not a committed effect.
 
 A revoked writer cannot read its request after revocation. A pool manager can
 inspect it with owner set to that writer, even after the operator removes the
-writer from the host binding. A document being updated is hidden
-if the backend revision/hash disagrees with committed metadata. A timeout is
-never proof that no effect happened; don't change request_id to bypass a fence.
-If an uncertain effect cannot be proven, the operator must inspect the private
-backend and receipt before deciding recovery. Do not delete policy state to
-clear an unresolved effect. Soot's write/Stop/resource receipts still apply.
+writer from the host binding. A document whose hash disagrees with committed
+metadata is reported rather than served. Keep the original request ID when
+checking any error whose outcome is unknown; do not invent a new ID to bypass
+deduplication. Soot's write/Stop/resource receipts still apply.
 
 ## Backup, upgrade and remove
 
-Quiesce Soot work and stop the owned runtime (direct mode) or the data-pool
-service (shared mode) before copying plugin state. Back
-up the entire private `state_dir` together with a consistent Meilisearch
-snapshot/dump using the [official snapshot reference](https://specs.meilisearch.dev/specifications/text/0258-snapshots-api.html).
-Do not copy a live policy database or restore only its grants while retaining
-a different document/index revision. Keep unresolved receipts in backups.
-Credential files remain host-owned and need a separate private backup.
+All state is in PostgreSQL schema `data_pool`; there is no local state directory
+to copy. Back up the database with `pg_dump` (custom or plain format) against a
+consistent snapshot or while writes are quiesced:
+
+```sh
+pg_dump --format=custom --no-owner --file=/private/backup/company-data.dump \
+  'postgres://soot:password@db.example.com/soot?sslmode=require'
+pg_restore --clean --if-exists --no-owner --dbname='postgres://soot:password@db.example.com/soot?sslmode=require' \
+  /private/backup/company-data.dump
+```
+
+Restore grants and documents together; never restore only one table or merge a
+dump into a database bound to another namespace. Keep receipts so replay stays
+idempotent. Credential files and the private DSN remain host-owned and need a
+separate private backup. For a managed service, use its snapshot facility with
+the same all-or-nothing rule.
 
 For a Pack upgrade, quiesce work, back up state, remove selections in Nest's
 existing settings/Soot definition, stop the runtime, preserve the old Pack,
 and install the reviewed replacement with `soot add`. That command rejects
 duplicate IDs and never overwrites a Pack in place. Build its executable,
-validate with check, then reselect explicitly. This version's state layout is
-v1; future versions must document any migration. Backend upgrades follow
-Meilisearch's version-specific migration guidance, not this Pack's installer.
+validate with check, then reselect explicitly. The service creates or upgrades
+its schema (`schema_version` 1) on start under an advisory lock; future versions
+must document any migration. PostgreSQL major-version upgrades follow
+PostgreSQL's `pg_upgrade`/dump-and-restore guidance, not this Pack's installer.
 
 To disable, deselect the capabilities in Nest settings or definitions. To
 uninstall, stop work/runtime, remove the now-unselected Pack directory and its
 credential bindings. Data remains stored; deleting data requires an explicit
-pool/document removal. There is currently no CLI Pack-uninstall verb, and this
-plugin does not add one. Do not delete an unknown namespace or an unresolved
-receipt merely because the plugin is disabled.
+pool/document removal or dropping the dedicated database. There is currently no
+CLI Pack-uninstall verb, and this plugin does not add one. Do not delete an
+unknown namespace or a committed receipt merely because the plugin is disabled.
 
 ## Verification and development
 
@@ -323,30 +350,41 @@ receipt merely because the plugin is disabled.
 (cd runner && go test -race ./... && go vet ./...)
 ```
 
-The opt-in real-backend tests accept a preverified CE executable and run
-disposable local state, including backend/runner restarts:
+The opt-in real-database tests need a **disposable** PostgreSQL 16+ database:
+each test drops and recreates schema `data_pool`, then exercises service and
+runner restarts against the same database.
 
 ```sh
 cd runner
-DATA_POOL_TEST_MEILI=/absolute/path/meilisearch DATA_POOL_TEST_PUBLIC_WEB=1 go test -race -v ./...
+DATA_POOL_TEST_DATABASE_URL='postgres://soot:password@127.0.0.1:5432/soot_test?sslmode=disable' \
+  DATA_POOL_TEST_PUBLIC_WEB=1 go test -race -v ./...
 ```
+
+Never point that variable at a database holding real pools. Without it the Go
+lane skips; `scripts/test-packs.mjs` reports the same `DATA_POOL_TEST_DATABASE_URL`
+opt-in.
 
 The real CLI journey builds/installs an archive into an isolated workspace and
 uses a scripted local OpenAI-compatible provider with the actual Soot runtime
-and executable tools. Pass verified binary paths; it does not install binaries. The script lives in the Soot Forge checkout; release archives omit `qa/`:
+and executable tools. Pass verified binary paths and a **fresh, disposable**
+PostgreSQL DSN through the environment; the journey does not start PostgreSQL
+and does not drop an existing schema. The script lives in the Soot Forge
+checkout; release archives omit `qa/`:
 
 ```sh
+export DATA_POOL_TEST_DATABASE_URL='postgres://soot:password@127.0.0.1:5432/soot_qa?sslmode=disable'
 python3 qa/cli_journey.py --shared --soot /absolute/path/soot \
-  --runner /absolute/path/soot-data-pool --meili /absolute/path/meilisearch
+  --runner /absolute/path/soot-data-pool
 ```
 
 Its finalizer stops exact owned processes, joins provider threads and removes
 temporary state. Unit fault tests cover lost responses, duplicate/fenced writes,
-backend rejection/task failure, authorization, input boundaries and integrity.
-The `--shared` journey runs two independent Soot hosts against one service,
-including central/backend restart and revocation on both hosts. Omit it to check
-the original single-host direct mode. This verifies the CLI/shared backend path; no new native Nest screen, deployment,
-public release or model quality evaluation is claimed.
+database rejection/transaction rollback, authorization, input boundaries and
+integrity. The `--shared` journey runs two independent Soot hosts against one
+service, including service/database restart and revocation on both hosts. Omit
+it to check the original single-host direct mode. This verifies the CLI/shared
+service path; no new native Nest screen, deployment, public release or model
+quality evaluation is claimed.
 
 ## Human management in Nest
 
@@ -362,7 +400,7 @@ Bind a separate `DATA_POOL_UI` credential to **only** `data-pool_view` and
 `--configurator data-manager` in the [service helper](docs/shared-service.md).
 The ordinary agent token retains its original scopes. Never distribute the UI
 binding to a reader or put it in client JavaScript. Direct mode uses the same
-authoritative backend/state binding with separate host operation scopes.
+authoritative database binding with separate host operation scopes.
 
 ```json
 {

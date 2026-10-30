@@ -1,12 +1,9 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"sync"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 // Policy changes take exclusive admission; document operations and status share it.
@@ -132,18 +129,9 @@ func (g *gateway) admit(ctx context.Context, op, actor string, call toolCall) (f
 			}
 			keys = append(keys, "request/"+actor+"/"+input.RequestID, "document/"+input.Pool+"/"+input.ID)
 		case "status":
-			// Reconciling may commit the receipt: serialize with its original
-			// write (same request key, then document key, the write's order).
-			// An unresolved pool removal rewrites policy, so it stays exclusive.
-			owner := cmp.Or(input.Owner, actor)
-			keys = append(keys, "request/"+owner+"/"+input.RequestID)
-			if r, ok := g.peekReceipt(owner, input.RequestID); ok && r.Status != "succeeded" && r.Status != "failed" {
-				if r.Document == nil {
-					exclusive, keys = true, nil
-				} else {
-					keys = append(keys, "document/"+r.Pool+"/"+r.Document.ID)
-				}
-			}
+			// A receipt is written by the same transaction as its effect, so
+			// status only needs to ride along with the original request key.
+			keys = append(keys, "request/"+ownerOr(input.Owner, actor)+"/"+input.RequestID)
 		}
 	}
 	held := []func(){}
@@ -169,14 +157,11 @@ func (g *gateway) admit(ctx context.Context, op, actor string, call toolCall) (f
 	return release, nil
 }
 
-// peekReceipt reads only lock-ordering facts; authorization happens later.
-func (g *gateway) peekReceipt(owner, id string) (receipt, bool) {
-	var r receipt
-	if !identifier.MatchString(owner) || !identifier.MatchString(id) {
-		return r, false
+func ownerOr(owner, actor string) string {
+	if owner != "" {
+		return owner
 	}
-	err := g.base.db.View(func(tx *bolt.Tx) error { return getJSON(tx.Bucket([]byte("receipts")), owner+"/"+id, &r) })
-	return r, err == nil
+	return actor
 }
 
 // Only static pre-submission validation messages use this public error type.

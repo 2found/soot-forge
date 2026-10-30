@@ -2,6 +2,7 @@
 """Render private shared-pool configuration; no installation or network calls."""
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -12,10 +13,47 @@ import tempfile
 import urllib.parse
 
 IDENTIFIER = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}')
+STORAGE_FIELDS = {'database_url', 'namespace', 'soots', 'managers', 'writers',
+                  'pool_managers', 'groups', 'defaults'}
+PRIVATE_NETWORKS = tuple(ipaddress.ip_network(n) for n in
+                         ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7'))
 
 
 def valid_id(value):
     return isinstance(value, str) and IDENTIFIER.fullmatch(value) is not None
+
+
+def private_address(ip):
+    return ip.is_loopback or any(ip in network for network in PRIVATE_NETWORKS)
+
+
+def valid_database_url(ap, value, private_network):
+    """Mirror the runner: scheme, host, size, and cleartext reachability."""
+    if not isinstance(value, str) or not value or len(value) > 4096:
+        ap.error('database_url must be a postgres URL of at most 4096 characters')
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        sslmode = urllib.parse.parse_qs(parsed.query).get('sslmode', [''])[0]
+    except ValueError:
+        ap.error('database_url is not a valid URL')
+    if parsed.scheme not in ('postgres', 'postgresql') or not parsed.hostname or parsed.fragment:
+        ap.error('database_url must be postgres://user:password@host/database with no fragment')
+    if sslmode not in ('', 'disable', 'allow'):
+        return value
+    host = parsed.hostname
+    if host in ('localhost', '127.0.0.1', '::1'):
+        return value
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        ip = None
+    if ip is not None:
+        if private_address(ip):
+            return value
+        ap.error('database_url without sslmode=require must not reach a public address')
+    if not private_network:
+        ap.error('database_url requires sslmode=require outside loopback, or --private-network behind a private network')
+    return value
 
 
 def member_ids(ap, group, value):
@@ -54,7 +92,7 @@ def main():
     ap.add_argument('--listen', default='127.0.0.1:8091')
     ap.add_argument('--tls-cert')
     ap.add_argument('--tls-key')
-    ap.add_argument('--private-network', action='store_true', help='Container behind a TLS proxy: allow cleartext non-loopback listen and a private http:// backend')
+    ap.add_argument('--private-network', action='store_true', help='Container behind a TLS proxy: allow a cleartext non-loopback listen and a private-network database host')
     ap.add_argument('--host-config', type=Path, help='Soot deployment.json supplying bound soots and group rosters')
     ap.add_argument('--host', action='append', default=[], metavar='NAME=SOOT[,SOOT...]',
                     help='Issue a machine credential (bindings/host-NAME.json) that may act only as the listed Soots; repeat once per Soot host')
@@ -78,6 +116,12 @@ def main():
     storage = json.loads(args.backend_config.read_text())
     if not isinstance(storage, dict):
         ap.error('backend config must be a JSON object')
+    unknown = sorted(set(storage) - STORAGE_FIELDS)
+    if unknown:
+        ap.error('backend config no longer accepts ' + ', '.join(unknown) + '; use database_url, namespace, soot lists, groups and defaults')
+    valid_database_url(ap, storage.get('database_url'), args.private_network)
+    if not valid_id(storage.get('namespace')):
+        ap.error('backend config needs a namespace identifier')
     if args.host_config is not None:
         # The host's own configuration is the roster source of truth: bound
         # Soots mirror the host's Soot ids and group rosters mirror host
@@ -104,19 +148,37 @@ def main():
         storage['groups'] = {g: member_ids(ap, g, v) for g, v in host.get('groups', {}).items()}
     soots = storage.get('soots', [])
     managers = storage.get('managers', [])
-    storage['writers'] = sorted(set(storage.get('writers', [])) | set(args.writer))
-    storage['pool_managers'] = sorted(set(storage.get('pool_managers', [])) | set(args.pool_manager))
+    for field in ('writers', 'pool_managers'):
+        values = storage.get(field) or []
+        if not isinstance(values, list) or any(not valid_id(s) for s in values):
+            ap.error(f'{field} must be a list of bound Soot ids')
+    storage['writers'] = sorted(set(storage.get('writers') or []) | set(args.writer))
+    storage['pool_managers'] = sorted(set(storage.get('pool_managers') or []) | set(args.pool_manager))
     if (not isinstance(soots, list) or not isinstance(managers, list)
             or not 1 <= len(soots) <= 4096 or not 1 <= len(managers) <= 16 or len(set(soots)) != len(soots)
             or any(not valid_id(s) for s in soots)
             or any(s not in soots for s in managers + storage['writers'] + storage['pool_managers'])
-            or any(s not in managers for s in args.configurator) or storage.get('service_url')):
+            or any(s not in managers for s in args.configurator)):
         ap.error('backend config requires distinct Soot identities and bound managers/writers/pool managers')
     if not isinstance(storage.get('groups') or {}, dict):
         ap.error('groups must map group ids to member lists')
+    if len(storage.get('groups') or {}) > 256:
+        ap.error('at most 256 bound groups are supported')
+    counts = {}
     for group, members in (storage.get('groups') or {}).items():
-        if not isinstance(members, list) or any(m not in soots for m in members):
+        if (not valid_id(group) or not isinstance(members, list) or not 1 <= len(members) <= 4096
+                or len(set(members)) != len(members) or any(m not in soots for m in members)):
             ap.error(f'group {group!r} lists a member that is not a bound Soot')
+        for member in members:
+            counts[member] = counts.get(member, 0) + 1
+            if counts[member] > 64:
+                ap.error('a Soot can belong to at most 64 bound groups')
+    defaults = storage.get('defaults') or {}
+    if not isinstance(defaults, dict) or len(defaults) > 4096:
+        ap.error('defaults must map bound Soots to collection ids')
+    for soot, pool_id in defaults.items():
+        if soot not in soots or not valid_id(pool_id):
+            ap.error(f'default for {soot!r} must name one bound Soot and one valid collection id')
     hosts = [parse_host(ap, raw) for raw in args.host]
     if len({name for name, _ in hosts}) != len(hosts):
         ap.error('--host names must be distinct')

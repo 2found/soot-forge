@@ -1,19 +1,21 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"slices"
-	"strings"
 	"time"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// One fixed schema inside the operator's database. The service creates and
+// migrates it on start, so a new deployment needs only a reachable database.
+const databaseSchema = "data_pool"
 
 type pool struct {
 	ID             string `json:"id"`
@@ -58,10 +60,8 @@ type receipt struct {
 	Action         string     `json:"action"`
 	Fingerprint    string     `json:"fingerprint"`
 	Status         string     `json:"status"`
-	Task           *int64     `json:"task,omitempty"`
 	Document       *document  `json:"document,omitempty"`
 	Reason         string     `json:"reason,omitempty"`
-	NewDocument    bool       `json:"new_document,omitempty"`
 	Actor          *actorRef  `json:"actor,omitempty"`
 	Replay         bool       `json:"replay,omitempty"`
 	Origin         *originRef `json:"origin,omitempty"`
@@ -70,8 +70,7 @@ type receipt struct {
 type service struct {
 	b          binding
 	actor      string
-	db         *bolt.DB
-	backend    *backend
+	db         *store
 	fetch      func(string) (string, error)
 	human      bool
 	origin     *originRef
@@ -86,43 +85,203 @@ type service struct {
 
 func hash(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
 
-func openService(b binding, actor string) (*service, error) {
-	if err := os.MkdirAll(b.StateDir, 0700); err != nil {
-		return nil, errors.New("cannot open plugin state")
-	}
-	file := filepath.Join(b.StateDir, "policy.db")
-	db, err := bolt.Open(file, 0600, &bolt.Options{Timeout: 3 * time.Second})
+type store struct{ pool *pgxpool.Pool }
+
+func openStore(ctx context.Context, dsn string) (*store, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, errors.New("plugin state unavailable or busy; inspect the original request before retrying a mutation")
+		return nil, errors.New("invalid data-pool database URL")
 	}
-	s := &service{b: b, static: b, actor: actor, db: db, backend: newBackend(b), membership: actorGroups(b, actor), groupsFor: actor, perms: map[string]string{}}
-	err = db.Update(func(tx *bolt.Tx) error {
-		for _, name := range []string{"config", "pools", "grants", "by-soot", "documents", "receipts", "fences", "activity", "children", "effective", "by-group", "references", "admitted"} {
-			if _, e := tx.CreateBucketIfNotExists([]byte(name)); e != nil {
-				return e
-			}
-		}
-		c := tx.Bucket([]byte("config"))
-		identity := b.Namespace + "\n" + b.Endpoint
-		if old := c.Get([]byte("identity")); old != nil && string(old) != identity {
-			return errors.New("state is already bound to another namespace or backend")
-		}
-		if err := c.Put([]byte("identity"), []byte(identity)); err != nil {
-			return err
-		}
-		return s.initializeCollections(tx)
-	})
+	cfg.MaxConns, cfg.MaxConnIdleTime = 8, 5*time.Minute
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		db.Close()
+		return nil, errors.New("data-pool database unavailable")
+	}
+	check, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := pool.Ping(check); err != nil {
+		pool.Close()
+		return nil, errors.New("data-pool database unavailable")
+	}
+	st := &store{pool: pool}
+	if err := st.migrate(ctx); err != nil {
+		pool.Close()
 		return nil, err
 	}
-	s.withAdmitted()
+	return st, nil
+}
+
+func (st *store) close() { st.pool.Close() }
+
+func (st *store) view(ctx context.Context, fn func(pgx.Tx) error) error {
+	return st.run(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, fn)
+}
+func (st *store) update(ctx context.Context, fn func(pgx.Tx) error) error {
+	return st.run(ctx, pgx.TxOptions{}, fn)
+}
+func (st *store) run(ctx context.Context, opts pgx.TxOptions, fn func(pgx.Tx) error) error {
+	tx, err := st.pool.BeginTx(ctx, opts)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback(ctx)
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// migrate creates the schema once. The advisory lock keeps two replicas from
+// racing the DDL; runtime policy already assumes one service per namespace.
+func (st *store) migrate(ctx context.Context) error {
+	return st.update(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext('soot-data-pool'))`); err != nil {
+			return errors.New("data-pool database unavailable")
+		}
+		for _, statement := range []string{
+			`CREATE EXTENSION IF NOT EXISTS pg_trgm`,
+			`CREATE SCHEMA IF NOT EXISTS ` + databaseSchema,
+			`CREATE TABLE IF NOT EXISTS ` + databaseSchema + `.meta (key text PRIMARY KEY, value text NOT NULL)`,
+			`CREATE TABLE IF NOT EXISTS ` + databaseSchema + `.pools (
+				id text PRIMARY KEY,
+				name text NOT NULL,
+				created_at timestamptz NOT NULL,
+				generation text NOT NULL,
+				policy_revision bigint NOT NULL DEFAULT 0,
+				parent text NOT NULL DEFAULT '',
+				inherit boolean NOT NULL DEFAULT true,
+				scope text NOT NULL DEFAULT '',
+				subject text NOT NULL DEFAULT ''
+			)`,
+			`CREATE INDEX IF NOT EXISTS pools_parent ON ` + databaseSchema + `.pools (parent)`,
+			`CREATE TABLE IF NOT EXISTS ` + databaseSchema + `.grants (
+				pool_id text NOT NULL REFERENCES ` + databaseSchema + `.pools (id) ON DELETE CASCADE,
+				subject text NOT NULL,
+				level text NOT NULL,
+				PRIMARY KEY (pool_id, subject)
+			)`,
+			`CREATE INDEX IF NOT EXISTS grants_subject ON ` + databaseSchema + `.grants (subject, pool_id)`,
+			`CREATE TABLE IF NOT EXISTS ` + databaseSchema + `.documents (
+				pool_id text NOT NULL REFERENCES ` + databaseSchema + `.pools (id) ON DELETE CASCADE,
+				id text NOT NULL,
+				title text NOT NULL,
+				source text NOT NULL,
+				tags jsonb NOT NULL DEFAULT '[]',
+				sha256 text NOT NULL,
+				revision integer NOT NULL,
+				updated_at timestamptz NOT NULL,
+				writer jsonb,
+				origin jsonb,
+				content text NOT NULL,
+				title_norm text NOT NULL,
+				content_norm text NOT NULL,
+				receipt text NOT NULL,
+				PRIMARY KEY (pool_id, id)
+			)`,
+			`CREATE INDEX IF NOT EXISTS documents_pool ON ` + databaseSchema + `.documents (pool_id)`,
+			`CREATE INDEX IF NOT EXISTS documents_title_trgm ON ` + databaseSchema + `.documents USING gin (title_norm gin_trgm_ops)`,
+			`CREATE INDEX IF NOT EXISTS documents_content_trgm ON ` + databaseSchema + `.documents USING gin (content_norm gin_trgm_ops)`,
+			`CREATE TABLE IF NOT EXISTS ` + databaseSchema + `.receipts (
+				owner text NOT NULL,
+				id text NOT NULL,
+				pool text NOT NULL DEFAULT '',
+				pool_generation text NOT NULL DEFAULT '',
+				action text NOT NULL,
+				fingerprint text NOT NULL,
+				status text NOT NULL,
+				document jsonb,
+				reason text NOT NULL DEFAULT '',
+				actor jsonb,
+				origin jsonb,
+				at timestamptz NOT NULL,
+				PRIMARY KEY (owner, id)
+			)`,
+			`CREATE TABLE IF NOT EXISTS ` + databaseSchema + `.admissions (
+				soot text PRIMARY KEY,
+				host text NOT NULL DEFAULT '',
+				level text NOT NULL,
+				by text NOT NULL,
+				at timestamptz NOT NULL
+			)`,
+			`CREATE TABLE IF NOT EXISTS ` + databaseSchema + `.activity (
+				seq bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+				pool_id text NOT NULL,
+				at timestamptz NOT NULL,
+				generation text NOT NULL,
+				actor jsonb NOT NULL,
+				action text NOT NULL,
+				status text NOT NULL,
+				request_id text NOT NULL DEFAULT '',
+				documents jsonb,
+				target_soot text NOT NULL DEFAULT '',
+				target_group text NOT NULL DEFAULT '',
+				level text NOT NULL DEFAULT ''
+			)`,
+			`CREATE INDEX IF NOT EXISTS activity_pool_seq ON ` + databaseSchema + `.activity (pool_id, seq DESC)`,
+			`CREATE TABLE IF NOT EXISTS ` + databaseSchema + `.references_log (
+				seq bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+				conversation text NOT NULL,
+				at timestamptz NOT NULL,
+				pool text NOT NULL,
+				generation text NOT NULL,
+				id text NOT NULL,
+				revision integer NOT NULL,
+				sha256 text NOT NULL,
+				action text NOT NULL,
+				origin jsonb NOT NULL
+			)`,
+			`CREATE INDEX IF NOT EXISTS references_conversation_seq ON ` + databaseSchema + `.references_log (conversation, seq)`,
+		} {
+			if _, err := tx.Exec(ctx, statement); err != nil {
+				return errors.New("cannot prepare the data-pool schema")
+			}
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO `+databaseSchema+`.meta (key, value) VALUES ('schema_version', '1') ON CONFLICT (key) DO NOTHING`)
+		return err
+	})
+}
+
+// bind pins the database to one namespace, exactly as the old state directory
+// refused to open for another one.
+func (st *store) bind(ctx context.Context, namespace string) error {
+	return st.update(ctx, func(tx pgx.Tx) error {
+		var existing string
+		err := tx.QueryRow(ctx, `SELECT value FROM `+databaseSchema+`.meta WHERE key = 'namespace'`).Scan(&existing)
+		if errors.Is(err, pgx.ErrNoRows) {
+			_, err = tx.Exec(ctx, `INSERT INTO `+databaseSchema+`.meta (key, value) VALUES ('namespace', $1)`, namespace)
+			return err
+		}
+		if err != nil {
+			return errors.New("data-pool database unavailable")
+		}
+		if existing != namespace {
+			return errors.New("database is already bound to another namespace")
+		}
+		return nil
+	})
+}
+
+func openService(ctx context.Context, b binding, actor string) (*service, error) {
+	db, err := openStore(ctx, b.DatabaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.bind(ctx, b.Namespace); err != nil {
+		db.close()
+		return nil, err
+	}
+	s := &service{b: b, static: b, actor: actor, db: db, membership: actorGroups(b, actor), groupsFor: actor, perms: map[string]string{}}
+	s.withAdmitted(ctx)
+	if ctx.Err() != nil {
+		db.close()
+		return nil, errors.New("data-pool database unavailable")
+	}
 	return s, nil
 }
 
-func (s *service) close()                 { s.db.Close(); s.backend.client.CloseIdleConnections() }
-func (s *service) manager() bool          { return slices.Contains(s.b.Managers, s.actor) }
-func (s *service) index(id string) string { return "soot_" + hash(s.b.Namespace + "/" + id)[:32] }
+func (s *service) close()                      { s.db.close() }
+func (s *service) manager() bool               { return contains(s.b.Managers, s.actor) }
+func (s *service) requestKey(id string) string { return s.actor + "/" + id }
 func rank(level string) int {
 	switch level {
 	case "read":
@@ -134,26 +293,68 @@ func rank(level string) int {
 	}
 	return 0
 }
-func getJSON(b *bolt.Bucket, key string, out any) error {
-	v := b.Get([]byte(key))
-	if v == nil {
-		return errors.New("not found")
+
+// permission resolves the actor's strongest access to one collection, through
+// its own grants, the workspace subject, its bound groups and inheriting
+// ancestors. One recursive query per collection per invocation.
+func (s *service) permission(ctx context.Context, tx pgx.Tx, id string) (string, error) {
+	key := s.actor + "\x00" + id
+	if level, ok := s.perms[key]; ok {
+		return level, nil
 	}
-	return json.Unmarshal(v, out)
-}
-func putJSON(b *bolt.Bucket, key string, v any) error {
-	data, err := json.Marshal(v)
+	level := ""
+	if s.manager() {
+		level = "manage"
+	}
+	subjects := []string{s.actor, workspaceSubject}
+	for _, group := range s.groups() {
+		subjects = append(subjects, "@group/"+group)
+	}
+	rows, err := tx.Query(ctx, `
+		WITH RECURSIVE chain AS (
+			SELECT id, parent, inherit FROM `+databaseSchema+`.pools WHERE id = $2
+			UNION ALL
+			SELECT p.id, p.parent, p.inherit FROM `+databaseSchema+`.pools p
+			JOIN chain c ON p.id = c.parent
+			WHERE c.inherit AND c.parent <> ''
+		)
+		SELECT g.level FROM `+databaseSchema+`.grants g JOIN chain c ON c.id = g.pool_id
+		WHERE g.subject = ANY($1)`, subjects, id)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return b.Put([]byte(key), data)
+	defer rows.Close()
+	for rows.Next() {
+		var other string
+		if err := rows.Scan(&other); err != nil {
+			return "", err
+		}
+		if rank(other) > rank(level) {
+			level = other
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	s.perms[key] = level
+	return level, nil
 }
-func (s *service) allowed(tx *bolt.Tx, id, level string) bool {
-	return rank(s.permission(tx, id)) >= rank(level) && rank(level) > 0
+
+func (s *service) allowed(ctx context.Context, tx pgx.Tx, id, level string) (bool, error) {
+	current, err := s.permission(ctx, tx, id)
+	if err != nil {
+		return false, err
+	}
+	return rank(current) >= rank(level) && rank(level) > 0, nil
 }
-func (s *service) authorize(id, level string) error {
-	return s.db.View(func(tx *bolt.Tx) error {
-		if !s.allowed(tx, id, level) {
+
+func (s *service) authorize(ctx context.Context, id, level string) error {
+	return s.db.view(ctx, func(tx pgx.Tx) error {
+		ok, err := s.allowed(ctx, tx, id, level)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			// One answer for missing and forbidden, so it is no existence oracle,
 			// but actionable: a model that guessed an ID must list or create one.
 			return inputError{"collection " + safeID(id) + " is not available to this Soot at " + level + " level (missing or not granted); list accessible collections with data-pool_pools without a pool argument, or create one with data-pool_manage pool_create if you manage pools"}
@@ -162,218 +363,168 @@ func (s *service) authorize(id, level string) error {
 	})
 }
 
-func (s *service) poolGeneration(id string) (string, error) {
-	var p pool
-	err := s.db.View(func(tx *bolt.Tx) error { return getJSON(tx.Bucket([]byte("pools")), id, &p) })
-	if err != nil || p.Generation == "" {
+func (s *service) poolGeneration(ctx context.Context, id string) (string, error) {
+	generation := ""
+	err := s.db.view(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT generation FROM `+databaseSchema+`.pools WHERE id = $1`, id).Scan(&generation)
+	})
+	if errors.Is(err, pgx.ErrNoRows) || generation == "" {
 		return "", errors.New("pool identity unavailable")
 	}
-	return p.Generation, nil
+	return generation, err
 }
 
 // Host managers own the namespace's retained history. Delegated permissions
 // apply only to the specific pool generation they currently manage/read.
-func (s *service) authorizeReceipt(r receipt, level string) error {
+func (s *service) authorizeReceipt(ctx context.Context, r receipt, level string) error {
 	if s.manager() {
 		return nil
 	}
-	return s.db.View(func(tx *bolt.Tx) error {
-		var p pool
-		if getJSON(tx.Bucket([]byte("pools")), r.Pool, &p) != nil || r.PoolGeneration == "" || p.Generation != r.PoolGeneration || !s.allowed(tx, r.Pool, level) {
+	return s.db.view(ctx, func(tx pgx.Tx) error {
+		var generation string
+		if err := tx.QueryRow(ctx, `SELECT generation FROM `+databaseSchema+`.pools WHERE id = $1`, r.Pool).Scan(&generation); err != nil || r.PoolGeneration == "" || generation != r.PoolGeneration {
+			return errors.New("request unavailable")
+		}
+		ok, err := s.allowed(ctx, tx, r.Pool, level)
+		if err != nil || !ok {
 			return errors.New("request unavailable")
 		}
 		return nil
 	})
 }
-func docsBucket(tx *bolt.Tx, id string) *bolt.Bucket {
-	return tx.Bucket([]byte("documents")).Bucket([]byte(id))
+
+func scanDocument(row pgx.Row) (storedDocument, error) {
+	var d storedDocument
+	var tags, writer, origin []byte
+	var updated time.Time
+	if err := row.Scan(&d.ID, &d.Title, &d.Source, &tags, &d.SHA256, &d.Revision, &updated, &writer, &origin, &d.Content, &d.TitleNorm, &d.ContentNorm, &d.Receipt); err != nil {
+		return d, err
+	}
+	d.UpdatedAt = updated.UTC().Format(time.RFC3339Nano)
+	if len(tags) > 0 {
+		_ = json.Unmarshal(tags, &d.Tags)
+	}
+	if d.Tags == nil {
+		d.Tags = []string{}
+	}
+	if len(writer) > 0 {
+		_ = json.Unmarshal(writer, &d.Writer)
+	}
+	if len(origin) > 0 {
+		_ = json.Unmarshal(origin, &d.Origin)
+	}
+	return d, nil
 }
-func (s *service) doc(id, docID string) (document, error) {
+
+const documentColumns = `id, title, source, tags, sha256, revision, updated_at, writer, origin, content, title_norm, content_norm, receipt`
+const documentMetaColumns = `id, title, source, tags, sha256, revision, updated_at, writer, origin`
+
+func scanMeta(row pgx.Row) (document, error) {
 	var d document
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := docsBucket(tx, id)
-		if b == nil {
-			return errors.New("document unavailable")
-		}
-		if getJSON(b, docID, &d) != nil {
-			return errors.New("document unavailable")
-		}
-		return nil
+	var tags, writer, origin []byte
+	var updated time.Time
+	if err := row.Scan(&d.ID, &d.Title, &d.Source, &tags, &d.SHA256, &d.Revision, &updated, &writer, &origin); err != nil {
+		return d, err
+	}
+	d.UpdatedAt = updated.UTC().Format(time.RFC3339Nano)
+	if len(tags) > 0 {
+		_ = json.Unmarshal(tags, &d.Tags)
+	}
+	if d.Tags == nil {
+		d.Tags = []string{}
+	}
+	_ = jsonUnmarshal(writer, &d.Writer)
+	_ = jsonUnmarshal(origin, &d.Origin)
+	return d, nil
+}
+
+func (s *service) doc(ctx context.Context, poolID, docID string) (document, error) {
+	var d document
+	err := s.db.view(ctx, func(tx pgx.Tx) error {
+		stored, err := scanDocument(tx.QueryRow(ctx, `SELECT `+documentColumns+` FROM `+databaseSchema+`.documents WHERE pool_id = $1 AND id = $2`, poolID, docID))
+		d = stored.document
+		return err
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = errors.New("document unavailable")
+	}
 	return d, err
 }
-func (s *service) requestKey(id string) string { return s.actor + "/" + id }
-func (s *service) loadReceipt(id string) (receipt, error) {
+
+func (s *service) loadReceipt(ctx context.Context, owner, id string) (receipt, error) {
 	var r receipt
-	err := s.db.View(func(tx *bolt.Tx) error { return getJSON(tx.Bucket([]byte("receipts")), s.requestKey(id), &r) })
-	return r, err
-}
-func (s *service) saveReceipt(r receipt) error {
-	return s.db.Update(func(tx *bolt.Tx) error { return putJSON(tx.Bucket([]byte("receipts")), s.requestKey(r.ID), r) })
-}
-func fenceKey(r receipt) string {
-	if r.Document != nil {
-		return r.Pool + "/" + r.Document.ID
-	}
-	return r.Pool + "/*"
-}
-func ensureUnfenced(tx *bolt.Tx, id, docID string) error {
-	b := tx.Bucket([]byte("fences"))
-	if b.Get([]byte(id+"/*")) != nil {
-		return errors.New("pool has a pending or uncertain effect; inspect its request status")
-	}
-	if docID == "" {
-		k, _ := b.Cursor().Seek([]byte(id + "/"))
-		if len(k) >= len(id)+1 && string(k[:len(id)+1]) == id+"/" {
-			return errors.New("pool has a pending or uncertain effect; inspect its request status")
-		}
-	} else if b.Get([]byte(id+"/"+docID)) != nil {
-		return errors.New("document has a pending or uncertain effect; inspect its request status")
-	}
-	return nil
-}
-func (s *service) begin(r receipt) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		id := ""
-		if r.Document != nil {
-			id = r.Document.ID
-		}
-		if err := ensureUnfenced(tx, r.Pool, id); err != nil {
-			return err
-		}
-		if r.NewDocument {
-			pending := pendingCount(tx, r.Pool)
-			if docsBucket(tx, r.Pool).Sequence()+pending >= maxDocuments {
-				return errors.New("document limit reached")
-			}
-			if err := putJSON(tx.Bucket([]byte("config")), "pending/"+r.Pool, pending+1); err != nil {
-				return err
-			}
-		}
-		if err := putJSON(tx.Bucket([]byte("receipts")), s.requestKey(r.ID), r); err != nil {
-			return err
-		}
-		if err := appendActivity(tx, activityForReceipt(r)); err != nil {
-			return err
-		}
-		return tx.Bucket([]byte("fences")).Put([]byte(fenceKey(r)), []byte(s.requestKey(r.ID)))
+	var document, actor, origin []byte
+	var at time.Time
+	err := s.db.view(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT id, owner, pool, pool_generation, action, fingerprint, status, document, reason, actor, origin, at
+			FROM `+databaseSchema+`.receipts WHERE owner = $1 AND id = $2`, owner, id).
+			Scan(&r.ID, &r.Owner, &r.Pool, &r.PoolGeneration, &r.Action, &r.Fingerprint, &r.Status, &document, &r.Reason, &actor, &origin, &at)
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return r, errors.New("not found")
+	}
+	if err != nil {
+		return r, errors.New("request state unavailable")
+	}
+	if len(document) > 0 {
+		_ = json.Unmarshal(document, &r.Document)
+	}
+	if len(actor) > 0 {
+		_ = json.Unmarshal(actor, &r.Actor)
+	}
+	if len(origin) > 0 {
+		_ = json.Unmarshal(origin, &r.Origin)
+	}
+	return r, nil
 }
 
-func pendingCount(tx *bolt.Tx, pool string) uint64 {
-	var count uint64
-	_ = getJSON(tx.Bucket([]byte("config")), "pending/"+pool, &count)
-	return count
+func (s *service) saveReceipt(ctx context.Context, tx pgx.Tx, r receipt) error {
+	document, actor, origin := jsonBytes(r.Document), jsonBytes(r.Actor), jsonBytes(r.Origin)
+	_, err := tx.Exec(ctx, `INSERT INTO `+databaseSchema+`.receipts
+		(owner, id, pool, pool_generation, action, fingerprint, status, document, reason, actor, origin, at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+		ON CONFLICT (owner, id) DO UPDATE SET pool = EXCLUDED.pool, pool_generation = EXCLUDED.pool_generation,
+			action = EXCLUDED.action, fingerprint = EXCLUDED.fingerprint, status = EXCLUDED.status,
+			document = EXCLUDED.document, reason = EXCLUDED.reason, actor = EXCLUDED.actor,
+			origin = EXCLUDED.origin, at = EXCLUDED.at`,
+		r.Owner, r.ID, r.Pool, r.PoolGeneration, r.Action, r.Fingerprint, r.Status, document, r.Reason, actor, origin, time.Now().UTC())
+	return err
 }
 
-func (s *service) finish(r receipt, status string) (receipt, error) {
-	r.Status = status
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		if r.NewDocument {
-			pending := pendingCount(tx, r.Pool)
-			if pending == 0 {
-				return errors.New("pending document state mismatch")
-			}
-			if err := putJSON(tx.Bucket([]byte("config")), "pending/"+r.Pool, pending-1); err != nil {
-				return err
-			}
-		}
-		if status == "succeeded" {
-			if err := appendReference(tx, r.Origin, r.Pool, r.PoolGeneration, r.Action, r.Document); err != nil {
-				return err
-			}
-			switch r.Action {
-			case "upsert", "append":
-				b := docsBucket(tx, r.Pool)
-				if b == nil {
-					return errors.New("pool state unavailable")
-				}
-				if b.Get([]byte(r.Document.ID)) == nil {
-					if err := b.SetSequence(b.Sequence() + 1); err != nil {
-						return err
-					}
-				}
-				if err := putJSON(b, r.Document.ID, r.Document); err != nil {
-					return err
-				}
-			case "remove":
-				b := docsBucket(tx, r.Pool)
-				if b.Get([]byte(r.Document.ID)) != nil {
-					if err := b.SetSequence(b.Sequence() - 1); err != nil {
-						return err
-					}
-				}
-				if err := b.Delete([]byte(r.Document.ID)); err != nil {
-					return err
-				}
-			case "pool_remove":
-				if err := s.removeCollectionIndexes(tx, r.Pool); err != nil {
-					return err
-				}
-				if tx.Bucket([]byte("activity")).Bucket([]byte(r.Pool)) != nil {
-					if err := tx.Bucket([]byte("activity")).DeleteBucket([]byte(r.Pool)); err != nil {
-						return err
-					}
-				}
-				if err := tx.Bucket([]byte("config")).Delete([]byte("pending/" + r.Pool)); err != nil {
-					return err
-				}
-				if err := tx.Bucket([]byte("documents")).DeleteBucket([]byte(r.Pool)); err != nil {
-					return err
-				}
-				if err := tx.Bucket([]byte("pools")).Delete([]byte(r.Pool)); err != nil {
-					return err
-				}
-				b := tx.Bucket([]byte("pools"))
-				if err := b.SetSequence(b.Sequence() - 1); err != nil {
-					return err
-				}
-				// Clear stored pool membership, including identities the operator
-				// has since removed from the binding. Pool-ID reuse must start private.
-				prefix := r.Pool + "/"
-				c := tx.Bucket([]byte("grants")).Cursor()
-				for k, _ := c.Seek([]byte(prefix)); k != nil && strings.HasPrefix(string(k), prefix); k, _ = c.Next() {
-					soot := strings.TrimPrefix(string(k), prefix)
-					if err := tx.Bucket([]byte("by-soot")).Delete([]byte(soot + "/" + r.Pool)); err != nil {
-						return err
-					}
-					if err := c.Delete(); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		if err := tx.Bucket([]byte("fences")).Delete([]byte(fenceKey(r))); err != nil {
-			return err
-		}
-		// Removing a pool removes its activity with its data. The durable removal
-		// receipt remains available to host managers; ID reuse starts a fresh pool.
-		if r.Action != "pool_remove" {
-			if err := appendActivity(tx, activityForReceipt(r)); err != nil {
-				return err
-			}
-		}
-		return putJSON(tx.Bucket([]byte("receipts")), s.requestKey(r.ID), r)
-	})
-	return r, err
+func jsonUnmarshal(data []byte, into any) error {
+	if len(data) == 0 {
+		return nil
+	}
+	return json.Unmarshal(data, into)
 }
 
-func (s *service) replay(id, fingerprint string) (receipt, bool, error) {
-	r, err := s.loadReceipt(id)
+func jsonBytes(v any) []byte {
+	if v == nil {
+		return nil
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func (s *service) replay(ctx context.Context, id, fp string) (receipt, bool, error) {
+	r, err := s.loadReceipt(ctx, s.actor, id)
 	if err != nil && err.Error() == "not found" {
 		return r, false, nil
 	}
 	if err != nil {
 		return r, true, errors.New("request state unavailable")
 	}
-	if r.Fingerprint != fingerprint {
+	if r.Fingerprint != fp {
 		return r, true, inputError{"request_id already used with different input; a new intent needs a new request_id"}
 	}
 	if r.Action == "pool_create" || r.Action == "pool_remove" {
-		if s.authorizeReceipt(r, "manage") != nil {
+		if s.authorizeReceipt(ctx, r, "manage") != nil {
 			return r, true, errors.New("access denied")
 		}
-	} else if err := s.authorizeReceipt(r, map[string]string{"upsert": "write", "append": "write", "remove": "write", "grant": "manage", "revoke": "manage", "pool_update": "manage"}[r.Action]); err != nil {
+	} else if err := s.authorizeReceipt(ctx, r, map[string]string{"upsert": "write", "append": "write", "remove": "write", "grant": "manage", "revoke": "manage", "pool_update": "manage"}[r.Action]); err != nil {
 		return r, true, err
 	}
 	r.Replay = true
@@ -389,4 +540,13 @@ func safeID(id string) string {
 		return id
 	}
 	return "(invalid ID)"
+}
+
+func contains(list []string, value string) bool {
+	for _, item := range list {
+		if item == value {
+			return true
+		}
+	}
+	return false
 }

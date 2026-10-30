@@ -12,7 +12,6 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -47,10 +46,8 @@ type toolCall struct {
 type binding struct {
 	ServiceURL   string   `json:"service_url,omitempty"`
 	ServiceToken string   `json:"service_token,omitempty"`
-	Endpoint     string   `json:"endpoint"`
-	APIKey       string   `json:"api_key"`
+	DatabaseURL  string   `json:"database_url"`
 	Namespace    string   `json:"namespace"`
-	StateDir     string   `json:"state_dir"`
 	Soots        []string `json:"soots"`
 	Managers     []string `json:"managers"`
 	// Role lists derive a host client's operations for each identity in its
@@ -80,16 +77,17 @@ func decodeStrict(data []byte, into any) error {
 
 func loadBinding(raw string) (binding, error) { return parseBinding(raw, false) }
 
-// privateNetwork additionally admits an http:// backend by name; every
-// cleartext backend dial then checks its answers are private (newBackend).
+// privateNetwork additionally admits a cleartext database connection by name;
+// without it a DSN that does not require TLS must reach loopback or a literal
+// private address.
 func parseBinding(raw string, privateNetwork bool) (binding, error) {
 	var b binding
 	if len(raw) > 2<<20 || decodeStrict([]byte(raw), &b) != nil {
 		return b, errors.New("invalid DATA_POOL binding")
 	}
 	if b.ServiceURL != "" || b.ServiceToken != "" {
-		if b.Endpoint != "" || b.APIKey != "" || b.Namespace != "" || b.StateDir != "" || len(b.Soots) != 0 || len(b.Managers) != 0 || len(b.Groups) != 0 || len(b.Defaults) != 0 {
-			return b, errors.New("remote binding cannot contain local backend or policy fields")
+		if b.DatabaseURL != "" || b.Namespace != "" || len(b.Soots) != 0 || len(b.Managers) != 0 || len(b.Writers) != 0 || len(b.PoolManagers) != 0 || len(b.Groups) != 0 || len(b.Defaults) != 0 {
+			return b, errors.New("remote binding cannot contain local database or policy fields")
 		}
 		if err := validateEndpoint(b.ServiceURL); err != nil || !validToken(b.ServiceToken) {
 			return b, errors.New("invalid data-pool service binding")
@@ -97,18 +95,30 @@ func parseBinding(raw string, privateNetwork bool) (binding, error) {
 		b.ServiceURL = strings.TrimRight(b.ServiceURL, "/")
 		return b, nil
 	}
-	u, err := url.Parse(b.Endpoint)
-	if err != nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Hostname() == "" || (u.Path != "" && u.Path != "/") {
-		return b, errors.New("invalid backend endpoint")
+	u, err := url.Parse(b.DatabaseURL)
+	if err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Hostname() == "" || u.Fragment != "" || len(b.DatabaseURL) > 4096 {
+		return b, errors.New("invalid database_url; use postgres://user:password@host/database")
 	}
-	if u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "127.0.0.1" || u.Hostname() == "::1" || u.Hostname() == "localhost")) {
-		ip, notIP := netip.ParseAddr(u.Hostname())
-		if u.Scheme != "http" || !privateNetwork || notIP == nil && !privateAddress(ip) {
-			return b, errors.New("backend requires HTTPS, loopback HTTP, or private_network with a private HTTP address")
+	sslmode := u.Query().Get("sslmode")
+	if sslmode == "" || sslmode == "disable" || sslmode == "allow" {
+		host := u.Hostname()
+		ip, ipErr := netip.ParseAddr(host)
+		isIP := ipErr == nil
+		loopback := host == "localhost" || host == "127.0.0.1" || host == "::1"
+		private := isIP && privateAddress(ip)
+		switch {
+		case loopback || private:
+		case privateNetwork && !isIP:
+			// A container network name is resolved inside the operator's
+			// private network; the flag is the operator's explicit opt-in.
+		case !privateNetwork:
+			return b, errors.New("database_url requires sslmode=require outside loopback, or private_network behind a private network")
+		default:
+			return b, errors.New("database_url with a cleartext mode cannot reach a public address")
 		}
 	}
-	if !identifier.MatchString(b.Namespace) || !filepath.IsAbs(b.StateDir) || len(b.APIKey) < 16 || len(b.APIKey) > 4096 || strings.ContainsAny(b.APIKey, "\r\n") {
-		return b, errors.New("invalid namespace, state directory or backend credential")
+	if !identifier.MatchString(b.Namespace) {
+		return b, errors.New("invalid namespace")
 	}
 	if len(b.Soots) == 0 || len(b.Soots) > 4096 || len(b.Managers) == 0 || len(b.Managers) > 16 {
 		return b, errors.New("bind allowed Soots and at least one manager")
@@ -133,9 +143,17 @@ func parseBinding(raw string, privateNetwork bool) (binding, error) {
 	if err := validateOrganization(b); err != nil {
 		return b, err
 	}
-	b.Endpoint = strings.TrimRight(b.Endpoint, "/")
-	b.StateDir = filepath.Clean(b.StateDir)
 	return b, nil
+}
+
+// databaseIdentity names the server and database without credentials or
+// options, so the operator-visible service identity stays stable.
+func databaseIdentity(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "postgres"
+	}
+	return strings.TrimSuffix(u.Scheme+"://"+u.Host+u.Path, "/")
 }
 
 func execute(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer, rawBinding string) error {
@@ -165,7 +183,7 @@ func execute(ctx context.Context, args []string, stdin io.Reader, stdout io.Writ
 	if !identifier.MatchString(call.Soot) {
 		return errors.New("access denied")
 	}
-	s, err := openService(b, call.Soot)
+	s, err := openService(ctx, b, call.Soot)
 	if err != nil {
 		return err
 	}

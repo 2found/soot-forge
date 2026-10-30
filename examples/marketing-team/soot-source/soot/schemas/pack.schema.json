@@ -24,7 +24,7 @@
               "additionalProperties": false,
               "properties": {
                 "description": {
-                  "description": "Explain when the agent should use this skill. Optional in packs; required for inline Soot skills.",
+                  "description": "Explain when the agent should use this skill. Omitted: read from the file's YAML frontmatter description (Agent Skills SKILL.md); a pack skill without either gets a generic one. A file named SKILL.md takes its folder name.",
                   "type": [
                     "string",
                     "null"
@@ -164,7 +164,7 @@
                       ]
                     },
                     "preflight": {
-                      "description": "With approval operator and stdin context: before filing an approval, run the tool once with hook tool.preflight. It must not change anything. Exit 0 with a short summary (text, or JSON {\"preview\":\"…\"}) shown on the approval card; exit 1 refuses and the Soot gets the message instead of an approval request; any other failure files the approval without a summary.",
+                      "description": "With stdin context: the tool answers hook tool.preflight without changing anything. Exit 0 with a short summary (text, or JSON {\"preview\":\"…\"}); exit 1 refuses with a message. Used before filing an approval (summary on the approval card, a refusal goes to the Soot instead) and in place of the call in a dry run (soot eval, soot tool call), so evals see what a write tool would do.",
                       "type": "boolean"
                     },
                     "program": {

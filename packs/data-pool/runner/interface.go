@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/jackc/pgx/v5"
 )
 
 var errConflict = errors.New("revision conflict: reload current data while preserving your draft")
@@ -18,11 +18,12 @@ func (e conflictError) Error() string        { return "revision conflict: " + e.
 func (e conflictError) Is(target error) bool { return target == errConflict }
 
 // All callers hold the namespace policy lock through execution/publication:
-// a local executable owns the DB lifetime, a gateway holds its policy mutex.
-func (s *service) checkPolicyRevision(in manageInput) error {
-	return s.db.View(func(tx *bolt.Tx) error {
+// a gateway holds its policy mutex; a local executable is the only process.
+func (s *service) checkPolicyRevision(ctx context.Context, in manageInput) error {
+	return s.db.view(ctx, func(tx pgx.Tx) error {
 		var p pool
-		if err := getJSON(tx.Bucket([]byte("pools")), in.Pool, &p); err != nil {
+		var err error
+		if p, err = s.poolByID(ctx, tx, in.Pool); err != nil {
 			return err
 		}
 		if in.Generation != "" && in.Generation != p.Generation || in.ExpectedPolicyRevision != nil && *in.ExpectedPolicyRevision != p.PolicyRevision {
@@ -30,21 +31,6 @@ func (s *service) checkPolicyRevision(in manageInput) error {
 		}
 		return nil
 	})
-}
-func (s *service) checkDocumentRevision(in writeInput, old document) error {
-	if in.ExpectedRevision != nil && (*in.ExpectedRevision < 0 || *in.ExpectedRevision != old.Revision) {
-		return conflictError{fmt.Sprintf("document %s is at revision %d, not %d; read it again, merge, and retry with a new request_id", in.ID, old.Revision, *in.ExpectedRevision)}
-	}
-	if in.Generation != "" {
-		generation, err := s.poolGeneration(in.Pool)
-		if err != nil {
-			return err
-		}
-		if generation != in.Generation {
-			return conflictError{fmt.Sprintf("collection %s is not at generation %s; omit generation, or copy it from data-pool_pools", in.Pool, in.Generation)}
-		}
-	}
-	return nil
 }
 
 type interfaceInput struct {
@@ -55,7 +41,7 @@ type interfaceInput struct {
 func (s *service) view(ctx context.Context, raw json.RawMessage) (any, error) {
 	// Empty probes are useful to generic tool-area discovery/availability checks.
 	if string(raw) == "{}" {
-		return s.overview(), nil
+		return s.overview(ctx), nil
 	}
 	var in interfaceInput
 	if err := decodeStrict(raw, &in); err != nil {
@@ -67,7 +53,7 @@ func (s *service) view(ctx context.Context, raw json.RawMessage) (any, error) {
 		if err := decodeStrict(in.Input, &empty); err != nil {
 			return nil, err
 		}
-		return s.overview(), nil
+		return s.overview(ctx), nil
 	case "pools", "query", "status":
 		return s.dispatch(ctx, in.Kind, in.Input)
 	case "activity":
@@ -75,12 +61,12 @@ func (s *service) view(ctx context.Context, raw json.RawMessage) (any, error) {
 		if err := decodeStrict(in.Input, &page); err != nil {
 			return nil, err
 		}
-		return s.activities(page)
+		return s.activities(ctx, page)
 	}
 	return nil, errors.New("unsupported data-pool view")
 }
-func (s *service) overview() any {
-	return map[string]any{"namespace": s.b.Namespace, "service_identity": hash(s.b.Namespace + "\n" + s.b.Endpoint), "actor": s.actorReference(), "bound_soots": s.b.Soots, "admitted_soots": s.admittedLevels(), "host_managers": s.b.Managers,
+func (s *service) overview(ctx context.Context) any {
+	return map[string]any{"namespace": s.b.Namespace, "service_identity": hash(s.b.Namespace + "\n" + databaseIdentity(s.b.DatabaseURL)), "actor": s.actorReference(), "bound_soots": s.b.Soots, "admitted_soots": s.admittedLevels(ctx), "host_managers": s.b.Managers,
 		"groups": s.b.Groups, "default_collection": s.b.Defaults[s.actor], "organization_version": 1,
 		"limits": map[string]any{"collections": maxPools, "collection_depth": maxCollectionDepth, "reference_retention": referenceRetention, "page_size": 20, "inline_content_bytes": 12 << 10, "content_bytes": maxContent, "activity_retention": activityRetention}, "available": true}
 }
@@ -121,9 +107,9 @@ func (s *service) action(ctx context.Context, raw json.RawMessage) (any, error) 
 	}
 	if err != nil {
 		if attempted, ok := result.(receipt); ok && attempted.ID != "" {
-			// A local persistence/task failure after submission must keep the
-			// original receipt visible. Never describe it as a rejected write.
-			if saved, e := s.loadReceipt(attempted.ID); e == nil && saved.Fingerprint == attempted.Fingerprint && (saved.Status == "pending" || saved.Status == "uncertain") {
+			// A local persistence failure after the transaction committed must
+			// keep the original receipt visible. Never describe it as rejected.
+			if saved, e := s.loadReceipt(ctx, attempted.Owner, attempted.ID); e == nil && saved.Fingerprint == attempted.Fingerprint {
 				return saved, nil
 			}
 		}

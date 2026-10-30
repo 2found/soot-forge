@@ -22,7 +22,7 @@
       "description": "Radar → writer → editor reviews and publishes. You hear only about what needs a person: a post to make by hand, or a decision outside the team's authority.",
       "entries": ["acme-editor", "acme-radar"],
       "members": {"acme-editor": {}, "acme-radar": {}, "acme-writer": {}, "acme-poster": {}},
-      "limits": {"max_delegations": 8, "max_depth": 2, "max_concurrent": 2, "max_model_calls": 120}
+      "limits": {"max_delegations": 8, "max_depth": 2, "max_concurrent": 8, "max_model_calls": 120}
     }
   },
   "public_web_apps": {},

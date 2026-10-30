@@ -27,7 +27,7 @@ const report = {catalog_entries:catalog.packs.length, bundled_packs:packs.length
 report.node_test_files = nodeTests.map(p=>p.slice(root.length+1)).sort();
 report.go_modules = goModules.map(p=>p.slice(root.length+1)).sort();
 report.opt_in_services = {
-  meilisearch:process.env.DATA_POOL_TEST_MEILI ? 'requested; result is in data-pool Go lane' : 'NOT RUN: no explicitly supplied Meilisearch executable',
+  postgres:process.env.DATA_POOL_TEST_DATABASE_URL ? 'requested; result is in data-pool Go lane' : 'NOT RUN: DATA_POOL_TEST_DATABASE_URL is not set (the data-pool Go lane needs a disposable PostgreSQL database)',
   public_web:process.env.DATA_POOL_TEST_PUBLIC_WEB === '1' ? 'requested; result is in data-pool Go lane' : 'NOT RUN: DATA_POOL_TEST_PUBLIC_WEB is not enabled',
 };
 async function lane(name, program, args, cwd=root) {

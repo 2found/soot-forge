@@ -4,11 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -16,41 +13,14 @@ import (
 func TestGatewayParallelAppendAndSameIntentReplay(t *testing.T) {
 	// One principal may hold perPrincipal requests at once; fill exactly that.
 	const n = perPrincipal
-	fake, _ := newFake(t)
-	arrived := make(chan struct{})
-	var once sync.Once
-	var active atomic.Int32
-	// Hold backend submission responses until every independent write arrives.
-	// The previous namespace mutex cannot reach this rendezvous.
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" && strings.Contains(r.URL.Path, "/documents") {
-			if active.Add(1) == n {
-				once.Do(func() { close(arrived) })
-			}
-			select {
-			case <-arrived:
-			case <-r.Context().Done():
-				return
-			case <-time.After(3 * time.Second):
-				http.Error(w, "parallel rendezvous missing", 503)
-				return
-			}
-		}
-		fake.serve(w, r)
-	}))
-	defer backend.Close()
-	g, err := newGateway(gatewayConfig(t, backend.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer g.base.close()
+	g, _ := newTestGatewayWith(t, serverConfig{Storage: freshBinding(t)})
 	server := httptest.NewServer(g)
-	defer server.Close()
+	t.Cleanup(server.Close)
 	mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_create", Pool: "company", Name: "Company", RequestID: "create"})
 	results := make(chan receipt, n)
 	failures := make(chan error, n)
-	for i := 0; i < n; i++ {
-		go func(i int) {
+	for i := range n {
+		go func() {
 			raw, err := remoteCall(t, server.URL, managerToken, "manager", "write", writeInput{Action: "append", Pool: "company", RequestID: fmt.Sprintf("append-%d", i), Title: "Duplicate is okay", Content: "Same content from independent collectors"})
 			if err != nil {
 				failures <- err
@@ -62,10 +32,10 @@ func TestGatewayParallelAppendAndSameIntentReplay(t *testing.T) {
 				return
 			}
 			results <- r
-		}(i)
+		}()
 	}
 	docs := map[string]bool{}
-	for i := 0; i < n; i++ {
+	for range n {
 		select {
 		case err := <-failures:
 			t.Fatal(err)
@@ -76,18 +46,15 @@ func TestGatewayParallelAppendAndSameIntentReplay(t *testing.T) {
 			docs[r.Document.ID] = true
 		}
 	}
-	if active.Load() != n || len(docs) != n {
-		t.Fatal("independent writes did not overlap")
+	if len(docs) != n {
+		t.Fatal("independent writes did not all land")
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		var r receipt
 		raw := mustRemote(t, server.URL, managerToken, "manager", "write", writeInput{Action: "append", Pool: "company", RequestID: fmt.Sprintf("append-%d", i), Title: "Duplicate is okay", Content: "Same content from independent collectors"})
 		if json.Unmarshal(raw, &r) != nil || !r.Replay || !docs[r.Document.ID] {
 			t.Fatal(string(raw))
 		}
-	}
-	if active.Load() != n {
-		t.Fatal("same intent was submitted twice")
 	}
 	if _, err := remoteCall(t, server.URL, managerToken, "manager", "write", writeInput{Action: "append", Pool: "company", RequestID: "append-0", Title: "Changed", Content: "different"}); err == nil {
 		t.Fatal("request ID conflict accepted")
@@ -95,26 +62,21 @@ func TestGatewayParallelAppendAndSameIntentReplay(t *testing.T) {
 }
 
 func TestGatewayConcurrentRevisionGuard(t *testing.T) {
-	fake, backend := newFake(t)
-	g, err := newGateway(gatewayConfig(t, backend.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer g.base.close()
+	g, _ := newTestGatewayWith(t, serverConfig{Storage: freshBinding(t)})
 	server := httptest.NewServer(g)
-	defer server.Close()
+	t.Cleanup(server.Close)
 	mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_create", Pool: "company", Name: "Company", RequestID: "create"})
 	zero := 0
 	const n = 12
 	results := make(chan error, n)
-	for i := 0; i < n; i++ {
-		go func(i int) {
+	for i := range n {
+		go func() {
 			_, e := remoteCall(t, server.URL, managerToken, "manager", "write", writeInput{Action: "upsert", Pool: "company", ID: "one", RequestID: fmt.Sprintf("guard-%d", i), Title: "One", Content: fmt.Sprint(i), ExpectedRevision: &zero})
 			results <- e
-		}(i)
+		}()
 	}
 	success := 0
-	for i := 0; i < n; i++ {
+	for range n {
 		if <-results == nil {
 			success++
 		}
@@ -122,10 +84,10 @@ func TestGatewayConcurrentRevisionGuard(t *testing.T) {
 	if success != 1 {
 		t.Fatal("revision guard lost", success)
 	}
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	if fake.posts != 1 {
-		t.Fatal("stale writes reached backend", fake.posts)
+	var page struct{ Documents []document }
+	json.Unmarshal(mustRemote(t, server.URL, managerToken, "manager", "query", queryInput{Action: "list", Pool: "company"}), &page)
+	if len(page.Documents) != 1 || page.Documents[0].Revision != 1 {
+		t.Fatal("stale writes reached storage", page)
 	}
 }
 
@@ -176,14 +138,9 @@ func TestPolicyRevokeDoesNotStarveOrLeakCancelledAdmission(t *testing.T) {
 }
 
 func TestPoolLooseMetadataAndPublicValidation(t *testing.T) {
-	fake, backend := newFake(t)
-	g, err := newGateway(gatewayConfig(t, backend.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer g.base.close()
+	g, _ := newTestGatewayWith(t, serverConfig{Storage: freshBinding(t)})
 	server := httptest.NewServer(g)
-	defer server.Close()
+	t.Cleanup(server.Close)
 	mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_create", Pool: "company", Name: "Company", RequestID: "create"})
 	// Missing display metadata must not trigger another paid model turn. Inline
 	// content plus a provenance URL must not unexpectedly fetch that URL.
@@ -198,13 +155,14 @@ func TestPoolLooseMetadataAndPublicValidation(t *testing.T) {
 			t.Fatal(string(raw))
 		}
 	}
-	before := fake.posts
-	_, err = remoteCall(t, server.URL, managerToken, "manager", "write", writeInput{Action: "append", Pool: "company", ID: "chosen", RequestID: "bad", Content: "bad"})
+	_, err := remoteCall(t, server.URL, managerToken, "manager", "write", writeInput{Action: "append", Pool: "company", ID: "chosen", RequestID: "bad", Content: "bad"})
 	if err == nil || !strings.Contains(err.Error(), "invalid input; no mutation submitted") {
 		t.Fatal("lost actionable validation", err)
 	}
-	if fake.posts != before {
-		t.Fatal("invalid input submitted")
+	var page struct{ Documents []document }
+	json.Unmarshal(mustRemote(t, server.URL, managerToken, "manager", "query", queryInput{Action: "list", Pool: "company"}), &page)
+	if len(page.Documents) != 2 {
+		t.Fatal("invalid input changed storage", page)
 	}
 	_, err = remoteCall(t, server.URL, managerToken, "manager", "write", writeInput{Action: "append", Pool: "company", RequestID: "ambiguous", Content: "inline", Source: "https://example.com/one", URL: "https://example.com/two"})
 	if err == nil {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real soot add/run journey with an isolated backend and scripted provider.
+"""Real soot add/run journey with an isolated PostgreSQL database and scripted provider.
 
 No paid model, deployment, global Soot installation, or existing runtime is used.
 Every owned process/thread is joined even when a check fails.
@@ -80,11 +80,14 @@ class Provider(http.server.BaseHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--soot", required=True, type=Path)
-    ap.add_argument("--meili", required=True, type=Path)
+    ap.add_argument("--database-url", default=os.environ.get("DATA_POOL_TEST_DATABASE_URL"),
+                    help="disposable PostgreSQL database (or DATA_POOL_TEST_DATABASE_URL); the journey creates schema data_pool")
     ap.add_argument("--runner", required=True, type=Path)
     ap.add_argument("--shared", action="store_true", help="two independent Soot hosts using one data-pool service")
     args = ap.parse_args()
-    args.soot, args.meili, args.runner = [p.resolve() for p in (args.soot, args.meili, args.runner)]
+    if not args.database_url:
+        ap.error("supply --database-url or DATA_POOL_TEST_DATABASE_URL with a disposable PostgreSQL database")
+    args.soot, args.runner = [p.resolve() for p in (args.soot, args.runner)]
     pack = Path(__file__).resolve().parents[1]
     processes = []
     provider = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Provider)
@@ -96,9 +99,8 @@ def main():
             root = Path(tmp)
             env = os.environ.copy()
             env.update(SOOT_HOME=str(root / "soot-home"), SOOT_API_TOKEN="synthetic-runtime-token-1234567890", QA_MODEL_KEY="synthetic-model-key-1234567890")
-            meili_addr, soot_addr = "127.0.0.1:" + str(port()), "127.0.0.1:" + str(port())
-            key = "synthetic-meili-key-123456789012345"
-            binding = {"endpoint": "http://" + meili_addr, "api_key": key, "namespace": "qa-company", "state_dir": str(root / "policy"),
+            soot_addr = "127.0.0.1:" + str(port())
+            binding = {"database_url": args.database_url, "namespace": "qa-company",
                        "soots": ["data-manager", "marketing", "support", "outsider"], "managers": ["data-manager"]}
             env["QA_DATA_POOL"] = json.dumps(binding)
             log = open(root / "processes.log", "wb")
@@ -138,8 +140,6 @@ def main():
                     raise AssertionError("CLI failed: " + result.stderr[:1500] + " " + result.stdout[:1500])
                 return result.stdout
 
-            meili = boot([args.meili, "--db-path", root / "meili", "--http-addr", meili_addr, "--master-key", key, "--no-analytics", "--log-level", "ERROR"])
-            ready("http://" + meili_addr + "/health", meili)
             if args.shared:
                 backend_config = root / "backend.json"
                 backend_config.write_text(json.dumps(binding))
@@ -156,7 +156,7 @@ def main():
                 ready(gateway_url + "/healthz", gateway)
                 for actor in binding["soots"]:
                     env["QA_POOL_" + actor.replace("-", "_").upper()] = (private / "bindings" / (actor + ".json")).read_text()
-                # No direct backend credential or local policy binding reaches Soot.
+                # No direct database credential or local policy binding reaches Soot.
                 del env["QA_DATA_POOL"]
                 cases.append("Operator config renderer created private per-Soot credentials without installing infrastructure")
             deployment = {"listen": soot_addr, "data_dir": "runtime-data", "packs_dir": "packs.d", "model": {"provider": "demo"},
@@ -281,14 +281,11 @@ def main():
             if args.shared:
                 stop(vm_runtime)
                 stop(gateway)
-                stop(meili)
-                meili = boot([args.meili, "--db-path", root / "meili", "--http-addr", meili_addr, "--master-key", key, "--no-analytics", "--log-level", "ERROR"])
-                ready("http://" + meili_addr + "/health", meili)
                 gateway = boot([args.runner, "serve", "--config", private / "service.json"])
                 ready(gateway_url + "/healthz", gateway)
                 vm_runtime = boot([args.soot, "serve", "--config", vm_root / "deployment.json"], vm_root, vm_env)
                 ready("http://" + vm_addr + "/healthz", vm_runtime)
-                cases.append("Central policy and Meilisearch restart preserved one shared data pool")
+                cases.append("Service restart preserved one shared data pool in PostgreSQL")
             runtime = boot([args.soot, "serve", "--config", root / "deployment.json"])
             ready("http://" + soot_addr + "/healthz", runtime)
             assert "Việt Nam" in run("support", "query", {"action": "read", "pool": "company", "id": "handbook"})["content"]
@@ -322,7 +319,7 @@ def main():
             raise AssertionError("owned QA resource survived cleanup")
     for case in cases:
         print("PASS:", case)
-    print("CLEANUP: exact owned Soot/data-pool/Meilisearch processes exited; scripted provider threads joined; temporary state removed; pre-existing resources retained")
+    print("CLEANUP: exact owned Soot/data-pool processes exited; scripted provider threads joined; temporary state removed; pre-existing resources retained")
 
 
 if __name__ == "__main__":

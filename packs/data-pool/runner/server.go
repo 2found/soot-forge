@@ -18,8 +18,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 var operations = []string{"pools", "query", "write", "manage", "status", "view", "action"}
@@ -58,7 +56,7 @@ type serverConfig struct {
 	TLSCert string `json:"tls_cert,omitempty"`
 	TLSKey  string `json:"tls_key,omitempty"`
 	// PrivateNetwork is the container opt-in: cleartext behind a TLS-terminating
-	// proxy, and an http:// backend that resolves only to private addresses.
+	// proxy, and a cleartext database that resolves only to private addresses.
 	PrivateNetwork bool            `json:"private_network,omitempty"`
 	Storage        binding         `json:"storage"`
 	Clients        []serviceClient `json:"clients"`
@@ -155,12 +153,12 @@ type gateway struct {
 	readyOK   bool
 }
 
-func newGateway(c serverConfig) (*gateway, error) {
+func newGateway(ctx context.Context, c serverConfig) (*gateway, error) {
 	if err := validateServerConfig(c); err != nil {
 		return nil, err
 	}
 	b, _ := c.storage()
-	s, err := openService(b, "") // Lifetime DB ownership prevents competing servers.
+	s, err := openService(ctx, b, "")
 	if err != nil {
 		return nil, err
 	}
@@ -177,9 +175,9 @@ func newGateway(c serverConfig) (*gateway, error) {
 
 // session gives each request its own service view. The permission memo and
 // group list are per-actor request state; sharing the base map races.
-func (g *gateway) session(actor string) *service {
+func (g *gateway) session(ctx context.Context, actor string) *service {
 	s := *g.base
-	s.withAdmitted()
+	s.withAdmitted(ctx)
 	s.actor, s.perms = actor, map[string]string{}
 	s.membership, s.groupsFor = actorGroups(s.b, actor), actor
 	s.human, s.origin = false, nil
@@ -267,20 +265,17 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ready checks the policy DB and the backend. Results are reused for a second
-// so an unauthenticated probe flood cannot fan out into backend traffic.
+// ready checks the policy database. Results are reused for a second so an
+// unauthenticated probe flood cannot fan out into database traffic.
 func (g *gateway) ready(ctx context.Context) bool {
 	g.readyMu.Lock()
 	defer g.readyMu.Unlock()
 	if time.Since(g.readyAt) < time.Second {
 		return g.readyOK
 	}
-	ok := g.base.db.View(func(*bolt.Tx) error { return nil }) == nil
-	if ok {
-		check, cancel := context.WithTimeout(ctx, 2*time.Second)
-		ok = g.base.backend.call(check, "GET", "/health", nil, nil) == nil
-		cancel()
-	}
+	check, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ok := g.base.db.pool.Ping(check) == nil
+	cancel()
 	g.readyAt, g.readyOK = time.Now(), ok
 	return ok
 }
@@ -297,6 +292,8 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 		return
 	}
 	entry.Client = principal.kind()
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
 	// Bound memory and waiting work before reading authenticated request bodies.
 	select {
 	case g.slots <- struct{}{}:
@@ -329,7 +326,12 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 			http.Error(w, "access denied", 403)
 			return
 		}
-		if !slices.Contains(principal.Soots, call.Soot) && !g.base.admitted(call.Soot, principal.Name) {
+		admitted, admitErr := g.base.admitted(ctx, call.Soot, principal.Name)
+		if admitErr != nil {
+			http.Error(w, "service busy; inspect original request before retrying", 503)
+			return
+		}
+		if !slices.Contains(principal.Soots, call.Soot) && !admitted {
 			// The machine is authenticated, so say what is missing: a model that
 			// only sees "403" guesses collection ids and asks for the wrong grant.
 			entry.Refused = "soot.unadmitted"
@@ -337,7 +339,7 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 			return
 		}
 		actor = call.Soot
-		session = g.session(actor) // one admission read serves the role check and the call
+		session = g.session(ctx, actor) // one admission read serves the role check and the call
 		allowed = roleOperations(session.b, actor)
 	} else if call.Soot != principal.Soot {
 		http.Error(w, "invalid tool context", 400)
@@ -353,8 +355,6 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 		http.Error(w, "too many concurrent requests; inspect original request before retrying", 429)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-	defer cancel()
 	if op == "write" {
 		var in writeInput
 		if decodeStrict(call.Input, &in) == nil && in.Pool == "" && g.base.b.Defaults[actor] != "" {
@@ -374,7 +374,7 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 	}
 	s := session // Identity is credential-bound, never model-selected.
 	if s == nil {
-		s = g.session(actor)
+		s = g.session(ctx, actor)
 	}
 	s.human = call.Interaction && (op == "view" || op == "action")
 	s.origin = s.callOrigin(call)
@@ -444,13 +444,15 @@ func readServiceConfig(args []string) (serverConfig, error) {
 	return c, nil
 }
 
-// This operator command is not an installed Pack tool and never provisions Meili.
+// This operator command is not an installed Pack tool and never provisions a database.
 func serveCommand(args []string) error {
 	c, err := readServiceConfig(args)
 	if err != nil {
 		return err
 	}
-	g, err := newGateway(c)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	g, err := newGateway(ctx, c)
 	if err != nil {
 		return err
 	}
@@ -470,8 +472,6 @@ func serveCommand(args []string) error {
 	}
 	defer listener.Close()
 	server := &http.Server{Handler: g, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 20 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	done := make(chan error, 1)
 	go func() {
 		if c.TLSCert != "" {

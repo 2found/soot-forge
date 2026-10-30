@@ -142,7 +142,7 @@
         },
         {
           "name": "status",
-          "description": "Inspect and reconcile a saved request without resubmitting it. A pool manager can specify the original owner to inspect an interrupted or revoked writer.",
+          "description": "Inspect a saved request receipt without resubmitting it. A pool manager can specify the original owner to inspect an interrupted or revoked writer.",
           "parameters": {
             "type": "object",
             "properties": {
@@ -180,13 +180,13 @@
         {
           "name": "data-pool-write",
           "file": "skills/write.md",
-          "description": "Import or update explicitly supplied company data and reconcile pending effects."
+          "description": "Import or update explicitly supplied company data and inspect stable request receipts."
         }
       ],
       "tools": [
         {
           "name": "write",
-          "description": "Append independent entries quickly (duplicate content allowed, omit id); or upsert/remove a stable document. A request_id identifies one intent; retry with the same ID. Backend enforces grants, revisions and per-document uncertainty.",
+          "description": "Append independent entries quickly (duplicate content allowed, omit id); or upsert/remove a stable document. A request_id identifies one intent; retry with the same ID. PostgreSQL enforces grants, revisions and per-document serialization.",
           "parameters": {
             "type": "object",
             "properties": {

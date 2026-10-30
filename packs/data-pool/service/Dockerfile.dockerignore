@@ -1,4 +1,4 @@
-# Only sources reach the build; never local state, dumps or binaries.
+# Only sources reach the build; never dumps, generated binaries or local state.
 *
 !go.mod
 !go.sum

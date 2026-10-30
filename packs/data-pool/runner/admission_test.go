@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -9,10 +10,9 @@ const admissionUIToken = "synthetic-admission-ui-token-1234567"
 
 func admissionGateway(t *testing.T) *gateway {
 	t.Helper()
-	_, backend := newFake(t)
-	c := hostConfig(t, backend.URL)
+	c := hostConfig(t)
 	c.Clients = append(c.Clients, serviceClient{Soot: "manager", TokenSHA256: hash(admissionUIToken), Operations: []string{"view", "action"}})
-	g, err := newGateway(c)
+	g, err := newGateway(context.Background(), c)
 	if err != nil {
 		t.Fatal(err)
 	}

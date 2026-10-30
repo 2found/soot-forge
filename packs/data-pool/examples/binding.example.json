@@ -1,8 +1,6 @@
 {
-  "endpoint": "http://127.0.0.1:7700",
-  "api_key": "<private Meilisearch credential>",
+  "database_url": "postgres://soot:change-me@127.0.0.1:5432/soot?sslmode=disable",
   "namespace": "company",
-  "state_dir": "/private/absolute/path/company-data-policy",
   "soots": [
     "data-manager",
     "marketing",

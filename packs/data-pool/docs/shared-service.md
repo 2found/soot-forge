@@ -1,7 +1,8 @@
 # Share one data pool between local and VM Soots
 
-One VM hosts the authoritative data-pool service and policy database. It uses an
-existing platform Meilisearch; it never installs one. Local and VM Soot hosts
+One VM hosts the authoritative data-pool service and a PostgreSQL 16+ database.
+All pools, grants, documents, receipts, activity and admissions live in that
+database; the service does not run a search server. Local and VM Soot hosts
 install the optional Pack and receive only their own service bindings. They
 share documents, grants, revisions, receipts and revocations through the API.
 
@@ -18,21 +19,29 @@ Prepare a mode-0600 `/private/backend.json` outside Git:
 
 ```json
 {
-  "endpoint": "https://search.example.com",
-  "api_key": "<private Meilisearch key restricted to Soot indexes>",
+  "database_url": "postgres://soot:password@db.example.com/company?sslmode=require",
   "namespace": "company",
-  "state_dir": "/var/lib/company-data-pool",
   "soots": ["data-manager", "marketing-local", "marketing-vm", "support"],
-  "managers": ["data-manager"]
+  "managers": ["data-manager"],
+  "writers": [],
+  "pool_managers": [],
+  "groups": {},
+  "defaults": {}
 }
 ```
 
-If the separately installed backend is on this same host, the endpoint may be
-`http://127.0.0.1:7700`. Other backend addresses require HTTPS, except under the
-explicit [`private_network`](#private-network-containers) opt-in. The namespace and
-backend address are durable identities; do not change them on existing state.
-The service must own its state directory. One service process opens a given
-policy database; a second process with the same directory fails closed.
+Use PostgreSQL 16+ and a dedicated database for one workspace. On start the
+service creates the trusted `pg_trgm` extension, schema `data_pool`, its tables,
+GIN trigram indexes and the schema version; the database role needs `CREATE` on
+the database. The database records the namespace on first use and refuses a
+different one, so do not share one database between companies. Direct
+`postgres://`/`postgresql://` DSNs are accepted with TLS (`sslmode=require`,
+`verify-ca` or `verify-full`) anywhere. Without TLS, the host must be loopback
+or a literal private address, except that a container hostname is allowed under
+the explicit [`private_network`](#private-network-containers) opt-in. The
+namespace and database identity are durable: back up and restore them together.
+Use one service process per namespace; two hosts writing separate schemas into
+one database are not a supported topology.
 
 Render configuration and client tokens without printing them or making network
 calls. `--output-dir` must not exist; it is created with mode 0700, files 0600:
@@ -50,7 +59,7 @@ Supply `--writer curator` for a bound curator to receive write operation scope.
 For a delegated pool manager, use `--pool-manager SOOT_ID` to issue manage
 operation scope without making it a namespace administrator; it still needs
 an explicit manage grant to its pool. These scopes do not grant pool access. Move each `bindings/SOOT_ID.json` securely
-to its respective host. Keep `service.json` and the backend key on the VM. The
+to its respective host. Keep `service.json` and the private DSN on the VM. The
 service stores SHA-256 token hashes; tokens are randomly generated, per Soot.
 
 `--configurator` must name a namespace manager. It additionally creates
@@ -182,13 +191,13 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 ```
 
-Create that account and give it access to the private config and state directory.
-Use paths appropriate to your host. This is an installation guide; no Soot tool
-creates accounts, starts systemd, provisions a VM or executes a deployment.
-`GET /healthz` reports process liveness only and never touches the backend.
-`GET /readyz` additionally checks that the policy database is open and the
-backend answers its `/health` (2-second bound, result reused for one second),
-and returns a generic `{"status":"ready"}` or a 503. `soot-data-pool
+Create that account and give it access to the private config and database
+credential. Use paths appropriate to your host. This is an installation guide;
+no Soot tool creates accounts, starts systemd, provisions a VM, installs
+PostgreSQL or executes a deployment.
+`GET /healthz` reports process liveness only and never touches PostgreSQL.
+`GET /readyz` additionally pings the database (2-second bound, result reused for
+one second), and returns a generic `{"status":"ready"}` or a 503. `soot-data-pool
 healthcheck [URL]` probes `/healthz` (default `http://127.0.0.1:8091/healthz`,
 3-second timeout, exit 0/1) for images without curl. Each `/v1/tool` request
 writes one JSON line to stderr — time, claimed Soot, client kind (`soot`,
@@ -209,14 +218,14 @@ it, behaviour is unchanged. With it:
   Only the proxy may reach that port: publish it to nothing or to loopback, and
   give Soot hosts only the proxy's HTTPS URL. Tokens cross the private network
   unencrypted between proxy and container.
-- `storage.endpoint` may be `http://` with a hostname such as
-  `http://meilisearch:7700`. At **every dial** the name is resolved and all
-  answers must be private: RFC 1918 (`10/8`, `172.16/12`, `192.168/16`), IPv6
-  ULA (`fc00::/7`) or loopback. If any answer is public, link-local (for
-  example `169.254.169.254`) or CGNAT, the dial is refused. A literal public IP
-  is rejected at startup. HTTPS endpoints are unaffected.
+- `database_url` may name a container host, for example
+  `postgres://soot:password@data-pool-postgres:5432/soot?sslmode=disable`.
+  Without TLS the hostname is accepted only with this flag; a literal public IP
+  is still rejected at startup. URL-import SSRF guards remain independent: they
+  resolve every outbound host and refuse non-public addresses. Prefer a
+  `sslmode=require` DSN whenever the network is not fully trusted.
 
-Direct-mode bindings (`DATA_POOL` in a Soot host) never accept this flag. See
+Direct-mode bindings (`DATA_POOL` in a Soot host) do not set this flag. See
 [container.md](container.md) for the image and a complete deployment.
 
 ## Connect each Soot host
@@ -270,12 +279,15 @@ This is Soot identity isolation, not per-user isolation within a shared Soot.
 
 ## State, recovery and rotation
 
-Back up the central policy directory and a consistent Meilisearch snapshot
-while the service is stopped and all Soot writes are quiesced. Back up private
-config separately. Do not restore only an index or only grants. Mutation
-request IDs and uncertain-effect fences survive restart; timeouts are not proof
-of failure. Inspect `data-pool_status` using the original request ID, never
-blindly retry with a new ID. HTTP transport never automatically retries writes.
+Back up the PostgreSQL database with `pg_dump` while the service is stopped or
+writes are quiesced. The dump contains pools, grants, documents, receipts,
+activity, references and admissions in schema `data_pool`; there is no separate
+search index to snapshot. Back up private config and the DSN separately. Do not
+restore only grants or only documents. Request-ID receipts are written in the
+same transaction as their effect and survive restart; a lost response is not
+proof of failure, so inspect `data-pool_status` using the original request ID
+instead of retrying with a new one. HTTP transport never automatically retries
+writes.
 
 To rotate/remove a service token, update `clients` in the private service config
 and restart, then update the owning host's binding. A per-Soot client entry
@@ -286,9 +298,9 @@ and `token_sha256`, and no `operations`. Multiple distinct tokens may
 deliberately bind one Soot identity. Removing capabilities or a pool grant is
 separate from invalidating its service token.
 
-To move an existing direct-mode pool, stop all direct-mode callers, copy the
-entire policy directory to the central service host and retain the exact
-namespace and canonical backend endpoint. Point every client at the service;
-never run direct mode beside it against the same namespace. If the backend
-endpoint identity must change too, that is a separate migration, currently not
-automated; do not edit the policy database to bypass its identity check.
+To move a direct-mode workspace to the central service, dump the source database
+and restore it into the destination database, then point every client at the
+service with the same namespace. Never run direct mode beside the service
+against the same namespace. If the database identity or namespace must change,
+that is a separate migration; do not edit the `data_pool.meta` namespace row to
+bypass the namespace check.

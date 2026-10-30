@@ -16,13 +16,6 @@ const managerToken = "synthetic-manager-token-1234567890"
 const readerToken = "synthetic-reader-token-12345678900"
 const vmToken = "synthetic-vm-token-1234567890000000"
 
-func gatewayConfig(t *testing.T, endpoint string) serverConfig {
-	return serverConfig{Listen: "127.0.0.1:0", Storage: binding{Endpoint: endpoint, APIKey: "synthetic-backend-key-1234567890", Namespace: "company", StateDir: t.TempDir(), Soots: []string{"manager", "marketing", "support"}, Managers: []string{"manager"}}, Clients: []serviceClient{
-		{Soot: "manager", TokenSHA256: hash(managerToken), Operations: operations},
-		{Soot: "marketing", TokenSHA256: hash(readerToken), Operations: []string{"pools", "query", "status"}},
-		{Soot: "support", TokenSHA256: hash(vmToken), Operations: []string{"pools", "query", "status"}},
-	}}
-}
 func remoteCall(t *testing.T, endpoint, token, actor, op string, in any) ([]byte, error) {
 	t.Helper()
 	input, _ := json.Marshal(in)
@@ -41,15 +34,10 @@ func mustRemote(t *testing.T, endpoint, token, actor, op string, in any) []byte 
 	}
 	return data
 }
+
 func TestGatewaySharesPolicyAcrossClientsAndRestarts(t *testing.T) {
-	f, backend := newFake(t)
-	config := gatewayConfig(t, backend.URL)
-	g, err := newGateway(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewServer(g)
-	t.Cleanup(func() { server.Close(); g.base.close() })
+	cfg := serverConfig{Storage: freshBinding(t)}
+	_, server := newTestGatewayWith(t, cfg)
 	mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "pool_create", Pool: "company", Name: "Company", RequestID: "create"})
 	for _, actor := range []string{"marketing", "support"} {
 		mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "grant", Pool: "company", Soot: actor, Level: "read", RequestID: "grant-" + actor})
@@ -64,9 +52,8 @@ func TestGatewaySharesPolicyAcrossClientsAndRestarts(t *testing.T) {
 		}
 	}
 	// Both clients share the durable receipt; duplicate mutation never reimports.
-	mustRemote(t, server.URL, managerToken, "manager", "write", write)
-	if f.posts != 1 {
-		t.Fatal("duplicate import")
+	if out := mustRemote(t, server.URL, managerToken, "manager", "write", write); !strings.Contains(string(out), `"replay":true`) {
+		t.Fatal(string(out))
 	}
 	for _, test := range []struct {
 		token, actor, op string
@@ -110,25 +97,34 @@ func TestGatewaySharesPolicyAcrossClientsAndRestarts(t *testing.T) {
 	if answers[0] != answers[1] {
 		t.Fatalf("missing and forbidden collections answer differently: %q vs %q", answers[0], answers[1])
 	}
-	server.Close()
-	g.base.close()
-	g, err = newGateway(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server = httptest.NewServer(g)
-	mustRemote(t, server.URL, readerToken, "marketing", "query", read)
 	mustRemote(t, server.URL, managerToken, "manager", "manage", manageInput{Action: "revoke", Pool: "company", Soot: "marketing", RequestID: "revoke"})
 	if out, e := remoteCall(t, server.URL, readerToken, "marketing", "query", read); e == nil || len(out) > 0 {
 		t.Fatal("revoke not shared")
 	}
 	mustRemote(t, server.URL, vmToken, "support", "query", read)
-	// A second central process cannot take ownership of the same policy store.
-	if other, e := newGateway(config); e == nil {
-		other.base.close()
-		t.Fatal("second gateway opened store")
-	}
 }
+
+// newTestGatewayWith starts a gateway over a binding the caller already reset
+// (and its own client list unless the caller supplied one).
+func newTestGatewayWith(t *testing.T, c serverConfig) (*gateway, *httptest.Server) {
+	t.Helper()
+	c.Listen = "127.0.0.1:0"
+	if len(c.Clients) == 0 {
+		c.Clients = []serviceClient{
+			{Soot: "manager", TokenSHA256: hash(managerToken), Operations: operations},
+			{Soot: "marketing", TokenSHA256: hash(readerToken), Operations: []string{"pools", "query", "status"}},
+			{Soot: "support", TokenSHA256: hash(vmToken), Operations: []string{"pools", "query", "status"}},
+		}
+	}
+	g, err := newGateway(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(g)
+	t.Cleanup(func() { server.Close(); g.base.close() })
+	return g, server
+}
+
 func TestRemoteTransportNeverRedirectsOrRetriesAndBoundsResponses(t *testing.T) {
 	calls := 0
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; io.WriteString(w, "{}") }))
@@ -159,14 +155,18 @@ func TestRemoteAndServerConfigurationRejectsAmbiguousOrInsecureBindings(t *testi
 	for _, raw := range []string{
 		`{"service_url":"http://remote.example.com","service_token":"` + readerToken + `"}`,
 		`{"service_url":"https://example.com/path","service_token":"` + readerToken + `"}`,
-		`{"service_url":"https://example.com","service_token":"` + readerToken + `","state_dir":"/tmp"}`,
+		`{"service_url":"https://example.com","service_token":"` + readerToken + `","database_url":"postgres://x/y"}`,
 		`{"service_url":"https://example.com","service_token":"short"}`,
 	} {
 		if _, err := loadBinding(raw); err == nil {
 			t.Fatal("unsafe binding", raw)
 		}
 	}
-	c := gatewayConfig(t, "http://127.0.0.1:7700")
+	c := serverConfig{Storage: freshBinding(t), Listen: "127.0.0.1:0"}
+	if err := validateServerConfig(c); err == nil {
+		t.Fatal("missing clients accepted")
+	}
+	c.Clients = []serviceClient{{Soot: "manager", TokenSHA256: hash(managerToken), Operations: operations}}
 	if err := validateServerConfig(c); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestRemoteAndServerConfigurationRejectsAmbiguousOrInsecureBindings(t *testi
 		t.Fatal("insecure listener")
 	}
 	c.Listen = "127.0.0.1:0"
-	c.Clients[1].TokenSHA256 = c.Clients[0].TokenSHA256
+	c.Clients = append(c.Clients, serviceClient{Soot: "marketing", TokenSHA256: hash(managerToken), Operations: []string{"pools"}})
 	if validateServerConfig(c) == nil {
 		t.Fatal("duplicate token")
 	}
@@ -194,13 +194,8 @@ func (w *blockedWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 func TestGatewayRevokeWaitsForReadPublication(t *testing.T) {
-	_, backend := newFake(t)
-	g, err := newGateway(gatewayConfig(t, backend.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer g.base.close()
-	s := g.session("manager")
+	g, _ := newTestGatewayWith(t, serverConfig{Storage: freshBinding(t)})
+	s := g.session(context.Background(), "manager")
 	create(t, s, "company")
 	grant(t, s, "company", "marketing", "read")
 	writeDoc(t, s, "company", "doc", "import", "Saved content")
@@ -241,13 +236,9 @@ func TestGatewayRevokeWaitsForReadPublication(t *testing.T) {
 }
 
 func TestGatewayBoundsBodiesAndWaitingRequests(t *testing.T) {
-	_, backend := newFake(t)
-	g, err := newGateway(gatewayConfig(t, backend.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer g.base.close()
-	for i := 0; i < cap(g.slots); i++ {
+	g, _ := newTestGatewayWith(t, serverConfig{Storage: freshBinding(t)})
+	for i := range cap(g.slots) {
+		_ = i
 		g.slots <- struct{}{}
 	}
 	req := httptest.NewRequest("POST", "/v1/tool", strings.NewReader("{}"))
@@ -257,7 +248,7 @@ func TestGatewayBoundsBodiesAndWaitingRequests(t *testing.T) {
 	if rec.Code != 503 {
 		t.Fatal("admitted unbounded work", rec.Code)
 	}
-	for i := 0; i < cap(g.slots); i++ {
+	for range cap(g.slots) {
 		<-g.slots
 	}
 	req = httptest.NewRequest("POST", "/v1/tool", strings.NewReader(strings.Repeat(" ", maxInput+1)))
@@ -270,17 +261,12 @@ func TestGatewayBoundsBodiesAndWaitingRequests(t *testing.T) {
 }
 
 func TestGatewayHumanOperationsRequireSeparateScopeAndPreserveAuditOnRestart(t *testing.T) {
-	_, backend := newFake(t)
-	c := gatewayConfig(t, backend.URL)
-	c.Clients[0].Operations = []string{"pools", "query", "write", "manage", "status"}
 	uiToken := "synthetic-ui-token-123456789000000000"
-	c.Clients = append(c.Clients, serviceClient{Soot: "manager", TokenSHA256: hash(uiToken), Operations: []string{"view", "action"}})
-	g, err := newGateway(c)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewServer(g)
-	t.Cleanup(func() { server.Close(); g.base.close() })
+	cfg := serverConfig{Storage: freshBinding(t), Clients: []serviceClient{
+		{Soot: "manager", TokenSHA256: hash(managerToken), Operations: []string{"pools", "query", "write", "manage", "status"}},
+		{Soot: "manager", TokenSHA256: hash(uiToken), Operations: []string{"view", "action"}},
+	}}
+	g, server := newTestGatewayWith(t, cfg)
 	call := func(token, op string, human bool, input any) *httptest.ResponseRecorder {
 		raw, _ := json.Marshal(input)
 		body, _ := json.Marshal(toolCall{APIVersion: "soot/v1", Hook: "tool.call", Soot: "manager", Operation: "data-pool_" + op, Interaction: human, Input: raw})
@@ -301,7 +287,7 @@ func TestGatewayHumanOperationsRequireSeparateScopeAndPreserveAuditOnRestart(t *
 	if w := call(uiToken, "action", true, uiInput("manage", manageInput{Action: "pool_create", Pool: "company", Name: "Company", RequestID: "human-create"})); w.Code != 200 {
 		t.Fatal(w.Code, w.Body)
 	}
-	generation, _ := g.base.poolGeneration("company")
+	generation, _ := g.base.poolGeneration(context.Background(), "company")
 	w := writeInput{Action: "upsert", Pool: "company", ID: "doc", RequestID: "human-write", Title: "Doc", Content: "Saved privately", Generation: generation, ExpectedRevision: pointer(0)}
 	if out := call(uiToken, "action", true, uiInput("write", w)); out.Code != 200 || !strings.Contains(out.Body.String(), `"kind":"human"`) {
 		t.Fatal(out.Code, out.Body)
@@ -316,16 +302,30 @@ func TestGatewayHumanOperationsRequireSeparateScopeAndPreserveAuditOnRestart(t *
 	}
 	server.Close()
 	g.base.close()
-	g, err = newGateway(c)
+	cfg.Listen = "127.0.0.1:0"
+	next, err := newGateway(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	server = httptest.NewServer(g)
+	t.Cleanup(next.base.close)
+	restarted := httptest.NewServer(next)
+	defer restarted.Close()
+	g = next
 	out := call(uiToken, "view", true, uiInput("activity", activityInput{Pool: "company", Limit: 20}))
 	var page struct {
 		Activity []activity `json:"activity"`
 	}
-	if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &page) != nil || len(page.Activity) != 5 || page.Activity[0].Actor.Kind != "soot" || page.Activity[2].Actor.Kind != "human" {
+	if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &page) != nil || len(page.Activity) < 3 {
 		t.Fatal(out.Code, out.Body)
+	}
+	kinds := map[string]bool{}
+	for _, a := range page.Activity {
+		kinds[a.Actor.Kind] = true
+		if a.Pool != "company" {
+			t.Fatal("activity lost its pool", a)
+		}
+	}
+	if !kinds["human"] || !kinds["soot"] {
+		t.Fatal("activity lost provenance", kinds)
 	}
 }

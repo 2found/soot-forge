@@ -5,8 +5,9 @@ Collections contain documents and subcollections. Groups and Soots receive
 access independently of the tree; conversations/runs record provenance.
 Department, team, project and product are user-chosen organization, not fixed
 levels. Existing `pool` IDs and operation names remain compatible with `soot/v1`.
-No documents, source URIs, receipts, revisions or Meilisearch indexes are renamed.
-The one-time upgrade indexes bounded metadata, not document bodies.
+No documents, source URIs, receipts, revisions or search indexes are renamed.
+The service creates bounded `pg_trgm` GIN indexes over normalized titles and
+content, not over unbounded client state.
 
 ## Organize
 
@@ -29,12 +30,13 @@ serves limits to the UI.
 `data-pool_pools` paginates at most 20 results with accessible breadcrumbs. Omit
 `parent` to discover all accessible collections; `parent:""` lists roots and a
 parent ID lists immediate children. Documents/search use collection ID as `pool`.
-Search remains fuzzy, accent-insensitive and Meilisearch index-backed within the
-chosen collection. No unbounded client-side workspace search is introduced.
+Search remains fuzzy, accent-insensitive and backed by `pg_trgm` GIN indexes
+within the chosen collection. No unbounded client-side workspace search is
+introduced.
 
 ## Host groups, access and defaults
 
-Extend the existing private backend binding (not a standalone credential):
+Extend the existing direct database binding (not a standalone credential):
 
 ```json
 {

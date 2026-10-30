@@ -10,14 +10,12 @@ COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 COPY *.go ./
 # Cross-compile on the build host: a static binary needs no emulation.
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/soot-data-pool . \
- && mkdir -p /out/data/state
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/soot-data-pool .
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 COPY --from=build /out/soot-data-pool /soot-data-pool
-# A fresh named volume inherits this ownership; a bind mount must already be
-# owned by 65532 (see docs/container.md).
-COPY --from=build --chown=65532:65532 --chmod=0700 /out/data /data
+# No writable state directory: pools, grants, documents, receipts, activity and
+# admissions live in the operator's PostgreSQL database (schema data_pool).
 USER 65532:65532
 EXPOSE 8091
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/soot-data-pool", "healthcheck"]
