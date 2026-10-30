@@ -25,8 +25,9 @@ review task.
 Every tool forwards its call, unchanged, with `soot tool-forward --binding-env
 MARKETING_HUB` to a marketing hub service: a CMS for each product's blog, a
 social queue with platform adapters, a radar of sources and the publish log.
-The [2found hub](https://github.com/2found/2found.dev/blob/main/api/docs/hub.md)
-is one implementation; any service that answers the same `soot/v1` tool calls
+The contract is public: each tool's name, parameters and read/write mode are in
+[`pack.json`](pack.json), and the hub receives exactly those calls. 2found runs
+its own hub privately; any service that answers the same `soot/v1` tool calls
 works.
 
 Bind `MARKETING_HUB` per Soot in Nest (Cài đặt → Kết nối) to
