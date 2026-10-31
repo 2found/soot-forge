@@ -52,7 +52,7 @@ export class HostClient {
   }
 
   get(path) { return this.request('GET', path); }
-  post(path, body) { return this.request('POST', path, body); }
+  post(path, body, options) { return this.request('POST', path, body, options); }
 }
 
 // A 429 that carries a sentence for the person (a pairing lockout) is final: we show

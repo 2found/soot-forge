@@ -1,0 +1,171 @@
+[
+  {
+    "name": "v1.2 admission: an unlinked user mentions the bot in a guild channel → admitted as anyone in a shared place (SF-1)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "Discord binding, adapter revision 2, pool not used up. Hùng has never linked an account.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": {
+        "sender": { "id": "556677889900112233", "name": "Hùng" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777", "title": "#help", "member_count": 240 },
+        "addressed": true
+      }
+    },
+    "response": { "status": 200, "body": { "admitted": true, "principal": { "kind": "anyone", "linked": false }, "place": { "class": "shared" } } }
+  },
+  {
+    "name": "v1.2 admission: an unlinked user writes to the bot in DM → admitted as anyone in a DM",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "556677889900112233", "name": "Hùng" }, "chat": { "id": "556677889900112233", "kind": "dm" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true, "principal": { "kind": "anyone", "linked": false }, "place": { "class": "dm" } } }
+  },
+  {
+    "name": "v1.2 admission: a linked member in the same guild channel → admitted as member",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "minh is linked (chp_member0001) to a member key without an approver grant.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "223344556677889900", "name": "minh" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true, "principal": { "kind": "member", "linked": true }, "place": { "class": "shared" } } }
+  },
+  {
+    "name": "v1.2 admission: the linked owner in DM → admitted as owner",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "123456789" }, "chat": { "id": "123456789", "kind": "dm" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true, "principal": { "kind": "owner", "linked": true }, "place": { "class": "dm" } } }
+  },
+  {
+    "name": "v1.2 admission: an unlinked user over the per-person limit → rate_limited with the notice, the first time this hour (SF-2)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "Hùng already sent 10 messages to this binding in the current hour (limit 10 msg/h, 30 000 tokens/UTC day). The adapter posts notice threaded under the triggering message (v1.1 rule).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "556677889900112233", "name": "Hùng" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "rate_limited", "notice": "Bạn gửi hơi nhanh, đợi một lát rồi hỏi lại nhé." } }
+  },
+  {
+    "name": "v1.2 admission: the same person again within the hour → rate_limited, silent",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "556677889900112233" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "rate_limited" } }
+  },
+  {
+    "name": "v1.2 admission: the binding pool is used up → guest_budget with the notice, the first time in this place today (SF-3)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "Unlinked runs on this binding used 300 000 weighted tokens in the current UTC day (guests.daily_tokens absent = 300 000).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "667788990011223344", "name": "Thu" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "guest_budget", "notice": "Soot đã hết lượt trả lời khách hôm nay." } }
+  },
+  {
+    "name": "v1.2 admission: another unlinked person in the same place the same UTC day → guest_budget, silent",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "778899001122334455", "name": "Vy" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "guest_budget" } }
+  },
+  {
+    "name": "v1.2 admission: a linked member while the pool is used up → admitted (linked people are exempt)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "223344556677889900" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true, "principal": { "kind": "member", "linked": true }, "place": { "class": "shared" } } }
+  },
+  {
+    "name": "v1.2 admission: pool 0 → an unlinked person is refused silently, only linked people may talk",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "channels.telegram.guests.daily_tokens = 0 (the old private bot). No notice: the pool is closed, not used up for today (§10.2).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "987654321", "name": "Người lạ" }, "chat": { "id": "987654321", "kind": "dm" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "guest_budget" } }
+  },
+  {
+    "name": "v1.2 admission: pool 0 → the linked owner still talks",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "123456789" }, "chat": { "id": "123456789", "kind": "dm" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true, "principal": { "kind": "owner", "linked": true }, "place": { "class": "dm" } } }
+  },
+  {
+    "name": "v1.2 admission: a blocked person → blocked, never any text (SF-4)",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "Hùng's speaker (chs_5f1c0a9e3b7d2846a1c0e9f3) is on the binding's block list since a second ago.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "556677889900112233" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "blocked" } }
+  },
+  {
+    "name": "v1.2 admission: a blocked person presses a button → blocked, no toast",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "556677889900112233" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true, "button": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "blocked" } }
+  },
+  {
+    "name": "v1.2 admission: an unaddressed group message → not_addressed, as v1",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "667788990011223344" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": false }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "not_addressed" } }
+  },
+  {
+    "name": "v1.2 admission compat: the same unlinked mention with a revision-1 adapter → unpaired, exactly as v1.1",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "The running process reported contract_revision 1. No principal, no place, and never a notice in a group.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "556677889900112233", "name": "Hùng" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "unpaired" } }
+  },
+  {
+    "name": "v1.2 admission: INVALID — a blocked refusal that carries text",
+    "schema": { "response": "AdmissionResult" },
+    "valid": false,
+    "note": "A host never produces this; schema.json rejects it (§10.2: blocked never carries text).",
+    "request": { "method": "POST", "path": "/v1/channel/admission" },
+    "response": { "status": 200, "body": { "admitted": false, "reason": "blocked", "notice": "Bạn đã bị chặn." } }
+  }
+]

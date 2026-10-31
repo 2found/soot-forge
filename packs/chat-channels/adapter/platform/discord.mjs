@@ -5,6 +5,8 @@ import {PlatformError, backoff, sleep} from '../core/errors.mjs';
 // GUILDS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT
 export const INTENTS = (1 << 0) | (1 << 9) | (1 << 12) | (1 << 15);
 const THREAD_TYPES = new Set([10, 11, 12]);
+// Category, directory, forum and media channels hold no messages: never a chat (§10.8).
+const NOT_CHAT_TYPES = new Set([4, 14, 15, 16]);
 // Close codes that no reconnect can fix → StatusReport reason (§9.4), then exit 78.
 const FATAL_CLOSE = new Map([
   [4004, 'platform_token_rejected'],
@@ -31,6 +33,9 @@ export class Discord {
     this.session = null;    // {id, resumeUrl}
     this.seq = null;
     this.channelTypes = new Map();
+    this.channelNames = new Map();
+    this.guildChats = new Map();     // guild id → Set of known channel/thread ids (§10.8)
+    this.guildMembers = new Map();   // guild id → member count from GUILD_CREATE (§10.11)
     this.dmChannels = new Map();
   }
 
@@ -100,9 +105,37 @@ export class Discord {
 
   chatOf(source) {
     if (!source.guild_id) return {id: String(source.channel_id), kind: 'dm'};
-    const type = source.channel?.type ?? this.channelTypes.get(String(source.channel_id));
-    return {id: String(source.channel_id), kind: THREAD_TYPES.has(type) ? 'thread' : 'guild_channel', guild_id: String(source.guild_id)};
+    const id = String(source.channel_id), guild = String(source.guild_id);
+    this.remember(guild, id);
+    const type = source.channel?.type ?? this.channelTypes.get(id);
+    const name = source.channel?.name ?? this.channelNames.get(id);
+    const kind = THREAD_TYPES.has(type) ? 'thread' : 'guild_channel';
+    const title = name ? (kind === 'thread' ? name : `#${name}`).slice(0, 256) : null;
+    return {id, kind, guild_id: guild, ...(title ? {title} : {})};
   }
+
+  remember(guild, id) {
+    if (!this.guildChats.has(guild)) this.guildChats.set(guild, new Set());
+    this.guildChats.get(guild).add(id);
+  }
+
+  channel(data, guild = data.guild_id) {
+    const id = String(data.id);
+    if (data.type !== undefined) this.channelTypes.set(id, data.type);
+    if (data.name) this.channelNames.set(id, data.name);
+    if (guild && !NOT_CHAT_TYPES.has(data.type)) this.remember(String(guild), id);
+  }
+
+  // A bot can only lose a guild chat (§10.8); one event per chat, in Gateway order.
+  left(guild, id, inbound, type = this.channelTypes.get(id)) {
+    this.channelTypes.delete(id);
+    this.channelNames.delete(id);
+    this.guildChats.get(guild)?.delete(id);
+    const chat = {id, kind: THREAD_TYPES.has(type) ? 'thread' : 'guild_channel', guild_id: guild};
+    this.enqueue({requestID: `dc:${this.applicationID}:l:${id}`, chat, left: true}, inbound);
+  }
+
+  async memberCount(chat) { return this.guildMembers.get(chat.guild_id) ?? null; }
 
   // Runs the Gateway until `signal` aborts. Rejects on a fatal close (bad token or
   // intents) or an exit raised by the inbound pipeline.
@@ -186,9 +219,20 @@ export class Discord {
       markReady();
       onHealth('connected');
     } else if (type === 'GUILD_CREATE') {
-      for (const channel of [...(data.channels ?? []), ...(data.threads ?? [])]) this.channelTypes.set(String(channel.id), channel.type);
+      const count = data.member_count ?? data.approximate_member_count;
+      if (Number.isInteger(count)) this.guildMembers.set(String(data.id), count);
+      for (const channel of [...(data.channels ?? []), ...(data.threads ?? [])]) this.channel(channel, data.id);
     } else if (type === 'CHANNEL_CREATE' || type === 'THREAD_CREATE' || type === 'CHANNEL_UPDATE') {
-      this.channelTypes.set(String(data.id), data.type);
+      this.channel(data);
+    } else if (type === 'CHANNEL_DELETE' || type === 'THREAD_DELETE') {
+      if (data.guild_id && !NOT_CHAT_TYPES.has(data.type)) this.left(String(data.guild_id), String(data.id), inbound, data.type);
+    } else if (type === 'GUILD_DELETE') {
+      // `unavailable` is an outage, not a removal.
+      if (data.unavailable) return;
+      const guild = String(data.id);
+      for (const id of this.guildChats.get(guild) ?? []) this.left(guild, id, inbound);
+      this.guildChats.delete(guild);
+      this.guildMembers.delete(guild);
     } else if (type === 'MESSAGE_CREATE') {
       const event = this.eventFromMessage(data);
       if (event) this.enqueue(event, inbound);
@@ -254,6 +298,7 @@ export class Discord {
       sayPrivately: (event, text) => this.sayPrivately(event, text),
       deleteMessage: (chat, id) => this.deleteMessage(chat, id),
       toast: (event, text) => this.toast(event, text),
+      memberCount: chat => this.memberCount(chat),
     };
   }
 

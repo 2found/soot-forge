@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {CONTRACT_REVISION, VERSION} from '../core/main.mjs';
 import {Discord, INTENTS} from '../platform/discord.mjs';
 import {FakeDiscord, FakeRuntime, exchange, outboxItems, response, sseConnections, startAdapter, until} from './helpers.mjs';
 
@@ -165,7 +166,7 @@ test('Gateway close 4004/4014/4011/4012 → the §9.4 reason + exit 78', async t
     discord.last.close(code);
     assert.equal(await adapter.done, 78);
     assert.deepEqual(runtime.callsTo('/v1/channel/status').at(-1).body, {...exchange('v1.1-status', `status v1.1: ${name}`).request.body,
-      adapter_version: '0.2.0', platform_account: {id: BOT, username: 'dau-moi', display_name: 'Đầu mối'}}, `close ${code}`);
+      adapter_version: VERSION, contract_revision: CONTRACT_REVISION, platform_account: {id: BOT, username: 'dau-moi', display_name: 'Đầu mối'}}, `close ${code}`);
   }
   const {runtime, discord} = await setup(t);
   assert.equal(await startAdapter({platform: 'discord', runtime, discord: {...discord, token: 'wrong'}}).done, 78);

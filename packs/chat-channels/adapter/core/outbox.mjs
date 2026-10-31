@@ -8,13 +8,15 @@ const KNOWN = new Set(['reply', 'attention', 'attention_resolved', 'brief', 'not
 const IN_PLACE = new Set(['question', 'decision']);
 
 // §9.6 adapter lock: outside a DM only a question/decision with an asker, its
-// resolution, notices and replies are posted. A refusal only: the choices shown are
-// still exactly the item's, never inferred from its kind.
+// resolution, notices and replies are posted. v1.2 §10.9 widens it only for an item
+// the host addressed to the owner chat (`place: "owner_chat"`). A refusal only: the
+// choices shown are still exactly the item's, never inferred from its kind.
 function refusedOutsideDM(item) {
   if (item.chat.kind === 'dm') return false;
   if (item.kind === 'brief') return true;
-  if (item.kind === 'attention') return !IN_PLACE.has(item.attention?.kind) || !item.attention?.asker;
-  return false;
+  if (item.kind !== 'attention') return false;
+  if (item.attention?.place === 'owner_chat') return false;
+  return !IN_PLACE.has(item.attention?.kind) || !item.attention?.asker;
 }
 
 export class Outbox {

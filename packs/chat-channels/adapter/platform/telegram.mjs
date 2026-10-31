@@ -2,6 +2,8 @@
 import {PlatformError, backoff, sleep} from '../core/errors.mjs';
 
 const CONFLICT_BACKOFF_MAX = 5 * 60_000;
+const MEMBER_COUNT_TTL_MS = 10 * 60_000;
+const GONE = new Set(['left', 'kicked']);
 const ATTACHMENTS = ['photo', 'document', 'sticker', 'voice', 'video', 'audio', 'animation', 'video_note'];
 
 export class Telegram {
@@ -14,6 +16,7 @@ export class Telegram {
     this.pollTimeout = pollTimeout;
     this.backoffBase = backoffBase;
     this.me = null;
+    this.memberCounts = new Map();   // chat id → {count, at}
   }
 
   async call(method, params = {}, {signal} = {}) {
@@ -50,6 +53,13 @@ export class Telegram {
   // Telegram update → inbound event (channel-adapter.v1 §3.1, §4.4), or null.
   eventFromUpdate(update) {
     const me = this.me;
+    // v1.2 §10.8: the bot left or was removed from a group.
+    if (update.my_chat_member) {
+      const change = update.my_chat_member;
+      const chat = chatOf(change.chat);
+      if (!chat || chat.kind === 'dm' || String(change.new_chat_member?.user?.id) !== String(me.id)) return null;
+      return GONE.has(change.new_chat_member.status) ? {requestID: `tg:${me.id}:u:${update.update_id}`, chat, left: true} : null;
+    }
     if (update.callback_query) {
       const query = update.callback_query;
       const chat = query.message?.chat;
@@ -78,6 +88,8 @@ export class Telegram {
         if (target && target.toLowerCase() !== username) foreign = true;
         else {
           if (target) addressed = true;
+          // `/owner@<bot> CODE` is matched as `/owner CODE` (§10.7).
+          if (target && name.toLowerCase() === 'owner') strip.push({offset: entity.offset + 1 + name.length, length: target.length + 1});
           if (name === 'start' || name === 'new') {
             command = name;
             payload = text.slice(entity.length).trim();
@@ -107,7 +119,7 @@ export class Telegram {
       let updates;
       try {
         updates = await this.call('getUpdates', {
-          offset: journal.offset ?? undefined, timeout: this.pollTimeout, allowed_updates: ['message', 'callback_query'],
+          offset: journal.offset ?? undefined, timeout: this.pollTimeout, allowed_updates: ['message', 'callback_query', 'my_chat_member'],
         }, {signal});
         attempt = 0;
         onHealth('connected');
@@ -156,6 +168,21 @@ export class Telegram {
     return String(messageID);
   }
 
+  // §10.11, cached per chat; a failed lookup is cached too and the count omitted.
+  async memberCount(chat) {
+    const cached = this.memberCounts.get(chat.id);
+    if (cached && Date.now() - cached.at < MEMBER_COUNT_TTL_MS) return cached.count;
+    let count = null;
+    try { count = await this.call('getChatMemberCount', {chat_id: chat.id}); }
+    catch (error) {
+      if (error?.tokenInvalid) throw error;
+      this.log('telegram_member_count_failed', {code: error?.code});
+    }
+    if (!Number.isInteger(count)) count = null;
+    this.memberCounts.set(chat.id, {count, at: Date.now()});
+    return count;
+  }
+
   async deleteMessage(chat, messageID) {
     if (!messageID) return false;
     try { return Boolean(await this.call('deleteMessage', {chat_id: chat.id, message_id: Number(messageID)})); }
@@ -175,6 +202,7 @@ export class Telegram {
       sayPrivately: (event, text) => this.send(event.chat, text, {replyTo: event.messageID}),
       deleteMessage: (chat, id) => this.deleteMessage(chat, id),
       toast: (event, text) => this.toast(event, text),
+      memberCount: chat => this.memberCount(chat),
     };
   }
 }

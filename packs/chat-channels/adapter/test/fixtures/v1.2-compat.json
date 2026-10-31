@@ -1,0 +1,167 @@
+[
+  {
+    "name": "compat v1.2: a revision-2 adapter declares contract_revision 2",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "note": "From this report on, the host sends this process v1.2 behaviour (§10.1). A 0.7.1 host reads it as revision ≥ 1 and stays v1.1.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": {
+        "state": "connected",
+        "platform_account": { "id": "1100220033004400", "username": "Soot", "display_name": "Soot" },
+        "adapter_version": "0.3.0",
+        "contract_revision": 2
+      }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "compat v1.2: a revision-1 adapter (soot-forge chat-channels 0.2.0) declares contract_revision 1",
+    "schema": { "request": "StatusReport", "response": "Ok" },
+    "note": "Every exchange below is with this process: the host behaves exactly as v1.1 (2agent 0.7.1).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/status",
+      "body": {
+        "state": "connected",
+        "platform_account": { "id": "1100220033004400", "username": "Soot", "display_name": "Soot" },
+        "adapter_version": "0.2.0",
+        "contract_revision": 1
+      }
+    },
+    "response": { "status": 200, "body": { "ok": true } }
+  },
+  {
+    "name": "compat v1.2: revision 1, a paired member mentions the bot in a guild → admitted, no principal and no place",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "223344556677889900" }, "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" }, "addressed": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true } }
+  },
+  {
+    "name": "compat v1.2: revision 1, a stranger in DM → unpaired with the v1 notice",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "556677889900112233", "name": "Hùng" }, "chat": { "id": "556677889900112233", "kind": "dm" }, "addressed": true }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "admitted": false,
+        "reason": "unpaired",
+        "notice": "Bot này chưa được kết nối với bạn. Nếu bạn là chủ sở hữu, tạo mã ghép cặp trong Nest rồi gửi mã đó vào đây."
+      }
+    }
+  },
+  {
+    "name": "compat v1.2: revision 1, the guild conversation stays per (chat, paired user)",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "note": "minh's own mapping in that channel (fixtures/v1.1-group.json), not a place conversation.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1320000000000000100",
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "new": false
+      }
+    },
+    "response": { "status": 200, "body": { "conversation": "chc_77aa01bc90", "created": false } }
+  },
+  {
+    "name": "compat v1.2: revision 1, /new in a guild still maps a fresh per-user conversation",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "note": "new_dm_only is revision 2 only.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1320000000000000101",
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "new": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": { "conversation": "chc_88bb02cd02", "created": true, "reply": "Đã mở cuộc trò chuyện mới với Đầu mối. Cuộc cũ vẫn còn trong Nest." }
+    }
+  },
+  {
+    "name": "compat v1.2: revision 1, a question in a guild carries the v1.1 asker (pairing, no speaker, no place)",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=400&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 400,
+        "next_after": 401,
+        "items": [
+          {
+            "receipt_id": "ob_CpAsk00401",
+            "seq": 401,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+            "created_at": "2026-10-30T04:00:05Z",
+            "conversation": "chc_77aa01bc90",
+            "in_reply_to": { "platform_message_id": "1320000000000000102" },
+            "text": "**Câu hỏi:** Gửi báo giá qua email hay Zalo?",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_blk_8e9f0a1b2c",
+              "kind": "question",
+              "urgent": false,
+              "title": "Gửi báo giá qua email hay Zalo?",
+              "choices": [ { "label": "Email", "recommended": true, "token": "cp1EmTk7Lm2Nx4" }, { "label": "Zalo", "token": "cp1ZlTk3Rb8Vd6" } ],
+              "asker": { "pairing": "chp_member0001", "sender": { "id": "223344556677889900", "name": "minh" } }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "compat v1.2: revision 1 after a downgrade, an approval goes to the owner DM only, never the designated owner chat",
+    "schema": { "response": "OutboxPage" },
+    "note": "Telegram binding: the owner chat -1009876543210 was designated under a revision-2 adapter, then the adapter was downgraded. The host keeps the designation but does not target it while the running process is revision ≤ 1; a v1.1 adapter would ack a non-DM approval skipped anyway (§9.6).",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=401&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 401,
+        "next_after": 402,
+        "items": [
+          {
+            "receipt_id": "ob_CpApr00402",
+            "seq": 402,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-30T04:05:00Z",
+            "text": "**Cần duyệt:** Soot CSKH muốn khôi phục một lần nạp tiền bị lỡ cho bạn đọc.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_3d4e5f6a7b",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Khôi phục nạp tiền cho bạn đọc",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "cp2ApTk7Lm2Nx4" },
+                { "label": "Từ chối", "style": "danger", "token": "cp2RjTk3Rb8Vd6" }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,137 @@
+[
+  {
+    "name": "v1.2 places: the first message in a guild channel creates the place conversation",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "note": "Discord binding, adapter revision 2. Hùng (unlinked) is the first to mention the bot in #help since the upgrade. The handle names the place (binding, chat), not the person: tenant channel:discord, origin live_chat.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1310000000000000001",
+        "sender": { "id": "556677889900112233", "name": "Hùng" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777", "title": "#help" },
+        "new": false
+      }
+    },
+    "response": { "status": 200, "body": { "conversation": "chc_pl1help0001", "created": true } }
+  },
+  {
+    "name": "v1.2 places: a second person in the same channel gets the same handle",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "note": "minh is linked; in a shared place that changes nothing about the conversation.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1310000000000000002",
+        "sender": { "id": "223344556677889900", "name": "minh" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "new": false
+      }
+    },
+    "response": { "status": 200, "body": { "conversation": "chc_pl1help0001", "created": false } }
+  },
+  {
+    "name": "v1.2 places: Hùng's message goes into the place conversation",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "note": "The host stores speaker {id: chs_5f1c0a9e3b7d2846a1c0e9f3, name: Hùng}; sender.username is never stored.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1310000000000000003",
+        "sender": { "id": "556677889900112233", "name": "Hùng", "username": "hung.dev" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "platform_message_id": "1310000000000000003",
+        "text": "Bot ơi, gói Pro có xuất hoá đơn không?"
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_pl1help0001" } }
+  },
+  {
+    "name": "v1.2 places: minh's message lands in the same conversation as another speaker",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "note": "Two speakers, one conversation. Hùng's run is active, so minh's message is queued as minh's own run (steering S2), never absorbed into Hùng's.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1310000000000000004",
+        "sender": { "id": "223344556677889900", "name": "minh" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "platform_message_id": "1310000000000000004",
+        "text": "Mình cũng muốn biết hạn thanh toán."
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_pl1help0001" } }
+  },
+  {
+    "name": "v1.2 places: /new in a group → 409 new_dm_only with the reply",
+    "schema": { "request": "ResolveRequest", "response": "Error" },
+    "note": "The adapter posts reply threaded under the /new message. The place conversation is unchanged.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1310000000000000005",
+        "sender": { "id": "223344556677889900" },
+        "chat": { "id": "1288888888888888888", "kind": "guild_channel", "guild_id": "1277777777777777777" },
+        "new": true
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": { "code": "new_dm_only", "error": "/new starts a new conversation only in a direct message", "reply": "Lệnh /new chỉ dùng được trong tin nhắn riêng với bot." }
+    }
+  },
+  {
+    "name": "v1.2 places: an unlinked person's DM is its own place conversation",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "note": "Tenant channel:discord, one conversation per (binding, dm chat).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1310000000000000006",
+        "sender": { "id": "556677889900112233" },
+        "chat": { "id": "556677889900112233", "kind": "dm" },
+        "new": false
+      }
+    },
+    "response": { "status": 200, "body": { "conversation": "chc_pl1dmhung01", "created": true } }
+  },
+  {
+    "name": "v1.2 places: /new in that DM maps a fresh conversation",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "dc:1100220033004400:m:1310000000000000007",
+        "sender": { "id": "556677889900112233" },
+        "chat": { "id": "556677889900112233", "kind": "dm" },
+        "new": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": { "conversation": "chc_pl1dmhung02", "created": true, "reply": "Đã mở cuộc trò chuyện mới với Đầu mối. Cuộc cũ vẫn còn trong Nest." }
+    }
+  },
+  {
+    "name": "v1.2 places: the linked owner's DM keeps the owner's own conversation",
+    "schema": { "request": "ResolveRequest", "response": "ResolveResult" },
+    "note": "Telegram binding. A linked person's DM stays in their own tenant/user (origin direct), exactly as before the upgrade.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/conversations/resolve",
+      "body": {
+        "request_id": "tg:7012345678:u:600001",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "new": false
+      }
+    },
+    "response": { "status": 200, "body": { "conversation": "chc_4d8e0b6a11", "created": false } }
+  }
+]

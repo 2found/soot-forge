@@ -1,11 +1,23 @@
-// Platform-neutral inbound pipeline (channel-adapter.v1 §4.3–4.6, §4.10, §6.1, §6.6).
+// Platform-neutral inbound pipeline (channel-adapter.v1 §4.3–4.6, §4.10, §6.1, §6.6,
+// v1.2 §10.2, §10.6–10.8, §10.11).
 //
 // An event is {requestID, sender, chat, addressed, messageID, text, attachment,
-// command: null|'new'|'start', payload, button, replyToMessageID}. The platform
-// supplies `ops`: say(chat, formatted, {replyTo}), sayPrivately(event, formatted),
-// deleteMessage(chat, messageID) → boolean, toast(event, text|null).
+// command: null|'new'|'start', payload, button, replyToMessageID}, or
+// {requestID, chat, left: true} when the bot left or was removed from a chat. The
+// platform supplies `ops`: say(chat, formatted, {replyTo}), sayPrivately(event, formatted),
+// deleteMessage(chat, messageID) → boolean, toast(event, text|null),
+// memberCount(chat) → integer|null.
 import {detectSecret} from './secrets.mjs';
 import {plainText} from './render.mjs';
+
+// v1.2 refusals whose one notice is posted in a group too, threaded (§10.2).
+const GROUP_NOTICES = new Set(['rate_limited', 'guest_budget']);
+
+// A host-served pattern, case-insensitive; a missing or broken one matches nothing.
+function matches(pattern, text) {
+  if (!pattern || !text) return false;
+  try { return new RegExp(pattern, 'i').test(text); } catch { return false; }
+}
 
 export class Inbound {
   constructor({client, journal, platform, getSession, ops, log = () => {}}) {
@@ -22,6 +34,11 @@ export class Inbound {
   // Handles one platform update end to end. The request id is journaled only after
   // the host gave a final answer; a crash before that re-sends with the same id.
   async handle(event) {
+    if (event.left) {
+      const outcome = await this.left(event);
+      this.log('inbound', {request_id: event.requestID, outcome});
+      return outcome;
+    }
     if (this.journal.hasInbound(event.requestID)) {
       if (event.button) await this.ops.toast(event, null).catch(() => {});
       return 'duplicate';
@@ -44,17 +61,21 @@ export class Inbound {
   }
 
   async route(event) {
-    // Unaddressed group/guild messages never leave the adapter (§4.4, §6.5).
-    if (!event.addressed && event.chat.kind !== 'dm') return 'dropped';
+    // Unaddressed group/guild messages never leave the adapter (§4.4, §6.5); an
+    // owner chat claim is a command, so it counts as addressed (§10.7).
+    const claim = this.claimCode(event);
+    if (!event.addressed && event.chat.kind !== 'dm' && claim === null) return 'dropped';
     if (event.button) return this.answer(event);
+    if (claim !== null) return this.claim(event, claim);
 
     // The code pattern also matches ordinary 8-letter words ("Schedule"), so a
-    // pattern-only match from a sender who is already admitted is a message.
+    // pattern-only match from a sender who is already linked is a message. A
+    // revision-2 host admits unlinked senders too (§10.2): theirs is still a claim.
     let code = this.pairingCode(event);
     let admitted = null;
     if (code && event.command !== 'start' && event.chat.kind === 'dm') {
       const {status, body} = await this.client.post('/v1/channel/admission', {sender: event.sender, chat: event.chat, addressed: true});
-      if (status === 200 && body.admitted === true) { code = null; admitted = true; }
+      if (status === 200 && body.admitted === true && body.principal?.linked !== false) { code = null; admitted = true; }
     }
     if (code) {
       if (event.chat.kind !== 'dm') {
@@ -104,7 +125,7 @@ export class Inbound {
   }
 
   async admit(event) {
-    const request = {sender: event.sender, chat: event.chat, addressed: event.addressed || event.chat.kind === 'dm'};
+    const request = {sender: event.sender, chat: await this.placeChat(event.chat), addressed: event.addressed || event.chat.kind === 'dm'};
     if (event.button) request.button = true;
     const {status, body} = await this.client.post('/v1/channel/admission', request);
     if (event.button) event.admissionToast = body?.toast ?? null;
@@ -113,8 +134,10 @@ export class Inbound {
       return body.code || `admission_${status}`;
     }
     if (body.admitted === true) return true;
-    // The host decides when a stranger gets its one fixed sentence; send it only then.
-    if (body.notice && event.chat.kind === 'dm') await this.reply(event, body.notice);
+    // The host decides when a refusal gets its one fixed sentence; send it only then.
+    // `blocked` is always silent, and a press is answered by its toast instead.
+    const posted = event.chat.kind === 'dm' || (GROUP_NOTICES.has(body.reason) && !event.button);
+    if (body.notice && body.reason !== 'blocked' && posted) await this.reply(event, body.notice);
     return `not_admitted_${body.reason || 'unknown'}`;
   }
 
@@ -133,6 +156,36 @@ export class Inbound {
     return status === 200 ? (body.duplicate ? 'answer_duplicate' : 'answered') : body.code || `answer_${status}`;
   }
 
+  // §10.6: the host checks the code and that the sender is the linked owner. A 429
+  // carries no sentence and is not retried: a claim must not hold the chat for minutes.
+  async claim(event, code) {
+    const {status, body} = await this.client.post('/v1/channel/places/claim', {
+      request_id: event.requestID, sender: event.sender, chat: await this.placeChat(event.chat), code,
+    }, {retryRateLimit: false});
+    await this.reply(event, body.reply);
+    if (status === 200) return body.duplicate ? 'owner_chat_duplicate' : 'owner_chat';
+    return body.code || `claim_${status}`;
+  }
+
+  // §10.8, toward a revision-2 host only. Not journaled: the host applies it on every
+  // call, and a Discord request id names the chat, not one event.
+  async left(event) {
+    if (!this.getSession()?.places) return 'left_ignored';
+    const {status, body} = await this.client.post('/v1/channel/places/left', {request_id: event.requestID, chat: event.chat});
+    return status === 200 ? 'left' : body.code || `left_${status}`;
+  }
+
+  // §10.11: the chat as sent on admission and claim, with the platform's member count
+  // when a revision-2 host asks for places and the platform reports one.
+  async placeChat(chat) {
+    if (chat.kind === 'dm' || !this.getSession()?.places || !this.ops.memberCount) return chat;
+    const count = await this.ops.memberCount(chat).catch(error => {
+      if (error?.exitCode !== undefined || error?.tokenInvalid) throw error;
+      return null;
+    });
+    return Number.isInteger(count) && count >= 0 ? {...chat, member_count: count} : chat;
+  }
+
   async secret(event) {
     const deleted = await this.ops.deleteMessage(event.chat, event.messageID).catch(() => false);
     await this.reply(event, this.copy.secret_warning);
@@ -144,8 +197,17 @@ export class Inbound {
     if (event.command) return null;
     const pattern = this.getSession()?.pairing?.code_pattern;
     const text = (event.text ?? '').trim();
-    if (!pattern || !text) return null;
-    try { return new RegExp(pattern, 'i').test(text) ? text : null; } catch { return null; }
+    return matches(pattern, text) ? text : null;
+  }
+
+  // §10.7: only outside a DM, matched on the text with the bot mention removed. The
+  // code is what follows the command word.
+  claimCode(event) {
+    const pattern = this.getSession()?.places?.claim_pattern;
+    const text = (event.text ?? '').trim();
+    if (event.button || event.chat.kind === 'dm' || !matches(pattern, text)) return null;
+    const space = text.search(/\s/);
+    return space < 0 ? '' : text.slice(space).trim();
   }
 
   text(sentence) { return sentence ? plainText(sentence, this.platform) : ''; }

@@ -1,6 +1,8 @@
 # Chat channels
 
-Lets the owner and paired members talk to the Đầu mối from Telegram or Discord.
+Lets people talk to the Đầu mối from Telegram or Discord: anyone in a group or
+DM the bot is in (within the host's limits), with the owner, approvers and
+linked members recognised.
 The pack is only the adapter, `soot-channel` in [`adapter/`](adapter/): it adds
 no tools, skills or grants, and installing or selecting it starts nothing.
 
@@ -29,7 +31,7 @@ the deployment starts it; you never run it yourself. When it is missing, Nest's
 Kênh chat pane says so.
 
 `soot-channel --version` prints the adapter and contract version
-(`soot-channel 0.2.0 (channel-adapter.v1)`). The adapter has no dependencies.
+(`soot-channel 0.3.0 (channel-adapter.v1)`). The adapter has no dependencies.
 
 ## What it does
 
@@ -46,8 +48,18 @@ asker's message, and only the asker can answer it there; anyone else gets a
 private "only the asker" toast or a threaded refusal. Approvals, grants,
 briefs and every other item stay in DMs (the chat gets at most a one-line
 pointer). Status reports name their cause (`reason`: token rejected, Message
-Content intent off, webhook active, …). It still works with a 0.7.0 (v1.0) host,
-which never sends the v1.1 fields. See [adapter/README.md](adapter/README.md) for the
+Content intent off, webhook active, …).
+
+0.3.0 implements revision v1.2 (§10, `contract_revision: 2`, Soot runtime
+0.9.0): the host admits unlinked people (one conversation per group, channel or
+DM, with per-person limits, a guest pool and a block list whose notices the
+adapter posts threaded), and the owner can make one group the **owner chat**
+with `/owner ABCD-EFGH` (a code from Nest → Kênh chat). Owner-only items
+(approvals, grants, hand-offs) are posted there with their buttons; the host
+re-checks every press and refuses anyone without the permission with a private
+toast. When the bot leaves or is removed from a chat the adapter tells the host.
+Against an older host (0.7.x / 0.8.0, revision 1, or 0.7.0, v1.0) it behaves as
+0.2.0: the host never sends the v1.2 fields. See [adapter/README.md](adapter/README.md) for the
 environment, exit codes and guarantees.
 
 Outbound connections only: no webhook, no public URL. Real Telegram/Discord

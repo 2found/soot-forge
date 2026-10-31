@@ -115,6 +115,7 @@ export class FakeTelegram {
     this.updates = [];
     this.calls = [];
     this.nextMessageID = 8811;
+    this.memberCounts = {};   // chat id → getChatMemberCount result
     this.fail = {};           // method → {error_code, description, parameters?} (once per entry)
     this.server = createServer(async (req, res) => {
       const [, botToken, method] = req.url.match(/^\/bot([^/]+)\/(\w+)$/) ?? [];
@@ -140,6 +141,7 @@ export class FakeTelegram {
         return ready();
       }
       case 'sendMessage': return {message_id: this.nextMessageID++, chat: {id: params.chat_id}};
+      case 'getChatMemberCount': return this.memberCounts[String(params.chat_id)] ?? null;
       default: return true;
     }
   }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 import test from 'node:test';
+import {CONTRACT_REVISION, VERSION} from '../core/main.mjs';
 import {
   FakeRuntime, FakeTelegram, exchange, outboxItems, response, sseConnections, sseItem, startAdapter, tempDir,
   tgMessage, tgStranger, tgUser, until,
@@ -30,8 +31,8 @@ test('T1 happy path: pair by /start code, message, reply delivered and acked', a
   await streaming(runtime);
 
   const status = runtime.callsTo('/v1/channel/status').map(call => call.body);
-  assert.deepEqual(status[0], {state: 'connecting', adapter_version: '0.2.0', contract_revision: 1});
-  assert.deepEqual(status[1], {state: 'connected', adapter_version: '0.2.0', contract_revision: 1,
+  assert.deepEqual(status[0], {state: 'connecting', adapter_version: VERSION, contract_revision: CONTRACT_REVISION});
+  assert.deepEqual(status[1], {state: 'connected', adapter_version: VERSION, contract_revision: CONTRACT_REVISION,
     platform_account: {id: String(BOT), username: 'shop_dau_moi_bot', display_name: 'Đầu mối của Shop'}});
   const claim = runtime.callsTo('/v1/channel/pairings/claim')[0].body;
   assert.deepEqual(claim, {request_id: `tg:${BOT}:u:500100`, sender: {id: '123456789', name: 'Lan Nguyễn', username: 'lan_ng'},
@@ -279,7 +280,7 @@ test('exit codes: bad bot token → status + 78; contract v2 → 78; dead creden
   const {runtime, telegram} = await setup(t);
   let adapter = startAdapter({platform: 'telegram', runtime, telegram, env: {SOOT_CHANNEL_PLATFORM_TOKEN: 'wrong'}});
   assert.equal(await adapter.done, 78);
-  assert.deepEqual(runtime.callsTo('/v1/channel/status').at(-1).body, {...exchange('v1.1-status', 'status v1.1: Telegram getMe 401').request.body, adapter_version: '0.2.0'});
+  assert.deepEqual(runtime.callsTo('/v1/channel/status').at(-1).body, {...exchange('v1.1-status', 'status v1.1: Telegram getMe 401').request.body, adapter_version: VERSION, contract_revision: CONTRACT_REVISION});
 
   runtime.routes['GET /v1/channel/session'] = () => ({status: 200, body: {contract: 'channel-adapter.v2'}});
   assert.equal(await startAdapter({platform: 'telegram', runtime, telegram}).done, 78);

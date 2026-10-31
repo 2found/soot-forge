@@ -8,9 +8,9 @@ import {Telegram} from '../platform/telegram.mjs';
 import {Discord} from '../platform/discord.mjs';
 
 export const CONTRACT = 'channel-adapter.v1';
-export const VERSION = '0.2.0';
-// channel-adapter v1.1 (§9.1): declared on every StatusReport.
-export const CONTRACT_REVISION = 1;
+export const VERSION = '0.3.0';
+// channel-adapter v1.2 (§10.1): declared on every StatusReport.
+export const CONTRACT_REVISION = 2;
 const PLATFORMS = {telegram: Telegram, discord: Discord};
 const REQUIRED = ['SOOT_CHANNEL_API', 'SOOT_CHANNEL_TOKEN', 'SOOT_CHANNEL_BINDING', 'SOOT_CHANNEL_PLATFORM', 'SOOT_CHANNEL_PLATFORM_TOKEN', 'SOOT_CHANNEL_STATE_DIR'];
 const STOP_BUDGET_MS = 9000;
@@ -55,6 +55,11 @@ export async function runAdapter({argv, env, stop, log = makeLogger(), fetch = g
     if (!account) return EXIT_OK;
     status.account = account;
     status.report('connected', null, true);
+    // The host serves revision-2 fields (`places`) only once a status has
+    // declared that revision; the session read before it lacks them.
+    await Promise.race([status.chain, deadline(3000)]);
+    try { session = await fetchSession(client); }
+    catch (error) { if (error instanceof ExitError) throw error; log('session_refresh_failed', {name: error?.name}); }
 
     const health = (state, detail, reason) => status.report(state, detail, false, reason);
     const inbound = new Inbound({client, journal, platform: platform.name, getSession: () => session, ops: platform.ops(), log});

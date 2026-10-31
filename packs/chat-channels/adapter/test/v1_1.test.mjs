@@ -2,6 +2,7 @@
 // lock and §9.4 status reasons, against the v1.1-*.json fixtures.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {CONTRACT_REVISION} from '../core/main.mjs';
 import {
   FakeDiscord, FakeRuntime, FakeTelegram, exchange, fixture, outboxItems, startAdapter, tgUser, until,
 } from './helpers.mjs';
@@ -68,7 +69,7 @@ test('guild question: threaded under the asker, asker presses → applied, resol
   assert.match(edit.body.content, /^Đã trả lời · Zalo/);
   assert.equal(posts(discord).length, 1, 'edited in place, not re-posted');
   assert.equal(await adapter.stop(), 0);
-  for (const call of runtime.callsTo('/v1/channel/status')) assert.equal(call.body.contract_revision, 1, call.body.state);
+  for (const call of runtime.callsTo('/v1/channel/status')) assert.equal(call.body.contract_revision, CONTRACT_REVISION, call.body.state);
 });
 
 test('guild presses: another paired user → ephemeral refusal; unpaired → admission toast, no #10 call', async t => {
@@ -178,9 +179,11 @@ test('Telegram getUpdates 409: webhook and other poller → degraded with their 
   await until(() => runtime.callsTo('/v1/channel/messages').length === 1);
   const degraded = runtime.callsTo('/v1/channel/status').map(call => call.body).filter(body => body.state === 'degraded');
   const pick = ({state, reason, detail, contract_revision}) => ({state, reason, detail, contract_revision});
+  // The v1.1 fixtures were recorded from a revision-1 adapter; this one declares its own.
   assert.deepEqual(degraded.map(pick), [
     exchange('v1.1-status', 'status v1.1: Telegram getUpdates 409, a webhook').request.body,
-    exchange('v1.1-status', 'status v1.1: Telegram getUpdates 409, another program').request.body]);
+    exchange('v1.1-status', 'status v1.1: Telegram getUpdates 409, another program').request.body]
+    .map(body => ({...body, contract_revision: CONTRACT_REVISION})));
   assert.equal(runtime.callsTo('/v1/channel/status').at(-1).body.state, 'connected');
   assert.equal(await adapter.stop(), 0);
 });

@@ -1,0 +1,314 @@
+[
+  {
+    "name": "targeting: an approval from a run in a shared group goes to the owner DM, the approver's DM and the owner chat, never the group",
+    "schema": { "response": "OutboxPage" },
+    "note": "Telegram binding, adapter revision 2. Khoa (unlinked, 7788990011) asked in Shop team (-1001234567890, shared) and Soot CSKH (support) called a tool its config holds for approval. Owner places holding someone Authorize(approve) allows: Nest, the owner's DM (123456789), Lan's DM (5566778899, approver for [support]) and the owner chat Đội vận hành (-1009876543210). The group gets one contentless pointer, threaded under Khoa's message 5301. A plain member and an approver scoped to another Soot get nothing.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=300&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 300,
+        "next_after": 304,
+        "items": [
+          {
+            "receipt_id": "ob_TgApr00301",
+            "seq": 301,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-30T03:00:00Z",
+            "text": "**Cần duyệt:** Soot CSKH muốn khôi phục một lần nạp tiền bị lỡ cho bạn đọc.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_7c8d9e0f1a",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Khôi phục nạp tiền cho bạn đọc",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "tg1ApTk7Lm2Nx4" },
+                { "label": "Từ chối", "style": "danger", "token": "tg1RjTk3Rb8Vd6" }
+              ],
+              "place": "dm"
+            }
+          },
+          {
+            "receipt_id": "ob_TgApr00302",
+            "seq": 302,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "5566778899", "kind": "dm" },
+            "created_at": "2026-10-30T03:00:00Z",
+            "text": "**Cần duyệt:** Soot CSKH muốn khôi phục một lần nạp tiền bị lỡ cho bạn đọc.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_7c8d9e0f1a",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Khôi phục nạp tiền cho bạn đọc",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "tg2ApTk7Lm2Nx4" },
+                { "label": "Từ chối", "style": "danger", "token": "tg2RjTk3Rb8Vd6" }
+              ],
+              "place": "dm"
+            }
+          },
+          {
+            "receipt_id": "ob_TgApr00303",
+            "seq": 303,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành" },
+            "created_at": "2026-10-30T03:00:00Z",
+            "text": "**Cần duyệt:** Soot CSKH muốn khôi phục một lần nạp tiền bị lỡ cho bạn đọc.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_7c8d9e0f1a",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Khôi phục nạp tiền cho bạn đọc",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "tg3ApTk7Lm2Nx4" },
+                { "label": "Từ chối", "style": "danger", "token": "tg3RjTk3Rb8Vd6" }
+              ],
+              "place": "owner_chat"
+            }
+          },
+          {
+            "receipt_id": "ob_TgPtr00304",
+            "seq": 304,
+            "attempt": 1,
+            "kind": "notice",
+            "chat": { "id": "-1001234567890", "kind": "group", "title": "Shop team" },
+            "created_at": "2026-10-30T03:00:00Z",
+            "conversation": "chc_pl1shop0001",
+            "in_reply_to": { "platform_message_id": "5301" },
+            "text": "Việc này cần chủ sở hữu duyệt. Mình đã báo riêng cho chủ sở hữu.",
+            "links": [],
+            "open_url": null,
+            "notice": { "reason": "dm_pointer", "item": "att_apr_7c8d9e0f1a" }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "targeting: the approver answers in her DM → applied",
+    "schema": { "request": "AnswerRequest", "response": "AnswerResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:5500000000000301",
+        "sender": { "id": "5566778899" },
+        "chat": { "id": "5566778899", "kind": "dm" },
+        "token": "tg2ApTk7Lm2Nx4"
+      }
+    },
+    "response": { "status": 200, "body": { "result": "applied", "duplicate": false, "label": "Duyệt và chạy", "toast": "Đã duyệt. Soot CSKH chạy tiếp." } }
+  },
+  {
+    "name": "targeting: one answer settles it everywhere, with one edit per chat that showed it (SF-9)",
+    "schema": { "response": "OutboxPage" },
+    "note": "The pointer in Shop team is never edited or resolved.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=304&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 304,
+        "next_after": 307,
+        "items": [
+          {
+            "receipt_id": "ob_TgRes00305",
+            "seq": 305,
+            "attempt": 1,
+            "kind": "attention_resolved",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-30T03:02:01Z",
+            "text": "Đã xử lý · Duyệt và chạy (Lan)\nKhôi phục nạp tiền cho bạn đọc",
+            "links": [],
+            "open_url": null,
+            "resolved": { "item": "att_apr_7c8d9e0f1a", "label": "Duyệt và chạy", "by": "channel", "at": "2026-10-30T03:02:00Z", "edit": [ { "receipt_id": "ob_TgApr00301", "platform_message_ids": ["9101"] } ] }
+          },
+          {
+            "receipt_id": "ob_TgRes00306",
+            "seq": 306,
+            "attempt": 1,
+            "kind": "attention_resolved",
+            "chat": { "id": "5566778899", "kind": "dm" },
+            "created_at": "2026-10-30T03:02:01Z",
+            "text": "Đã xử lý · Duyệt và chạy (Lan)\nKhôi phục nạp tiền cho bạn đọc",
+            "links": [],
+            "open_url": null,
+            "resolved": { "item": "att_apr_7c8d9e0f1a", "label": "Duyệt và chạy", "by": "channel", "at": "2026-10-30T03:02:00Z", "edit": [ { "receipt_id": "ob_TgApr00302", "platform_message_ids": ["9102"] } ] }
+          },
+          {
+            "receipt_id": "ob_TgRes00307",
+            "seq": 307,
+            "attempt": 1,
+            "kind": "attention_resolved",
+            "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành" },
+            "created_at": "2026-10-30T03:02:01Z",
+            "text": "Đã xử lý · Duyệt và chạy (Lan)\nKhôi phục nạp tiền cho bạn đọc",
+            "links": [],
+            "open_url": null,
+            "resolved": { "item": "att_apr_7c8d9e0f1a", "label": "Duyệt và chạy", "by": "channel", "at": "2026-10-30T03:02:00Z", "edit": [ { "receipt_id": "ob_TgApr00303", "platform_message_ids": ["9103"] } ] }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "targeting: a second press in the owner chat after it was settled → already_resolved",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:5500000000000302",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "-1009876543210", "kind": "group" },
+        "token": "tg3ApTk7Lm2Nx4"
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": {
+        "code": "already_resolved",
+        "error": "item already resolved",
+        "resolution": { "item": "att_apr_7c8d9e0f1a", "label": "Duyệt và chạy", "by": "channel", "at": "2026-10-30T03:02:00Z" },
+        "toast": "Mục này đã được xử lý: Duyệt và chạy."
+      }
+    }
+  },
+  {
+    "name": "targeting: a live-chat team decision goes to the owner places of people who may handle it (LA-12, spec D7)",
+    "schema": { "response": "OutboxPage" },
+    "note": "Soot CSKH reported a blocker with a decision in a live_chat conversation (a Lohi reader's thread). Authorize(handle) allows the owner and Lan (approver for support); the item carries the block-report title and choices, never the transcript. A choice is the private instruction \"Chọn: <label>\".",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=307&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 307,
+        "next_after": 310,
+        "items": [
+          {
+            "receipt_id": "ob_TgTm000308",
+            "seq": 308,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-30T03:10:00Z",
+            "text": "**Cần quyết định (Soot CSKH):** Bạn đọc xin hoàn 20 LT vì chương lỗi.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_blk_2b3c4d5e6f",
+              "kind": "decision",
+              "urgent": false,
+              "title": "Bạn đọc xin hoàn 20 LT vì chương lỗi",
+              "choices": [ { "label": "Hoàn 20 LT", "recommended": true, "token": "tm1HoTk7Lm2Nx4" }, { "label": "Không hoàn", "token": "tm1KhTk3Rb8Vd6" } ],
+              "place": "dm"
+            }
+          },
+          {
+            "receipt_id": "ob_TgTm000309",
+            "seq": 309,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "5566778899", "kind": "dm" },
+            "created_at": "2026-10-30T03:10:00Z",
+            "text": "**Cần quyết định (Soot CSKH):** Bạn đọc xin hoàn 20 LT vì chương lỗi.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_blk_2b3c4d5e6f",
+              "kind": "decision",
+              "urgent": false,
+              "title": "Bạn đọc xin hoàn 20 LT vì chương lỗi",
+              "choices": [ { "label": "Hoàn 20 LT", "recommended": true, "token": "tm2HoTk7Lm2Nx4" }, { "label": "Không hoàn", "token": "tm2KhTk3Rb8Vd6" } ],
+              "place": "dm"
+            }
+          },
+          {
+            "receipt_id": "ob_TgTm000310",
+            "seq": 310,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành" },
+            "created_at": "2026-10-30T03:10:00Z",
+            "text": "**Cần quyết định (Soot CSKH):** Bạn đọc xin hoàn 20 LT vì chương lỗi.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_blk_2b3c4d5e6f",
+              "kind": "decision",
+              "urgent": false,
+              "title": "Bạn đọc xin hoàn 20 LT vì chương lỗi",
+              "choices": [ { "label": "Hoàn 20 LT", "recommended": true, "token": "tm3HoTk7Lm2Nx4" }, { "label": "Không hoàn", "token": "tm3KhTk3Rb8Vd6" } ],
+              "place": "owner_chat"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "targeting: INVALID — an approval aimed at a shared group",
+    "schema": { "response": "OutboxPage" },
+    "valid": false,
+    "note": "A host never produces this; schema.json rejects it and the adapter acks it skipped (§10.9 widened lock). place shared admits only an asker-bound question or decision.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=310&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 310,
+        "next_after": 311,
+        "items": [
+          {
+            "receipt_id": "ob_BadShr0311",
+            "seq": 311,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "-1001234567890", "kind": "group", "title": "Shop team" },
+            "created_at": "2026-10-30T03:20:00Z",
+            "text": "**Cần duyệt:** …",
+            "links": [],
+            "open_url": null,
+            "attention": { "item": "att_apr_0000000001", "kind": "approval", "urgent": true, "title": "…", "choices": [ { "label": "Duyệt và chạy", "token": "zzBadTk0000001" } ], "place": "shared" }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "targeting: INVALID — an approval in a group without place",
+    "schema": { "response": "OutboxPage" },
+    "valid": false,
+    "note": "place is required on every non-DM attention that is not an asker-bound question or decision.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=311&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 311,
+        "next_after": 312,
+        "items": [
+          {
+            "receipt_id": "ob_BadOcn0312",
+            "seq": 312,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành" },
+            "created_at": "2026-10-30T03:21:00Z",
+            "text": "**Cần duyệt:** …",
+            "links": [],
+            "open_url": null,
+            "attention": { "item": "att_apr_0000000002", "kind": "approval", "urgent": true, "title": "…", "choices": [ { "label": "Duyệt và chạy", "token": "zzBadTk0000002" } ] }
+          }
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,428 @@
+[
+  {
+    "name": "owner chat: the session of a revision-2 host carries the claim pattern",
+    "schema": { "response": "Session" },
+    "note": "Telegram binding. A revision ≤ 1 adapter ignores places (unknown field).",
+    "request": {
+      "method": "GET",
+      "path": "/v1/channel/session",
+      "headers": { "Authorization": "Bearer sca_fixture0000000000000000000000000000000000000" }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "contract": "channel-adapter.v1",
+        "binding": { "id": "telegram", "platform": "telegram", "enabled": true },
+        "soot": { "name": "Đầu mối" },
+        "nest_url": null,
+        "limits": { "text_bytes": 16384, "outbox_page": 100, "ack_batch": 100 },
+        "pairing": { "code_pattern": "^[A-HJ-NP-Z2-9]{4}[- ]?[A-HJ-NP-Z2-9]{4}$" },
+        "places": { "claim_pattern": "^/owner\\s+[A-HJ-NP-Z2-9]{4}[- ]?[A-HJ-NP-Z2-9]{4}$" },
+        "copy": {
+          "secret_warning": "Tin vừa rồi trông giống một khóa bí mật nên mình đã không đọc và không gửi đi. Đừng gửi khóa, mật khẩu hay mã 2FA qua đây — nhập chúng trong Nest.",
+          "attachment_refused": "Hiện mình chưa nhận ảnh hay tệp qua đây. Bạn gửi trong Nest, hoặc mô tả bằng chữ nhé.",
+          "too_long": "Tin quá dài. Bạn chia nhỏ ra giúp mình nhé.",
+          "truncated": "… (còn tiếp)",
+          "open_in_nest": "Mở Nest để xem đầy đủ.",
+          "pair_in_dm": "Gửi mã ghép cặp trong tin nhắn riêng với bot, đừng gửi trong nhóm."
+        }
+      }
+    }
+  },
+  {
+    "name": "owner chat: the linked owner sends /owner with a fresh code in a group → designated (SF-8)",
+    "schema": { "request": "PlaceClaim", "response": "PlaceClaimResult" },
+    "note": "Nest → Kênh chat → telegram → Đặt kênh chủ sở hữu made QRST-UVWX a minute ago. The owner (123456789, linked) mentioned the bot with \"/owner QRST-UVWX\" in Đội vận hành. The host stores member_count 7 on owner_chat.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/places/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:600101",
+        "sender": { "id": "123456789", "name": "Chủ shop" },
+        "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành", "member_count": 7 },
+        "code": "QRST-UVWX"
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "reply": "Đã đặt kênh này làm kênh chủ sở hữu. Mọi người trong kênh sẽ thấy tiêu đề và lựa chọn của việc cần duyệt.",
+        "place": { "class": "owner_chat" }
+      }
+    }
+  },
+  {
+    "name": "owner chat: Telegram redelivers the same claim → the original result",
+    "schema": { "request": "PlaceClaim", "response": "PlaceClaimResult" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/places/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:600101",
+        "sender": { "id": "123456789", "name": "Chủ shop" },
+        "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành", "member_count": 7 },
+        "code": "QRST-UVWX"
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "duplicate": true,
+        "reply": "Đã đặt kênh này làm kênh chủ sở hữu. Mọi người trong kênh sẽ thấy tiêu đề và lựa chọn của việc cần duyệt.",
+        "place": { "class": "owner_chat" }
+      }
+    }
+  },
+  {
+    "name": "owner chat: an unknown, expired or used code → code_invalid, one reply for all three",
+    "schema": { "request": "PlaceClaim", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/places/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:600102",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "-1004444444444", "kind": "group", "title": "Nhóm thử" },
+        "code": "ABCD-EFGH"
+      }
+    },
+    "response": {
+      "status": 400,
+      "body": { "code": "code_invalid", "error": "owner chat code unknown, expired or used", "reply": "Mã không đúng hoặc đã hết hạn. Tạo mã mới trong Nest → Kênh chat." }
+    }
+  },
+  {
+    "name": "owner chat: someone who is not the linked owner sends a valid code → not_authorized",
+    "schema": { "request": "PlaceClaim", "response": "Error" },
+    "note": "Lan (5566778899) is linked and holds an approver grant; designating is own, so only the owner may. The code is not consumed.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/places/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:600103",
+        "sender": { "id": "5566778899", "name": "Lan" },
+        "chat": { "id": "-1004444444444", "kind": "group", "title": "Nhóm thử" },
+        "code": "WXYZ-2345"
+      }
+    },
+    "response": {
+      "status": 403,
+      "body": { "code": "not_authorized", "error": "only the linked owner can designate the owner chat", "reply": "Chỉ chủ sở hữu đã liên kết mới đặt được kênh này." }
+    }
+  },
+  {
+    "name": "owner chat: the binding already has an owner chat → owner_chat_taken",
+    "schema": { "request": "PlaceClaim", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/places/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:600104",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "-1004444444444", "kind": "group", "title": "Nhóm thử" },
+        "code": "WXYZ-2345"
+      }
+    },
+    "response": {
+      "status": 409,
+      "body": { "code": "owner_chat_taken", "error": "this binding already has an owner chat", "reply": "Bot này đã có kênh chủ sở hữu. Gỡ kênh cũ trong Nest trước." }
+    }
+  },
+  {
+    "name": "owner chat: a claim from a DM → dm_not_allowed",
+    "schema": { "request": "PlaceClaim", "response": "Error" },
+    "note": "Backstop: the adapter matches claim_pattern only outside DMs, so this is an adapter bug; no reply.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/places/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:600105",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "123456789", "kind": "dm" },
+        "code": "WXYZ-2345"
+      }
+    },
+    "response": { "status": 400, "body": { "code": "dm_not_allowed", "error": "an owner chat is a group, guild channel or thread" } }
+  },
+  {
+    "name": "owner chat: too many failed claims → rate_limited",
+    "schema": { "request": "PlaceClaim", "response": "Error" },
+    "note": "5 failed claims by this sender in the last 10 minutes (pairing limits: 5 per sender, 30 per binding).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/places/claim",
+      "body": {
+        "request_id": "tg:7012345678:u:600106",
+        "sender": { "id": "7788990011" },
+        "chat": { "id": "-1004444444444", "kind": "group" },
+        "code": "JKLM-NPQR"
+      },
+      "headers": {}
+    },
+    "response": {
+      "status": 429,
+      "headers": { "Retry-After": "540" },
+      "body": { "code": "rate_limited", "error": "too many failed owner chat claims", "retry_after": 540 }
+    }
+  },
+  {
+    "name": "owner chat: approvals and a grant are posted in the owner chat",
+    "schema": { "response": "OutboxPage" },
+    "note": "Owner chat -1009876543210 (Đội vận hành) is designated. Soot CSKH (support) holds lohi_recover_topup for approval; Soot 2found-hub holds a post for approval; Soot CSKH asks the owner for a grant. Each item also goes to Nest and to the DMs of linked people whose role allows it (fixtures/v1.2-targeting.json); this page shows only the owner chat's items.",
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=200&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 200,
+        "next_after": 203,
+        "items": [
+          {
+            "receipt_id": "ob_OcApr00201",
+            "seq": 201,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành" },
+            "created_at": "2026-10-30T02:10:00Z",
+            "text": "**Cần duyệt:** Soot CSKH muốn khôi phục một lần nạp tiền bị lỡ cho bạn đọc.\nKhung giờ 28/10 13:30–14:30, 50.000đ.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_9a1b2c3d4e",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Khôi phục nạp tiền cho bạn đọc",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "oc1ApTk7Lm2Nx4" },
+                { "label": "Từ chối", "style": "danger", "token": "oc1RjTk3Rb8Vd6" }
+              ],
+              "place": "owner_chat"
+            }
+          },
+          {
+            "receipt_id": "ob_OcApr00202",
+            "seq": 202,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành" },
+            "created_at": "2026-10-30T02:11:00Z",
+            "text": "**Cần duyệt:** Soot 2found-hub muốn đăng bài “Ra mắt 0.9” trên 2found.dev.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_5f6a7b8c9d",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Đăng bài “Ra mắt 0.9”",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "oc2ApTk7Lm2Nx4" },
+                { "label": "Từ chối", "style": "danger", "token": "oc2RjTk3Rb8Vd6" }
+              ],
+              "place": "owner_chat"
+            }
+          },
+          {
+            "receipt_id": "ob_OcGrt00203",
+            "seq": 203,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành" },
+            "created_at": "2026-10-30T02:12:00Z",
+            "text": "**Soot CSKH xin quyền:** đọc lịch sử nạp tiền của bạn đọc. Cấp quyền trong Nest.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_grt_1a2b3c4d5e",
+              "kind": "grant",
+              "urgent": false,
+              "title": "Xin quyền đọc lịch sử nạp tiền",
+              "choices": [
+                { "label": "Từ chối", "style": "danger", "token": "oc3RjTk3Rb8Vd6" },
+                { "label": "Cấp quyền trong Nest" }
+              ],
+              "place": "owner_chat"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "owner chat: an approver presses a button there → admitted as approver in the owner chat",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "Lan holds an approver grant with soots [support].",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "5566778899", "name": "Lan" }, "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành", "member_count": 7 }, "addressed": true, "button": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true, "principal": { "kind": "approver", "linked": true }, "place": { "class": "owner_chat" } } }
+  },
+  {
+    "name": "owner chat: the approver presses Duyệt và chạy on an approval in scope → applied",
+    "schema": { "request": "AnswerRequest", "response": "AnswerResult" },
+    "note": "Authorize(approver{support}, owner_chat, approve, support approval) allows. The decision records Decider {kind: link, id: key:<Lan's key>, role: approver, place: owner_chat}. attention_resolved follows for every chat that showed the item (fixtures/v1.2-targeting.json).",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:5500000000000001",
+        "sender": { "id": "5566778899" },
+        "chat": { "id": "-1009876543210", "kind": "group" },
+        "token": "oc1ApTk7Lm2Nx4"
+      }
+    },
+    "response": { "status": 200, "body": { "result": "applied", "duplicate": false, "label": "Duyệt và chạy", "toast": "Đã duyệt. Soot CSKH chạy tiếp." } }
+  },
+  {
+    "name": "owner chat: the approver presses Duyệt và chạy on another Soot's approval → not_authorized, nothing runs",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:5500000000000002",
+        "sender": { "id": "5566778899" },
+        "chat": { "id": "-1009876543210", "kind": "group" },
+        "token": "oc2ApTk7Lm2Nx4"
+      }
+    },
+    "response": {
+      "status": 403,
+      "body": { "code": "not_authorized", "reason": "not_authorized", "error": "this person's role does not allow this action on this item", "toast": "Bạn không có quyền xử lý việc này." }
+    }
+  },
+  {
+    "name": "owner chat: the approver presses Từ chối on a grant → not_authorized (grants are own)",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:5500000000000003",
+        "sender": { "id": "5566778899" },
+        "chat": { "id": "-1009876543210", "kind": "group" },
+        "token": "oc3RjTk3Rb8Vd6"
+      }
+    },
+    "response": {
+      "status": 403,
+      "body": { "code": "not_authorized", "reason": "not_authorized", "error": "this person's role does not allow this action on this item", "toast": "Bạn không có quyền xử lý việc này." }
+    }
+  },
+  {
+    "name": "owner chat: an unlinked person in the owner chat presses a button → admitted as anyone",
+    "schema": { "request": "AdmissionRequest", "response": "AdmissionResult" },
+    "note": "Anyone may talk (and press) in a place; the press itself is refused by Authorize on #10.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/admission",
+      "body": { "sender": { "id": "7788990011", "name": "Khoa" }, "chat": { "id": "-1009876543210", "kind": "group" }, "addressed": true, "button": true }
+    },
+    "response": { "status": 200, "body": { "admitted": true, "principal": { "kind": "anyone", "linked": false }, "place": { "class": "owner_chat" } } }
+  },
+  {
+    "name": "owner chat: the unlinked person's press → not_authorized with the toast, nothing runs",
+    "schema": { "request": "AnswerRequest", "response": "Error" },
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/answers",
+      "body": {
+        "request_id": "tg:7012345678:cb:5500000000000004",
+        "sender": { "id": "7788990011" },
+        "chat": { "id": "-1009876543210", "kind": "group" },
+        "token": "oc2RjTk3Rb8Vd6"
+      }
+    },
+    "response": {
+      "status": 403,
+      "body": { "code": "not_authorized", "reason": "not_authorized", "error": "this person's role does not allow this action on this item", "toast": "Bạn không có quyền xử lý việc này." }
+    }
+  },
+  {
+    "name": "owner chat: a typed reply to an owner-only item is a message to the place, never a decision",
+    "schema": { "request": "MemberMessage", "response": "MessageAccepted" },
+    "note": "The owner replies \"duyệt\" to the 2found-hub approval's message. The text goes into the owner chat's place conversation as the owner's message; no answered field, the approval stays pending.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/messages",
+      "body": {
+        "request_id": "tg:7012345678:u:600110",
+        "sender": { "id": "123456789" },
+        "chat": { "id": "-1009876543210", "kind": "group" },
+        "platform_message_id": "7001",
+        "text": "duyệt",
+        "reply_to": { "receipt_id": "ob_OcApr00202" }
+      }
+    },
+    "response": { "status": 202, "body": { "accepted": true, "duplicate": false, "conversation": "chc_pl1ops00001" } }
+  },
+  {
+    "name": "owner chat: the bot was removed from the owner chat → places/left clears it",
+    "schema": { "request": "PlaceLeft" },
+    "note": "Telegram my_chat_member with new status left/kicked. The host clears owner_chat and stops targeting the chat; its unacked items there are dropped. The response is 200 {}.",
+    "request": {
+      "method": "POST",
+      "path": "/v1/channel/places/left",
+      "body": { "request_id": "tg:7012345678:u:600120", "chat": { "id": "-1009876543210", "kind": "group", "title": "Đội vận hành" } }
+    },
+    "response": { "status": 200, "body": {} }
+  },
+  {
+    "name": "owner chat: after it was cleared, the next approval goes to the owner DM and the approver DM only",
+    "schema": { "response": "OutboxPage" },
+    "request": { "method": "GET", "path": "/v1/channel/outbox?after=203&limit=100" },
+    "response": {
+      "status": 200,
+      "body": {
+        "acked_through": 203,
+        "next_after": 205,
+        "items": [
+          {
+            "receipt_id": "ob_DmApr00204",
+            "seq": 204,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "123456789", "kind": "dm" },
+            "created_at": "2026-10-30T02:30:00Z",
+            "text": "**Cần duyệt:** Soot CSKH muốn sửa chương 12 của “Kiếm Lai”.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_0e1f2a3b4c",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Sửa chương 12",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "dm4ApTk7Lm2Nx4" },
+                { "label": "Từ chối", "style": "danger", "token": "dm4RjTk3Rb8Vd6" }
+              ],
+              "place": "dm"
+            }
+          },
+          {
+            "receipt_id": "ob_DmApr00205",
+            "seq": 205,
+            "attempt": 1,
+            "kind": "attention",
+            "chat": { "id": "5566778899", "kind": "dm" },
+            "created_at": "2026-10-30T02:30:00Z",
+            "text": "**Cần duyệt:** Soot CSKH muốn sửa chương 12 của “Kiếm Lai”.",
+            "links": [],
+            "open_url": null,
+            "attention": {
+              "item": "att_apr_0e1f2a3b4c",
+              "kind": "approval",
+              "urgent": true,
+              "title": "Sửa chương 12",
+              "choices": [
+                { "label": "Duyệt và chạy", "recommended": true, "style": "primary", "token": "dm5ApTk7Lm2Nx4" },
+                { "label": "Từ chối", "style": "danger", "token": "dm5RjTk3Rb8Vd6" }
+              ],
+              "place": "dm"
+            }
+          }
+        ]
+      }
+    }
+  }
+]
