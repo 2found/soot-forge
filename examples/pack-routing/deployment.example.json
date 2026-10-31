@@ -1,6 +1,6 @@
 {
   "listen": "127.0.0.1:0",
-  "packs_dir": "../../packs",
+  "packs_dir": "packs",
   "soots": [
     "soots/forge/soot.json"
   ],

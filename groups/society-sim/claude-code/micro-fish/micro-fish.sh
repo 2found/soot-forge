@@ -16,6 +16,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 die() { echo "micro-fish: $*" >&2; exit 1; }
 running() { [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; }
+# packs_dir: the workspace's pack dir — deployment.json packs_dir, default packs, packs.d only if packs is absent.
+packs_dir() {
+  local dir
+  dir=$(node -e 'let d = {}; try { d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); } catch {}; console.log(d.packs_dir ?? "packs")' "$DEPLOY")
+  [[ -d "$WS/$dir" || ! -d "$WS/packs.d" ]] || dir="packs.d"
+  echo "$WS/$dir"
+}
 
 doctor() {
   local ok=1
@@ -118,7 +125,7 @@ tally() {
     const [tools, dir, sim] = process.argv.slice(1);
     const { tally } = await import(tools + "/world.mjs");
     try { console.log(JSON.stringify(await tally(dir, { sim }), null, 1)); }
-    catch (e) { console.error(`micro-fish: ${e.message}`); process.exit(1); }' "$WS/packs.d/micro-fish/tools" "$(dirname "$file")" "$sim"
+    catch (e) { console.error(`micro-fish: ${e.message}`); process.exit(1); }' "$(packs_dir)/micro-fish/tools" "$(dirname "$file")" "$sim"
 }
 
 sims() { ls -t "$WS"/data/pack-state/micro-fish/worlds/*/*.json 2>/dev/null | sed -E 's#.*/([^/]+)\.json#\1#' || true; }
