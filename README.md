@@ -144,4 +144,10 @@ passes. Real provider/service journeys remain separate from hermetic tests.
 See [the catalog-wide review](docs/pack-review.md) for coverage, measured
 performance changes and remaining integration prerequisites.
 
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Third-party
+code, models and data that packs use keep their own licenses (see each pack and
+[SOURCE.md](SOURCE.md)).
+
 Soot and Soot Forge are 2found products. **Tiny agents. Better together.**

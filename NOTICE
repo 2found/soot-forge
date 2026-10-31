@@ -1,0 +1,9 @@
+Soot Forge
+Copyright 2026 2found
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party components keep their own licenses. A pack that downloads or
+references third-party code, models or data documents them in the pack and in
+SOURCE.md; for example, the model weights used by `image-gen` are under Qwen's
+Research License, which this license does not replace.
