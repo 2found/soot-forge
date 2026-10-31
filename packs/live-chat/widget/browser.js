@@ -7,6 +7,105 @@ export class SootPublicHTTPError extends Error {
         this.errorBody = errorBody;
         this.name = 'SootPublicHTTPError';
     }
+    /** The contract refusal code from a JSON error body (`already_resolved`, `moved_on`, …). */
+    get code() {
+        try {
+            const body = JSON.parse(this.errorBody ?? '');
+            const code = typeof body === 'object' && body !== null ? body.code : undefined;
+            return typeof code === 'string' ? code : undefined;
+        }
+        catch {
+            return undefined;
+        }
+    }
+}
+// ---- live-chat-attention v1 (docs/contracts/live-chat-attention.md) ----
+/** Capability a runtime advertises when it serves question cards and pointers. */
+export const LIVE_CHAT_ATTENTION_V1 = 'live-chat-attention-v1';
+export const ANSWER_REFUSAL_CODES = ['not_asker', 'already_resolved', 'moved_on', 'item_gone', 'invalid_answer'];
+const isRecord = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+const shortText = (v, max) => typeof v === 'string' && v.length > 0 && v.length <= max;
+const POINTER_CLASSES = ['approval', 'team', 'not_ready', 'unavailable'];
+function resolutionOf(raw) {
+    if (!isRecord(raw) || (raw.outcome !== 'answered' && raw.outcome !== 'closed') || (raw.by !== 'asker' && raw.by !== 'team') || typeof raw.at !== 'string')
+        return undefined;
+    const labels = Array.isArray(raw.labels) && raw.outcome === 'answered' ? raw.labels.filter(l => shortText(l, 200)) : undefined;
+    return { outcome: raw.outcome, ...(labels?.length ? { labels } : {}), by: raw.by, at: raw.at };
+}
+/**
+ * The card a client may render, rebuilt from known fields only, or undefined.
+ * A card that is not a question (a `kind` other than `question`, no options,
+ * over the ask limits) is dropped: a customer never renders a team item
+ * (contract §7, the second of the two locks).
+ */
+export function questionOf(raw) {
+    if (!isRecord(raw) || (raw.kind !== undefined && raw.kind !== 'question'))
+        return undefined;
+    if (!shortText(raw.item, 128) || !shortText(raw.prompt, 2000) || typeof raw.multi !== 'boolean')
+        return undefined;
+    if (!Array.isArray(raw.options) || raw.options.length < 1 || raw.options.length > 8)
+        return undefined;
+    const options = [];
+    for (const o of raw.options) {
+        if (!isRecord(o) || !shortText(o.label, 200) || (o.description !== undefined && typeof o.description !== 'string'))
+            return undefined;
+        options.push({ label: o.label, ...(shortText(o.description, 200) ? { description: o.description } : {}) });
+    }
+    const resolution = raw.resolution === undefined ? undefined : resolutionOf(raw.resolution);
+    if (raw.resolution !== undefined && !resolution)
+        return undefined;
+    return { item: raw.item, prompt: raw.prompt, options, multi: raw.multi, ...(resolution ? { resolution } : {}) };
+}
+// Only a team or approval pointer can be covered by a Soot-written reply.
+const replyOf = (c, reply) => reply && (c === 'team' || c === 'approval');
+/** A conversation detail's `pointers`, validated and ordered by `afterMessage`. */
+export function pointersOf(raw) {
+    if (!Array.isArray(raw))
+        return [];
+    return raw.flatMap(p => isRecord(p) && shortText(p.item, 128) && POINTER_CLASSES.includes(p.class) && typeof p.reply === 'boolean'
+        && Number.isSafeInteger(p.after_message) ? [{ item: p.item, class: p.class, reply: replyOf(p.class, p.reply), afterMessage: p.after_message }] : [])
+        .sort((a, b) => a.afterMessage - b.afterMessage);
+}
+export function waitingOf(raw) {
+    return isRecord(raw) && (raw.on === 'asker' || raw.on === 'team') && typeof raw.reason === 'string' ? { on: raw.on, reason: raw.reason } : undefined;
+}
+/** The decoded `text` of an `attention.resolved` event, or undefined. */
+export function attentionResolvedOf(text) {
+    try {
+        const raw = typeof text === 'string' ? JSON.parse(text) : undefined;
+        if (!isRecord(raw) || raw.kind !== 'question' || !shortText(raw.item, 128))
+            return undefined;
+        const resolution = resolutionOf(raw);
+        return resolution && { item: raw.item, ...resolution };
+    }
+    catch {
+        return undefined;
+    }
+}
+/** The decoded `text` of an `attention.pointer` event, or undefined. */
+export function attentionPointerOf(text) {
+    try {
+        const raw = typeof text === 'string' ? JSON.parse(text) : undefined;
+        if (!isRecord(raw) || !shortText(raw.item, 128) || !POINTER_CLASSES.includes(raw.class) || typeof raw.reply !== 'boolean')
+            return undefined;
+        return { item: raw.item, class: raw.class, reply: replyOf(raw.class, raw.reply) };
+    }
+    catch {
+        return undefined;
+    }
+}
+/** The answer text Nest and the runtime build: the chosen labels, ", "-joined. */
+export function answerText(card, choices) {
+    if (!validChoices(card, choices))
+        throw new Error('Invalid answer');
+    return choices.map(i => card.options[i].label).join(', ');
+}
+function validChoices(card, choices) {
+    if (!Array.isArray(choices) || choices.length < 1 || new Set(choices).size !== choices.length)
+        return false;
+    if (!choices.every(c => Number.isSafeInteger(c) && c >= 0 && c < 8))
+        return false;
+    return !card || ((card.multi || choices.length === 1) && choices.every(c => c < card.options.length));
 }
 export class SootPublicTransportError extends Error {
     uncertain;
@@ -136,7 +235,8 @@ export class SootPublicClient {
             if (!response.ok) {
                 let errSnippet = '';
                 try {
-                    errSnippet = await readBodyText(response, 1024);
+                    // 16 KiB: an already_resolved body carries up to 8 labels.
+                    errSnippet = await readBodyText(response, 16 * 1024);
                 }
                 catch {
                     // ignore error reading body
@@ -221,6 +321,14 @@ export class SootPublicClient {
         return this.#request(`/conversations/${validSegment(id)}`, 'GET', undefined, signal, true);
     }
     // Messages
+    /** Answers a question card (live-chat-attention-v1 runtimes only). */
+    sendAnswer(conversationId, messageId, answer, signal) {
+        validText(messageId, 128);
+        validText(answer?.item, 128);
+        if (!validChoices(undefined, answer.choices))
+            throw new Error('Invalid answer');
+        return this.#request(`/conversations/${validSegment(conversationId)}/messages`, 'POST', { id: messageId, text: '', answer: { item: answer.item, choices: answer.choices } }, signal, true);
+    }
     sendMessage(conversationId, messageId, text, signal) {
         validText(messageId, 128);
         validText(text, 12 * 1024);
@@ -353,6 +461,8 @@ export class SootChatSession {
     #sootId;
     #groupId;
     #queue = Promise.resolve();
+    // Cards seen by sync(), for the label text sent to a runtime without the capability.
+    #cards = new Map();
     constructor(options) {
         this.#storageKey = options.storageKey ?? `soot.chat.v1:${new URL(options.baseUrl).origin}:${options.appKey}`;
         this.#sootId = options.sootId;
@@ -370,6 +480,8 @@ export class SootChatSession {
     }
     get client() { return this.#client; }
     get appInfo() { return this.#appInfo; }
+    /** The runtime serves question cards and accepts `answer` (D10). */
+    get attention() { return !!this.#appInfo?.capabilities?.includes(LIVE_CHAT_ATTENTION_V1); }
     /** Select the language of future conversations without changing saved work. */
     setLanguage(language) {
         if (language !== 'en' && language !== 'vi')
@@ -385,6 +497,7 @@ export class SootChatSession {
             sootId: parsed.sootId ?? null,
             pendingCreate: parsed.pendingCreate ?? null,
             pendingMessage: parsed.pendingMessage ?? null,
+            pendingAnswer: parsed.pendingAnswer ?? null,
             draft: typeof parsed.draft === 'string' ? parsed.draft : '',
         };
     }
@@ -458,6 +571,8 @@ export class SootChatSession {
             }
         }
         if (state.conversationId && state.pendingMessage && await this.#reconcileMessage(state))
+            this.writeState(state);
+        if (state.conversationId && state.pendingAnswer && await this.#reconcileAnswer(state))
             this.writeState(state);
     }
     reconcile() {
@@ -585,6 +700,132 @@ export class SootChatSession {
             return receipt;
         });
     }
+    async #reconcileAnswer(state) {
+        if (!state.conversationId || !state.pendingAnswer)
+            return null;
+        try {
+            const receipt = await this.#client.receipt(state.conversationId, state.pendingAnswer.id);
+            if (receipt.run && receipt.run.request_id !== state.pendingAnswer.id)
+                throw new SootPublicHTTPError(409);
+            state.pendingAnswer = null;
+            return receipt;
+        }
+        catch (error) {
+            if (error instanceof SootPublicHTTPError && error.status === 404)
+                return null;
+            throw error;
+        }
+    }
+    async #card(conversationId, item) {
+        const known = this.#cards.get(item);
+        if (known)
+            return known;
+        const open = questionOf((await this.#client.getConversation(conversationId)).question);
+        return open?.item === item ? open : undefined;
+    }
+    /**
+     * Answers a question card with option indexes. Like sendMessage: the receipt
+     * is persisted before the POST, a retry reuses its ID, and tabs serialize on
+     * the Web Lock. A runtime without the capability gets the labels as text.
+     * `409 already_resolved` / `moved_on` is not an error: the receipt clears
+     * and the caller syncs to show the resolution or the current question.
+     */
+    answer(item, choices) {
+        validText(item, 128);
+        if (!validChoices(undefined, choices))
+            return Promise.reject(new Error('Invalid answer'));
+        return this.withLock(async () => {
+            let state = this.readState();
+            this.#restoreToken(state);
+            // A committed earlier answer settles here; it is this call's only when it is for the same item.
+            const earlier = state.pendingAnswer?.item;
+            if (await this.#reconcileAnswer(state)) {
+                this.writeState(state);
+                if (earlier === item)
+                    return;
+            }
+            if (state.pendingAnswer && state.pendingAnswer.item !== item)
+                throw new Error('Another answer is pending');
+            if (!state.pendingAnswer) {
+                state.pendingAnswer = { id: crypto.randomUUID(), item, choices: [...choices] };
+                this.writeState(state);
+            }
+            const conversationId = state.conversationId;
+            if (!conversationId) {
+                state.pendingAnswer = null;
+                this.writeState(state);
+                throw new Error('No conversation to answer');
+            }
+            const pending = state.pendingAnswer;
+            try {
+                if (this.attention)
+                    await this.#client.sendAnswer(conversationId, pending.id, pending);
+                else {
+                    const card = await this.#card(conversationId, pending.item);
+                    if (!card)
+                        throw new SootPublicHTTPError(404, JSON.stringify({ code: 'item_gone' }));
+                    await this.#client.sendMessage(conversationId, pending.id, answerText(card, pending.choices));
+                }
+            }
+            catch (error) {
+                // Definitive refusals admitted no run; transport failures and other
+                // statuses keep the receipt so an explicit retry cannot duplicate work.
+                const definitive = error instanceof SootPublicHTTPError && [400, 403, 404, 409, 422].includes(error.status);
+                if (error instanceof Error && error.message === 'Invalid answer' || definitive) {
+                    state = this.readState();
+                    state.pendingAnswer = null;
+                    this.writeState(state);
+                }
+                if (error instanceof SootPublicHTTPError && error.status === 409 && (error.code === 'already_resolved' || error.code === 'moved_on'))
+                    return;
+                throw error;
+            }
+            state = this.readState();
+            state.pendingAnswer = null;
+            this.writeState(state);
+        });
+    }
+    /**
+     * Reads the conversation once: messages past `after` (only when something
+     * changed, or `force`), plus the derived attention state. Cards are
+     * validated (non-question cards dropped) and pointers carry `afterMessage`
+     * so a client places each line in the transcript.
+     */
+    async sync(options = {}) {
+        const after = options.after ?? 0;
+        const saved = this.readState();
+        const state = saved.session ? await this.reconcile() : saved;
+        const result = {
+            conversationId: state.conversationId, conversation: null, messages: [], next_after: after,
+            pendingMessage: state.pendingMessage, pendingAnswer: state.pendingAnswer, pointers: [],
+        };
+        if (!state.conversationId)
+            return result;
+        const conversation = await this.#client.getConversation(state.conversationId, options.signal);
+        result.conversation = conversation;
+        const unchanged = after > 0 && typeof conversation.message_cursor === 'number' && conversation.message_cursor <= after;
+        if (options.force || !unchanged) {
+            const page = await this.#client.getMessages(state.conversationId, { after, limit: options.limit ?? 50, signal: options.signal });
+            result.messages = (page.messages ?? []).map(m => {
+                const { question: raw, ...rest } = m;
+                const question = raw === undefined ? undefined : questionOf(raw);
+                if (question)
+                    this.#cards.set(question.item, question);
+                return question ? { ...rest, question } : rest;
+            });
+            result.next_after = page.next_after || after;
+        }
+        const open = questionOf(conversation.question);
+        if (open && !open.resolution) {
+            result.question = open;
+            this.#cards.set(open.item, open);
+        }
+        const waiting = waitingOf(conversation.waiting);
+        if (waiting)
+            result.waiting = waiting;
+        result.pointers = pointersOf(conversation.pointers);
+        return result;
+    }
     saveDraft(draft) {
         const state = this.readState();
         state.draft = draft;
@@ -600,7 +841,8 @@ export class SootChatSession {
                 this.#client.setToken(state.session.token);
                 await this.#client.revokeSession();
             }
-            this.writeState({ session: null, conversationId: null, sootId: null, pendingCreate: null, pendingMessage: null, draft: '' });
+            this.writeState({ session: null, conversationId: null, sootId: null, pendingCreate: null, pendingMessage: null, pendingAnswer: null, draft: '' });
+            this.#cards.clear();
             this.#client.setToken(undefined);
         });
     }

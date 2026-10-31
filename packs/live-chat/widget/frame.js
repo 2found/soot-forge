@@ -1,5 +1,18 @@
-import { createWidgetComposer } from "./widget-composer.js";
+import { createWidgetComposer, createWidgetQuestion } from "./widget-composer.js";
 import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
+
+// "Powered by Soot": the brand word links to the product site (a normal tab;
+// the frame sandbox allows popups that escape it).
+function poweredBy(footer, label) {
+  const at = label.lastIndexOf('Soot');
+  if (at < 0) { footer.textContent = label; return; }
+  const link = document.createElement('a');
+  link.href = 'https://trysoot.com';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Soot';
+  footer.replaceChildren(label.slice(0, at), link, label.slice(at + 4));
+}
 
 (() => {
   const params = new URLSearchParams(location.search);
@@ -115,6 +128,14 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       copy: 'Sao chép', copied: 'Đã chép', copy_select: 'Đã chọn — nhấn Ctrl/⌘ + C',
       phase_queued: 'Đã nhận tin, sắp trả lời', phase_thinking: 'Đang suy nghĩ', phase_working: 'Đang tra cứu', phase_writing: 'Đang soạn câu trả lời',
       phase_step: n => 'bước ' + n, phase_seconds: n => n + ' giây',
+      q_title: 'Câu hỏi', q_confirm: 'Gửi', q_choices: 'Các lựa chọn', q_answered: 'Đã trả lời', q_closed: 'Câu hỏi đã đóng',
+      waiting_approval: 'Đang chờ đội ngũ duyệt', not_ready: 'Chưa sẵn sàng',
+      pointer_approval: 'Việc này cần đội ngũ duyệt. Mình đã báo cho họ, bạn sẽ nhận trả lời ngay tại đây.',
+      pointer_team: 'Mình đã chuyển việc này cho đội ngũ. Bạn sẽ nhận trả lời ngay tại đây.',
+      pointer_not_ready: 'Soot chưa sẵn sàng. Tin nhắn của bạn vẫn được giữ và sẽ được trả lời khi Soot sẵn sàng.',
+      pointer_unavailable: 'Soot tạm ngưng hôm nay. Bạn quay lại sau nhé.',
+      not_asker: 'Chỉ người hỏi mới trả lời được câu này.',
+      already_resolved: 'Câu hỏi này đã được trả lời.', moved_on: 'Câu hỏi này đã thay đổi.',
     },
     en: {
       connecting: 'Connecting…',
@@ -166,10 +187,156 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       copy: 'Copy', copied: 'Copied', copy_select: 'Selected — press Ctrl/⌘ + C',
       phase_queued: 'Got your message', phase_thinking: 'Thinking', phase_working: 'Looking things up', phase_writing: 'Writing a reply',
       phase_step: n => 'step ' + n, phase_seconds: n => n + 's',
+      q_title: 'Question', q_confirm: 'Send', q_choices: 'Choices', q_answered: 'Answered', q_closed: 'Question closed',
+      waiting_approval: 'Waiting for the team\'s approval', not_ready: 'Not ready yet',
+      pointer_approval: 'This needs the team\'s approval. I\'ve let them know; you\'ll get the answer right here.',
+      pointer_team: 'I\'ve passed this to the team. You\'ll get the answer right here.',
+      pointer_not_ready: 'Soot isn\'t ready yet. Your message is kept and will be answered as soon as it is.',
+      pointer_unavailable: 'Soot is paused for today. Please come back later.',
+      not_asker: 'Only the person who asked can answer this.',
+      already_resolved: 'This question was already answered.', moved_on: 'This question has changed.',
     },
   };
 
   const t = key => (dict[language] && dict[language][key]) || dict.vi[key] || key;
+
+  // ---- Question cards and pointers (live-chat-attention v1, spec §5.3) ----
+  // The SDK validates every card; the frame only renders it. Prompt and labels
+  // are Soot-authored text, everything around them is this frame's own copy.
+  const cards = new Map();
+  const pointers = new Map();
+  let openItem = null;
+  let answering = null;
+  let lastAnswer = null;
+  let pendingAnswerItem = null;
+  // The SDK's durable answer receipt ({item, choices}) as the last read saw it:
+  // an answer whose POST failed stays here until it is sent again.
+  let heldAnswer = null;
+  let heldReads = 0; // consecutive reads that still held the same receipt
+  let lastCustomerId = 0;
+  let unavailableAfter = -1;
+  const refusals = new Set(['not_asker', 'already_resolved', 'moved_on']);
+
+  function cardFooter(entry) {
+    const r = entry.card.resolution;
+    if (!r) return '';
+    if (r.outcome === 'closed') return t('q_closed');
+    return r.labels?.length ? t('q_answered') + ' · ' + r.labels.join(', ') : t('q_answered');
+  }
+
+  function cardProps(entry) {
+    const { card } = entry;
+    return {
+      title: t('q_title'), prompt: card.prompt, multiple: card.multi,
+      options: card.options.map((o, i) => ({ value: String(i), label: o.label, ...(o.description ? { description: o.description } : {}) })),
+      value: entry.value, confirmLabel: t('q_confirm'), selectionLabel: t('q_choices'),
+      busy: answering === card.item || pendingAnswerItem === card.item,
+      answered: !!card.resolution, footer: cardFooter(entry),
+      onValueChange: next => { if (card.resolution || answering === card.item) return; entry.value = next; entry.island.update(cardProps(entry)); },
+      onConfirm: () => answer(entry),
+    };
+  }
+
+  function cardNote(entry, code) {
+    entry.note.textContent = code ? t(code) : '';
+    entry.note.dataset.code = code || '';
+    entry.note.hidden = !code;
+  }
+
+  function updateCard(entry, card) {
+    if (card) {
+      const sent = entry.sent;
+      entry.card = card;
+      const r = card.resolution;
+      if (r) {
+        // A frozen card shows what was chosen; a typed answer selects nothing.
+        if (r.outcome === 'answered') entry.value = card.options.flatMap((o, i) => r.labels?.includes(o.label) ? [String(i)] : []);
+        // Our answer lost a race (second tab, double tap, a newer question):
+        // the card shows what happened, with one plain line, never an error.
+        if (sent) {
+          if (r.outcome === 'closed') cardNote(entry, 'moved_on');
+          else if (sent.length !== (r.labels || []).length || !sent.every(l => r.labels.includes(l))) cardNote(entry, 'already_resolved');
+          entry.sent = null;
+        }
+      }
+    }
+    entry.island.update(cardProps(entry));
+  }
+
+  function renderCard(article, message) {
+    const card = message.question;
+    const box = document.createElement('div');
+    box.className = 'question-island';
+    const note = document.createElement('p');
+    note.className = 'question-note';
+    note.setAttribute('role', 'status');
+    note.hidden = true;
+    article.className += ' question-card';
+    article.append(box, note);
+    const entry = { id: Number(message.id), card, value: [], sent: null, tries: 0, article, note, island: null };
+    cards.set(card.item, entry);
+    entry.island = createWidgetQuestion(box, cardProps(entry));
+    updateCard(entry, card);
+  }
+
+  function answer(entry) {
+    const { card } = entry;
+    if (card.resolution || answering || sending || resetting || pending || !nonce || !entry.value.length) return;
+    const choices = entry.value.map(Number).sort((a, b) => a - b);
+    answering = card.item;
+    lastAnswer = { item: card.item, choices };
+    entry.sent = choices.map(i => card.options[i]?.label);
+    cardNote(entry, '');
+    error();
+    $('activity').textContent = t('sending');
+    entry.island.update(cardProps(entry));
+    controls();
+    post('answer', { item: card.item, choices, message: entry.id, after: cursor });
+  }
+
+  // A card whose question is no longer the open one has been answered, closed or
+  // replaced. Its message is read again, at most a few times, to freeze it.
+  function staleCard() {
+    for (const entry of cards.values()) {
+      if (!entry.card.resolution && entry.card.item !== openItem && entry.card.item !== answering && entry.tries < 3) return entry;
+    }
+    return null;
+  }
+
+  const pointerCopy = { approval: 'pointer_approval', team: 'pointer_team', not_ready: 'pointer_not_ready', unavailable: 'pointer_unavailable' };
+  // One line per pointer, placed after the message it follows. The Soot already
+  // wrote its own status reply when `reply` is set, so nothing is added (R6).
+  function placePointers(list) {
+    for (const p of list) {
+      if (p.reply || pointers.has(p.item) || !pointerCopy[p.class]) continue;
+      const before = [...$('transcript').children].find(n => n.dataset?.message && Number(n.dataset.message) > p.afterMessage);
+      // Its message is not read yet: place the line on a later read.
+      if (!before && cursor < p.afterMessage) continue;
+      const line = document.createElement('p');
+      line.className = 'pointer';
+      line.dataset.pointer = p.item;
+      line.dataset.class = p.class;
+      line.setAttribute('role', 'status');
+      line.setAttribute('aria-live', 'polite');
+      line.textContent = t(pointerCopy[p.class]);
+      pointers.set(p.item, line);
+      $('transcript').insertBefore(line, before || $('working'));
+    }
+  }
+
+  function clearAttention() {
+    for (const entry of cards.values()) entry.island.destroy();
+    cards.clear();
+    for (const line of pointers.values()) line.remove();
+    pointers.clear();
+    openItem = null; answering = null; lastAnswer = null; pendingAnswerItem = null; heldAnswer = null; heldReads = 0;
+    lastCustomerId = 0; unavailableAfter = -1;
+  }
+
+  function attentionCopy() {
+    for (const entry of cards.values()) { entry.island.update(cardProps(entry)); if (entry.note.dataset.code) cardNote(entry, entry.note.dataset.code); }
+    for (const line of pointers.values()) line.textContent = t(pointerCopy[line.dataset.class]);
+  }
 
   const post = (type, extra = {}) => {
     if (parentOrigin) {
@@ -368,6 +535,10 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
 
   function render(message) {
     const role = message.role === 'user' ? (message.actor_role === 'member' ? 'member' : 'customer') : message.role;
+    // A card read again (its refresh, or a submission read from the start)
+    // updates in place: it is rendered once and freezes with its resolution.
+    const known = message.question && cards.get(message.question.item);
+    if (known) { updateCard(known, message.question); return false; }
     if (
       !['customer', 'assistant', 'member'].includes(role) ||
       (message.intent === 'acknowledgement' && settled.has(message.run)) ||
@@ -389,6 +560,10 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       body = document.createElement('p');
       body.textContent = message.text;
       lastAsked = String(message.text || '');
+      lastCustomerId = Math.max(lastCustomerId, Number(message.id) || 0);
+    } else if (role === 'assistant' && message.question) {
+      // The card replaces the text bubble; `text` is only the old clients' fallback.
+      body = null;
     } else {
       body = prose(String(message.text || ''));
     }
@@ -408,7 +583,9 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       });
       meta.append(' · ', time);
     }
-    article.append(meta, body);
+    article.append(meta);
+    if (body) article.append(body);
+    else renderCard(article, message);
     // "Checking, one moment" only covers the wait: the run's reply replaces it,
     // so a long chat is not a column of holding messages.
     if (role === 'assistant' && message.run) {
@@ -424,7 +601,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   }
 
   function submit() {
-    if (sending || resetting) return;
+    // One request at a time reaches the loader; an answer in flight finishes first.
+    if (sending || resetting || answering) return;
     const value = $('text').value.trim();
     if (!value && !pending) return;
 
@@ -478,7 +656,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     $('confirm-reset').textContent = t('confirm_reset');
     if (progress) $('working-label').textContent = t('phase_' + progress.phase) + '…';
     const footer = $('chat').querySelector('footer');
-    if (footer) footer.textContent = t('powered_by');
+    if (footer) poweredBy(footer, t('powered_by'));
     const jump = $('jump');
     if (jump) {
       const svg = jump.querySelector('svg');
@@ -544,7 +722,8 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
   function requestSync() {
     clearTimeout(timer);
     if (closed || !opened || resetting || sending || document.visibilityState === 'hidden') return;
-    post('sync', { after: cursor });
+    const stale = staleCard();
+    post('sync', { after: cursor, ...(stale ? { refresh: stale.id } : {}) });
     // Schedule independently of the response: a dropped read must not stop
     // recovery. Collapsed and background documents never drain this API.
     timer = setTimeout(requestSync, 3000);
@@ -566,6 +745,13 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     if (errorKind === 'reset') reset();
     else if (errorKind === 'expired') $('reset').click();
     else if (errorKind === 'connection') post('retry-connect');
+    else if (errorKind === 'answer') {
+      // After a reload only the SDK's receipt knows the answer that failed.
+      const held = lastAnswer || heldAnswer;
+      const entry = held && cards.get(held.item);
+      if (entry && !entry.card.resolution) { entry.value = held.choices.map(String); answer(entry); }
+      else { error(); requestSync(); }
+    }
     else if (errorKind === 'reply' && !pending && lastAsked) { pending = { id: crypto.randomUUID(), text: lastAsked, resend: true }; submit(); }
     else if (pending) submit();
     else requestSync();
@@ -609,6 +795,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       nonce = msg.nonce;
       if (msg.language) applyLanguage(msg.language);
       if (msg.config) applyConfig(msg.config);
+      attentionCopy();
       if(Array.isArray(msg.scopes))scopes=msg.scopes;
       scopeValue=msg.scopeValue||'';scopeName=msg.scopeName||'';scopeRequired=!!msg.scopeRequired;
       if (typeof msg.draft === 'string' && !$('text').value) {
@@ -625,6 +812,21 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
     } else if (msg.type === 'sync' && msg.nonce === nonce) {
       // Only a submission response can settle the foreground send. An older
       // background read contains no evidence that its message was accepted.
+      // An answer settles on its reply; any later submission read also settles
+      // it, so a card never stays busy and the composer never stays locked.
+      const reply = msg.answer || (msg.submission && answering ? { item: answering } : null);
+      if (reply) {
+        const entry = cards.get(reply.item);
+        if (answering === reply.item) answering = null;
+        controls();
+        if (entry && (reply.code || (msg.error && reply.read !== false))) {
+          entry.sent = null;
+          if (refusals.has(reply.code)) cardNote(entry, reply.code);
+        }
+        if (entry) updateCard(entry);
+        // A busy reply carries no read to apply.
+        if (reply.code === 'busy' && !msg.messages) return;
+      }
       if (sending && !msg.submission) return;
       sending = false;
       let added = false;
@@ -639,6 +841,25 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       // The run behind a holding message ended without replying (or the page
       // was reloaded long after): when nothing is working, nothing is "checking".
       if (idleStates.has(msg.activity)) for (const run of [...holding.keys()]) dropHolding(run);
+      if (msg.refreshed) for (const entry of cards.values()) if (entry.id === Number(msg.refreshed)) entry.tries++;
+      if (!msg.error) {
+        openItem = msg.question?.item ?? null;
+        const held = msg.pendingAnswer?.item && Array.isArray(msg.pendingAnswer.choices) ? msg.pendingAnswer : null;
+        heldReads = held && heldAnswer && held.item === heldAnswer.item && held.id === heldAnswer.id ? heldReads + 1 : held ? 1 : 0;
+        heldAnswer = held;
+        const busyItem = heldAnswer?.item ?? null;
+        if (busyItem !== pendingAnswerItem) {
+          pendingAnswerItem = busyItem;
+          for (const entry of cards.values()) updateCard(entry);
+        }
+        if (Array.isArray(msg.pointers)) {
+          placePointers(msg.pointers);
+          // Only today's budget pointer after the visitor's latest message
+          // silences the reply Resend; an older one must not hide a later failure.
+          unavailableAfter = -1;
+          for (const p of msg.pointers) if (p.class === 'unavailable') unavailableAfter = Math.max(unavailableAfter, p.afterMessage);
+        }
+      }
       if (added) {
         $('welcome').hidden = true;
         if (follow) bottom();
@@ -655,9 +876,11 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
           pending = null;
           bottom();
         }
+        // What the conversation waits on, in the visitor's words (§8).
+        const waitKey = !idleStates.has(msg.activity) && { approval: 'waiting_approval', not_ready: 'not_ready' }[msg.waiting?.reason] || '';
         $('activity').textContent = msg.progress?.phase && dict[language]?.['phase_' + msg.progress.phase]
           ? t('phase_' + msg.progress.phase) + '…'
-          : t(dict[language]?.[msg.activity] ? msg.activity : 'connected');
+          : waitKey ? t(waitKey) : t(dict[language]?.[msg.activity] ? msg.activity : 'connected');
       }
       // A failed read leaves the last known phase on screen; a closed session clears it.
       if (!msg.error) showProgress(msg.progress);
@@ -667,6 +890,9 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         if (msg.error.kind === 'reset') {
           resetting = false;
           error(t('reset_error'), 'reset', t('retry'));
+        } else if (msg.answer && msg.answer.read !== false && msg.error.kind !== 'expired' && msg.error.kind !== 'connection' && msg.error.kind !== 'challenge') {
+          // The answer's receipt is kept: Resend repeats it with the same request ID.
+          error(t(msg.error.kind === 'rate' ? 'rate_error' : 'send_error'), 'answer', t('resend'));
         } else if (msg.error.kind === 'rate') {
           error(t('rate_error'), 'rate', t('retry'));
         } else if (msg.error.kind === 'expired') {
@@ -684,11 +910,19 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         }
       } else if (msg.pendingMessage) {
         error(t('send_error'), 'send', t('resend'));
-      } else if (msg.activity === 'failed' && !sending && lastAsked) {
+      } else if (heldAnswer && !answering && (errorKind === 'answer' || heldReads >= 2)
+        && cards.has(heldAnswer.item) && !cards.get(heldAnswer.item).card.resolution) {
+        // An answer the runtime never got (timeout, 429, a reload after either):
+        // its card stays busy on the receipt, so Resend is the way forward. A
+        // receipt seen once may be another tab's answer still in flight.
+        error(t('send_error'), 'answer', t('resend'));
+      } else if (msg.activity === 'failed' && !sending && lastAsked && unavailableAfter < lastCustomerId) {
+        // (A run refused for today's budget keeps no message: its pointer says
+        // so, and a Resend would only be refused again.)
         // The run ended without an answer. Its "checking, one moment" no longer
         // holds, and the visitor gets a way forward instead of a silent stop.
         error(t('reply_error'), 'reply', t('resend'));
-      } else if (errorKind === 'send' || errorKind === 'rate' || errorKind === 'connection' || errorKind === 'reply') {
+      } else if (['send', 'rate', 'connection', 'reply', 'answer'].includes(errorKind)) {
         error();
       }
 
@@ -709,6 +943,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
       showProgress(null);
       holding.clear();
       settled.clear();
+      clearAttention();
       $('welcome').hidden = false;
       $('reset-confirm').hidden = true;
       $('activity').textContent = t('connected');
@@ -726,7 +961,7 @@ import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
         msg.error?.kind === 'expired' ? t('new_conversation') : t('reconnect'));
       controls();
     } else if (msg.nonce === nonce) {
-      if (msg.type === 'language') { applyLanguage(msg.language); applyConfig(lastConfig); controls(); }
+      if (msg.type === 'language') { applyLanguage(msg.language); applyConfig(lastConfig); attentionCopy(); controls(); }
       if (msg.type === 'open') expanded(true);
       if (msg.type === 'close') expanded(false);
       if (msg.type === 'reset') reset();

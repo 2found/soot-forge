@@ -1,13 +1,13 @@
 {
   "package": "@tofound/ui",
-  "version": "0.9.0",
+  "version": "0.10.1",
   "files": {
     "agent.css": "8d54f8824ad60728e4b1b388922364d4d9491b48011194a7aa46c71b2d8fa5da",
     "agent-behavior.js": "f07bb93406d880218d75e162c61870484a638562691ee43f161601aebb5f6b1a"
   },
   "composer": {
     "package": "@tofound/ui",
-    "version": "0.9.0",
-    "sha256": "a8824a898e116b124ebbff65a520df2c400ef338b540fc541965577ab34601bd"
+    "version": "0.10.1",
+    "sha256": "e7a1c4e551baecd8c5e72176d8e1381babbece835ec590546bed498e70911814"
   }
 }

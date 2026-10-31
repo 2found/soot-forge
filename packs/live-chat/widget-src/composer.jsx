@@ -2,7 +2,7 @@ import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {flushSync} from 'react-dom';
 import {Select} from '@tofound/ui';
-import {AgentComposer} from '@tofound/ui/agent';
+import {AgentComposer, AgentQuestion} from '@tofound/ui/agent';
 
 // A controlled React island. The existing frame owns transport, receipts and draft ACKs.
 export function createWidgetComposer(container, onSend, onDraft) {
@@ -24,4 +24,19 @@ export function createWidgetComposer(container, onSend, onDraft) {
   />));
   render();
   return {setValue(next){value=next;render();},update(next){props={...props,...next};render();},destroy(){root.unmount();}};
+}
+
+// A question card: the same 2ui AgentQuestion Nest uses, controlled by the frame.
+// The frame owns the selection, the answer request and the receipt (spec §5.3).
+export function createWidgetQuestion(container, initial) {
+  const root=createRoot(container);
+  let props=initial;
+  const render=()=>flushSync(()=>root.render(<AgentQuestion
+    title={props.title} prompt={props.prompt} options={props.options} value={props.value}
+    onValueChange={props.onValueChange} onConfirm={props.onConfirm}
+    confirmLabel={props.confirmLabel} selectionLabel={props.selectionLabel}
+    multiple={props.multiple} busy={props.busy} answered={props.answered} footer={props.footer||undefined}
+  />));
+  render();
+  return {update(next){props={...props,...next};render();},destroy(){root.unmount();}};
 }

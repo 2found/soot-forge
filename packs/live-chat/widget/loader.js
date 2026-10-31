@@ -38,6 +38,8 @@
   const nonce = crypto.randomUUID();
   let session = null;
   let sessionPromise = null;
+  // The public SDK module: it owns question, pointer and waiting rules (spec D13).
+  let sdkModule = null;
   let initializedSession = null;
   let epoch = 0;
   let syncing = false;
@@ -188,13 +190,13 @@
   async function getSessionInstance() {
     if (session) return session;
     if (sessionPromise) return sessionPromise;
-    sessionPromise = import(`${base}/public/widget/browser.js`).then(sdk => new sdk.SootChatSession({
+    sessionPromise = import(`${base}/public/widget/browser.js`).then(sdk => (sdkModule = sdk, new sdk.SootChatSession({
       baseUrl: base,
       appKey: app,
       language: detectedLanguage,
       ...(selection?{sootId:selection.soot,groupId:selection.group,storageKey:`${scopeStorage}:${selection.nonce}`} : {}),
       proofProvider: acquireTurnstileProof,
-    })).then(value => (session = value)).finally(() => { sessionPromise = null; });
+    }))).then(value => (session = value)).finally(() => { sessionPromise = null; });
     return sessionPromise;
   }
 
@@ -248,7 +250,28 @@
     }
   }
 
-  async function syncMessages(after, submission = false) {
+  // Question cards and pointers, validated by the SDK. A browser.js older than
+  // the attention helpers (a cached asset across a runtime upgrade) yields
+  // nothing, so the frame keeps showing text as before.
+  const cardOf = raw => (raw === undefined || !sdkModule?.questionOf ? undefined : sdkModule.questionOf(raw));
+  function withCards(messages) {
+    return messages.map(m => {
+      if (m?.question === undefined) return m;
+      const { question: raw, ...rest } = m;
+      const question = cardOf(raw);
+      return question ? { ...rest, question } : rest;
+    });
+  }
+  function attentionOf(conv) {
+    const question = cardOf(conv.question);
+    return {
+      question: question && !question.resolution ? question : undefined,
+      waiting: sdkModule?.waitingOf?.(conv.waiting),
+      pointers: sdkModule?.pointersOf?.(conv.pointers) || [],
+    };
+  }
+
+  async function syncMessages(after, submission = false, extra = {}) {
     if (!submission && (syncing || submitting || switching || !expanded || document.visibilityState === 'hidden')) return;
     const version = epoch;
     let source;
@@ -263,23 +286,34 @@
       let next_after = after;
       let activity = 'connected';
       let progress = null;
+      let attention = { pointers: [] };
+      let refreshed;
 
       if (state.conversationId) {
         try {
           const conv = await s.client.getConversation(state.conversationId);
           if (conv.state) activity = conv.state;
           if (conv.progress) progress = { run: conv.progress.run, phase: conv.progress.phase, steps: conv.progress.steps, since: conv.progress.since };
+          attention = attentionOf(conv);
           // A visitor's reads are rate limited, so the transcript is read only
           // when it holds something past the frame's cursor.
           const unchanged = after > 0 && typeof conv.message_cursor === 'number' && conv.message_cursor <= after;
           if (submission || !unchanged) {
             const page = await s.client.getMessages(state.conversationId, { after, limit: 50 });
-            messages = page.messages || [];
+            messages = withCards(page.messages || []);
             next_after = page.next_after || after;
+          }
+          // A card whose question is no longer open is read again by itself, so
+          // it freezes with its resolution. Its message is behind the cursor.
+          const refresh = Number(extra.refresh);
+          if (Number.isSafeInteger(refresh) && refresh > 0 && !messages.some(m => Number(m.id) === refresh)) {
+            const page = await s.client.getMessages(state.conversationId, { after: refresh - 1, limit: 1 });
+            messages = [...withCards((page.messages || []).filter(m => Number(m.id) === refresh)), ...messages];
+            refreshed = refresh;
           }
         } catch (err) {
           if(session!==s || epoch!==version)return;
-          send('sync', { submission, error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
+          send('sync', { submission, ...(extra.answer ? { answer: { ...extra.answer, read: false } } : {}), error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
           return;
         }
       }
@@ -291,11 +325,15 @@
         next_after,
         activity,
         progress,
+        ...attention,
         pendingMessage: state.pendingMessage,
+        pendingAnswer: state.pendingAnswer || null,
+        ...(extra.answer ? { answer: extra.answer } : {}),
+        ...(refreshed ? { refreshed } : {}),
       });
     } catch (err) {
       if(epoch!==version || (source && session!==source))return;
-      send('sync', { submission, error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
+      send('sync', { submission, ...(extra.answer ? { answer: { ...extra.answer, read: false } } : {}), error: { kind: err?.status === 401 ? 'expired' : 'connection' } });
     } finally { syncing = false; }
   }
 
@@ -357,7 +395,7 @@
       }catch{selection=previousSelection;session=oldSession;try{if(selection)localStorage.setItem(scopeStorage,JSON.stringify(selection));else localStorage.removeItem(scopeStorage);}catch{}send('sync',{error:{kind:'reset'}});}finally{switching=false;}
       return;
     }
-    if(switching && ['send','draft','sync','reset'].includes(msg.type))return;
+    if(switching && ['send','answer','draft','sync','reset'].includes(msg.type))return;
     if (msg.type === 'open') {
       expanded = true;
       resize();
@@ -368,7 +406,7 @@
       position = msg.position;
       resize();
     } else if (msg.type === 'sync') {
-      await syncMessages(msg.after ?? 0);
+      await syncMessages(msg.after ?? 0, false, { refresh: msg.refresh });
     } else if (msg.type === 'draft') {
       if (typeof msg.text === 'string') {
         const s = await getSessionInstance().catch(() => null);
@@ -388,6 +426,34 @@
         const kind = err?.challenge ? 'challenge' : err?.status === 429 ? 'rate' : err?.status === 400 ? 'validation' : err?.status === 401 ? 'expired' : 'send';
         send('sync', { submission: true, error: { kind } });
       } finally {submitting=false;}
+    } else if (msg.type === 'answer') {
+      // A card's answer: the SDK keeps a durable receipt and retries it with the
+      // same request ID; refusals come back as codes the frame words itself.
+      const answer = { item: msg.item };
+      // Every answer gets one reply, so the frame never waits on a card.
+      if (submitting || typeof msg.item !== 'string' || !Array.isArray(msg.choices)) { send('sync', { answer: { ...answer, code: 'busy' } }); return; }
+      submitting = true;
+      epoch++;
+      let s;
+      try {
+        s = await getSessionInstance();
+        if (initializedSession !== s) { await s.init(); initializedSession = s; }
+        await s.answer(msg.item, msg.choices);
+        if (session !== s) return;
+        await syncMessages(msg.after ?? 0, true, { refresh: msg.message, answer });
+      } catch (err) {
+        if (s && session !== s) return;
+        // A definitive refusal admitted nothing and the SDK cleared its receipt,
+        // so it is worded (refreshing the card), never offered as a Resend.
+        const definitive = !err?.challenge && ([400, 403, 404, 409, 422].includes(err?.status) || err?.message === 'Invalid answer');
+        const code = !definitive ? '' : sdkModule?.ANSWER_REFUSAL_CODES?.includes(err?.code) ? err.code : 'moved_on';
+        if (code || err?.message === 'Another answer is pending') {
+          await syncMessages(msg.after ?? 0, true, { refresh: msg.message, answer: { ...answer, code: code || 'busy' } });
+        } else {
+          const kind = err?.challenge ? 'challenge' : err?.status === 429 ? 'rate' : err?.status === 401 ? 'expired' : 'send';
+          send('sync', { submission: true, answer, error: { kind } });
+        }
+      } finally { submitting = false; }
     } else if (msg.type === 'reset') {
       if (submitting || switching) { send('sync', { error: { kind: 'reset' } }); return; }
       epoch++;
