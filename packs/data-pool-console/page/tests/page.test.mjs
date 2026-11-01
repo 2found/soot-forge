@@ -89,6 +89,7 @@ test('bridge v1: calls carry only v/type/id/mode/input/request_id; results route
   assert.deepEqual(await action, { ok: false, error: { code: 'no_response', message: 'no result from the host' } }, 'a lost answer is unknown, not failed');
   assert.equal(parseNestMessage({ v: 1, type: 'init', theme: 'dark', locale: 'vi', tokens: { '--background': '#000' } })?.type, 'init');
   assert.equal(parseNestMessage({ v: 1, type: 'init', theme: 'dark', locale: 'fr', tokens: {} }), null);
+  assert.equal(parseNestMessage({ v: 1, type: 'init', theme: 'dark', locale: 'vi', tokens: { '--font': 'x'.repeat(512) } })?.type, 'init', 'Nest sends tokens up to 512 chars');
   assert.equal(parseNestMessage({ v: 1, type: 'theme', theme: 'light', tokens: { background: '#fff' } }), null, 'token names start with --');
   assert.match(randomID('kho'), REQUEST_ID);
 });
@@ -101,6 +102,12 @@ test('outcomes: a stale revision is a conflict that keeps the draft; 429 is busy
   assert.equal(M.classify({ ok: false, error: { code: 'not_authorized', message: 'operator page' } }).state, 'rejected');
   assert.equal(M.classify({ ok: false, error: { code: 'busy', message: 'busy' } }).state, 'busy');
   assert.equal(M.classify({ ok: false, error: { code: 'request_in_flight', message: '' } }).state, 'unknown');
+  // A lost answer may follow a write that ran: never 'rejected' (which drops the id).
+  for (const code of ['result_unknown', 'unavailable', 'page_call_failed', 'http_502', 'http_500']) {
+    assert.equal(M.classify({ ok: false, error: { code, message: 'x' } }).state, 'unknown', code);
+  }
+  assert.equal(M.classify({ ok: false, error: { code: 'reloading', message: 'x' } }).state, 'busy');
+  assert.equal(M.classify({ ok: false, error: { code: 'http_404', message: 'x' } }).state, 'rejected');
   assert.equal(M.classify({ ok: true, output: { status: 'failed', reason: 'x' } }).state, 'failed');
   const fresh = M.classify({ ok: true, output: { status: 'succeeded' }, receipt: { request_id: 'kho-01234567', status: 'done', at: new Date().toISOString() } }, Date.now());
   assert.deepEqual([fresh.state, fresh.replayed], ['done', false]);

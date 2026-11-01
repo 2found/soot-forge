@@ -24,7 +24,7 @@ function exactKeys(value, allowed, required = allowed) {
   return keys.every(k => allowed.includes(k)) && required.every(k => keys.includes(k));
 }
 const isTokens = (/** @type {unknown} */ t) => !!t && typeof t === 'object' && !Array.isArray(t) &&
-  Object.entries(t).every(([k, v]) => /^--[A-Za-z0-9-]{1,64}$/.test(k) && typeof v === 'string' && v.length <= 256);
+  Object.entries(t).every(([k, v]) => /^--[A-Za-z0-9-]{1,64}$/.test(k) && typeof v === 'string' && v.length <= 512);
 
 /** Parse a Nest → frame message; anything else is null and dropped. @param {unknown} m */
 export function parseNestMessage(m) {

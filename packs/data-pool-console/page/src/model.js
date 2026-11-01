@@ -57,11 +57,16 @@ export const removePool = (pool, requestID) => actionBody('manage', { action: 'p
  * @param {import('./bridge.js').CallResult} result @param {number} [sentAt]
  * @returns {{ state: 'done' | 'conflict' | 'rejected' | 'failed' | 'busy' | 'unknown', replayed?: boolean, message?: string, output?: any }}
  */
+const LOST = new Set(['no_response', 'request_in_flight', 'timeout', 'result_unknown', 'unavailable', 'page_call_failed']);
+
 export function classify(result, sentAt) {
   if (!result.ok) {
     const { code, message } = result.error;
-    if (code === 'busy') return { state: 'busy' };
-    if (code === 'no_response' || code === 'request_in_flight' || code === 'timeout') return { state: 'unknown', message };
+    // Refused before it ran (busy, a reload in progress): resend the same id.
+    if (code === 'busy' || code === 'reloading') return { state: 'busy' };
+    // A lost answer or a server fault may follow a write that ran (soot-pages
+    // result_unknown): keep the pending id, check or resend it, never a new id.
+    if (LOST.has(code) || /^http_5\d\d$/.test(code)) return { state: 'unknown', message };
     if (/conflict|stale|revision/i.test(message) || code === 'conflict') return { state: 'conflict', message };
     return { state: 'rejected', message };
   }

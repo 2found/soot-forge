@@ -1,4 +1,4 @@
-import { mkdtemp, rm, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { readCatalog, materialize, run, checkRetiredTarget } from './catalog.mjs';
@@ -32,7 +32,10 @@ try {
       const archive = join(work, `${pack.id}.tar.gz`);
       await archivePack(directory, archive, pack.id);
       const deployment = join(work, 'deployment.json');
-      await writeFile(deployment, JSON.stringify({ packs_dir: `library-${pack.id}`, soots: [] }));
+      // A runtime refuses a deployment with no Soot, so a probe Soot that selects nothing stands in.
+      await mkdir(join(work, 'soots', 'probe'), { recursive: true });
+      await writeFile(join(work, 'soots', 'probe', 'soot.json'), JSON.stringify({ id: 'probe', name: 'Probe' }));
+      await writeFile(deployment, JSON.stringify({ packs_dir: `library-${pack.id}`, soots: ['soots/probe/soot.json'] }));
       await run(soot, ['add', archive, '--config', deployment, '--json'], { timeout: 30_000, maxBuffer: 1024 * 1024 });
     }
     console.log(`Validated ${pack.id} (${pack.source.kind})`);

@@ -14,7 +14,8 @@ so nobody pays for a browser they never open.
 
 The manifest also declares the browser as a **program** (`programs[chromium]`,
 about 170 MB). Nest's Programs list reads `chromium_check` (`soot browser status
---json`, a read tool that never downloads) and its Install button runs
+--json --check`, a read tool that never downloads and exits 1 while the browser
+is missing, as a `check_op` must) and its Install button runs
 `chromium_install` (`soot browser install --json`, a write tool). Both return
 `{installed, version, supported, path}`. `chromium_install` is selected with the
 pack whole; `browser-use:read` gives only the check.

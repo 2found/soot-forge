@@ -154,7 +154,8 @@
         "args": [
           "browser",
           "status",
-          "--json"
+          "--json",
+          "--check"
         ],
         "mode": "read",
         "timeout": "30s",
