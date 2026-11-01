@@ -109,10 +109,15 @@ test('outcomes: a stale revision is a conflict that keeps the draft; 429 is busy
   assert.equal(M.classify({ ok: false, error: { code: 'reloading', message: 'x' } }).state, 'busy');
   assert.equal(M.classify({ ok: false, error: { code: 'http_404', message: 'x' } }).state, 'rejected');
   assert.equal(M.classify({ ok: true, output: { status: 'failed', reason: 'x' } }).state, 'failed');
-  const fresh = M.classify({ ok: true, output: { status: 'succeeded' }, receipt: { request_id: 'kho-01234567', status: 'done', at: new Date().toISOString() } }, Date.now());
+  const receipt = (at) => ({ request_id: 'kho-01234567', status: 'done', at });
+  // Replay comes from the host's flag, not from comparing receipt time with the browser clock.
+  const fresh = M.classify({ ok: true, output: { status: 'succeeded' }, receipt: receipt(new Date().toISOString()) });
   assert.deepEqual([fresh.state, fresh.replayed], ['done', false]);
-  const old = M.classify({ ok: true, output: { status: 'succeeded' }, receipt: { request_id: 'kho-01234567', status: 'done', at: new Date(Date.now() - 60000).toISOString() } }, Date.now());
-  assert.deepEqual([old.state, old.replayed], ['done', true]);
+  const skewed = M.classify({ ok: true, output: { status: 'succeeded' }, receipt: receipt(new Date(Date.now() - 3600e3).toISOString()) });
+  assert.equal(skewed.replayed, false, 'an old-looking receipt time alone is not a replay');
+  const flagged = M.classify({ ok: true, output: { status: 'succeeded' }, receipt: { ...receipt(new Date().toISOString()), replayed: true } });
+  assert.equal(M.classify({ ok: true, output: { status: 'succeeded' }, replayed: true }).replayed, true, 'top-level form tolerated');
+  assert.deepEqual([flagged.state, flagged.replayed], ['done', true]);
   assert.equal(M.classify({ ok: true, output: { status: 'succeeded', replay: true } }).replayed, true);
 });
 
@@ -126,7 +131,7 @@ test('a lost response replayed by the same request id saves exactly once', async
     if (!output) { writes++; output = { status: 'succeeded', request_id: call.request_id }; receipts.set(call.request_id, output); }
     else output = { ...output, replay: true };
     if (drop) { drop = false; return; } // the first answer never arrives
-    deliver({ v: 1, type: 'result', id: call.id, ok: true, output });
+    deliver({ v: 1, type: 'result', id: call.id, ok: true, output, receipt: { request_id: call.request_id, status: 'done', at: new Date().toISOString(), ...(output.replay ? { replayed: true } : {}) } });
   };
   const id = randomID('kho');
   const body = M.saveDocument({ pool: 'p', id: 'doc-1', title: 'T', content: 'body', tags: [], revision: 0, generation: 'g' }, id);

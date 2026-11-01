@@ -45,7 +45,7 @@ receipt before any further mutation.
 Pool details expose `policy_revision`, effective `grants`, `host_managers` and
 `bound_soots`. Namespace administrators cannot be revoked through pool grants.
 
-Admission: `storage.soots` is fixed at install, so a host Soot created later is
+Admission: a person turns Kho dữ liệu on for a Soot in that Soot's settings in Nest; collection grants are changed in Nest's Quyền hạn (the console page's grants tab only shows them). `storage.soots` is fixed at install, so a host Soot created later is
 admitted at runtime. `action` kind `manage` with `{ "action": "admit", "soot":
 "<id>", "level": "read|write", "host": "<@host client name>", "request_id": … }`
 (host may be omitted when the service has one machine credential) or

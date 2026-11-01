@@ -8,8 +8,8 @@ const __bridge = (() => {
 // runs this pack's view/action tool and posts back one `result`. Messages that
 // are not exactly bridge v1 are ignored, as Nest does on its side.
 
-/** @typedef {{ request_id: string, status: string, at: string }} Receipt */
-/** @typedef {{ ok: true, output: any, receipt?: Receipt } | { ok: false, error: { code: string, message: string } }} CallResult */
+/** @typedef {{ request_id: string, status: string, at: string, replayed?: true }} Receipt */
+/** @typedef {{ ok: true, output: any, receipt?: Receipt, replayed?: true } | { ok: false, error: { code: string, message: string } }} CallResult */
 /** @typedef {{ theme: 'light' | 'dark', locale: 'vi' | 'en', tokens: Record<string, string> }} Init */
 
 const BRIDGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -43,7 +43,7 @@ function parseNestMessage(m) {
       return msg;
     case 'result':
       if (typeof msg.id !== 'string' || !BRIDGE_ID.test(msg.id)) return null;
-      if (msg.ok === true && exactKeys(msg, ['v', 'type', 'id', 'ok', 'output', 'receipt'], ['v', 'type', 'id', 'ok', 'output'])) return msg;
+      if (msg.ok === true && exactKeys(msg, ['v', 'type', 'id', 'ok', 'output', 'receipt', 'replayed'], ['v', 'type', 'id', 'ok', 'output']) && (msg.replayed === undefined || msg.replayed === true)) return msg;
       if (msg.ok === false && exactKeys(msg, ['v', 'type', 'id', 'ok', 'error']) && exactKeys(msg.error, ['code', 'message']) &&
         typeof msg.error.code === 'string' && typeof msg.error.message === 'string') return msg;
       return null;
@@ -76,7 +76,7 @@ function createBridge(io) {
       const entry = waiting.get(msg.id);
       if (!entry) return;
       waiting.delete(msg.id); clearTimeout(entry.timer);
-      entry.resolve(msg.ok ? { ok: true, output: msg.output, ...(msg.receipt ? { receipt: msg.receipt } : {}) } : { ok: false, error: msg.error });
+      entry.resolve(msg.ok ? { ok: true, output: msg.output, ...(msg.receipt ? { receipt: msg.receipt } : {}), ...(msg.replayed === true ? { replayed: true } : {}) } : { ok: false, error: msg.error });
     }
   });
   return {
@@ -159,12 +159,12 @@ const removePool = (pool, requestID) => actionBody('manage', { action: 'pool_rem
  * - failed: the service stored a terminal failure.
  * - busy: the host had no free slot (429); nothing ran, the same request may be sent again.
  * - unknown: no answer, or still running; check the request before anything else.
- * @param {import('./bridge.js').CallResult} result @param {number} [sentAt]
+ * @param {import('./bridge.js').CallResult} result
  * @returns {{ state: 'done' | 'conflict' | 'rejected' | 'failed' | 'busy' | 'unknown', replayed?: boolean, message?: string, output?: any }}
  */
 const LOST = new Set(['no_response', 'request_in_flight', 'timeout', 'result_unknown', 'unavailable', 'page_call_failed']);
 
-function classify(result, sentAt) {
+function classify(result) {
   if (!result.ok) {
     const { code, message } = result.error;
     // Refused before it ran (busy, a reload in progress): resend the same id.
@@ -179,8 +179,8 @@ function classify(result, sentAt) {
   if (out.status === 'error') return { state: out.code === 'conflict' ? 'conflict' : 'rejected', message: out.message, output: out };
   if (out.status === 'failed') return { state: 'failed', message: out.reason, output: out };
   if (out.status === 'succeeded') {
-    const earlier = !!result.receipt && sentAt !== undefined && Date.parse(result.receipt.at) < sentAt - 1000;
-    return { state: 'done', replayed: !!out.replay || earlier, output: out };
+    // `replayed` is the host's own flag (soot-pages §3, inside the receipt), never a clock comparison.
+    return { state: 'done', replayed: result.receipt?.replayed === true || result.replayed === true || !!out.replay, output: out };
   }
   if (out.status === 'pending' || out.status === 'uncertain') return { state: 'unknown', output: out };
   return { state: 'unknown', message: 'unrecognized receipt', output: out };
@@ -444,10 +444,9 @@ async function mutate(body) {
 async function send() {
   const p = S.pending; if (!p?.body) return;
   S.busy = true; p.state = 'sending'; render();
-  const sentAt = Date.now();
   const result = await bridge.call('action', p.body, p.request_id);
   S.busy = false;
-  await settle(M.classify(result, sentAt));
+  await settle(M.classify(result));
 }
 /** @param {ReturnType<typeof M.classify>} c */
 async function settle(c) {

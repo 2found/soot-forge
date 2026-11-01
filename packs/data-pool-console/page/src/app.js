@@ -85,10 +85,9 @@ async function mutate(body) {
 async function send() {
   const p = S.pending; if (!p?.body) return;
   S.busy = true; p.state = 'sending'; render();
-  const sentAt = Date.now();
   const result = await bridge.call('action', p.body, p.request_id);
   S.busy = false;
-  await settle(M.classify(result, sentAt));
+  await settle(M.classify(result));
 }
 /** @param {ReturnType<typeof M.classify>} c */
 async function settle(c) {

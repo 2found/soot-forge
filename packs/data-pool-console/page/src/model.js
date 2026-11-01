@@ -54,12 +54,12 @@ export const removePool = (pool, requestID) => actionBody('manage', { action: 'p
  * - failed: the service stored a terminal failure.
  * - busy: the host had no free slot (429); nothing ran, the same request may be sent again.
  * - unknown: no answer, or still running; check the request before anything else.
- * @param {import('./bridge.js').CallResult} result @param {number} [sentAt]
+ * @param {import('./bridge.js').CallResult} result
  * @returns {{ state: 'done' | 'conflict' | 'rejected' | 'failed' | 'busy' | 'unknown', replayed?: boolean, message?: string, output?: any }}
  */
 const LOST = new Set(['no_response', 'request_in_flight', 'timeout', 'result_unknown', 'unavailable', 'page_call_failed']);
 
-export function classify(result, sentAt) {
+export function classify(result) {
   if (!result.ok) {
     const { code, message } = result.error;
     // Refused before it ran (busy, a reload in progress): resend the same id.
@@ -74,8 +74,8 @@ export function classify(result, sentAt) {
   if (out.status === 'error') return { state: out.code === 'conflict' ? 'conflict' : 'rejected', message: out.message, output: out };
   if (out.status === 'failed') return { state: 'failed', message: out.reason, output: out };
   if (out.status === 'succeeded') {
-    const earlier = !!result.receipt && sentAt !== undefined && Date.parse(result.receipt.at) < sentAt - 1000;
-    return { state: 'done', replayed: !!out.replay || earlier, output: out };
+    // `replayed` is the host's own flag (soot-pages §3, inside the receipt), never a clock comparison.
+    return { state: 'done', replayed: result.receipt?.replayed === true || result.replayed === true || !!out.replay, output: out };
   }
   if (out.status === 'pending' || out.status === 'uncertain') return { state: 'unknown', output: out };
   return { state: 'unknown', message: 'unrecognized receipt', output: out };

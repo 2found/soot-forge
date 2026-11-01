@@ -368,7 +368,7 @@ func (s *service) manageCollection(ctx context.Context, in manageInput) (any, er
 		// Turning the pool on for a Soot in Nest is the host half; the
 		// service must also accept that identity (config or admission).
 		if in.Soot != "" && !contains(s.b.Soots, in.Soot) {
-			return nil, inputError{fmt.Sprintf("%s is not admitted to this data service; a pool manager admits it first by turning Kho dữ liệu on for it in Nest, then grant again", in.Soot)}
+			return nil, inputError{fmt.Sprintf("%s is not admitted to this data service; a pool manager admits it first by turning Kho dữ liệu on in that Soot's settings in Nest, then grant again", in.Soot)}
 		}
 		if in.Action == "grant" && rank(in.Level) == 0 || in.Action == "revoke" && in.Level != "" {
 			return nil, errors.New("invalid permission")

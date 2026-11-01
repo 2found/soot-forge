@@ -13,7 +13,7 @@ import (
 // Admission is the state-held half of the bound-Soot list. storage.soots is
 // fixed when the operator installs the service; a host gives its shared pool to
 // Soots created long after that. A host manager admits such a Soot here (Nest
-// does it when "Kho dữ liệu" is turned on), with no config edit or restart.
+// does it when "Kho dữ liệu" is turned on in the Soot's settings), with no config edit or restart.
 // An admitted Soot is an ordinary bound Soot: it reads what it is granted and
 // writes only with a write admission, and it is tied to the one machine
 // credential that may act as it, so a shared service never lets one machine

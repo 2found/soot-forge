@@ -4,8 +4,8 @@
 // runs this pack's view/action tool and posts back one `result`. Messages that
 // are not exactly bridge v1 are ignored, as Nest does on its side.
 
-/** @typedef {{ request_id: string, status: string, at: string }} Receipt */
-/** @typedef {{ ok: true, output: any, receipt?: Receipt } | { ok: false, error: { code: string, message: string } }} CallResult */
+/** @typedef {{ request_id: string, status: string, at: string, replayed?: true }} Receipt */
+/** @typedef {{ ok: true, output: any, receipt?: Receipt, replayed?: true } | { ok: false, error: { code: string, message: string } }} CallResult */
 /** @typedef {{ theme: 'light' | 'dark', locale: 'vi' | 'en', tokens: Record<string, string> }} Init */
 
 const BRIDGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -39,7 +39,7 @@ export function parseNestMessage(m) {
       return msg;
     case 'result':
       if (typeof msg.id !== 'string' || !BRIDGE_ID.test(msg.id)) return null;
-      if (msg.ok === true && exactKeys(msg, ['v', 'type', 'id', 'ok', 'output', 'receipt'], ['v', 'type', 'id', 'ok', 'output'])) return msg;
+      if (msg.ok === true && exactKeys(msg, ['v', 'type', 'id', 'ok', 'output', 'receipt', 'replayed'], ['v', 'type', 'id', 'ok', 'output']) && (msg.replayed === undefined || msg.replayed === true)) return msg;
       if (msg.ok === false && exactKeys(msg, ['v', 'type', 'id', 'ok', 'error']) && exactKeys(msg.error, ['code', 'message']) &&
         typeof msg.error.code === 'string' && typeof msg.error.message === 'string') return msg;
       return null;
@@ -72,7 +72,7 @@ export function createBridge(io) {
       const entry = waiting.get(msg.id);
       if (!entry) return;
       waiting.delete(msg.id); clearTimeout(entry.timer);
-      entry.resolve(msg.ok ? { ok: true, output: msg.output, ...(msg.receipt ? { receipt: msg.receipt } : {}) } : { ok: false, error: msg.error });
+      entry.resolve(msg.ok ? { ok: true, output: msg.output, ...(msg.receipt ? { receipt: msg.receipt } : {}), ...(msg.replayed === true ? { replayed: true } : {}) } : { ok: false, error: msg.error });
     }
   });
   return {

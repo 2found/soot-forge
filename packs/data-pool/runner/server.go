@@ -352,7 +352,7 @@ func (g *gateway) tool(w http.ResponseWriter, r *http.Request, entry *accessEntr
 			// The machine is authenticated, so say what is missing: a model that
 			// only sees "403" guesses collection ids and asks for the wrong grant.
 			entry.Refused = "soot.unadmitted"
-			writeInvalid(w, "this Soot is not admitted to the shared data pool yet, so no collection is visible to it; do not guess collection ids. Report a blocker with grant kind data_pool so a pool manager turns Kho dữ liệu on for this Soot in Nest")
+			writeInvalid(w, "this Soot is not admitted to the shared data pool yet, so no collection is visible to it; do not guess collection ids. Report a blocker with grant kind data_pool so a person turns Kho dữ liệu on for this Soot in the Soot's settings in Nest")
 			return
 		}
 		actor = call.Soot

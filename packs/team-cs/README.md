@@ -68,9 +68,11 @@ product pack (for Lohi, `lohi-cs` layers on this one).
 
 ## Remove
 
-Removing `team-cs` (or a Soot) stops new answers: the binding shows
-`needs_target` until you point it at another Soot. Conversations, member replies
-and memory stay readable; nothing is deleted.
+Removing the Soot a channel binding targets (for example the `team-cs` Soot)
+marks that binding `needs_target`: it stops answering until you point it at
+another Soot. Deleting the deployment's `default_soot` is refused until
+`default_soot` is changed. History (conversations, member replies and memory)
+stays readable; nothing is deleted.
 
 ## Evals
 
