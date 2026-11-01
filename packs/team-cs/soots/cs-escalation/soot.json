@@ -1,0 +1,12 @@
+{
+  "id": "cs-escalation",
+  "name": "CSKH xử lý chuyên sâu",
+  "description": "Xử lý ca khó: gom dữ kiện, soạn hướng giải quyết, chỉ hỏi thành viên phần quyết định nó không tự làm được.",
+  "soul": "SOUL.md",
+  "mission": "mission.md",
+  "packs": ["live-chat", "team-cs"],
+  "tools": ["read_skill"],
+  "conversation": {"publish": "reply"},
+  "execution": {"max_turns": 16, "max_tool_calls": 14, "max_output_tokens": 3072},
+  "interaction": {"mode": "interactive", "handoff": "members"}
+}

@@ -15,10 +15,74 @@
         "null"
       ]
     },
-    "description": {
+    "channel": {
+      "additionalProperties": false,
+      "properties": {
+        "platforms": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "request_prefix": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ui": {
+                "type": "object"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
       "type": [
-        "string",
+        "object",
         "null"
+      ]
+    },
+    "description": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "en": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "vi": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "vi"
+          ],
+          "type": "object"
+        }
       ]
     },
     "id": {
@@ -30,6 +94,121 @@
     "interface": {
       "additionalProperties": false,
       "properties": {
+        "pages": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "access": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "action_tool": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "bundle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "icon": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label": {
+                "oneOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "en": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "vi": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "vi"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "placement": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "settings_group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "view_tool": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "renderers": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "bundle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "tool_area": {
           "additionalProperties": false,
           "properties": {
@@ -54,6 +233,33 @@
             "aspect_width": {
               "type": [
                 "integer",
+                "null"
+              ]
+            },
+            "capabilities": {
+              "additionalProperties": false,
+              "properties": {
+                "input": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "pacing": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "stream": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
                 "null"
               ]
             },
@@ -116,11 +322,189 @@
             "object",
             "null"
           ]
+        },
+        "tool_areas": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "access": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "action_tool": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "aspect_height": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "aspect_width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "additionalProperties": false,
+                "properties": {
+                  "input": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pacing": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "stream": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "max_width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "min_width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "resizable": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "stream": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "view_tool": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "type": [
         "object",
         "null"
+      ]
+    },
+    "keywords": {
+      "additionalProperties": false,
+      "properties": {
+        "en": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "vi": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "label": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "en": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "vi": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "vi"
+          ],
+          "type": "object"
+        }
       ]
     },
     "name": {
@@ -186,6 +570,70 @@
         "null"
       ]
     },
+    "programs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "check_op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "install_op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "oneOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "en": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "vi": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vi"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "size_mb": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
     "skills": {
       "description": "Skill files every Soot selecting this pack reads.",
       "items": {
@@ -222,6 +670,9 @@
         "array",
         "null"
       ]
+    },
+    "storage": {
+      "type": "object"
     },
     "tools": {
       "description": "Tools the pack provides. A Soot selecting \"\u003cpack\u003e:read\" gets only those whose mode is read.",

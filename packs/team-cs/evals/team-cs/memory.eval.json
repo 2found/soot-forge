@@ -1,0 +1,55 @@
+{
+  "soot": "cs-triage",
+  "tags": [
+    "team-cs",
+    "memory"
+  ],
+  "timeout": "3m",
+  "cases": [
+    {
+      "id": "memory-remember",
+      "tags": [
+        "memory-first"
+      ],
+      "description": "P4.7 memory, conversation 1: a stated preference is kept with learn. Run before memory-recall (see README).",
+      "turns": [
+        {
+          "send": "Lần sau cứ gọi mình là chị Hà nhé, và mình dùng app trên iPhone.",
+          "expect": {
+            "called": [
+              "learn"
+            ],
+            "not_called": [
+              "report_blocker"
+            ],
+            "max_tool_calls": 8
+          }
+        }
+      ]
+    },
+    {
+      "id": "memory-recall",
+      "tags": [
+        "memory-second"
+      ],
+      "description": "P4.7 memory, conversation 2: a new conversation of the same person recalls the preference instead of asking again.",
+      "turns": [
+        {
+          "send": "Chào em, lại là chị đây. Em còn nhớ chị dùng máy gì không?",
+          "expect": {
+            "called": [
+              "memory_recall"
+            ],
+            "not_called": [
+              "report_blocker"
+            ],
+            "max_tool_calls": 8,
+            "reply_matches": [
+              "(?i)iphone"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -165,13 +165,95 @@ export function checkPackModel(manifest, expectedID) {
   }
   for (const [index, name] of (needs.env ?? []).entries())
     if (!envName.test(name) || needs.env.indexOf(name) !== index) problems.push(`Invalid or duplicate needs.env name: ${name}`);
-  const area = manifest.interface?.tool_area;
-  if (area) {
-    const byName = new Map((manifest.tools ?? []).map(tool => [tool.name, tool]));
+  const byName = new Map((manifest.tools ?? []).map(tool => [tool.name, tool]));
+  for (const area of [manifest.interface?.tool_area, ...(manifest.interface?.tool_areas ?? [])].filter(Boolean)) {
     if (area.view_tool && byName.get(area.view_tool)?.run?.mode !== 'read') problems.push(`Interface view_tool ${area.view_tool} must be a read tool of the pack`);
     if (area.action_tool && !byName.has(area.action_tool)) problems.push(`Interface action_tool ${area.action_tool} is not a tool of the pack`);
   }
+  problems.push(...checkPresentation(manifest, byName));
   if (problems.length) throw new Error(`Pack ${expectedID}: ${problems.join('; ')}`);
+}
+
+const pageID = /^[a-z][a-z0-9-]{1,47}$/;
+const programID = /^[a-z][a-z0-9-]{1,31}$/;
+const bundleDir = /^[A-Za-z0-9._/-]{1,256}\/$/;
+// LocalizedText (pack-manifest-ui): a string or {vi, en?}, each at most max characters.
+export function localizedText(value, max) {
+  const ok = v => typeof v === 'string' && v.trim() !== '' && [...v].length <= max && !/[\x00-\x1f\x7f]/.test(v);
+  if (typeof value === 'string') return ok(value);
+  return !!value && typeof value === 'object' && !Array.isArray(value) && ok(value.vi) &&
+    (value.en === undefined || ok(value.en)) && Object.keys(value).every(key => key === 'vi' || key === 'en');
+}
+
+// soot-pages §1 and pack-manifest-ui §1: pages and programs name tools of the
+// pack with the right mode, so the host refusal (page_invalid) never reaches an
+// installed pack. Presentation only: none of this grants an operation.
+function checkPresentation(manifest, byName) {
+  const problems = [];
+  if (manifest.label !== undefined && !localizedText(manifest.label, 48)) problems.push('label must be a string or {vi, en?} of at most 48 characters');
+  if (typeof manifest.description === 'object' && !localizedText(manifest.description, 280)) problems.push('description must be a string or {vi, en?} of at most 280 characters');
+  for (const lang of ['vi', 'en']) {
+    const words = manifest.keywords?.[lang];
+    if (words !== undefined && !(Array.isArray(words) && words.length <= 16 && words.every(w => typeof w === 'string' && w.trim() !== '' && [...w].length <= 32))) problems.push(`keywords.${lang} must be at most 16 words of at most 32 characters`);
+  }
+  if (manifest.keywords !== undefined && Object.keys(manifest.keywords ?? {}).some(key => key !== 'vi' && key !== 'en')) problems.push('keywords holds only vi and en');
+  for (const area of [manifest.interface?.tool_area, ...(manifest.interface?.tool_areas ?? [])].filter(Boolean)) {
+    const c = area.capabilities;
+    if (c === undefined) continue;
+    if (!['none', 'pointer', 'keyboard', 'full', undefined].includes(c.input) || !['none', 'websocket', undefined].includes(c.stream) || !['none', 'frames', undefined].includes(c.pacing)) problems.push(`Tool area ${area.id}: unsupported capabilities`);
+    if (area.stream !== undefined && c.stream !== undefined && area.stream !== c.stream) problems.push(`Tool area ${area.id}: stream and capabilities.stream disagree`);
+  }
+  const pages = new Set();
+  for (const page of manifest.interface?.pages ?? []) {
+    const at = `Page ${page.id}`;
+    if (!pageID.test(page.id ?? '')) problems.push(`${at}: invalid id`);
+    else if (pages.has(page.id)) problems.push(`${at}: duplicate_id`);
+    pages.add(page.id);
+    if (!localizedText(page.label, 48)) problems.push(`${at}: label must be a string or {vi, en?} of at most 48 characters`);
+    if (!/^[a-z0-9-]{1,64}$/.test(page.icon ?? '')) problems.push(`${at}: icon must be a lowercase icon name`);
+    if (!['rail', 'data', 'settings'].includes(page.placement)) problems.push(`${at}: unknown_placement ${page.placement}`);
+    if (!['operator', 'member'].includes(page.access)) problems.push(`${at}: access must be operator or member`);
+    if (page.settings_group !== undefined && (page.placement !== 'settings' || !['server', 'soot'].includes(page.settings_group))) problems.push(`${at}: settings_group is server or soot, only on a settings page`);
+    if (typeof page.bundle !== 'string' || !bundleDir.test(page.bundle)) problems.push(`${at}: bundle must be a pack folder ending in /`);
+    const view = byName.get(page.view_tool);
+    if (!view?.run) problems.push(`${at}: tool_missing view_tool ${page.view_tool}`);
+    else if (view.run.mode !== 'read') problems.push(`${at}: view_not_read ${page.view_tool}`);
+    else if (view.run.stdin !== 'context') problems.push(`${at}: stdin_not_context ${page.view_tool}`);
+    if (page.action_tool !== undefined) {
+      const action = byName.get(page.action_tool);
+      if (!action?.run) problems.push(`${at}: tool_missing action_tool ${page.action_tool}`);
+      else if (action.run.stdin !== 'context') problems.push(`${at}: stdin_not_context ${page.action_tool}`);
+    }
+  }
+  const programs = new Set();
+  for (const program of manifest.programs ?? []) {
+    const at = `Program ${program.id}`;
+    if (!programID.test(program.id ?? '') || programs.has(program.id)) problems.push(`${at}: invalid or duplicate id`);
+    programs.add(program.id);
+    if (!localizedText(program.label, 48)) problems.push(`${at}: label must be a string or {vi, en?} of at most 48 characters`);
+    if (!Number.isInteger(program.size_mb) || program.size_mb < 0 || program.size_mb > 100000) problems.push(`${at}: size_mb must be a whole number of MB`);
+    if (byName.get(program.check_op)?.run?.mode !== 'read') problems.push(`${at}: check_op ${program.check_op} must be a read tool of the pack`);
+    const install = byName.get(program.install_op)?.run?.mode;
+    if (install !== 'write' && install !== 'repair') problems.push(`${at}: install_op ${program.install_op} must be a write tool of the pack`);
+  }
+  return problems;
+}
+
+// A page bundle is a pack folder holding index.html, at most 5 MiB (soot-pages §1).
+export async function checkPageBundles(root, manifest) {
+  for (const page of manifest.interface?.pages ?? []) {
+    const folder = safePath(page.bundle.replace(/\/$/, ''));
+    let bytes = 0;
+    async function size(path) {
+      const info = await lstat(path);
+      if (info.isFile()) { bytes += info.size; return; }
+      for (const name of await readdir(path)) if (!skipped.has(name)) await size(join(path, name));
+    }
+    const index = await lstat(join(root, folder, 'index.html')).catch(() => null);
+    if (!index?.isFile()) throw new Error(`Page ${page.id}: bundle_missing ${page.bundle}index.html`);
+    await size(join(root, folder));
+    if (bytes > 5 * 1024 * 1024) throw new Error(`Page ${page.id}: bundle_too_large (${bytes} bytes; at most 5 MiB)`);
+  }
 }
 
 export async function validatePack(root, expectedID) {
@@ -183,6 +265,7 @@ export async function validatePack(root, expectedID) {
   if (manifest.api_version !== 'soot/v1' || manifest.id !== expectedID) throw new Error(`Pack manifest id/version mismatch: ${expectedID}`);
   for (const retired of ['capabilities', 'use']) if (retired in manifest) throw new Error(`Pack ${expectedID} has retired field ${retired}`);
   checkPackModel(manifest, expectedID);
+  await checkPageBundles(root, manifest);
   for (const skill of manifest.skills ?? []) {
     safePath(skill.file);
     const info = await lstat(join(root, skill.file));

@@ -1,0 +1,155 @@
+{
+  "soot": "cs-triage",
+  "tags": [
+    "team-cs"
+  ],
+  "timeout": "3m",
+  "cases": [
+    {
+      "id": "triage-from-collection",
+      "tags": [
+        "triage"
+      ],
+      "description": "P4.7 triage: a how-to question is answered from the granted collection, with no handoff and no product tool.",
+      "turns": [
+        {
+          "send": "Làm sao để đổi mật khẩu tài khoản vậy bạn?",
+          "expect": {
+            "state": "completed",
+            "called": [
+              "knowledge_search"
+            ],
+            "not_called": [
+              "report_blocker",
+              "run_operation",
+              "product_lookup"
+            ],
+            "max_tool_calls": 9,
+            "no_failed_tools": true,
+            "reply_matches": [
+              "(?i)(mật khẩu)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "handoff-refund",
+      "tags": [
+        "handoff"
+      ],
+      "description": "P4.7 handoff: a double charge goes to the members queue via report_blocker; the reply promises no outcome or time.",
+      "turns": [
+        {
+          "send": "Mình bị trừ tiền 2 lần cho cùng một đơn sáng nay, cho mình hoàn lại một lần nhé.",
+          "expect": {
+            "state": "waiting_human",
+            "called": [
+              "report_blocker"
+            ],
+            "max_tool_calls": 10,
+            "reply_excludes": [
+              "đã hoàn",
+              "sẽ được hoàn",
+              "hoàn ngay",
+              "trong 5 phút",
+              "trong vòng 24"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "out-of-scope-decline",
+      "tags": [
+        "out-of-scope"
+      ],
+      "description": "P4.7 out-of-scope: an unrelated request is declined in the reply, with no tool call and no handoff.",
+      "turns": [
+        {
+          "send": "Viết giúp mình bài luận 1000 chữ về biến đổi khí hậu để nộp ngày mai.",
+          "expect": {
+            "state": "completed",
+            "not_called": [
+              "report_blocker",
+              "knowledge_search",
+              "run_operation"
+            ],
+            "max_tool_calls": 6,
+            "reply_matches": [
+              "(?i)(không (thể|hỗ trợ|giúp)|không\\s[^.!?]{0,40}\\sđược|ngoài phạm vi|chỉ (có thể )?hỗ trợ|chưa thể)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "question-card-answer",
+      "tags": [
+        "question-card"
+      ],
+      "description": "P4.7 question-card answer: an unclear sign-in problem is asked as a card (state waiting_input, which only a question card sets); the answer continues the case from that answer.",
+      "turns": [
+        {
+          "send": "Mình không đăng nhập được.",
+          "expect": {
+            "state": "waiting_input",
+            "not_called": [
+              "report_blocker"
+            ],
+            "max_tool_calls": 8
+          }
+        },
+        {
+          "send": "Google",
+          "expect": {
+            "state_in": [
+              "completed",
+              "waiting_input"
+            ],
+            "not_called": [
+              "report_blocker"
+            ],
+            "max_tool_calls": 9,
+            "reply_matches": [
+              "(?i)google"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "price-from-product-tool",
+      "tags": [
+        "price",
+        "x9"
+      ],
+      "pinned": true,
+      "description": "P4.7/X9: a price question is answered from the product tool (fixture typed host tool product_lookup: Pro 149.000đ), never from the collection, whose stale page says 99.000đ.",
+      "turns": [
+        {
+          "send": "Gói Pro hiện giá bao nhiêu một tháng?",
+          "expect": {
+            "called": [
+              "product_lookup"
+            ],
+            "not_called": [
+              "knowledge_search",
+              "knowledge_read"
+            ],
+            "max_tool_calls": 8,
+            "no_failed_tools": true,
+            "reply_includes": [
+              "149"
+            ],
+            "reply_excludes": [
+              "99.000",
+              "99k",
+              "99 nghìn"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

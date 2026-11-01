@@ -1,0 +1,12 @@
+{
+  "id": "cs-triage",
+  "name": "CSKH tiếp nhận",
+  "description": "Tiếp nhận khách hàng: trả lời từ kho tài liệu, kiểm tra bằng công cụ sản phẩm, chuyển cho thành viên khi cần.",
+  "soul": "SOUL.md",
+  "mission": "mission.md",
+  "packs": ["live-chat", "team-cs"],
+  "tools": ["read_skill"],
+  "conversation": {"publish": "reply"},
+  "execution": {"max_turns": 12, "max_tool_calls": 10, "max_output_tokens": 2048},
+  "interaction": {"mode": "interactive", "handoff": "members"}
+}

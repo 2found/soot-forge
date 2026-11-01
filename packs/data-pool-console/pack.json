@@ -2,11 +2,32 @@
   "api_version": "soot/v1",
   "id": "data-pool-console",
   "name": "Data pool console",
-  "description": "The human data-pool interface in Nest: view and manage pools through the operator binding.",
+  "label": {
+    "vi": "Kho tài liệu",
+    "en": "Library"
+  },
+  "description": {
+    "vi": "Kho tài liệu trong Nest: xem, tìm, thêm và sửa tài liệu Soot đọc khi trả lời, qua khoá giao diện của người quản lý.",
+    "en": "The Library page in Nest: browse, search, add and edit the documents Soots read, through the operator interface key."
+  },
+  "keywords": {
+    "vi": [
+      "kho tài liệu",
+      "tài liệu",
+      "bộ sưu tập",
+      "tri thức"
+    ],
+    "en": [
+      "library",
+      "documents",
+      "collections",
+      "knowledge"
+    ]
+  },
   "tools": [
     {
       "name": "view",
-      "description": "Human operator data-pool view. Requires an authenticated Nest interface; unavailable to model calls.",
+      "description": "Kho tài liệu page view (operator only): body {kind: overview|pools|query|activity|status, input}. Requires the host interface marker; unavailable to model calls.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -51,7 +72,7 @@
     },
     {
       "name": "action",
-      "description": "Human operator data-pool action. Requires an authenticated Nest interface; unavailable to model calls.",
+      "description": "Kho tài liệu page action (operator only): body {kind: write|manage, input} with request_id, revision and generation guards. Requires the host interface marker; unavailable to model calls.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -86,6 +107,7 @@
         "resource": "data_pool",
         "timeout": "20s",
         "max_output_bytes": 131072,
+        "max_input_bytes": 32768,
         "secret_env": {
           "DATA_POOL": "{{cred:DATA_POOL_UI}}"
         }
@@ -101,19 +123,20 @@
     }
   },
   "interface": {
-    "tool_area": {
-      "id": "data",
-      "label": "Data pools",
-      "kind": "data-pool",
-      "access": "operator",
-      "view_tool": "view",
-      "action_tool": "action",
-      "width": 640,
-      "min_width": 320,
-      "max_width": 1200,
-      "aspect_width": 4,
-      "aspect_height": 3,
-      "resizable": true
-    }
+    "pages": [
+      {
+        "id": "kho-tai-lieu",
+        "label": {
+          "vi": "Kho tài liệu",
+          "en": "Library"
+        },
+        "icon": "library",
+        "placement": "data",
+        "access": "operator",
+        "view_tool": "view",
+        "action_tool": "action",
+        "bundle": "page/"
+      }
+    ]
   }
 }

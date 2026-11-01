@@ -1,0 +1,16 @@
+[
+  { "name": "legacy pools body (Nest link sheets, knowledge picker): list collections", "mode": "view",
+    "input": { "kind": "pools", "input": { "limit": 20 } }, "valid": true },
+  { "name": "legacy query body: search documents", "mode": "view",
+    "input": { "kind": "query", "input": { "action": "search", "pool": "lohi-support", "query": "hoan LT", "offset": 0, "limit": 20 } }, "valid": true },
+  { "name": "page body: a collection's detail", "mode": "view",
+    "input": { "kind": "pools", "input": { "pool": "lohi-support" } }, "valid": true },
+  { "name": "page body: request status after a lost response", "mode": "view",
+    "input": { "kind": "status", "input": { "request_id": "kho-0123456789abcdef01234567" } }, "valid": true },
+  { "name": "page body: guarded document save", "mode": "action", "request_id": "kho-0123456789abcdef01234567",
+    "input": { "kind": "write", "input": { "action": "upsert", "pool": "lohi-support", "id": "doc-1", "title": "Chính sách hoàn LT", "generation": "g1", "expected_revision": 7, "tags": ["nạp tiền"], "content": "…", "request_id": "kho-0123456789abcdef01234567" } }, "valid": true },
+  { "name": "INVALID unknown view kind is refused with a reason", "mode": "view",
+    "input": { "kind": "export", "input": {} }, "valid": false, "reason": "unsupported data-pool view" },
+  { "name": "INVALID unknown action kind is refused with a reason", "mode": "action", "request_id": "kho-0123456789abcdef01234567",
+    "input": { "kind": "drop", "input": {} }, "valid": false, "reason": "unsupported data-pool action" }
+]

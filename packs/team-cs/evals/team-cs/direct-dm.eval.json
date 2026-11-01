@@ -1,0 +1,31 @@
+{
+  "soot": "cs-escalation",
+  "tags": [
+    "team-cs"
+  ],
+  "timeout": "3m",
+  "cases": [
+    {
+      "id": "direct-dm-member",
+      "tags": [
+        "direct-dm"
+      ],
+      "description": "P4.7 direct DM: a member writing to the escalation Soot is a teammate; it answers directly and never puts the message in the members queue.",
+      "turns": [
+        {
+          "send": "Mình là thành viên đội CSKH. Tóm tắt giúp mình các bước cần làm khi khách báo bị trừ tiền 2 lần cho một đơn.",
+          "expect": {
+            "state": "completed",
+            "not_called": [
+              "report_blocker"
+            ],
+            "max_tool_calls": 8,
+            "reply_matches": [
+              "(?i)(kiểm tra|xác minh|đối soát)"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

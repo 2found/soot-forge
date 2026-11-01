@@ -179,7 +179,7 @@
     {
       "id": "data-pool-console",
       "name": "Data pool console",
-      "description": "The human data-pool interface in Nest: browse, edit and manage pools through the operator binding.",
+      "description": "The Kho tài liệu page in Nest's Data area: browse, edit and manage collections through the operator binding, with conflict-safe edits and replay-safe saves.",
       "tags": [
         "data"
       ],
@@ -223,6 +223,19 @@
       "source": {
         "kind": "bundled",
         "path": "packs/live-chat-sheets"
+      }
+    },
+    {
+      "id": "team-cs",
+      "name": "Team CS",
+      "description": "A customer care team starter on live-chat: triage and escalation Soots that hand off to members, with generic triage, handoff, tone and person-memory skills.",
+      "tags": [
+        "communication",
+        "support"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/team-cs"
       }
     },
     {

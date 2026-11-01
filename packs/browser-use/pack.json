@@ -1,6 +1,26 @@
 {
   "api_version": "soot/v1",
   "id": "browser-use",
+  "label": {
+    "vi": "Trình duyệt",
+    "en": "Browser"
+  },
+  "description": {
+    "vi": "Soot mở và dùng trang web trong một trình duyệt riêng cho từng cuộc trò chuyện; bạn xem và điều khiển cùng lúc.",
+    "en": "The Soot opens and uses websites in a browser kept per conversation; you watch and take over live."
+  },
+  "keywords": {
+    "vi": [
+      "trình duyệt",
+      "web",
+      "chromium"
+    ],
+    "en": [
+      "browser",
+      "web",
+      "chromium"
+    ]
+  },
   "skills": [
     {
       "name": "browser-use",
@@ -125,6 +145,36 @@
         "timeout": "90s",
         "max_output_bytes": 32768
       }
+    },
+    {
+      "name": "chromium_check",
+      "description": "Report whether the browser (soot-browser and Chromium) is installed on the Soot host, as JSON {installed, version, supported, path}. Never downloads or launches it.",
+      "run": {
+        "program": "soot",
+        "args": [
+          "browser",
+          "status",
+          "--json"
+        ],
+        "mode": "read",
+        "timeout": "30s",
+        "max_output_bytes": 4096
+      }
+    },
+    {
+      "name": "chromium_install",
+      "description": "Download the checksum-pinned soot-browser and Chromium (about 170 MB) into the Soot home, then report the same JSON as chromium_check. Operator action from Nest Programs; never retried automatically.",
+      "run": {
+        "program": "soot",
+        "args": [
+          "browser",
+          "install",
+          "--json"
+        ],
+        "mode": "write",
+        "timeout": "20m",
+        "max_output_bytes": 4096
+      }
     }
   ],
   "needs": {
@@ -133,6 +183,18 @@
       "HOME"
     ]
   },
+  "programs": [
+    {
+      "id": "chromium",
+      "label": {
+        "vi": "Trình duyệt Chromium",
+        "en": "Chromium browser"
+      },
+      "size_mb": 170,
+      "check_op": "chromium_check",
+      "install_op": "chromium_install"
+    }
+  ],
   "interface": {
     "tool_area": {
       "id": "browser",
@@ -146,7 +208,12 @@
       "aspect_width": 16,
       "aspect_height": 10,
       "resizable": true,
-      "stream": "websocket"
+      "stream": "websocket",
+      "capabilities": {
+        "input": "full",
+        "stream": "websocket",
+        "pacing": "frames"
+      }
     }
   }
 }

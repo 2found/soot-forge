@@ -12,6 +12,18 @@ Soot. Either downloads a prebuilt single-file `soot-browser` and the pinned
 home, then Chromium (about 140 MB). Neither the app nor the CLI carries them,
 so nobody pays for a browser they never open.
 
+The manifest also declares the browser as a **program** (`programs[chromium]`,
+about 170 MB). Nest's Programs list reads `chromium_check` (`soot browser status
+--json`, a read tool that never downloads) and its Install button runs
+`chromium_install` (`soot browser install --json`, a write tool). Both return
+`{installed, version, supported, path}`. `chromium_install` is selected with the
+pack whole; `browser-use:read` gives only the check.
+
+**Requires a Soot with pack pages and programs (pages-storage, Forge 0.10.0).**
+This manifest uses `label`, `keywords`, `programs` and
+`interface.tool_area.capabilities`; an older Soot refuses it as unknown fields.
+Update Soot first, or stay on Forge 0.9.x.
+
 Or install it yourself with Node.js 24+:
 
 ```sh
@@ -29,7 +41,8 @@ their existing selections. The pack declares `needs.env: ["PATH", "HOME"]`; the 
 `pack_grants`: `{"browser-use": {"env": ["PATH", "HOME"]}}` (or `soot grant browser-use`).
 
 The manifest's `interface.tool_area` declares label, renderer, read/action tools,
-width/min/max, aspect width/height and resizability. Nest owns rendering. Installing
+width/min/max, aspect width/height, resizability and `capabilities`
+(`input: full`, `stream: websocket`, `pacing: frames`). Nest owns rendering. Installing
 the pack alone grants nothing: a Soot selects the pack whole (`browser-use`; `browser-use:read` gives the skill and `browser-use_view` only, not `browser-use_control`).
 The manifest invokes the installed `soot-browser` directly; no per-call `npx` lookup or download. `--install-links` copies the adapter and pinned dependencies into the operator’s global prefix, outside the pack/configuration snapshot. Keep that prefix on the Soot host’s PATH.
 

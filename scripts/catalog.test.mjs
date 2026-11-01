@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateCatalog, validatePack, checkPackModel, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
+import { validateCatalog, validatePack, checkPackModel, checkPageBundles, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -130,4 +130,82 @@ test('every external entry names the upstream release its pin belongs to', async
   const external = current.packs.filter(pack => pack.source.kind === 'github');
   assert.ok(external.length > 0);
   for (const pack of external) assert.match(pack.source.version, /^\d+\.\d+\.\d+$/);
+});
+
+test('pages and programs name pack tools with the right mode, or the pack is refused', () => {
+  const tool = (name, mode, stdin = 'context') => ({ name, description: name, run: { program: 'soot', args: [], mode, ...(stdin ? { stdin } : {}) } });
+  const base = () => ({
+    api_version: 'soot/v1', id: 'kho', label: { vi: 'Kho tài liệu', en: 'Library' },
+    tools: [tool('view', 'read'), tool('action', 'write'), tool('chromium_check', 'read', ''), tool('chromium_install', 'write', '')],
+    interface: { pages: [{ id: 'kho-tai-lieu', label: 'Kho tài liệu', icon: 'library', placement: 'data', access: 'operator', view_tool: 'view', action_tool: 'action', bundle: 'page/' }] },
+    programs: [{ id: 'chromium', label: { vi: 'Trình duyệt Chromium' }, size_mb: 170, check_op: 'chromium_check', install_op: 'chromium_install' }],
+  });
+  checkPackModel(base(), 'kho');
+  const refusals = [
+    [m => m.interface.pages[0].view_tool = 'action', /view_not_read/],
+    [m => m.interface.pages[0].view_tool = 'missing', /tool_missing/],
+    [m => delete m.tools[0].run.stdin, /stdin_not_context/],
+    [m => delete m.tools[1].run.stdin, /stdin_not_context action/],
+    [m => m.interface.pages[0].action_tool = 'nope', /tool_missing action_tool/],
+    [m => m.interface.pages.push(structuredClone(m.interface.pages[0])), /duplicate_id/],
+    [m => m.interface.pages[0].placement = 'toolbar', /unknown_placement/],
+    [m => m.interface.pages[0].access = 'public', /access/],
+    [m => m.interface.pages[0].settings_group = 'server', /settings_group/],
+    [m => m.interface.pages[0].id = 'Kho', /invalid id/],
+    [m => m.interface.pages[0].bundle = 'page', /bundle/],
+    [m => m.interface.pages[0].label = { en: 'Library' }, /label/],
+    [m => m.label = 'x'.repeat(49), /label must be/],
+    [m => m.description = { vi: '' }, /description must be/],
+    [m => delete m.programs[0].install_op, /install_op undefined must be a write tool/],
+    [m => m.programs[0].check_op = 'chromium_install', /check_op chromium_install must be a read tool/],
+    [m => m.programs[0].size_mb = 1.5, /size_mb/],
+    [m => m.programs.push(structuredClone(m.programs[0])), /duplicate id/],
+    [m => m.interface.pages[0].icon = 'Library Icon', /icon/],
+    [m => m.keywords = { vi: ['x'.repeat(33)] }, /keywords.vi/],
+    [m => m.keywords = { fr: ['livre'] }, /only vi and en/],
+    [m => m.interface.tool_area = { id: 'b', kind: 'browser', view_tool: 'view', capabilities: { input: 'mouse' } }, /unsupported capabilities/],
+    [m => m.interface.tool_area = { id: 'b', kind: 'browser', view_tool: 'view', stream: 'none', capabilities: { stream: 'websocket' } }, /disagree/],
+  ];
+  for (const [mutate, reason] of refusals) {
+    const manifest = base(); mutate(manifest);
+    assert.throws(() => checkPackModel(manifest, 'kho'), reason, reason.source);
+  }
+});
+
+test('a page bundle must hold index.html and stay within 5 MiB', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'page-bundle-')); t.after(() => rm(root, { recursive: true, force: true }));
+  const manifest = { interface: { pages: [{ id: 'kho-tai-lieu', bundle: 'page/' }] } };
+  await assert.rejects(checkPageBundles(root, manifest), /bundle_missing/);
+  await mkdir(join(root, 'page')); await writeFile(join(root, 'page', 'index.html'), '<!doctype html>');
+  await checkPageBundles(root, manifest);
+  await writeFile(join(root, 'page', 'big.js'), Buffer.alloc(5 * 1024 * 1024));
+  await assert.rejects(checkPageBundles(root, manifest), /bundle_too_large/);
+});
+
+test('team-cs ships only generic skills and role Soots that hand off to members (P4.4, P4.5)', async () => {
+  const dir = join(import.meta.dirname, '..', 'packs', 'team-cs');
+  const read = async path => JSON.parse(await readFile(join(dir, path), 'utf8'));
+  const manifest = await read('pack.json');
+  assert.deepEqual(manifest.skills.map(s => s.name), ['cs-triage', 'handoff-policy', 'tone', 'person-memory']);
+  assert.deepEqual(manifest.tools, [], 'team-cs owns no tools; product tools come from the product pack');
+  const catalog = JSON.parse(await readFile(join(import.meta.dirname, '..', 'catalog.json'), 'utf8'));
+  const products = catalog.packs.filter(p => p.id !== 'team-cs' && p.id !== 'live-chat').map(p => p.id);
+  for (const name of ['cs-triage', 'cs-escalation']) {
+    const soot = await read(`soots/${name}/soot.json`);
+    assert.equal(soot.id, name);
+    assert.deepEqual(soot.packs, ['live-chat', 'team-cs'], `${name} selects only the base and this pack`);
+    assert.deepEqual(soot.interaction, { mode: 'interactive', handoff: 'members' });
+    assert.ok(!soot.skills, `${name} declares no skill of its own`);
+    assert.ok(!soot.packs.some(p => products.includes(p.split(':')[0])), `${name} imports no product pack`);
+  }
+  let cases = 0;
+  for (const file of ['triage', 'direct-dm', 'memory']) cases += (await read(`evals/team-cs/${file}.eval.json`)).cases.length;
+  assert.ok(cases >= 7, `P4.7 needs ≥ 7 eval cases, found ${cases}`);
+});
+
+test('the Kho tài liệu page bundle passes its own tests (bridge, bodies, no network, current app.js)', async () => {
+  const file = join(import.meta.dirname, '..', 'packs', 'data-pool-console', 'page', 'tests', 'page.test.mjs');
+  const { NODE_TEST_CONTEXT, ...env } = process.env; // a nested run reports to stdout, not to this runner
+  const { stdout } = await promisify(execFile)(process.execPath, ['--test', '--test-reporter=tap', file], { env });
+  assert.match(stdout, /^# fail 0$/m);
 });
