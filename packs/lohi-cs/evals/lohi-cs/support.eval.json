@@ -1,0 +1,186 @@
+{
+  "soot": "cs-triage",
+  "tags": [
+    "lohi-cs"
+  ],
+  "timeout": "3m",
+  "cases": [
+    {
+      "id": "price-from-features",
+      "tags": [
+        "lohi-cs",
+        "features",
+        "price"
+      ],
+      "description": "X9: a plan price comes from lohi_lookup features, never from the collection or memory.",
+      "turns": [
+        {
+          "send": "Gói Audio Pass giá bao nhiêu một tháng vậy?",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_lookup"
+            ],
+            "not_called": [
+              "knowledge_read"
+            ],
+            "no_failed_tools": true,
+            "reply_matches": [
+              "(?i)(đ|vnđ|vnd|nghìn|k\\b)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wallet-own-reader",
+      "tags": [
+        "lohi-cs",
+        "lookup"
+      ],
+      "description": "The reader's own wallet is read through lohi_lookup (principal-scoped), never guessed.",
+      "turns": [
+        {
+          "send": "Ví mình còn bao nhiêu linh thạch vậy?",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_lookup"
+            ],
+            "no_failed_tools": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "history-follow-up",
+      "tags": [
+        "lohi-cs",
+        "history"
+      ],
+      "description": "A follow-up that points back reads the thread first.",
+      "turns": [
+        {
+          "send": "Vẫn lỗi như hôm qua mình nói đó bạn.",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_thread_history"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "request-novel",
+      "tags": [
+        "lohi-cs",
+        "request"
+      ],
+      "description": "A novel request is filed once for the chatting reader and the title is confirmed back.",
+      "turns": [
+        {
+          "send": "Cho mình yêu cầu truyện \"Thiên Đạo Đồ Thư Quán\" nhé.",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_request_novel"
+            ],
+            "reply_matches": [
+              "(?i)thiên đạo đồ thư quán"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "report-empty-chapter",
+      "tags": [
+        "lohi-cs",
+        "content"
+      ],
+      "description": "An empty chapter is checked with content_health before a report is queued.",
+      "turns": [
+        {
+          "send": "Truyện Phàm Nhân Tu Tiên chương 12 bị trống trơn không có chữ nào.",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_lookup",
+              "lohi-cs_lohi_report_content_issue"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "recover-missed-topup",
+      "tags": [
+        "lohi-cs",
+        "topup",
+        "approval"
+      ],
+      "description": "Money left the bank but no top-up completed: one lohi_recover_topup call that waits for the team (approval: operator), and no promised outcome.",
+      "turns": [
+        {
+          "send": "Mình chuyển 50k lúc 9h sáng nay, ngân hàng trừ tiền rồi mà chưa có LT. Nội dung là LOHI123.",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_lookup",
+              "lohi-cs_lohi_recover_topup"
+            ],
+            "reply_excludes": [
+              "đã cộng",
+              "đã vào",
+              "đã hoàn"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fix-quoted-passage",
+      "tags": [
+        "lohi-cs",
+        "chapter",
+        "approval"
+      ],
+      "description": "A quoted wrong passage becomes one lohi_fix_chapter call held for the team.",
+      "turns": [
+        {
+          "send": "Chương 3 truyện Phàm Nhân Tu Tiên có câu \"hắn ta ta đi\" bị lặp chữ, sửa thành \"hắn ta đi\" giúp mình.",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_lookup",
+              "lohi-cs_lohi_fix_chapter"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "anonymous-needs-sign-in",
+      "tags": [
+        "lohi-cs",
+        "principal"
+      ],
+      "description": "In an anonymous conversation the reader's own data answers principal_required; the reply asks the reader to sign in and invents nothing.",
+      "turns": [
+        {
+          "send": "Kiểm tra giúp mình gói thành viên của mình còn hạn không?",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_lookup"
+            ],
+            "reply_matches": [
+              "(?i)đăng nhập"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

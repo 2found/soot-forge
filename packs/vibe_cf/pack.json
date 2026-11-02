@@ -1,6 +1,28 @@
 {
   "api_version": "soot/v1",
   "id": "vibe_cf",
+  "label": {
+    "vi": "Cloudflare: chia sẻ tệp và web app",
+    "en": "Cloudflare"
+  },
+  "keywords": {
+    "vi": [
+      "cloudflare",
+      "chia sẻ tệp",
+      "web app",
+      "r2"
+    ],
+    "en": [
+      "cloudflare",
+      "file sharing",
+      "workers",
+      "r2"
+    ]
+  },
+  "description": {
+    "vi": "Cloudflare: chia sẻ tệp qua R2, triển khai Worker, D1 và hơn thế.",
+    "en": "Cloudflare mini-stack: R2 file sharing, Workers deploys, D1 and more."
+  },
   "skills": [
     {
       "name": "cloudflare_r2",

@@ -5,6 +5,9 @@ DM the bot is in (within the host's limits), with the owner, approvers and
 linked members recognised.
 The pack is only the adapter, `soot-channel` in [`adapter/`](adapter/): it adds
 no tools, skills or grants, and installing or selecting it starts nothing.
+`pack.json` declares the `telegram` and `discord` platforms in
+`channel.platforms`, with the setup `ui` (guide, bot token field, error copy)
+Nest renders in Cài đặt → Kênh chat; Nest has no platform names of its own.
 
 What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/domain/SKILL.md); this pack is kept separate from it on purpose: it is an adapter binary, not knowledge.
 

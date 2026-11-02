@@ -1,0 +1,60 @@
+/* Khách hàng. Colors come from Nest's semantic tokens (bridge init/theme,
+   applied with CSSOM); the fallbacks keep the standalone shell readable. */
+:root {
+  color-scheme: light dark;
+  --cs-bg: var(--background, #ffffff); --cs-fg: var(--foreground, #1f1f1f);
+  --cs-card: var(--card, #ffffff); --cs-border: var(--border, #e3e3e3);
+  --cs-muted: var(--muted-foreground, #6b6b6b); --cs-subtle: var(--muted, #f4f4f4);
+  --cs-primary: var(--primary, #2f5bd3); --cs-on-primary: var(--primary-foreground, #ffffff);
+  --cs-success: var(--success, #1f7a3d); --cs-success-bg: var(--success-subtle, #e8f5ec);
+  --cs-info-bg: var(--info-subtle, #eef3ff); --cs-wait-bg: var(--warning-subtle, #fff6e0);
+  --cs-radius: var(--radius, 8px);
+}
+:root[data-theme="dark"] { --cs-bg: var(--background, #161616); --cs-fg: var(--foreground, #ededed); --cs-card: var(--card, #1e1e1e); --cs-border: var(--border, #333333); --cs-muted: var(--muted-foreground, #a3a3a3); --cs-subtle: var(--muted, #262626); --cs-info-bg: var(--info-subtle, #1d2741); --cs-wait-bg: var(--warning-subtle, #3a3016); --cs-success-bg: var(--success-subtle, #17301f); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--cs-bg); color: var(--cs-fg); font: 14px/1.5 var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif); }
+main { max-width: 1100px; margin: 0 auto; padding: 20px 24px 48px; display: flex; flex-direction: column; gap: 12px; overflow-wrap: anywhere; }
+@media (max-width: 700px) { main { padding: 12px 16px 40px; } }
+h1 { margin: 0; font-size: 18px; } h2 { margin: 0; font-size: 14px; }
+p { margin: 0; }
+.head p { margin-top: 2px; }
+.muted { color: var(--cs-muted); font-size: 12px; }
+.line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.line.wrap { flex-wrap: wrap; justify-content: space-between; }
+.stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cols { display: grid; grid-template-columns: minmax(220px, 320px) 1fr; gap: 12px; align-items: start; }
+@media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+.card { background: var(--cs-card); border: 1px solid var(--cs-border); border-radius: var(--cs-radius); min-width: 0; }
+.list { display: flex; flex-direction: column; overflow: hidden; }
+.item { all: unset; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--cs-border); cursor: pointer; }
+.item:last-child { border-bottom: 0; }
+.item .line { justify-content: space-between; flex-wrap: wrap; }
+.item[aria-selected="true"] { background: var(--cs-subtle); }
+.item:focus-visible { outline: 2px solid var(--cs-primary); outline-offset: -2px; }
+.detail { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.name { font-size: 16px; }
+.pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--cs-subtle); }
+.pill.need { background: var(--cs-wait-bg); }
+.pill.soot { background: var(--cs-info-bg); }
+.pill.done { background: var(--cs-success-bg); color: var(--cs-success); }
+.tag { font-size: 12px; padding: 1px 6px; border: 1px solid var(--cs-border); border-radius: var(--cs-radius); }
+.facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.fact { background: var(--cs-subtle); border-radius: var(--cs-radius); padding: 8px 10px; }
+.fact dt { font-size: 12px; color: var(--cs-muted); } .fact dd { margin: 0; font-weight: 600; }
+.plain { margin: 0; padding-left: 18px; }
+.msg { padding: 8px 10px; border-radius: var(--cs-radius); background: var(--cs-subtle); max-width: 85%; }
+.msg.s, .msg.m { align-self: flex-end; background: var(--cs-info-bg); }
+.msg.internal { border: 1px dashed var(--cs-border); background: transparent; }
+.note { border-left: 2px solid var(--cs-border); padding-left: 8px; }
+.input { font: inherit; color: inherit; background: var(--cs-card); border: 1px solid var(--cs-border); border-radius: var(--cs-radius); padding: 6px 10px; min-height: 36px; min-width: 0; flex: 1 1 auto; }
+textarea.input { width: 100%; resize: vertical; }
+.btn { font: inherit; font-size: 13px; color: inherit; background: var(--cs-card); border: 1px solid var(--cs-border); border-radius: var(--cs-radius); padding: 6px 12px; min-height: 36px; cursor: pointer; flex: none; }
+.btn.sm { min-height: 32px; } .btn.xs { min-height: 24px; padding: 0 6px; font-size: 12px; }
+@media (pointer: coarse), (max-width: 700px) { .btn, .input { min-height: 44px; } .btn.xs { min-height: 32px; } }
+.btn.primary { background: var(--cs-primary); color: var(--cs-on-primary); border-color: var(--cs-primary); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn:focus-visible, .input:focus-visible { outline: 2px solid var(--cs-primary); outline-offset: 1px; }
+.notice { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--cs-info-bg); border-radius: var(--cs-radius); padding: 10px 12px; }
+.notice.success { background: transparent; color: var(--cs-success); padding: 0; }
+.notice.wait { background: var(--cs-wait-bg); }

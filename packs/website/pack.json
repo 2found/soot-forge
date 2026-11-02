@@ -1,6 +1,28 @@
 {
   "api_version": "soot/v1",
   "id": "website",
+  "label": {
+    "vi": "Trang web",
+    "en": "Website"
+  },
+  "keywords": {
+    "vi": [
+      "website",
+      "trang web",
+      "đăng bài",
+      "xuất bản"
+    ],
+    "en": [
+      "website",
+      "site",
+      "publish",
+      "pages"
+    ]
+  },
+  "description": {
+    "vi": "Phát hành và duy trì khu vực marketing của website Soot.",
+    "en": "Own and publish the bounded marketing region of the Soot website."
+  },
   "skills": [
     {
       "name": "website-marketing",

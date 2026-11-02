@@ -1,6 +1,28 @@
 {
   "api_version": "soot/v1",
   "id": "health",
+  "label": {
+    "vi": "Kiểm tra dịch vụ",
+    "en": "Health checks"
+  },
+  "keywords": {
+    "vi": [
+      "kiểm tra",
+      "sẵn sàng",
+      "http",
+      "giám sát"
+    ],
+    "en": [
+      "health",
+      "readiness",
+      "http",
+      "probe"
+    ]
+  },
+  "description": {
+    "vi": "Kiểm tra một dịch vụ đã sẵn sàng chưa qua địa chỉ HTTP đã cấu hình.",
+    "en": "Inspect readiness using a configured HTTP endpoint."
+  },
   "skills": [
     {
       "file": "skill.md",

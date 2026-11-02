@@ -1,0 +1,989 @@
+import { createWidgetComposer, createWidgetQuestion } from "./widget-composer.js";
+import { isAgentTranscriptAtEnd } from "./agent-behavior.js";
+
+// "Powered by Soot": the brand word links to the product site (a normal tab;
+// the frame sandbox allows popups that escape it).
+function poweredBy(footer, label) {
+  const at = label.lastIndexOf('Soot');
+  if (at < 0) { footer.textContent = label; return; }
+  const link = document.createElement('a');
+  link.href = 'https://trysoot.com';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Soot';
+  footer.replaceChildren(label.slice(0, at), link, label.slice(at + 4));
+}
+
+(() => {
+  const params = new URLSearchParams(location.search);
+  const parentOrigin = params.get('parent');
+  const $ = id => document.getElementById(id);
+
+  let nonce = '';
+  let cursor = 0;
+  let timer = null;
+  let closed = false;
+  let opened = false;
+  let pending = null;
+  let sending = false;
+  let resetting = false;
+  let errorKind = '';
+  let follow = true;
+  let configuredPosition = 'right';
+  let language = 'vi';
+  let scopes=[],scopeValue='',scopeName='',scopeRequired=false;
+  let removeThemeListener = () => {};
+  const sharedFiles = new Map();
+  const holding = new Map();
+  // Runs whose holding message has given way; a later read of the same
+  // history must not bring it back.
+  const settled = new Set();
+  // Conversation states in which no run is working, so no holding message holds.
+  const idleStates = new Set(['active', 'idle', 'completed', 'failed', 'stopped']);
+  function dropHolding(run) {
+    holding.get(run)?.remove(); holding.delete(run); settled.add(run);
+  }
+  // The visitor's latest question, so a run that ended without a reply can be
+  // asked again in one tap.
+  let lastAsked = '';
+  // What the run is doing now: a phase and a count from the server, never a
+  // tool name or text. The seconds tick here so a long lookup still looks alive.
+  let progress = null;
+  let progressTimer = null;
+  function showProgress(next) {
+    const phase = next && ['queued', 'thinking', 'working', 'writing'].includes(next.phase) ? next.phase : '';
+    const box = $('working');
+    clearInterval(progressTimer);
+    if (!phase) { progress = null; box.hidden = true; return; }
+    // The run's own start time, read once against this device's clock so a
+    // skewed clock neither shows a negative wait nor an hour-long one.
+    const started = progress?.run === next.run ? progress.started
+      : Date.now() - Math.min(Math.max(0, Date.now() - (Date.parse(next.since) || Date.now())), 600000);
+    progress = { run: next.run, phase, steps: Number(next.steps) || 0, started };
+    $('working-label').textContent = t('phase_' + phase) + '…';
+    box.dataset.phase = phase;
+    const tick = () => {
+      const seconds = Math.round((Date.now() - progress.started) / 1000);
+      const meta = [];
+      if (progress.steps > 0) meta.push(t('phase_step')(progress.steps));
+      if (seconds >= 3) meta.push(t('phase_seconds')(seconds));
+      $('working-meta').textContent = meta.length ? ' · ' + meta.join(' · ') : '';
+    };
+    tick();
+    progressTimer = setInterval(tick, 1000);
+    const appeared = box.hidden;
+    box.hidden = false;
+    $('transcript').append(box);
+    if (appeared) { if (follow) bottom(); else $('jump').hidden = false; }
+  }
+
+  const dict = {
+    vi: {
+      connecting: 'Đang kết nối…',
+      connected: 'Sẵn sàng hỗ trợ',
+      queued: 'Đã nhận · Đang chờ',
+      working: 'Đang trả lời…',
+      running: 'Đang trả lời…',
+      active: 'Sẵn sàng hỗ trợ',
+      idle: 'Sẵn sàng hỗ trợ',
+      waiting_input: 'Đang chờ bạn trả lời',
+      waiting_human: 'Đang chờ nhân viên',
+      blocked: 'Cần nhân viên hỗ trợ',
+      completed: 'Sẵn sàng hỗ trợ',
+      failed: 'Chưa thể trả lời',
+      stopped: 'Đã dừng',
+      reconnecting: 'Đang kết nối lại…',
+      sending: 'Đang gửi…',
+      pending_send: 'Tin nhắn đang chờ gửi',
+      cannot_connect: 'Chưa thể kết nối',
+      new_conversation: 'Cuộc trò chuyện mới',
+      reset_title: 'Bắt đầu cuộc trò chuyện mới?',
+      reset_desc: 'Cuộc trò chuyện hiện tại sẽ đóng. Nội dung chưa gửi sẽ được xóa.',
+      keep_chat: 'Tiếp tục chat',
+      confirm_reset: 'Bắt đầu mới',
+      new_messages: 'Tin mới',
+      retry: 'Thử lại',
+      resend: 'Gửi lại',
+      reconnect: 'Kết nối lại',
+      validation_error: 'Tin nhắn quá dài hoặc có ký tự không hợp lệ. Hãy rút ngắn rồi gửi lại.',
+      send_validation_error: 'Tin chưa hợp lệ. Hãy sửa nội dung rồi gửi lại.',
+      rate_error: 'Bạn đang gửi quá nhanh. Chờ một chút rồi thử lại.',
+      send_error: 'Chưa xác nhận tin đã gửi. Nội dung vẫn được giữ lại.',
+      challenge_error: 'Chưa xác minh được trình duyệt nên tin chưa được gửi. Nội dung vẫn được giữ lại.',
+      reply_error: 'Mình chưa trả lời được tin vừa rồi. Bạn bấm Gửi lại, hoặc hỏi theo cách khác nhé.',
+      expired_error: 'Phiên chat đã hết hạn. Bắt đầu cuộc trò chuyện mới để tiếp tục.',
+      connect_error: 'Hỗ trợ đang mất kết nối. Bạn có thể thử lại sau.',
+      reset_error: 'Chưa xác nhận đã đóng phiên. Thử lại để tránh tạo hai phiên.',
+      placeholder: 'Nhắn tin…',
+      send_label: 'Gửi tin nhắn',
+      sending_label: 'Đang gửi tin nhắn',
+      you: 'Bạn',
+      staff: 'Nhân viên',
+      powered_by: 'Được hỗ trợ bởi Soot',
+      open_label: 'Mở chat với ',
+      options_label: 'Tùy chọn cuộc trò chuyện',
+      close_label: 'Thu gọn chat',
+      transcript: 'Lịch sử trò chuyện', message: 'Tin nhắn', suggestions: 'Gợi ý bắt đầu',
+      composer_hint: 'Enter để gửi · Shift + Enter để xuống dòng · Esc hai lần xóa text',
+      copy: 'Sao chép', copied: 'Đã chép', copy_select: 'Đã chọn — nhấn Ctrl/⌘ + C',
+      phase_queued: 'Đã nhận tin, sắp trả lời', phase_thinking: 'Đang suy nghĩ', phase_working: 'Đang tra cứu', phase_writing: 'Đang soạn câu trả lời',
+      phase_step: n => 'bước ' + n, phase_seconds: n => n + ' giây',
+      q_title: 'Câu hỏi', q_confirm: 'Gửi', q_choices: 'Các lựa chọn', q_answered: 'Đã trả lời', q_closed: 'Câu hỏi đã đóng',
+      waiting_approval: 'Đang chờ đội ngũ duyệt', not_ready: 'Chưa sẵn sàng',
+      pointer_approval: 'Việc này cần đội ngũ duyệt. Mình đã báo cho họ, bạn sẽ nhận trả lời ngay tại đây.',
+      pointer_team: 'Mình đã chuyển việc này cho đội ngũ. Bạn sẽ nhận trả lời ngay tại đây.',
+      pointer_not_ready: 'Soot chưa sẵn sàng. Tin nhắn của bạn vẫn được giữ và sẽ được trả lời khi Soot sẵn sàng.',
+      pointer_unavailable: 'Soot tạm ngưng hôm nay. Bạn quay lại sau nhé.',
+      not_asker: 'Chỉ người hỏi mới trả lời được câu này.',
+      already_resolved: 'Câu hỏi này đã được trả lời.', moved_on: 'Câu hỏi này đã thay đổi.',
+    },
+    en: {
+      connecting: 'Connecting…',
+      connected: 'Ready to help',
+      queued: 'Received · Queued',
+      working: 'Replying…',
+      running: 'Replying…',
+      active: 'Ready to help',
+      idle: 'Ready to help',
+      waiting_input: 'Waiting for your reply',
+      waiting_human: 'Waiting for staff',
+      blocked: 'Staff assistance needed',
+      completed: 'Ready to help',
+      failed: 'Unable to reply',
+      stopped: 'Stopped',
+      reconnecting: 'Reconnecting…',
+      sending: 'Sending…',
+      pending_send: 'Message queued to send',
+      cannot_connect: 'Unable to connect',
+      new_conversation: 'New conversation',
+      reset_title: 'Start a new conversation?',
+      reset_desc: 'Current conversation will close. Unsent messages will be cleared.',
+      keep_chat: 'Continue chat',
+      confirm_reset: 'Start new',
+      new_messages: 'New messages',
+      retry: 'Retry',
+      resend: 'Resend',
+      reconnect: 'Reconnect',
+      validation_error: 'Message is too long or contains invalid characters. Please shorten and resend.',
+      send_validation_error: 'Message invalid. Please adjust and resend.',
+      rate_error: 'You are sending too quickly. Please wait a moment.',
+      send_error: 'Message receipt unconfirmed. Draft preserved.',
+      challenge_error: 'This browser could not be verified, so nothing was sent. Your message is kept.',
+      reply_error: 'I couldn\'t answer your last message. Tap Resend, or ask it another way.',
+      expired_error: 'Chat session expired. Start a new conversation to continue.',
+      connect_error: 'Live chat is currently unavailable. Please try again later.',
+      reset_error: 'Failed to confirm session closure. Retry to avoid duplicate sessions.',
+      placeholder: 'Type a message…',
+      send_label: 'Send message',
+      sending_label: 'Sending message',
+      you: 'You',
+      staff: 'Staff',
+      powered_by: 'Powered by Soot',
+      open_label: 'Open chat with ',
+      options_label: 'Conversation options',
+      close_label: 'Close chat',
+      transcript: 'Conversation history', message: 'Message', suggestions: 'Suggested messages',
+      composer_hint: 'Enter to send · Shift + Enter for a new line · Double Esc to clear',
+      copy: 'Copy', copied: 'Copied', copy_select: 'Selected — press Ctrl/⌘ + C',
+      phase_queued: 'Got your message', phase_thinking: 'Thinking', phase_working: 'Looking things up', phase_writing: 'Writing a reply',
+      phase_step: n => 'step ' + n, phase_seconds: n => n + 's',
+      q_title: 'Question', q_confirm: 'Send', q_choices: 'Choices', q_answered: 'Answered', q_closed: 'Question closed',
+      waiting_approval: 'Waiting for the team\'s approval', not_ready: 'Not ready yet',
+      pointer_approval: 'This needs the team\'s approval. I\'ve let them know; you\'ll get the answer right here.',
+      pointer_team: 'I\'ve passed this to the team. You\'ll get the answer right here.',
+      pointer_not_ready: 'Soot isn\'t ready yet. Your message is kept and will be answered as soon as it is.',
+      pointer_unavailable: 'Soot is paused for today. Please come back later.',
+      not_asker: 'Only the person who asked can answer this.',
+      already_resolved: 'This question was already answered.', moved_on: 'This question has changed.',
+    },
+  };
+
+  const t = key => (dict[language] && dict[language][key]) || dict.vi[key] || key;
+
+  // ---- Question cards and pointers (live-chat-attention v1, spec §5.3) ----
+  // The SDK validates every card; the frame only renders it. Prompt and labels
+  // are Soot-authored text, everything around them is this frame's own copy.
+  const cards = new Map();
+  const pointers = new Map();
+  let openItem = null;
+  let answering = null;
+  let lastAnswer = null;
+  let pendingAnswerItem = null;
+  // The SDK's durable answer receipt ({item, choices}) as the last read saw it:
+  // an answer whose POST failed stays here until it is sent again.
+  let heldAnswer = null;
+  let heldReads = 0; // consecutive reads that still held the same receipt
+  let lastCustomerId = 0;
+  let unavailableAfter = -1;
+  const refusals = new Set(['not_asker', 'already_resolved', 'moved_on']);
+
+  function cardFooter(entry) {
+    const r = entry.card.resolution;
+    if (!r) return '';
+    if (r.outcome === 'closed') return t('q_closed');
+    return r.labels?.length ? t('q_answered') + ' · ' + r.labels.join(', ') : t('q_answered');
+  }
+
+  function cardProps(entry) {
+    const { card } = entry;
+    return {
+      title: t('q_title'), prompt: card.prompt, multiple: card.multi,
+      options: card.options.map((o, i) => ({ value: String(i), label: o.label, ...(o.description ? { description: o.description } : {}) })),
+      value: entry.value, confirmLabel: t('q_confirm'), selectionLabel: t('q_choices'),
+      busy: answering === card.item || pendingAnswerItem === card.item,
+      answered: !!card.resolution, footer: cardFooter(entry),
+      onValueChange: next => { if (card.resolution || answering === card.item) return; entry.value = next; entry.island.update(cardProps(entry)); },
+      onConfirm: () => answer(entry),
+    };
+  }
+
+  function cardNote(entry, code) {
+    entry.note.textContent = code ? t(code) : '';
+    entry.note.dataset.code = code || '';
+    entry.note.hidden = !code;
+  }
+
+  function updateCard(entry, card) {
+    if (card) {
+      const sent = entry.sent;
+      entry.card = card;
+      const r = card.resolution;
+      if (r) {
+        // A frozen card shows what was chosen; a typed answer selects nothing.
+        if (r.outcome === 'answered') entry.value = card.options.flatMap((o, i) => r.labels?.includes(o.label) ? [String(i)] : []);
+        // Our answer lost a race (second tab, double tap, a newer question):
+        // the card shows what happened, with one plain line, never an error.
+        if (sent) {
+          if (r.outcome === 'closed') cardNote(entry, 'moved_on');
+          else if (sent.length !== (r.labels || []).length || !sent.every(l => r.labels.includes(l))) cardNote(entry, 'already_resolved');
+          entry.sent = null;
+        }
+      }
+    }
+    entry.island.update(cardProps(entry));
+  }
+
+  function renderCard(article, message) {
+    const card = message.question;
+    const box = document.createElement('div');
+    box.className = 'question-island';
+    const note = document.createElement('p');
+    note.className = 'question-note';
+    note.setAttribute('role', 'status');
+    note.hidden = true;
+    article.className += ' question-card';
+    article.append(box, note);
+    const entry = { id: Number(message.id), card, value: [], sent: null, tries: 0, article, note, island: null };
+    cards.set(card.item, entry);
+    entry.island = createWidgetQuestion(box, cardProps(entry));
+    updateCard(entry, card);
+  }
+
+  function answer(entry) {
+    const { card } = entry;
+    if (card.resolution || answering || sending || resetting || pending || !nonce || !entry.value.length) return;
+    const choices = entry.value.map(Number).sort((a, b) => a - b);
+    answering = card.item;
+    lastAnswer = { item: card.item, choices };
+    entry.sent = choices.map(i => card.options[i]?.label);
+    cardNote(entry, '');
+    error();
+    $('activity').textContent = t('sending');
+    entry.island.update(cardProps(entry));
+    controls();
+    post('answer', { item: card.item, choices, message: entry.id, after: cursor });
+  }
+
+  // A card whose question is no longer the open one has been answered, closed or
+  // replaced. Its message is read again, at most a few times, to freeze it.
+  function staleCard() {
+    for (const entry of cards.values()) {
+      if (!entry.card.resolution && entry.card.item !== openItem && entry.card.item !== answering && entry.tries < 3) return entry;
+    }
+    return null;
+  }
+
+  const pointerCopy = { approval: 'pointer_approval', team: 'pointer_team', not_ready: 'pointer_not_ready', unavailable: 'pointer_unavailable' };
+  // One line per pointer, placed after the message it follows. The Soot already
+  // wrote its own status reply when `reply` is set, so nothing is added (R6).
+  function placePointers(list) {
+    for (const p of list) {
+      if (p.reply || pointers.has(p.item) || !pointerCopy[p.class]) continue;
+      const before = [...$('transcript').children].find(n => n.dataset?.message && Number(n.dataset.message) > p.afterMessage);
+      // Its message is not read yet: place the line on a later read.
+      if (!before && cursor < p.afterMessage) continue;
+      const line = document.createElement('p');
+      line.className = 'pointer';
+      line.dataset.pointer = p.item;
+      line.dataset.class = p.class;
+      line.setAttribute('role', 'status');
+      line.setAttribute('aria-live', 'polite');
+      line.textContent = t(pointerCopy[p.class]);
+      pointers.set(p.item, line);
+      $('transcript').insertBefore(line, before || $('working'));
+    }
+  }
+
+  function clearAttention() {
+    for (const entry of cards.values()) entry.island.destroy();
+    cards.clear();
+    for (const line of pointers.values()) line.remove();
+    pointers.clear();
+    openItem = null; answering = null; lastAnswer = null; pendingAnswerItem = null; heldAnswer = null; heldReads = 0;
+    lastCustomerId = 0; unavailableAfter = -1;
+  }
+
+  function attentionCopy() {
+    for (const entry of cards.values()) { entry.island.update(cardProps(entry)); if (entry.note.dataset.code) cardNote(entry, entry.note.dataset.code); }
+    for (const line of pointers.values()) line.textContent = t(pointerCopy[line.dataset.class]);
+  }
+
+  const post = (type, extra = {}) => {
+    if (parentOrigin) {
+      parent.postMessage({ soot_chat: 1, type, nonce, ...extra }, parentOrigin);
+    }
+  };
+
+  const composer = createWidgetComposer($('composer'), submit, text => {
+    if (errorKind === 'validation' && valid(text)) error();
+    controls();
+    if (follow) bottom();
+    post('draft', {text});
+  });
+
+  function expanded(value) {
+    const changed = opened !== value;
+    opened = value;
+    $('chat').hidden = !value;
+    $('launcher').hidden = value;
+    $('launcher').setAttribute('aria-expanded', String(value));
+    if (!value) {
+      clearTimeout(timer);
+      $('options').open = false;
+      $('reset-confirm').hidden = true;
+    }
+    post(value ? 'open' : 'close');
+    if (changed) (value ? $('chat') : $('launcher')).focus({ preventScroll: true });
+    if (value && follow) bottom();
+    if (changed && value) requestSync();
+  }
+
+  function error(value = '', kind = '', retry = '') {
+    errorKind = kind;
+    $('error').textContent = value;
+    $('error-bar').hidden = !value;
+    $('retry').hidden = !retry;
+    $('retry').textContent = retry || t('retry');
+    // A reply that never came is not the draft's fault, so the composer is not marked.
+    composer.update({invalid:kind === 'validation',error:!!value && kind !== 'reply'});
+  }
+
+  function controls() {
+    const locked = !!pending || resetting;
+    composer.update({disabled:resetting,readOnly:!!pending,sending,canSend:!locked&&!scopeRequired,scopes,scopeValue,scopeName,scopeDisabled:locked||sending,scopeLabel:'Soot',scopePlaceholder:language==='vi'?'Chọn Soot':'Choose Soot',onScope:value=>{if(locked||sending)return;resetting=true;controls();post('scope',{value});},
+      sendLabel:sending?t('sending_label'):t('send_label'),message:t('message'),placeholder:t('placeholder'),
+      name:$('name').textContent,hint:t('composer_hint'),files:[...sharedFiles.values()].slice(-256),
+      skillLabel:language==='vi'?'Kỹ năng':'Skills',fileLabel:language==='vi'?'Tệp đã chia sẻ':'Shared files',
+      emptyLabel:language==='vi'?'Chưa có mục phù hợp trong phiên này.':'No matching items in this conversation.',
+      mobile:document.documentElement.dataset.layout==='mobile'});
+    $('retry').disabled = sending || resetting;
+    $('reset').disabled = resetting || sending;
+    $('confirm-reset').disabled = resetting || sending;
+    $('keep').disabled = resetting;
+    for (const b of $('quick').children) {
+      b.disabled = locked || !!$('text').value.trim();
+    }
+  }
+
+  function bottom() {
+    $('transcript').scrollTop = $('transcript').scrollHeight;
+    follow = true;
+    $('jump').hidden = true;
+  }
+
+  // Soot answers in light markdown. It is built from DOM nodes only, so model or
+  // staff text never becomes markup, and a link must be an absolute https URL.
+  function inline(parent, text) {
+    let at = 0;
+    for (const m of text.matchAll(/\*\*([^*\n]+)\*\*|`([^`\n]+)`|\[([^\]\n]+)\]\(([^\s)]+)\)|https:\/\/[^\s<>()]*[^\s<>().,;:!?'"*]/g)) {
+      if (m.index > at) parent.append(text.slice(at, m.index));
+      at = m.index + m[0].length;
+      let node, url = null;
+      if (m[1] || m[2]) {
+        node = document.createElement(m[1] ? 'strong' : 'code');
+        node.textContent = m[1] || m[2];
+      } else {
+        try { url = new URL(m[4] || m[0]); } catch {}
+        if (!url || url.protocol !== 'https:' || url.username || url.password) { parent.append(m[0]); continue; }
+        node = document.createElement('a');
+        node.href = url.href;
+        node.target = '_blank';
+        node.rel = 'noopener noreferrer nofollow';
+        node.textContent = m[3] || m[0];
+      }
+      parent.append(node);
+    }
+    if (at < text.length) parent.append(text.slice(at));
+  }
+
+  function codeBlock() {
+    const figure = document.createElement('div');
+    figure.className = 'code-block';
+    const pre = document.createElement('pre'), code = document.createElement('code');
+    pre.append(code);
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'copy-code';
+    copy.textContent = t('copy');
+    copy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(code.textContent);
+        copy.textContent = t('copied');
+      } catch {
+        // No clipboard permission: select the text so the visitor can copy it.
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        getSelection()?.removeAllRanges();
+        getSelection()?.addRange(range);
+        copy.textContent = t('copy_select');
+      }
+      setTimeout(() => { copy.textContent = t('copy'); }, 2000);
+    };
+    figure.append(pre, copy);
+    return { figure, code };
+  }
+
+  const cells = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+  const tableRow = line => /^\s*\|.*\|\s*$/.test(line);
+  const tableRule = line => line.includes('---') && cells(line).every(c => /^:?-{3,}:?$/.test(c));
+
+  // A chat is too narrow for columns, so a markdown table is read row by row:
+  // the first cell names the row, every other cell is labelled by its header.
+  function table(head, rows) {
+    const out = document.createElement('div');
+    out.className = 'table';
+    for (const row of rows) {
+      const item = document.createElement('div');
+      item.className = 'row';
+      const title = document.createElement('strong');
+      inline(title, row[0] || '');
+      const pairs = document.createElement('dl');
+      for (let i = 1; i < row.length; i++) {
+        if (!row[i]) continue;
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        inline(dt, head[i] || '');
+        inline(dd, row[i]);
+        pairs.append(dt, dd);
+      }
+      item.append(title, pairs);
+      out.append(item);
+    }
+    return out;
+  }
+
+  function prose(text) {
+    const body = document.createElement('div');
+    body.className = 'prose';
+    let block = null, kind = '', code = null;
+    const lines = text.split('\n');
+    for (let n = 0; n < lines.length; n++) {
+      const line = lines[n];
+      // A fenced block is a command or config to copy: keep it verbatim, never as markup.
+      if (/^\s*```/.test(line)) {
+        if (code) { code = null; kind = ''; continue; }
+        const fenced = codeBlock(); code = fenced.code; body.append(fenced.figure); kind = 'code';
+        continue;
+      }
+      if (code) { code.textContent += (code.textContent ? '\n' : '') + line; continue; }
+      if (tableRow(line) && tableRule(lines[n + 1] || '')) {
+        const head = cells(line), rows = [];
+        for (n += 2; n < lines.length && tableRow(lines[n]); n++) rows.push(cells(lines[n]));
+        n--;
+        body.append(table(head, rows));
+        kind = '';
+        continue;
+      }
+      const item = /^\s*(?:[-*\u2022]|(\d{1,3})[.)])\s+(.*)$/.exec(line), heading = /^#{1,4}\s+(.*)$/.exec(line);
+      if (!line.trim()) {
+        kind = '';
+      } else if (item) {
+        const list = item[1] ? 'ol' : 'ul';
+        if (kind !== list) {
+          block = document.createElement(list);
+          if (item[1] && item[1] !== '1') block.start = Number(item[1]);
+          body.append(block);
+          kind = list;
+        }
+        const li = document.createElement('li');
+        inline(li, item[2]);
+        block.append(li);
+      } else if (heading) {
+        block = document.createElement('p');
+        const strong = document.createElement('strong');
+        inline(strong, heading[1]);
+        block.append(strong);
+        body.append(block);
+        kind = '';
+      } else {
+        if (kind === 'p') block.append('\n');
+        else { block = document.createElement('p'); body.append(block); kind = 'p'; }
+        inline(block, line);
+      }
+    }
+    return body;
+  }
+
+  function render(message) {
+    const role = message.role === 'user' ? (message.actor_role === 'member' ? 'member' : 'customer') : message.role;
+    // A card read again (its refresh, or a submission read from the start)
+    // updates in place: it is rendered once and freezes with its resolution.
+    const known = message.question && cards.get(message.question.item);
+    if (known) { updateCard(known, message.question); return false; }
+    if (
+      !['customer', 'assistant', 'member'].includes(role) ||
+      (message.intent === 'acknowledgement' && settled.has(message.run)) ||
+      document.querySelector('[data-message="' + CSS.escape(String(message.id)) + '"]')
+    ) {
+      return false;
+    }
+    for (const match of String(message.text || '').matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g)) {
+      try { const url=new URL(match[2]); if(!url.username&&!url.password&&/\.[a-z0-9]{1,8}$/i.test(url.pathname)) sharedFiles.set(url.href,{value:url.href,label:match[1]}); } catch {}
+      if(sharedFiles.size>256)sharedFiles.delete(sharedFiles.keys().next().value);
+    }
+    const article = document.createElement('article');
+    article.className = 'message ui-agent-message ' + role;
+    article.dataset.agentRole = role === 'customer' ? 'user' : 'assistant';
+    article.dataset.message = String(message.id);
+    // A visitor's own words stay verbatim; replies from Soot or staff are prose.
+    let body;
+    if (role === 'customer') {
+      body = document.createElement('p');
+      body.textContent = message.text;
+      lastAsked = String(message.text || '');
+      lastCustomerId = Math.max(lastCustomerId, Number(message.id) || 0);
+    } else if (role === 'assistant' && message.question) {
+      // The card replaces the text bubble; `text` is only the old clients' fallback.
+      body = null;
+    } else {
+      body = prose(String(message.text || ''));
+    }
+    const meta = document.createElement('small');
+    meta.className = 'ui-agent-message-label';
+    meta.id = 'message-label-' + String(message.id);
+    article.setAttribute('aria-labelledby', meta.id);
+    meta.textContent =
+      role === 'customer' ? t('you') : role === 'member' ? t('staff') : $('name').textContent;
+    const date = new Date(message.created);
+    if (Number.isFinite(date.getTime())) {
+      const time = document.createElement('time');
+      time.dateTime = date.toISOString();
+      time.textContent = date.toLocaleTimeString(language === 'vi' ? 'vi' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      meta.append(' · ', time);
+    }
+    article.append(meta);
+    if (body) article.append(body);
+    else renderCard(article, message);
+    // "Checking, one moment" only covers the wait: the run's reply replaces it,
+    // so a long chat is not a column of holding messages.
+    if (role === 'assistant' && message.run) {
+      if (message.intent === 'acknowledgement') holding.set(message.run, article);
+      else dropHolding(message.run);
+    }
+    $('transcript').insertBefore(article, $('working'));
+    return true;
+  }
+
+  function valid(value) {
+    return new TextEncoder().encode(value).length <= 4000 && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
+  }
+
+  function submit() {
+    // One request at a time reaches the loader; an answer in flight finishes first.
+    if (sending || resetting || answering) return;
+    const value = $('text').value.trim();
+    if (!value && !pending) return;
+
+    if (!pending) {
+      if (!valid(value)) {
+        error(t('validation_error'), 'validation');
+        return;
+      }
+      pending = { id: crypto.randomUUID(), text: value };
+    }
+
+    // The loader drops every frame message whose nonce does not match its own,
+    // so a send posted before 'init' arrives is silently discarded while
+    // 'sending' would stay stuck. Hold the input as pending and flush it once
+    // init supplies the nonce.
+    if (!nonce) {
+      $('activity').textContent = t('connecting');
+      controls();
+      return;
+    }
+
+    sending = true;
+    controls();
+    error();
+    $('activity').textContent = t('sending');
+    post('send', { id: pending.id, text: pending.text });
+  }
+
+  function reset() {
+    if (resetting || sending) return;
+    resetting = true;
+    controls();
+    $('activity').textContent = t('connecting');
+    post('reset');
+  }
+
+  function applyLanguage(lang) {
+    if (lang === 'en' || lang === 'vi') {
+      language = lang;
+      document.documentElement.lang = lang;
+    }
+    $('transcript').setAttribute('aria-label', t('transcript'));
+    $('quick').setAttribute('aria-label', t('suggestions'));
+    $('close').setAttribute('aria-label', t('close_label'));
+    $('options').querySelector('summary').setAttribute('aria-label', t('options_label'));
+    $('reset').textContent = t('new_conversation');
+    $('reset-title').textContent = t('reset_title');
+    const resetP = $('reset-confirm').querySelector('p');
+    if (resetP) resetP.textContent = t('reset_desc');
+    $('keep').textContent = t('keep_chat');
+    $('confirm-reset').textContent = t('confirm_reset');
+    if (progress) $('working-label').textContent = t('phase_' + progress.phase) + '…';
+    const footer = $('chat').querySelector('footer');
+    if (footer) poweredBy(footer, t('powered_by'));
+    const jump = $('jump');
+    if (jump) {
+      const svg = jump.querySelector('svg');
+      jump.replaceChildren(svg || '', t('new_messages'));
+    }
+  }
+
+  // The page's language picks the greeting and suggestions; the chrome follows it too.
+  let lastConfig = null;
+  const localized = cfg => ({ ...cfg, ...Object.fromEntries(Object.entries(cfg.translations?.[language] || {}).filter(([, v]) => v && v.length)) });
+
+  function applyConfig(raw) {
+    if (!raw) return;
+    lastConfig = raw;
+    const cfg = localized(raw);
+    $('name').textContent = cfg.name || 'Soot';
+    $('launcher').setAttribute('aria-label', t('open_label') + (cfg.name || 'Soot'));
+    $('greeting').textContent = cfg.greeting || '';
+    removeThemeListener();
+    const appearance = matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      document.documentElement.dataset.appearance =
+        cfg.theme === 'auto' || cfg.theme === 'system'
+          ? appearance.matches
+            ? 'dark'
+            : 'light'
+          : cfg.theme || 'light';
+    };
+    applyTheme();
+    if (cfg.theme === 'auto' || cfg.theme === 'system') {
+      appearance.addEventListener('change', applyTheme);
+      removeThemeListener = () => appearance.removeEventListener('change', applyTheme);
+    }
+    if (cfg.logo) {
+      const image = document.createElement('img');
+      image.src = cfg.logo;
+      image.alt = '';
+      $('logo').replaceChildren(image);
+    } else {
+      $('logo').textContent = (cfg.name || 'Soot').slice(0, 1);
+    }
+    $('quick').replaceChildren();
+    if (Array.isArray(cfg.quick_replies)) {
+      for (const title of cfg.quick_replies) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = title;
+        // A suggestion is a question the visitor picked: ask it. A draft they
+        // are typing is never replaced (the chips are disabled meanwhile).
+        b.onclick = () => {
+          if (pending || resetting || sending || $('text').value.trim()) return;
+          composer.setValue(title);
+          submit();
+        };
+        $('quick').append(b);
+      }
+    }
+    configuredPosition = cfg.position || 'right';
+    post('position', { position: configuredPosition });
+    controls();
+  }
+
+  function requestSync() {
+    clearTimeout(timer);
+    if (closed || !opened || resetting || sending || document.visibilityState === 'hidden') return;
+    const stale = staleCard();
+    post('sync', { after: cursor, ...(stale ? { refresh: stale.id } : {}) });
+    // Schedule independently of the response: a dropped read must not stop
+    // recovery. Collapsed and background documents never drain this API.
+    timer = setTimeout(requestSync, 3000);
+  }
+
+  // DOM Event Handlers
+  $('launcher').onclick = () => expanded(true);
+  $('close').onclick = () => expanded(false);
+  $('transcript').onscroll = () => {
+    const log = $('transcript');
+    follow = isAgentTranscriptAtEnd(log);
+    if (follow) $('jump').hidden = true;
+  };
+  $('jump').onclick = () => { bottom(); $('transcript').focus({ preventScroll: true }); };
+  const transcriptResize = new ResizeObserver(() => { if (follow) bottom(); });
+  transcriptResize.observe($('transcript'));
+  transcriptResize.observe($('composer'));
+  $('retry').onclick = () => {
+    if (errorKind === 'reset') reset();
+    else if (errorKind === 'expired') $('reset').click();
+    else if (errorKind === 'connection') post('retry-connect');
+    else if (errorKind === 'answer') {
+      // After a reload only the SDK's receipt knows the answer that failed.
+      const held = lastAnswer || heldAnswer;
+      const entry = held && cards.get(held.item);
+      if (entry && !entry.card.resolution) { entry.value = held.choices.map(String); answer(entry); }
+      else { error(); requestSync(); }
+    }
+    else if (errorKind === 'reply' && !pending && lastAsked) { pending = { id: crypto.randomUUID(), text: lastAsked, resend: true }; submit(); }
+    else if (pending) submit();
+    else requestSync();
+  };
+  $('reset').onclick = () => {
+    $('options').open = false;
+    $('reset-confirm').hidden = false;
+    $('keep').focus();
+  };
+  $('keep').onclick = () => {
+    $('reset-confirm').hidden = true;
+    $('options').querySelector('summary').focus();
+  };
+  $('confirm-reset').onclick = () => reset();
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!$('reset-confirm').hidden) {
+      if (!resetting) $('keep').click();
+    } else if ($('options').open) {
+      $('options').open = false;
+      $('options').querySelector('summary').focus();
+    } else {
+      expanded(false);
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!$('options').contains(e.target)) $('options').open = false;
+  });
+  document.addEventListener('visibilitychange', requestSync);
+
+  // RPC Message Listener from Parent
+  addEventListener('message', event => {
+    if (event.source !== parent || (parentOrigin && event.origin !== parentOrigin) || event.data?.soot_chat !== 1) {
+      return;
+    }
+    const msg = event.data;
+
+    if (msg.type === 'init' && typeof msg.nonce === 'string') {
+      nonce = msg.nonce;
+      if (msg.language) applyLanguage(msg.language);
+      if (msg.config) applyConfig(msg.config);
+      attentionCopy();
+      if(Array.isArray(msg.scopes))scopes=msg.scopes;
+      scopeValue=msg.scopeValue||'';scopeName=msg.scopeName||'';scopeRequired=!!msg.scopeRequired;
+      if (typeof msg.draft === 'string' && !$('text').value) {
+        composer.setValue(msg.draft);
+      }
+      if (msg.pendingMessage) pending = msg.pendingMessage;
+      if (errorKind === 'connection') error();
+      $('activity').textContent = t('connected');
+      controls();
+      requestSync();
+      // Flush a send the user queued before the nonce arrived (submit() held
+      // it as pending rather than posting a message the loader would drop).
+      if (pending && !sending) submit();
+    } else if (msg.type === 'sync' && msg.nonce === nonce) {
+      // Only a submission response can settle the foreground send. An older
+      // background read contains no evidence that its message was accepted.
+      // An answer settles on its reply; any later submission read also settles
+      // it, so a card never stays busy and the composer never stays locked.
+      const reply = msg.answer || (msg.submission && answering ? { item: answering } : null);
+      if (reply) {
+        const entry = cards.get(reply.item);
+        if (answering === reply.item) answering = null;
+        controls();
+        if (entry && (reply.code || (msg.error && reply.read !== false))) {
+          entry.sent = null;
+          if (refusals.has(reply.code)) cardNote(entry, reply.code);
+        }
+        if (entry) updateCard(entry);
+        // A busy reply carries no read to apply.
+        if (reply.code === 'busy' && !msg.messages) return;
+      }
+      if (sending && !msg.submission) return;
+      sending = false;
+      let added = false;
+      if (Array.isArray(msg.messages)) {
+        for (const m of msg.messages) {
+          added = render(m) || added;
+        }
+      }
+      if (typeof msg.next_after === 'number') {
+        cursor = Math.max(cursor, msg.next_after);
+      }
+      // The run behind a holding message ended without replying (or the page
+      // was reloaded long after): when nothing is working, nothing is "checking".
+      if (idleStates.has(msg.activity)) for (const run of [...holding.keys()]) dropHolding(run);
+      if (msg.refreshed) for (const entry of cards.values()) if (entry.id === Number(msg.refreshed)) entry.tries++;
+      if (!msg.error) {
+        openItem = msg.question?.item ?? null;
+        const held = msg.pendingAnswer?.item && Array.isArray(msg.pendingAnswer.choices) ? msg.pendingAnswer : null;
+        heldReads = held && heldAnswer && held.item === heldAnswer.item && held.id === heldAnswer.id ? heldReads + 1 : held ? 1 : 0;
+        heldAnswer = held;
+        const busyItem = heldAnswer?.item ?? null;
+        if (busyItem !== pendingAnswerItem) {
+          pendingAnswerItem = busyItem;
+          for (const entry of cards.values()) updateCard(entry);
+        }
+        if (Array.isArray(msg.pointers)) {
+          placePointers(msg.pointers);
+          // Only today's budget pointer after the visitor's latest message
+          // silences the reply Resend; an older one must not hide a later failure.
+          unavailableAfter = -1;
+          for (const p of msg.pointers) if (p.class === 'unavailable') unavailableAfter = Math.max(unavailableAfter, p.afterMessage);
+        }
+      }
+      if (added) {
+        $('welcome').hidden = true;
+        if (follow) bottom();
+        else $('jump').hidden = false;
+      }
+      if (msg.pendingMessage) {
+        pending = msg.pendingMessage;
+        $('activity').textContent = t('pending_send');
+      } else {
+        if (pending && !msg.error) {
+          // Successfully completed previous pending send. A resend never came
+          // from the composer, so whatever the visitor is typing stays.
+          if (!pending.resend) composer.setValue('');
+          pending = null;
+          bottom();
+        }
+        // What the conversation waits on, in the visitor's words (§8).
+        const waitKey = !idleStates.has(msg.activity) && { approval: 'waiting_approval', not_ready: 'not_ready' }[msg.waiting?.reason] || '';
+        $('activity').textContent = msg.progress?.phase && dict[language]?.['phase_' + msg.progress.phase]
+          ? t('phase_' + msg.progress.phase) + '…'
+          : waitKey ? t(waitKey) : t(dict[language]?.[msg.activity] ? msg.activity : 'connected');
+      }
+      // A failed read leaves the last known phase on screen; a closed session clears it.
+      if (!msg.error) showProgress(msg.progress);
+      else if (msg.error.kind === 'expired' || msg.error.kind === 'reset') showProgress(null);
+
+      if (msg.error) {
+        if (msg.error.kind === 'reset') {
+          resetting = false;
+          error(t('reset_error'), 'reset', t('retry'));
+        } else if (msg.answer && msg.answer.read !== false && msg.error.kind !== 'expired' && msg.error.kind !== 'connection' && msg.error.kind !== 'challenge') {
+          // The answer's receipt is kept: Resend repeats it with the same request ID.
+          error(t(msg.error.kind === 'rate' ? 'rate_error' : 'send_error'), 'answer', t('resend'));
+        } else if (msg.error.kind === 'rate') {
+          error(t('rate_error'), 'rate', t('retry'));
+        } else if (msg.error.kind === 'expired') {
+          error(t('expired_error'), 'expired', t('new_conversation'));
+        } else if (msg.error.kind === 'connection') {
+          $('activity').textContent = t('reconnecting');
+          error(t('connect_error'), 'connection', t('reconnect'));
+        } else if (msg.error.kind === 'challenge') {
+          error(t('challenge_error'), 'send', t('resend'));
+        } else if (msg.error.kind === 'validation') {
+          pending = null;
+          error(t('send_validation_error'), 'validation');
+        } else {
+          error(t('send_error'), 'send', t('resend'));
+        }
+      } else if (msg.pendingMessage) {
+        error(t('send_error'), 'send', t('resend'));
+      } else if (heldAnswer && !answering && (errorKind === 'answer' || heldReads >= 2)
+        && cards.has(heldAnswer.item) && !cards.get(heldAnswer.item).card.resolution) {
+        // An answer the runtime never got (timeout, 429, a reload after either):
+        // its card stays busy on the receipt, so Resend is the way forward. A
+        // receipt seen once may be another tab's answer still in flight.
+        error(t('send_error'), 'answer', t('resend'));
+      } else if (msg.activity === 'failed' && !sending && lastAsked && unavailableAfter < lastCustomerId) {
+        // (A run refused for today's budget keeps no message: its pointer says
+        // so, and a Resend would only be refused again.)
+        // The run ended without an answer. Its "checking, one moment" no longer
+        // holds, and the visitor gets a way forward instead of a silent stop.
+        error(t('reply_error'), 'reply', t('resend'));
+      } else if (['send', 'rate', 'connection', 'reply', 'answer'].includes(errorKind)) {
+        error();
+      }
+
+      controls();
+      if (!closed && opened && !resetting && document.visibilityState !== 'hidden') {
+        clearTimeout(timer);
+        // A reply in progress is watched a little closer.
+        timer = setTimeout(requestSync, progress ? 2000 : 3000);
+      }
+    } else if (msg.type === 'reset-done' && msg.nonce === nonce) {
+      resetting = false;
+      sending = false;
+      pending = null;
+      cursor = 0;
+      sharedFiles.clear();
+      composer.setValue('');
+      $('transcript').querySelectorAll('.message').forEach(x => x.remove());
+      showProgress(null);
+      holding.clear();
+      settled.clear();
+      clearAttention();
+      $('welcome').hidden = false;
+      $('reset-confirm').hidden = true;
+      $('activity').textContent = t('connected');
+      bottom();
+      error();
+      controls();
+      requestSync();
+    } else if (msg.type === 'unavailable' && typeof msg.nonce === 'string' && (!nonce || msg.nonce === nonce)) {
+      nonce = msg.nonce;
+      applyLanguage(msg.language);
+      if (typeof msg.draft === 'string' && !$('text').value) composer.setValue(msg.draft);
+      $('activity').textContent = t('cannot_connect');
+      error(msg.error?.kind === 'expired' ? t('expired_error') : t('connect_error'),
+        msg.error?.kind === 'expired' ? 'expired' : 'connection',
+        msg.error?.kind === 'expired' ? t('new_conversation') : t('reconnect'));
+      controls();
+    } else if (msg.nonce === nonce) {
+      if (msg.type === 'language') { applyLanguage(msg.language); applyConfig(lastConfig); attentionCopy(); controls(); }
+      if (msg.type === 'open') expanded(true);
+      if (msg.type === 'close') expanded(false);
+      if (msg.type === 'reset') reset();
+      if (msg.type === 'layout') {
+        document.documentElement.dataset.layout = msg.mobile ? 'mobile' : 'desktop';
+        controls();
+        if (follow) bottom();
+      }
+    }
+  });
+
+  addEventListener('pagehide', () => {
+    composer.destroy();
+    closed = true;
+    transcriptResize.disconnect();
+    removeThemeListener();
+    clearTimeout(timer);
+    clearInterval(progressTimer);
+  });
+
+  // Handshake to parent on load
+  if (parentOrigin) {
+    parent.postMessage({ soot_chat: 1, type: 'ready' }, parentOrigin);
+  }
+})();

@@ -172,6 +172,37 @@ test('pages and programs name pack tools with the right mode, or the pack is ref
   }
 });
 
+test('channel.platforms declarations follow the host rules: id, mode, request_prefix and the setup ui', async () => {
+  const shipped = JSON.parse(await readFile(join(import.meta.dirname, '..', 'packs', 'chat-channels', 'pack.json'), 'utf8'));
+  checkPackModel(shipped, 'chat-channels');
+  assert.deepEqual(shipped.channel.platforms.map(p => [p.id, p.mode, p.request_prefix]), [['telegram', 'supervised', 'tg'], ['discord', 'supervised', 'dc']], 'the prefixes the adapter and existing receipts use');
+  for (const p of shipped.channel.platforms) {
+    assert.ok(p.ui.guide.some(step => /https:\/\//.test(step)), `${p.id}: the guide links its bot console`);
+    assert.deepEqual(p.ui.fields.map(f => [f.key, f.kind]), [['bot_token', 'secret']]);
+    assert.ok(p.ui.errors.platform_token_rejected, `${p.id}: says where a new token comes from`);
+  }
+  const base = () => ({ api_version: 'soot/v1', id: 'zalo', channel: { platforms: [{ id: 'zalo', mode: 'supervised', ui: { label: 'Zalo', icon: 'message-circle', fields: [{ key: 'bot_token', label: 'Mã', kind: 'secret' }], errors: { zalo_refused: 'Zalo từ chối.' } } }] } });
+  checkPackModel(base(), 'zalo');
+  const refusals = [
+    [m => m.channel.platforms[0].id = 'web', /invalid or duplicate id/],
+    [m => m.channel.platforms.push(structuredClone(m.channel.platforms[0])), /invalid or duplicate id/],
+    [m => m.channel.platforms[0].mode = 'polling', /mode must be/],
+    [m => { m.channel.platforms[0].id = 'zalo-oa'; }, /request_prefix/],
+    [m => m.channel.platforms[0].request_prefix = 'Z', /request_prefix/],
+    [m => m.channel.platforms[0].ui.icon = 'Zalo Logo', /icon/],
+    [m => delete m.channel.platforms[0].ui.label, /label/],
+    [m => m.channel.platforms[0].ui.extra = 1, /holds only/],
+    [m => m.channel.platforms[0].ui.fields[0].kind = 'password', /ui field bot_token/],
+    [m => m.channel.platforms[0].ui.fields.push({ key: 'bot_token', label: 'x', kind: 'text' }), /ui field bot_token/],
+    [m => m.channel.platforms[0].ui.guide = Array(13).fill('x'), /ui.guide/],
+    [m => m.channel.platforms[0].ui.errors = { 'Bad-Code': 'x' }, /ui.errors/],
+  ];
+  for (const [mutate, reason] of refusals) {
+    const manifest = base(); mutate(manifest);
+    assert.throws(() => checkPackModel(manifest, 'zalo'), reason, reason.source);
+  }
+});
+
 test('a page bundle must hold index.html and stay within 5 MiB', async t => {
   const root = await mkdtemp(join(tmpdir(), 'page-bundle-')); t.after(() => rm(root, { recursive: true, force: true }));
   const manifest = { interface: { pages: [{ id: 'kho-tai-lieu', bundle: 'page/' }] } };
@@ -203,9 +234,52 @@ test('team-cs ships only generic skills and role Soots that hand off to members 
   assert.ok(cases >= 7, `P4.7 needs ≥ 7 eval cases, found ${cases}`);
 });
 
-test('the Kho tài liệu page bundle passes its own tests (bridge, bodies, no network, current app.js)', async () => {
-  const file = join(import.meta.dirname, '..', 'packs', 'data-pool-console', 'page', 'tests', 'page.test.mjs');
+for (const [pack, name] of [['data-pool-console', 'Kho tài liệu'], ['website-chat', 'Live chat settings']]) test(`the ${name} page bundle passes its own tests (bridge, bodies, no network, current app.js)`, async () => {
+  const file = join(import.meta.dirname, '..', 'packs', pack, 'page', 'tests', 'page.test.mjs');
   const { NODE_TEST_CONTEXT, ...env } = process.env; // a nested run reports to stdout, not to this runner
+  const { stdout } = await promisify(execFile)(process.execPath, ['--test', '--test-reporter=tap', file], { env });
+  assert.match(stdout, /^# fail 0$/m);
+});
+
+test('every pack Nest lists carries its own localized label, description and keywords (D6.4)', async () => {
+  const { readdir } = await import('node:fs/promises');
+  const root = join(import.meta.dirname, '..', 'packs');
+  for (const id of await readdir(root)) {
+    const manifest = JSON.parse(await readFile(join(root, id, 'pack.json'), 'utf8').catch(() => 'null'));
+    if (!manifest) continue;
+    for (const field of ['label', 'description']) assert.ok(manifest[field]?.vi && manifest[field]?.en, `${id}: ${field} in vi and en`);
+    assert.ok(manifest.keywords?.vi?.length && manifest.keywords?.en?.length, `${id}: keywords in vi and en`);
+  }
+});
+
+test('lohi-cs layers on team-cs with no skill conflict, keeps credit-bearing ops operator-approved and holds no price (AC-P4-7, X9)', async () => {
+  const read = async path => JSON.parse(await readFile(join(import.meta.dirname, '..', 'packs', path), 'utf8'));
+  const lohi = await read('lohi-cs/pack.json');
+  checkPackModel(lohi, 'lohi-cs');
+  const names = new Map();
+  for (const id of ['live-chat', 'team-cs', 'lohi-cs']) for (const s of (await read(`${id}/pack.json`)).skills ?? []) {
+    assert.ok(!names.has(s.name), `skill ${s.name} is in both ${names.get(s.name)} and ${id}`);
+    names.set(s.name, id);
+  }
+  const run = name => lohi.tools.find(t => t.name === name).run;
+  assert.equal(run('lohi_recover_topup').approval, 'operator', 'recover_topup credits LT');
+  assert.equal(run('lohi_recover_topup').preflight, true, 'its dry run is the approval card');
+  assert.equal(run('lohi_fix_chapter').approval, 'operator');
+  for (const t of lohi.tools) for (const v of Object.values(t.run.secret_env ?? {})) assert.match(v, /^\{\{cred:LOHI_CS(_EXEC|_BASE)?\}\}$/, `${t.name}: credentials are named only`);
+  const { readdir } = await import('node:fs/promises');
+  const seed = join(import.meta.dirname, '..', 'packs', 'lohi-cs', 'knowledge', 'lohi-support');
+  const pages = await readdir(seed);
+  assert.ok(pages.length >= 3);
+  for (const page of pages) assert.doesNotMatch(await readFile(join(seed, page), 'utf8'), /\d[\d.,]*\s*(đ|₫|vnđ|vnd|k\b|nghìn|LT\b)/i, `${page}: prices only come from lohi_lookup features`);
+  const evals = JSON.parse(await readFile(join(seed, '..', '..', 'evals', 'lohi-cs', 'support.eval.json'), 'utf8'));
+  const called = new Set(evals.cases.flatMap(c => c.turns.flatMap(t => t.expect.called ?? [])));
+  for (const t of lohi.tools) assert.ok(called.has(`lohi-cs_${t.name}`), `an eval case calls ${t.name}`);
+  assert.ok(evals.cases.some(c => c.tags.includes('price')), 'one price question from features');
+});
+
+test('the lohi-cs runner passes its own tests (principal header, anonymous refusal, no secret in argv)', async () => {
+  const file = join(import.meta.dirname, '..', 'packs', 'lohi-cs', 'tests', 'tool.test.mjs');
+  const { NODE_TEST_CONTEXT, ...env } = process.env;
   const { stdout } = await promisify(execFile)(process.execPath, ['--test', '--test-reporter=tap', file], { env });
   assert.match(stdout, /^# fail 0$/m);
 });

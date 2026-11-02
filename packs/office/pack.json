@@ -2,7 +2,30 @@
   "api_version": "soot/v1",
   "id": "office",
   "name": "Office",
-  "description": "Read, create and edit Word, Excel, PowerPoint and PDF files with bounded local tools.",
+  "label": {
+    "vi": "Word, Excel, PowerPoint và PDF",
+    "en": "Office files"
+  },
+  "keywords": {
+    "vi": [
+      "word",
+      "excel",
+      "powerpoint",
+      "pdf",
+      "văn phòng"
+    ],
+    "en": [
+      "word",
+      "excel",
+      "powerpoint",
+      "pdf",
+      "office"
+    ]
+  },
+  "description": {
+    "vi": "Đọc, tạo và sửa tệp Word, Excel, PowerPoint và PDF bằng công cụ cục bộ.",
+    "en": "Read, create and edit Word, Excel, PowerPoint and PDF files with bounded local tools."
+  },
   "skills": [
     {
       "name": "office_read",

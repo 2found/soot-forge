@@ -1,6 +1,26 @@
 {
   "api_version": "soot/v1",
   "id": "router-care",
+  "label": {
+    "vi": "Theo dõi 9router",
+    "en": "Router care"
+  },
+  "keywords": {
+    "vi": [
+      "9router",
+      "phát hành",
+      "trạng thái"
+    ],
+    "en": [
+      "9router",
+      "release",
+      "status"
+    ]
+  },
+  "description": {
+    "vi": "Hiểu các ghi nhận phát hành và rào triển khai của 9router qua công cụ chỉ đọc.",
+    "en": "Interpret 9router release observations and rollout fences with a read-only status tool."
+  },
   "skills": [
     {
       "name": "release-care",

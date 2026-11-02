@@ -2,7 +2,28 @@
   "api_version": "soot/v1",
   "id": "ocr",
   "name": "OCR",
-  "description": "Extract native PDF text first; recognize scans with a host-bound DeepSeek OCR model.",
+  "label": {
+    "vi": "Đọc chữ từ ảnh và PDF",
+    "en": "OCR"
+  },
+  "keywords": {
+    "vi": [
+      "ocr",
+      "đọc chữ",
+      "pdf",
+      "ảnh scan"
+    ],
+    "en": [
+      "ocr",
+      "pdf",
+      "scan",
+      "text"
+    ]
+  },
+  "description": {
+    "vi": "Lấy chữ có sẵn trong PDF trước; nhận dạng bản scan bằng mô hình DeepSeek OCR của máy chủ.",
+    "en": "Extract native PDF text first; recognize scans with a host-bound DeepSeek OCR model."
+  },
   "skills": [
     {
       "name": "ocr_assess",

@@ -1,6 +1,30 @@
 {
   "api_version": "soot/v1",
   "id": "marketing",
+  "label": {
+    "vi": "Marketing",
+    "en": "Marketing"
+  },
+  "keywords": {
+    "vi": [
+      "marketing",
+      "quảng cáo",
+      "nội dung",
+      "chiến dịch",
+      "mạng xã hội"
+    ],
+    "en": [
+      "marketing",
+      "ads",
+      "content",
+      "campaign",
+      "social"
+    ]
+  },
+  "description": {
+    "vi": "Kỹ năng và công cụ của một đội marketing: theo dõi nguồn, viết, duyệt, đăng và rút kinh nghiệm.",
+    "en": "The know-how and tools of a marketing team that researches, writes, reviews, publishes and learns."
+  },
   "skills": [
     {
       "name": "marketing-radar",

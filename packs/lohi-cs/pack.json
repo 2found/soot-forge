@@ -1,0 +1,505 @@
+{
+  "api_version": "soot/v1",
+  "id": "lohi-cs",
+  "name": "Lohi CS",
+  "label": {
+    "vi": "CSKH Lohi",
+    "en": "Lohi customer care"
+  },
+  "description": {
+    "vi": "Công cụ và kỹ năng CSKH của Lohi, đặt trên team-cs: tra ví, gói, nạp LT, chương và audio của chính bạn đọc qua danh tính do máy chủ ký.",
+    "en": "Lohi's customer care tools and skills on top of team-cs: the reader's own wallet, plan, top-ups, chapters and audio through the host-signed principal."
+  },
+  "keywords": {
+    "vi": [
+      "lohi",
+      "cskh",
+      "nạp lt",
+      "linh thạch",
+      "chương lỗi",
+      "audio"
+    ],
+    "en": [
+      "lohi",
+      "customer care",
+      "top-up",
+      "chapter",
+      "audio"
+    ]
+  },
+  "skills": [
+    {
+      "name": "lohi-triage",
+      "file": "skills/lohi-triage.md",
+      "description": "Lohi router, read after team-cs's cs-triage: pick the Lohi skill for the reader's issue (top-up, chapter, name, TTS, audio-pro, features, recommendations, novel request, account)."
+    },
+    {
+      "name": "topup-triage",
+      "file": "skills/topup-triage.md",
+      "description": "Nạp LT chưa vào: tra top-up/đơn của chính khách (lohi_lookup), và khi tiền đã trừ mà không có top-up completed thì hỏi khung giờ rồi gọi lohi_recover_topup một lần (chờ đội duyệt)."
+    },
+    {
+      "name": "chapter-triage",
+      "file": "skills/chapter-triage.md",
+      "description": "Chương thiếu / trống / còn tiếng Trung / nhảy số / sai chữ: tìm truyện, quét content_health, báo cho đội; đoạn sai khách trích nguyên văn hoặc chương hỏng thì lohi_fix_chapter (chờ đội duyệt)."
+    },
+    {
+      "name": "name-triage",
+      "file": "skills/name-triage.md",
+      "description": "Tên nhân vật dịch sai / lệch giữa các chương: đếm cách viết trong văn bản + Book Bible, mở phiếu duyệt cho đội — không tự sửa."
+    },
+    {
+      "name": "tts-triage",
+      "file": "skills/tts-triage.md",
+      "description": "Audio / audio Pro lỗi (phát 2 giây, trống, không nghe được): quét content_health, tách lỗi nội dung với lỗi audio, báo cho đội."
+    },
+    {
+      "name": "audio-pro",
+      "file": "skills/audio-pro.md",
+      "description": "Audio-pro / quota questions: subscription plan plus TTS and audio-pro quota used vs monthly limit."
+    },
+    {
+      "name": "feature-guide",
+      "file": "skills/feature-guide.md",
+      "description": "Hỏi về tính năng web/iOS/Android và gói thành viên: tra lookup features (giá, hạn mức, nền tảng, gói nào mở khóa), giải thích vì sao tính năng bị khóa."
+    },
+    {
+      "name": "novel-recommend",
+      "file": "skills/novel-recommend.md",
+      "description": "Gợi ý truyện theo mong muốn của độc giả: hỏi lại khi mơ hồ, chọn 3-5 truyện từ lookup recommend, giải thích ngắn vì sao hợp, kèm link."
+    },
+    {
+      "name": "novel-request",
+      "file": "skills/novel-request.md",
+      "description": "Create and check novel requests on behalf of the chatting user (idempotent; confirm the title back)."
+    },
+    {
+      "name": "account-help",
+      "file": "skills/account-help.md",
+      "description": "Đăng nhập, mất tài khoản, thiết bị, mã OTP: hướng dẫn theo trang trong kho lohi-support, không bao giờ thay đổi tài khoản."
+    }
+  ],
+  "tools": [
+    {
+      "name": "lohi_lookup",
+      "description": "Read the chatting user's own account data (profile, wallet, top-ups, orders, subscription+quota, requests, chapter unlocks), reading suggestions (kind=recommend: REQUIRED first step whenever the reader asks what to read or for novel suggestions — returns their taste + ranked unread candidates; optional like (\"giống X\")/about (story content)/q/genres/tags/status; never name novels from memory) or public novel/chapter data. Broken content / audio reports: kind=find_novel (q = the title or the lohi2.com link the reader gave → novelId, slug, chapterFromLink) THEN kind=content_health (novelId + from[/to] chapter numbers → per-chapter body verdict missing|empty|placeholder|untranslated|unpublished and Pro-audio verdict on_empty_text|placeholder|too_short, plus defect runs). REQUIRED before saying anything about a chapter or audio being broken. The reader's own data is scoped by the host's signed principal, never by a parameter; an anonymous conversation gets principal_required. Wrong character names: kind=name_check (novelId + name[+other] + from[/to], max 60 chapters) → how many chapters use each spelling and whether the Book Bible knows either; counts only, no chapter text. Product/plan questions: kind=features (optional q) → plans with CURRENT price/quota/offline limit, free limits, LT costs, and per feature web/iOS/Android availability + which plans unlock it. REQUIRED before answering any 'tính năng X có không / gói nào / giá / hạn mức / trên iOS có không' question; never quote prices or quotas from memory.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "me",
+              "profile",
+              "wallet",
+              "topups",
+              "orders",
+              "subscription",
+              "requests",
+              "unlocks",
+              "recommend",
+              "find_novel",
+              "content_health",
+              "name_check",
+              "features",
+              "novel_chapters",
+              "chapter_tts"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "novelId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "chapterId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "q": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "recommend: the reader's wish as a topic/genre phrase or a title they want to FIND (never 'giống truyện đã đọc'/'đang hot'/'đã hoàn' — those are no q, or status). find_novel: a title, slug or lohi2.com link exactly as the reader gave it. features: the feature or plan the reader asks about (e.g. 'tải offline', 'hẹn giờ', 'audio pro'); empty = whole table."
+          },
+          "about": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "recommend only: what the story is ABOUT in the reader's own words — protagonist's trade/identity, events, relationships, world (e.g. 'nữ chính bác sĩ, xuyên về cổ đại, báo thù'); commas separate ideas. Matched fuzzily against each novel's story card; candidates from it carry reason `about`, and every candidate carries `premise` + `keywords` when its card exists."
+          },
+          "like": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "recommend only: 'truyện giống X' — X's title, slug or lohi2.com link. Seeds similar novels from X itself; X is never returned. The response's `like` says which novel it resolved to (null = none)."
+          },
+          "genres": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "tags": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "recommend only: story traits the 11 genres cannot express, comma separated, as the reader said them or as slugs — pairing (đam mỹ, bách hợp, ngôn tình, vô CP, hậu cung), ending (HE, BE, OE), lead (thường nhân lưu, vô địch lưu, phế vật lưu, hệ thống, nữ cường, xuyên sách…), role (y thuật, luyện đan, trận pháp, kinh doanh, mỹ thực, quân nhân, sát thủ, thiên tài, minh tinh, thể thao, ngự thú, lãnh chúa), setting (mạt thế, vô hạn lưu, linh dị…), trope (báo thù, xuyên nhanh, nữ phụ, trước hôn sau yêu, truy thê, thanh mai trúc mã, sư đồ, manh bảo, thật giả thiên kim, giấu nghề, livestream, đạo mộ), tone (sảng văn, ngược, sủng, hài hước, chữa lành, hắc ám). Candidates from it carry reason tag:<slugs>; the response's `tags` lists what was understood."
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "ongoing"
+            ]
+          },
+          "from": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "name_check: the spelling the reader says is WRONG, exactly as it appears in the chapter text."
+          },
+          "other": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "name_check: the spelling the reader says is RIGHT (optional)."
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "bin/soot-lohi-api",
+        "args": [
+          "lookup"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "15s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "lohi_thread_history",
+      "description": "Read back what was already said in THIS conversation. Use it before answering when the newest message is not self-contained: the reader spread one problem over several messages, referred to something earlier ('cái đó', 'như mình nói'), or sent a follow-up whose subject is in a previous line. q finds a line by keyword (accent-insensitive); before=nextCursor keeps looking further back.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "q": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "before": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "bin/soot-lohi-api",
+        "args": [
+          "history"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "15s",
+        "max_output_bytes": 32768,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "lohi_request_novel",
+      "description": "Create a novel request on behalf of the chatting user (type novel only, idempotent). One per request; confirm the title back to the user.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "sourceUrl": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "genre": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "requestId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "title",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "bin/soot-lohi-api",
+        "args": [
+          "request-novel"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "lohi_api",
+        "timeout": "15s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "lohi_report_content_issue",
+      "description": "Ask the support team to fix a broken novel/chapter/audio defect that kind=content_health has ALREADY shown for this window. kind=content (chapters missing/empty/placeholder/untranslated) or kind=audio (Pro audio too short/placeholder on good text). The server re-checks the defect itself and refuses a healthy window; nothing is changed until a member approves it. Max 3 pending per conversation. Tell the reader it is queued for the team, never that it is fixed or when. kind=name (wrong character name): needs wrongName (+ rightName) and requires that kind=name_check showed the wrong spelling in the text; it opens a REVIEW for staff, who decide — never promise a rename.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "novelId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "kind": {
+            "enum": [
+              "content",
+              "audio",
+              "name"
+            ]
+          },
+          "from": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "the reader's complaint in one line"
+          },
+          "reportId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "wrongName": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "rightName": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "required": [
+          "novelId",
+          "kind",
+          "from",
+          "reportId"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "bin/soot-lohi-api",
+        "args": [
+          "report-content"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "lohi_api",
+        "timeout": "20s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "lohi_recover_topup",
+      "title": "Kiểm tra và cộng khoản nạp SePay",
+      "description": "Recover a SePay top-up the reader paid but never received. Give the time window they paid in (from/to, ISO 8601 with offset, at most 72 h) and what they know (amountVnd, transferNote). The api checks this reader's own unfinished top-ups in that window with SePay and credits only when exactly one is paid; the LT comes from that top-up, never from you. Every call waits for the support team's approval first. Answers: {ltAmount, balanceAfter, topupId} credited; {already:true} already credited; not_found no top-up in the window; not_paid SePay has no confirmed payment yet (unverified lists top-ups SePay has no record of — never proof they did not pay); ambiguous several paid (candidates listed, nothing credited); amount_mismatch; not_creditable (reason; nothing credited); provider_unavailable (try later). Report only what it answered.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "maxLength": 40,
+            "description": "start of the window the reader paid in, e.g. 2026-10-28T13:30:00+07:00"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "maxLength": 40,
+            "description": "end of the window, after from, at most 72 h later"
+          },
+          "amountVnd": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000,
+            "description": "the amount the reader says they transferred (a filter, not an amount to credit)"
+          },
+          "transferNote": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "the transfer note (nội dung chuyển khoản) if the reader has it"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "one line for the approver: what the reader reported and why this fixes it"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "bin/soot-lohi-api",
+        "args": [
+          "recover-topup"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "preflight": true,
+        "approval": "operator",
+        "resource": "lohi_api",
+        "timeout": "30s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS_EXEC}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "lohi_fix_chapter",
+      "title": "Sửa một chương truyện",
+      "description": "Fix one chapter after the reader reported it. mode=replace: an exact wrong passage the reader quoted → find (exact text as it appears), replace (the corrected text) and expectOccurrences (how many places the reader says are wrong, default 1); the api refuses unless exactly that many matches exist (occurrences_mismatch {found}). mode=recrawl: a missing, empty or garbled chapter is fetched again from its source (not_recrawlable, job_active). novelId comes from lohi_lookup find_novel. Every call waits for the support team's approval first. One call per report.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "novelId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "chapterNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "mode": {
+            "enum": [
+              "replace",
+              "recrawl"
+            ]
+          },
+          "find": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "replace only: the wrong text exactly as it appears in the chapter"
+          },
+          "replace": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "replace only: the corrected text (empty removes it)"
+          },
+          "expectOccurrences": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "replace only: how many places should change; default 1"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "one line for the approver: what the reader reported and why this fixes it"
+          }
+        },
+        "required": [
+          "novelId",
+          "chapterNumber",
+          "mode",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "bin/soot-lohi-api",
+        "args": [
+          "fix-chapter"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "preflight": true,
+        "approval": "operator",
+        "resource": "lohi_api",
+        "timeout": "30s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS_EXEC}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "LOHI_CS": {
+        "title": "Lohi CS API key",
+        "description": "Read-only support key for the Lohi API (lookup, thread history, novel requests, content reports).",
+        "from": "env:LOHI_CS_API_KEY"
+      },
+      "LOHI_CS_BASE": {
+        "title": "Lohi API base URL",
+        "description": "Base URL of the Lohi API the support tools call.",
+        "from": "env:LOHI_API_BASE"
+      },
+      "LOHI_CS_EXEC": {
+        "title": "Lohi CS execution key",
+        "description": "Key for the support actions that change an account (top-up recovery, chapter fixes).",
+        "from": "env:LOHI_CS_EXEC_API_KEY"
+      }
+    }
+  }
+}

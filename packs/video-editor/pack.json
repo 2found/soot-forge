@@ -2,7 +2,28 @@
   "api_version": "soot/v1",
   "id": "video-editor",
   "name": "Video editor",
-  "description": "Plan and produce short videos with FFmpeg, measured audio, safe captions and optional HyperFrames motion.",
+  "label": {
+    "vi": "Dựng video",
+    "en": "Video editor"
+  },
+  "keywords": {
+    "vi": [
+      "video",
+      "dựng phim",
+      "phụ đề",
+      "ffmpeg"
+    ],
+    "en": [
+      "video",
+      "editing",
+      "captions",
+      "ffmpeg"
+    ]
+  },
+  "description": {
+    "vi": "Lên kế hoạch và dựng video ngắn bằng FFmpeg, âm thanh đo được và phụ đề an toàn.",
+    "en": "Plan and produce short videos with FFmpeg, measured audio, safe captions and optional HyperFrames motion."
+  },
   "skills": [
     {
       "name": "video_editor_plan",

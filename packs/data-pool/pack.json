@@ -1,6 +1,28 @@
 {
   "api_version": "soot/v1",
   "id": "data-pool",
+  "label": {
+    "vi": "Dữ liệu dùng chung",
+    "en": "Shared data"
+  },
+  "keywords": {
+    "vi": [
+      "dữ liệu",
+      "tài liệu",
+      "kho",
+      "tìm kiếm"
+    ],
+    "en": [
+      "data",
+      "documents",
+      "knowledge",
+      "search"
+    ]
+  },
+  "description": {
+    "vi": "Dùng dữ liệu chung của công ty, có trích nguồn, thay vì thu thập lại.",
+    "en": "Use shared company data with citations instead of recrawling sources."
+  },
   "skills": [
     {
       "name": "data-pool-read",

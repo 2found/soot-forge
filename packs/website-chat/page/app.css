@@ -1,0 +1,38 @@
+/* Live chat settings. Colors come from Nest's semantic tokens (bridge
+   init/theme, applied with CSSOM); the fallbacks keep the standalone shell readable. */
+:root {
+  color-scheme: light dark;
+  --lc-bg: var(--background, #ffffff); --lc-fg: var(--foreground, #1f1f1f);
+  --lc-card: var(--card, #ffffff); --lc-border: var(--border, #e3e3e3);
+  --lc-muted: var(--muted-foreground, #6b6b6b); --lc-subtle: var(--muted, #f4f4f4);
+  --lc-primary: var(--primary, #2f5bd3); --lc-on-primary: var(--primary-foreground, #ffffff);
+  --lc-success: var(--success, #1f7a3d);
+  --lc-info-bg: var(--info-subtle, #eef3ff); --lc-wait-bg: var(--warning-subtle, #fff6e0);
+  --lc-radius: var(--radius, 8px);
+}
+:root[data-theme="dark"] { --lc-bg: var(--background, #161616); --lc-fg: var(--foreground, #ededed); --lc-card: var(--card, #1e1e1e); --lc-border: var(--border, #333333); --lc-muted: var(--muted-foreground, #a3a3a3); --lc-subtle: var(--muted, #262626); --lc-info-bg: var(--info-subtle, #1d2741); --lc-wait-bg: var(--warning-subtle, #3a3016); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--lc-bg); color: var(--lc-fg); font: 14px/1.5 var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif); }
+main { max-width: 760px; margin: 0 auto; padding: 20px 24px 48px; display: flex; flex-direction: column; gap: 12px; overflow-wrap: anywhere; }
+@media (max-width: 700px) { main { padding: 12px 16px 40px; } }
+h1 { margin: 0; font-size: 18px; } h2 { margin: 0; font-size: 15px; }
+.head p { margin: 2px 0 0; }
+.row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.muted { margin: 0; color: var(--lc-muted); font-size: 12px; }
+.mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; margin: 0; padding: 12px; background: var(--lc-subtle); border-radius: var(--lc-radius); white-space: pre-wrap; overflow-wrap: anywhere; }
+.input { font: inherit; color: inherit; background: var(--lc-card); border: 1px solid var(--lc-border); border-radius: var(--lc-radius); padding: 6px 10px; min-height: 36px; min-width: 0; }
+textarea.input { width: 100%; resize: vertical; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; } .field label { font-weight: 600; font-size: 13px; }
+.btn { font: inherit; font-size: 13px; color: inherit; background: var(--lc-card); border: 1px solid var(--lc-border); border-radius: var(--lc-radius); padding: 6px 12px; min-height: 36px; cursor: pointer; }
+@media (pointer: coarse), (max-width: 700px) { .btn, .input { min-height: 44px; } }
+.btn.primary { background: var(--lc-primary); color: var(--lc-on-primary); border-color: var(--lc-primary); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn:focus-visible, .input:focus-visible, .mono:focus-visible { outline: 2px solid var(--lc-primary); outline-offset: 1px; }
+.savebar { position: sticky; bottom: 0; padding: 8px 0; background: var(--lc-bg); }
+.notice { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--lc-info-bg); border-radius: var(--lc-radius); padding: 10px 12px; }
+.notice p { margin: 0; }
+.notice.success { background: transparent; color: var(--lc-success); padding: 0; }
+.notice.wait { background: var(--lc-wait-bg); }

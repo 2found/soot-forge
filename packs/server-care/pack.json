@@ -1,6 +1,26 @@
 {
   "api_version": "soot/v1",
   "id": "server-care",
+  "label": {
+    "vi": "Chăm sóc máy chủ",
+    "en": "Server care"
+  },
+  "keywords": {
+    "vi": [
+      "máy chủ",
+      "kiểm tra",
+      "giám sát"
+    ],
+    "en": [
+      "server",
+      "health",
+      "monitoring"
+    ]
+  },
+  "description": {
+    "vi": "Kiểm tra ứng dụng không ổn định, dùng runbook đã cấp, xác minh hoặc báo lên.",
+    "en": "Inspect unhealthy apps, use granted runbooks, verify or escalate."
+  },
   "skills": [
     {
       "name": "server-care",

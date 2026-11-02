@@ -1,6 +1,28 @@
 {
   "api_version": "soot/v1",
   "id": "live-chat-sheets",
+  "label": {
+    "vi": "Lưu Live chat ra Google Sheets",
+    "en": "Live chat to Sheets"
+  },
+  "keywords": {
+    "vi": [
+      "live chat",
+      "google sheets",
+      "lưu tin nhắn",
+      "bảng tính"
+    ],
+    "en": [
+      "live chat",
+      "google sheets",
+      "transcript",
+      "export"
+    ]
+  },
+  "description": {
+    "vi": "Lưu bản ghi Live chat công khai ra Google Sheets và theo dõi đồng bộ.",
+    "en": "Connect and monitor public website transcripts through the host-owned Sheets exporter."
+  },
   "skills": [
     {
       "name": "sheets-transcripts",

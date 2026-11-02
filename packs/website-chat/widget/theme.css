@@ -1,0 +1,40 @@
+/* Generated from desktop/src/index.css by scripts/prepare-theme.mjs. */
+:root{
+  --color-bg: #f8f7f4;
+  --color-surface: #fefdfb;
+  --color-surface-2: #efeeea;
+  --color-border: #dcdad4;
+  --color-text: #211d18;
+  --color-muted: #66645e;
+  --color-accent: #9a4c0b;
+  --color-accent-ink: #fff;
+  --color-success: #16723d;
+  --color-error: #b52e26;
+  --color-soot: #211d18;
+  --color-action: var(--color-soot);
+  --color-action-ink: var(--color-surface);
+  --color-action-hover: color-mix(in srgb, var(--color-action) 88%, var(--color-surface));
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+  --workspace-header-height: 40px;
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-appearance="dark"]{
+  color-scheme: dark;
+  --color-bg: #201f1d;
+  --color-surface: #292825;
+  --color-surface-2: #33322f;
+  --color-border: #4d4a44;
+  --color-text: #f3f0e9;
+  --color-muted: #b7b3ab;
+  --color-accent: #edb879;
+  --color-accent-ink: var(--color-soot);
+  --color-success: #83c99b;
+  --color-error: #f29e94;
+  --color-action: #ece8e0;
+  --color-action-ink: var(--color-soot);
+}

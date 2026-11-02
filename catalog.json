@@ -112,6 +112,18 @@
       }
     },
     {
+      "id": "cs-console",
+      "name": "CS console",
+      "description": "The Khách hàng page for a care team's lead Soot: one timeline per person across channels, with tags, notes and proven identity links.",
+      "tags": [
+        "communication"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/cs-console"
+      }
+    },
+    {
       "id": "website-chat",
       "name": "Website chat",
       "description": "Configure the Live chat on the owner's websites from chat or Nest through one scoped host authority.",
@@ -236,6 +248,19 @@
       "source": {
         "kind": "bundled",
         "path": "packs/team-cs"
+      }
+    },
+    {
+      "id": "lohi-cs",
+      "name": "Lohi CS",
+      "description": "Lohi's customer care tools and skills on team-cs: the reader's own wallet, plan, top-ups, chapters and audio through the host-signed principal; top-up recovery and chapter fixes wait for an operator.",
+      "tags": [
+        "communication",
+        "support"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/lohi-cs"
       }
     },
     {

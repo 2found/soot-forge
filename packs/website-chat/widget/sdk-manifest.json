@@ -1,0 +1,6 @@
+{
+  "package": "@tofound/soot-sdk",
+  "version": "0.6.0",
+  "export": "./channel/browser",
+  "sha256": "e7b5996e48d54324cf86bece63baa9ee08b5bc9f2f07c063d387029b3d5a7825"
+}

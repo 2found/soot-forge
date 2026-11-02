@@ -2,7 +2,28 @@
   "api_version": "soot/v1",
   "id": "tts",
   "name": "Text to speech",
-  "description": "Generate measured WAV narration with OmniVoice through a resident host-owned service.",
+  "label": {
+    "vi": "Đọc văn bản thành giọng nói",
+    "en": "Text to speech"
+  },
+  "keywords": {
+    "vi": [
+      "giọng nói",
+      "đọc",
+      "âm thanh",
+      "tts"
+    ],
+    "en": [
+      "voice",
+      "speech",
+      "audio",
+      "tts"
+    ]
+  },
+  "description": {
+    "vi": "Đọc văn bản thành tệp WAV bằng OmniVoice chạy trên máy chủ.",
+    "en": "Generate measured WAV narration with OmniVoice through a resident host-owned service."
+  },
   "skills": [
     {
       "name": "tts_inspect",

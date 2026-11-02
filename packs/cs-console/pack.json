@@ -1,0 +1,141 @@
+{
+  "api_version": "soot/v1",
+  "id": "cs-console",
+  "name": "CS console",
+  "label": {
+    "vi": "Bảng khách hàng",
+    "en": "Customer console"
+  },
+  "description": {
+    "vi": "Trang Khách hàng cho Soot trưởng của đội chăm sóc: mỗi người một dòng thời gian qua mọi kênh, trạng thái, bộ nhớ, dữ liệu sản phẩm, cùng nhãn, ghi chú và liên kết danh tính có bằng chứng.",
+    "en": "The Khách hàng page for a care team's lead Soot: one timeline per person across channels, status, memory and live product facts, plus tags, notes and proven identity links."
+  },
+  "keywords": {
+    "vi": ["khách hàng", "chăm sóc khách hàng", "hỗ trợ", "dòng thời gian"],
+    "en": ["customers", "customer care", "support", "timeline"]
+  },
+  "tools": [
+    {
+      "name": "console_view",
+      "title": "Xem bảng khách hàng",
+      "description": "Khách hàng page view: {kind: customers, q?} or {kind: customer, key}. Reads conversations only through the configured team keys.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "enum": ["customers", "customer"] },
+          "key": { "type": "string", "maxLength": 300 },
+          "q": { "type": "string", "maxLength": 100 }
+        },
+        "required": ["kind"],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": ["tools/console.mjs", "view"],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 262144,
+        "secret_env": {
+          "CS_CONSOLE": "{{cred:CS_CONSOLE}}"
+        }
+      }
+    },
+    {
+      "name": "console_action",
+      "title": "Đổi bảng khách hàng",
+      "description": "Khách hàng page action: take over or hand back a conversation, tag, note, or link two principals from a product-signed proof.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "enum": ["control", "tag", "note", "note_delete", "link", "unlink"] },
+          "request_id": { "type": "string", "maxLength": 64 },
+          "key": { "type": "string", "maxLength": 300 },
+          "conversation": { "type": "string", "maxLength": 200 },
+          "action": { "type": "string", "enum": ["takeover", "resume"] },
+          "expected_revision": { "type": "integer", "minimum": 0 },
+          "tag": { "type": "string", "maxLength": 32 },
+          "remove": { "type": "boolean" },
+          "body": { "type": "string", "maxLength": 2000 },
+          "id": { "type": "string", "maxLength": 100 },
+          "proof": { "type": "string", "maxLength": 4096 }
+        },
+        "required": ["kind"],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": ["tools/console.mjs", "action"],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_input_bytes": 16384,
+        "secret_env": {
+          "CS_CONSOLE": "{{cred:CS_CONSOLE}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "CS_CONSOLE": {
+        "title": "Kết nối bảng khách hàng",
+        "description": "JSON {host, keys, link_keys?, facts?}: địa chỉ Soot, 1–8 khoá thành viên có quyền đọc đội (conversations:read_team, control) giới hạn ở các Soot của đội chăm sóc, khoá công khai của sản phẩm để xác minh liên kết danh tính, và địa chỉ tra dữ liệu sản phẩm. Xem README của gói."
+      }
+    }
+  },
+  "storage": {
+    "version": 1,
+    "tables": [
+      {
+        "name": "tags",
+        "columns": [
+          { "name": "sub", "type": "text", "required": true, "index": true, "principal": true },
+          { "name": "tag", "type": "text", "required": true, "index": true, "search": true }
+        ]
+      },
+      {
+        "name": "notes",
+        "columns": [
+          { "name": "sub", "type": "text", "required": true, "index": true, "principal": true },
+          { "name": "body", "type": "text", "required": true, "search": true },
+          { "name": "author", "type": "text" }
+        ]
+      },
+      {
+        "name": "links",
+        "columns": [
+          { "name": "sub", "type": "text", "required": true, "index": true, "principal": true },
+          { "name": "alias", "type": "text", "required": true, "index": true, "principal": true },
+          { "name": "proof", "type": "text", "required": true },
+          { "name": "kid", "type": "text" },
+          { "name": "jti", "type": "text", "required": true, "index": true }
+        ]
+      },
+      {
+        "name": "proofs",
+        "columns": [
+          { "name": "jti", "type": "text", "required": true, "index": true },
+          { "name": "kid", "type": "text" }
+        ]
+      }
+    ]
+  },
+  "interface": {
+    "pages": [
+      {
+        "id": "khach-hang",
+        "label": {
+          "vi": "Khách hàng",
+          "en": "Customers"
+        },
+        "icon": "users",
+        "placement": "rail",
+        "access": "member",
+        "view_tool": "console_view",
+        "action_tool": "console_action",
+        "bundle": "page/"
+      }
+    ]
+  }
+}

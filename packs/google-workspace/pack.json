@@ -2,7 +2,30 @@
   "api_version": "soot/v1",
   "id": "google-workspace",
   "name": "Google Workspace",
-  "description": "Work with Google Docs, Sheets and Drive through scoped REST tools, bounded files and durable action receipts.",
+  "label": {
+    "vi": "Google Docs, Sheets và Drive",
+    "en": "Google Workspace"
+  },
+  "keywords": {
+    "vi": [
+      "google",
+      "docs",
+      "sheets",
+      "drive",
+      "bảng tính"
+    ],
+    "en": [
+      "google",
+      "docs",
+      "sheets",
+      "drive",
+      "spreadsheet"
+    ]
+  },
+  "description": {
+    "vi": "Làm việc với Google Docs, Sheets và Drive bằng công cụ có giới hạn và biên nhận.",
+    "en": "Work with Google Docs, Sheets and Drive through scoped REST tools, bounded files and durable action receipts."
+  },
   "skills": [
     {
       "name": "google_workspace_read",

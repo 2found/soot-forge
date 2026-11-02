@@ -2,7 +2,30 @@
   "api_version": "soot/v1",
   "id": "nest-lead",
   "name": "Nest lead",
-  "description": "Kamaji's authority: change this Nest's Soots, schedules, teams, approvals, data access and model tiers, with person approval for what is not the lead's to decide alone.",
+  "label": {
+    "vi": "Quản lý Nest",
+    "en": "Nest lead"
+  },
+  "keywords": {
+    "vi": [
+      "quản lý",
+      "lịch",
+      "đội",
+      "quyền",
+      "soot"
+    ],
+    "en": [
+      "manage",
+      "schedule",
+      "team",
+      "approvals",
+      "soot"
+    ]
+  },
+  "description": {
+    "vi": "Quyền của Kamaji: đổi Soot, lịch, đội, phê duyệt, quyền dữ liệu và mức mô hình của Nest.",
+    "en": "Kamaji's authority: change this Nest's Soots, schedules, teams, approvals, data access and model tiers, with person approval for what is not the lead's to decide alone."
+  },
   "skills": [
     {
       "name": "nest-lead",

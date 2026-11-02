@@ -1,6 +1,30 @@
 {
   "api_version": "soot/v1",
   "id": "micro-fish",
+  "label": {
+    "vi": "Micro Fish: thử ý tưởng với đám đông giả lập",
+    "en": "Micro Fish"
+  },
+  "keywords": {
+    "vi": [
+      "khảo sát",
+      "thử nghiệm",
+      "giá",
+      "quảng cáo",
+      "ý tưởng"
+    ],
+    "en": [
+      "simulation",
+      "survey",
+      "pricing",
+      "campaign",
+      "test"
+    ]
+  },
+  "description": {
+    "vi": "Chạy một xã hội giả lập để thử tính năng, giá, video hay chiến dịch trước khi ra mắt.",
+    "en": "Run a simulated society to test a feature, price, video or campaign before real people see it."
+  },
   "skills": [
     {
       "name": "micro-fish-coordinate",

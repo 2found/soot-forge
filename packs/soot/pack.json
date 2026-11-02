@@ -1,6 +1,26 @@
 {
   "api_version": "soot/v1",
   "id": "soot",
+  "label": {
+    "vi": "Hiểu về Soot",
+    "en": "Soot domain"
+  },
+  "keywords": {
+    "vi": [
+      "soot",
+      "gói kỹ năng",
+      "cấu hình"
+    ],
+    "en": [
+      "soot",
+      "packs",
+      "configuration"
+    ]
+  },
+  "description": {
+    "vi": "Mọi điều về Soot và công cụ cấu hình chính Soot đang chạy.",
+    "en": "Everything about Soot and a tool to configure the running Soot."
+  },
   "skills": [
     {
       "name": "soot-domain",

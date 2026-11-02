@@ -1,6 +1,28 @@
 {
   "api_version": "soot/v1",
   "id": "artifacts",
+  "label": {
+    "vi": "Kho tệp và media",
+    "en": "Artifacts"
+  },
+  "keywords": {
+    "vi": [
+      "tệp",
+      "media",
+      "lưu trữ",
+      "đính kèm"
+    ],
+    "en": [
+      "files",
+      "media",
+      "storage",
+      "attachments"
+    ]
+  },
+  "description": {
+    "vi": "Lưu tệp và media theo mã nội dung để các gói khác dùng lại và xuất ra khi cần.",
+    "en": "Content-addressed file and media store other packs reuse and export from."
+  },
   "skills": [
     {
       "name": "artifacts_read",

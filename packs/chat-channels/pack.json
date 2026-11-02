@@ -1,4 +1,115 @@
 {
   "api_version": "soot/v1",
-  "id": "chat-channels"
+  "id": "chat-channels",
+  "name": "Chat channels",
+  "label": {
+    "vi": "Kênh chat Telegram và Discord",
+    "en": "Telegram and Discord channels"
+  },
+  "description": {
+    "vi": "Cho mọi người trò chuyện với Soot qua bot Telegram hoặc Discord. Chỉ là bộ kết nối: không thêm công cụ hay quyền.",
+    "en": "Lets people talk to a Soot from a Telegram or Discord bot. Only the adapter: no tools or grants."
+  },
+  "keywords": {
+    "vi": [
+      "telegram",
+      "discord",
+      "bot",
+      "kênh chat",
+      "nhắn tin"
+    ],
+    "en": [
+      "telegram",
+      "discord",
+      "bot",
+      "chat channel",
+      "messaging"
+    ]
+  },
+  "channel": {
+    "platforms": [
+      {
+        "id": "telegram",
+        "mode": "supervised",
+        "request_prefix": "tg",
+        "ui": {
+          "label": "Telegram",
+          "icon": "send",
+          "guide": [
+            "Mở BotFather trong Telegram (https://t.me/BotFather) và gửi lệnh /newbot.",
+            "Đặt tên cho bot, rồi chép mã bot BotFather trả về."
+          ],
+          "fields": [
+            {
+              "key": "bot_token",
+              "label": {
+                "vi": "Mã bot (bot token)",
+                "en": "Bot token"
+              },
+              "kind": "secret",
+              "help": {
+                "vi": "Mã có dạng một dãy số, dấu hai chấm, rồi một dãy chữ.",
+                "en": "Digits, a colon, then letters."
+              }
+            }
+          ],
+          "errors": {
+            "platform_token_rejected": {
+              "vi": "Telegram không nhận mã bot này. Lấy mã mới (@BotFather → /token) rồi dán vào ô Mã bot.",
+              "en": "Telegram refused this bot token. Get a new one (@BotFather → /token) and paste it into Bot token."
+            },
+            "telegram_webhook_active": {
+              "vi": "Bot này đang gửi tin cho một dịch vụ khác qua webhook nên Nest không nhận được. Tắt webhook ở dịch vụ đó hoặc dùng bot riêng cho Nest; Nest tự kết nối lại.",
+              "en": "This bot sends its messages to another service by webhook. Turn that webhook off or use a separate bot; Nest reconnects by itself."
+            },
+            "telegram_poll_conflict": {
+              "vi": "Một chương trình khác (có thể là một Nest khác) đang nhận tin của bot này. Tắt nó hoặc dùng bot riêng; Nest tự thử lại.",
+              "en": "Another program (maybe another Nest) is receiving this bot's messages. Stop it or use a separate bot; Nest retries by itself."
+            }
+          }
+        }
+      },
+      {
+        "id": "discord",
+        "mode": "supervised",
+        "request_prefix": "dc",
+        "ui": {
+          "label": "Discord",
+          "icon": "messages-square",
+          "guide": [
+            "Trong Discord Developer Portal (https://discord.com/developers/applications), tạo một ứng dụng mới và thêm Bot cho nó.",
+            "Bật Message Content Intent ở mục Bot, rồi chép mã bot."
+          ],
+          "fields": [
+            {
+              "key": "bot_token",
+              "label": {
+                "vi": "Mã bot (bot token)",
+                "en": "Bot token"
+              },
+              "kind": "secret",
+              "help": {
+                "vi": "Mã nằm ở mục Bot, nút Reset Token.",
+                "en": "Under Bot, button Reset Token."
+              }
+            }
+          ],
+          "errors": {
+            "platform_token_rejected": {
+              "vi": "Discord không nhận mã bot này. Lấy mã mới (Developer Portal → Bot → Reset Token) rồi dán vào ô Mã bot.",
+              "en": "Discord refused this bot token. Get a new one (Developer Portal → Bot → Reset Token) and paste it into Bot token."
+            },
+            "discord_intents_disallowed": {
+              "vi": "Discord chặn bot đọc tin nhắn vì Message Content Intent đang tắt. Mở Developer Portal → Bot → Privileged Gateway Intents, bật Message Content Intent, lưu, rồi bấm Thử kết nối lại.",
+              "en": "Discord blocks the bot from reading messages: Message Content Intent is off. In the Developer Portal open Bot → Privileged Gateway Intents, turn it on, save, then retry."
+            },
+            "discord_sharding_required": {
+              "vi": "Discord yêu cầu chia kết nối khi bot ở trên 2.500 máy chủ; Soot chưa hỗ trợ. Dùng một bot riêng cho Nest.",
+              "en": "Discord requires sharding above 2,500 servers, which Soot does not support. Use a separate bot."
+            }
+          }
+        }
+      }
+    ]
+  }
 }

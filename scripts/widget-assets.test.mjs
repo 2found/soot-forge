@@ -42,3 +42,19 @@ test('the widget ships the published SDK 0.4.0 browser module and the question i
   assert.match(composer, /createWidgetQuestion/);
   assert.match(composer, /ui-agent-question/);
 });
+
+// The browser-mode website chat vendors @tofound/soot-sdk@0.6.0
+// `./channel/browser` as one module (scripts/sync-web-chat.mjs); this pins
+// the bytes so a hand edit or a stale sync fails here.
+const SDK_0_6_0_CHANNEL_BROWSER_SHA256 = 'e7b5996e48d54324cf86bece63baa9ee08b5bc9f2f07c063d387029b3d5a7825';
+test('the website chat ships the vendored SDK 0.6.0 channel/browser module', async () => {
+  const root = new URL('../packs/website-chat/widget/', import.meta.url);
+  const manifest = JSON.parse(await readFile(new URL('sdk-manifest.json', root), 'utf8'));
+  assert.deepEqual(manifest, { package: '@tofound/soot-sdk', version: '0.6.0', export: './channel/browser', sha256: SDK_0_6_0_CHANNEL_BROWSER_SHA256 });
+  assert.equal(createHash('sha256').update(await readFile(new URL('channel-browser.js', root))).digest('hex'), SDK_0_6_0_CHANNEL_BROWSER_SHA256);
+  const sdk = await import(new URL('channel-browser.js', root));
+  assert.deepEqual(Object.keys(sdk).sort(), ['BrowserChannel', 'ChannelError', 'isRunEvent', 'timing']);
+  const source = await readFile(new URL('channel-browser.js', root), 'utf8');
+  assert.doesNotMatch(source, /^\s*import\b/m, 'one self-contained module');
+  assert.doesNotMatch(source, /node:|process\.|require\(/, 'no Node API in a browser module');
+});

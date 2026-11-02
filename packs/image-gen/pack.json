@@ -2,7 +2,28 @@
   "api_version": "soot/v1",
   "id": "image-gen",
   "name": "Image generation",
-  "description": "Generate PNGs locally with Qwen Image 2.1 Turbo Q4_K_M and a host-owned Metal/CPU runtime.",
+  "label": {
+    "vi": "Tạo ảnh",
+    "en": "Image generation"
+  },
+  "keywords": {
+    "vi": [
+      "tạo ảnh",
+      "hình ảnh",
+      "vẽ",
+      "ảnh"
+    ],
+    "en": [
+      "image",
+      "picture",
+      "generate",
+      "png"
+    ]
+  },
+  "description": {
+    "vi": "Tạo ảnh PNG ngay trên máy bằng mô hình Qwen Image chạy cục bộ.",
+    "en": "Generate PNGs locally with Qwen Image 2.1 Turbo Q4_K_M and a host-owned Metal/CPU runtime."
+  },
   "skills": [
     {
       "name": "image_gen_inspect",

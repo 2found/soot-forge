@@ -1,6 +1,26 @@
 {
   "api_version": "soot/v1",
   "id": "soot-nest",
+  "label": {
+    "vi": "Hướng dẫn Nest",
+    "en": "Soot Nest"
+  },
+  "keywords": {
+    "vi": [
+      "nest",
+      "hướng dẫn",
+      "cài đặt"
+    ],
+    "en": [
+      "nest",
+      "guide",
+      "setup"
+    ]
+  },
+  "description": {
+    "vi": "Kỹ năng nền tảng cho Nest: trình bày giao diện gói và viết liên kết nest://.",
+    "en": "Platform skills for Nest: present pack interfaces and write nest:// links."
+  },
   "skills": [
     {
       "name": "side-bar",

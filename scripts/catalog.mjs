@@ -203,6 +203,31 @@ function checkPresentation(manifest, byName) {
     if (!['none', 'pointer', 'keyboard', 'full', undefined].includes(c.input) || !['none', 'websocket', undefined].includes(c.stream) || !['none', 'frames', undefined].includes(c.pacing)) problems.push(`Tool area ${area.id}: unsupported capabilities`);
     if (area.stream !== undefined && c.stream !== undefined && area.stream !== c.stream) problems.push(`Tool area ${area.id}: stream and capabilities.stream disagree`);
   }
+  // channel.platforms (pack-manifest-ui §2), mirroring the host's
+  // ChannelPlatform.validate and DecodePlatformUI, so a refused declaration
+  // never reaches an installed pack.
+  const platforms = new Set();
+  for (const pl of manifest.channel?.platforms ?? []) {
+    const at = `Platform ${pl?.id}`;
+    if (!/^[a-z][a-z0-9-]{1,31}$/.test(pl?.id ?? '') || pl.id === 'web' || platforms.has(pl.id)) problems.push(`${at}: invalid or duplicate id`);
+    platforms.add(pl?.id);
+    if (!['supervised', 'remote'].includes(pl?.mode)) problems.push(`${at}: mode must be supervised or remote`);
+    const prefix = /^[a-z][a-z0-9]{1,15}$/;
+    if (pl?.request_prefix != null ? !prefix.test(pl.request_prefix) : !prefix.test(pl?.id ?? '')) problems.push(`${at}: request_prefix must be ^[a-z][a-z0-9]{1,15}$ (required when the id is not one)`);
+    const ui = pl?.ui;
+    if (ui === undefined) continue;
+    const allowed = (o, names) => !!o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).every(k => names.includes(k));
+    if (!allowed(ui, ['label', 'icon', 'guide', 'fields', 'errors'])) { problems.push(`${at}: ui holds only label, icon, guide, fields, errors`); continue; }
+    if (!localizedText(ui.label, 48) || !/^[a-z0-9-]{1,64}$/.test(ui.icon ?? '')) problems.push(`${at}: ui needs a label and a lowercase icon name`);
+    if (ui.guide !== undefined && !(Array.isArray(ui.guide) && ui.guide.length <= 12 && ui.guide.every(g => localizedText(g, 280)))) problems.push(`${at}: ui.guide is at most 12 localized steps`);
+    const keys = new Set();
+    if (ui.fields !== undefined && !(Array.isArray(ui.fields) && ui.fields.length <= 12)) problems.push(`${at}: ui.fields is at most 12 fields`);
+    for (const f of Array.isArray(ui.fields) ? ui.fields : []) {
+      if (!allowed(f, ['key', 'label', 'kind', 'help']) || !/^[a-z][a-z0-9_]{0,47}$/.test(f.key ?? '') || keys.has(f.key) || !['secret', 'text'].includes(f.kind) || !localizedText(f.label, 48) || (f.help !== undefined && !localizedText(f.help, 280))) problems.push(`${at}: ui field ${f?.key}: unique key, kind secret or text, with a label`);
+      keys.add(f?.key);
+    }
+    if (ui.errors !== undefined && !(allowed(ui.errors, Object.keys(ui.errors ?? {})) && Object.entries(ui.errors).every(([code, text]) => /^[a-z][a-z0-9_]{0,63}$/.test(code) && localizedText(text, 400)))) problems.push(`${at}: ui.errors maps lowercase codes to localized text`);
+  }
   const pages = new Set();
   for (const page of manifest.interface?.pages ?? []) {
     const at = `Page ${page.id}`;

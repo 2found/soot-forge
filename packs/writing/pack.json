@@ -2,7 +2,28 @@
   "api_version": "soot/v1",
   "id": "writing",
   "name": "Viết nội dung",
-  "description": "Soạn và chỉnh sửa nội dung theo nhiệm vụ của bạn.",
+  "label": {
+    "vi": "Viết nội dung",
+    "en": "Writing"
+  },
+  "keywords": {
+    "vi": [
+      "viết",
+      "bài viết",
+      "copy",
+      "soạn thảo"
+    ],
+    "en": [
+      "writing",
+      "copy",
+      "draft",
+      "article"
+    ]
+  },
+  "description": {
+    "vi": "Soạn và chỉnh sửa nội dung theo nhiệm vụ của bạn.",
+    "en": "Draft and edit content for your mission."
+  },
   "skills": [
     {
       "name": "writing_article",

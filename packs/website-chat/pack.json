@@ -2,7 +2,29 @@
   "api_version": "soot/v1",
   "id": "website-chat",
   "name": "Website chat",
-  "description": "Configure the Live chat on the owner's websites through one scoped host authority.",
+  "label": {
+    "vi": "Live chat trên website",
+    "en": "Website live chat"
+  },
+  "description": {
+    "vi": "Đặt khung chat lên website để khách trò chuyện với Soot; cấu hình từ chat hoặc trang Cài đặt.",
+    "en": "Configure the Live chat on the owner's websites through one scoped host authority."
+  },
+  "keywords": {
+    "vi": [
+      "live chat",
+      "khung chat",
+      "website",
+      "nhúng chat",
+      "chăm sóc khách hàng"
+    ],
+    "en": [
+      "live chat",
+      "chat widget",
+      "website",
+      "embed"
+    ]
+  },
   "skills": [
     {
       "name": "website-chat",
@@ -153,18 +175,21 @@
     }
   },
   "interface": {
-    "tool_area": {
-      "id": "live-chat",
-      "label": "Live chat",
-      "kind": "live-chat",
-      "view_tool": "website_view",
-      "action_tool": "website_action",
-      "width": 680,
-      "min_width": 320,
-      "max_width": 1200,
-      "aspect_width": 4,
-      "aspect_height": 3,
-      "resizable": true
-    }
+    "pages": [
+      {
+        "id": "live-chat-settings",
+        "label": {
+          "vi": "Live chat",
+          "en": "Live chat"
+        },
+        "icon": "message-circle",
+        "placement": "settings",
+        "access": "operator",
+        "settings_group": "server",
+        "view_tool": "website_view",
+        "action_tool": "website_action",
+        "bundle": "page/"
+      }
+    ]
   }
 }
