@@ -1,4 +1,4 @@
-// lohi-cs runner (bin/soot-lohi-api) against a fake Lohi api: the reader's own
+// lohi-cs runner (tools/soot-lohi-api) against a fake Lohi api: the reader's own
 // data goes to /lookup/me/* with X-Soot-Principal, anonymous conversations ask
 // nothing, the secrets never reach argv or output, public reads need no token.
 // tests/ is not shipped in the pack archive.
@@ -10,7 +10,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const bin = new URL('../bin/soot-lohi-api', import.meta.url).pathname;
+const bin = new URL('../tools/soot-lohi-api', import.meta.url).pathname;
 const TOKEN = 'eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiJ1MSJ9.c2lnbmF0dXJl';
 const KEY = 'test-only-key-not-real';
 let server, base, seen = [], answer = () => [200, { ok: true }], state;

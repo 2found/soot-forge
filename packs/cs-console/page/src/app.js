@@ -110,11 +110,11 @@ function detail() {
     h('div', { class: 'line wrap' }, ...d.tags.map(x => h('span', { class: 'tag' }, x.tag, ' ', button('×', () => void write(M.tagBody(c.key, x.tag, true)), 'btn ghost xs', locked())))),
     h('div', { class: 'line' }, input('tag', S.tagDraft, v => { S.tagDraft = v; }, t.addTag, 32), button(t.addTag, () => void write(M.tagBody(c.key, S.tagDraft)), 'btn', locked())));
   const notes = h('section', { class: 'stack' }, h('h2', {}, t.notes),
-    ...d.notes.map(n => h('div', { class: 'note' }, h('p', {}, n.body), h('p', { class: 'muted' }, `${n.author} · ${M.when(n.at)}`, ' ', button(t.delete, () => void write({ kind: 'note_delete', id: n.id }), 'btn ghost xs', locked())))),
+    ...d.notes.map(n => h('div', { class: 'note' }, h('p', {}, n.body), h('p', { class: 'muted' }, `${n.author} · ${M.when(n.at)}`, ' ', button(t.delete, () => void write({ kind: 'note_delete', key: d.customer.key, id: n.id }), 'btn ghost xs', locked())))),
     h('textarea', { id: 'note', class: 'input', rows: 2, maxlength: 2000, 'aria-label': t.addNote, disabled: locked(), oninput: (/** @type {Event} */ e) => { S.noteDraft = /** @type {HTMLTextAreaElement} */ (e.target).value; } }, S.noteDraft),
     button(t.addNote, () => void write(M.noteBody(c.key, S.noteDraft)), 'btn', locked()));
   const links = h('section', { class: 'stack' }, h('h2', {}, t.links),
-    ...d.links.map(l => h('div', { class: 'line' }, h('span', {}, l.alias), h('span', { class: 'muted' }, l.proof), button(t.unlink, () => void write({ kind: 'unlink', id: l.id }), 'btn ghost xs', locked()))),
+    ...d.links.map(l => h('div', { class: 'line' }, h('span', {}, l.alias), h('span', { class: 'muted' }, l.proof), button(t.unlink, () => void write({ kind: 'unlink', key: d.customer.key, id: l.id }), 'btn ghost xs', locked()))),
     S.linkProofs ? h('div', { class: 'stack' }, h('p', { class: 'muted' }, t.linkHelp),
       h('div', { class: 'line' }, input('proof', S.proofDraft, v => { S.proofDraft = v; }, t.link, 4096), button(t.link, () => void write(M.linkBody(S.proofDraft)), 'btn', locked())))
       : h('p', { class: 'muted' }, t.noLinkKeys));

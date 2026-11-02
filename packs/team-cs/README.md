@@ -74,6 +74,12 @@ another Soot. Deleting the deployment's `default_soot` is refused until
 `default_soot` is changed. History (conversations, member replies and memory)
 stays readable; nothing is deleted.
 
+To uninstall the pack itself, deselect `team-cs` from every Soot (remove it
+from each `soot.json` `packs`, or untick it in Nest), then run
+`soot pack remove team-cs`. `team-cs` declares no `storage` and no tools, so
+nothing else is removed: conversations, member replies, the `user` memory of
+every person and the channel binding all stay with the host (P4.6, AC-P4-5).
+
 ## Evals
 
 [`evals/team-cs/`](evals/team-cs/README.md): 8 cases covering triage, handoff,

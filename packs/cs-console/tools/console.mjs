@@ -296,7 +296,12 @@ export async function action(input, env, ctx, fetchImpl = fetch) {
       return { note: await store('notes', 'insert', { row: { sub: p.key, body, author } }) };
     }
     case 'note_delete': {
+      // Like tag and note: only a note of a person within the grants, and
+      // only that person's note, never a bare row id.
       if (typeof input.id !== 'string' || !input.id) fail('invalid_request', 'id is required.');
+      const p = await person(input.key);
+      const row = (await store('notes', 'get', { id: input.id })).row;
+      if (!row || row.sub !== p.key) fail('not_found', 'No such note for this person.');
       return { removed: (await store('notes', 'delete', { id: input.id })).affected ?? 0 };
     }
     case 'link': {
@@ -318,6 +323,9 @@ export async function action(input, env, ctx, fetchImpl = fetch) {
     }
     case 'unlink': {
       if (typeof input.id !== 'string' || !input.id) fail('invalid_request', 'id is required.');
+      const p = await person(input.key);
+      const row = (await store('links', 'get', { id: input.id })).row;
+      if (!row || row.sub !== p.key) fail('not_found', 'No such link for this person.');
       return { removed: (await store('links', 'delete', { id: input.id })).affected ?? 0 };
     }
   }

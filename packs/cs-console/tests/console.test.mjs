@@ -58,6 +58,7 @@ function fixture() {
       if (!rows) return json(404, { code: 'table_not_found', error: 'no table' });
       const match = r => Object.entries(body.where ?? {}).every(([k, v]) => r[k] === v);
       if (op === 'query') return json(200, { rows: rows.filter(match).slice(0, body.limit ?? 50) });
+      if (op === 'get') return json(200, { row: rows.find(r => r.id === body.id) ?? null });
       if (op === 'insert') { const row = { id: `r${++seq}`, created_at: new Date().toISOString(), ...body.row }; rows.push(row); return json(200, { id: row.id, affected: 1 }); }
       if (op === 'delete') { const before = rows.length; tables[table] = rows.filter(r => !(body.id ? r.id === body.id : match(r))); return json(200, { affected: before - tables[table].length }); }
       return json(400, { code: 'invalid', error: op });
@@ -129,7 +130,9 @@ test('a product-signed proof links a Telegram sender to the Lohi user; replay, e
   await refuse('Khoa <khoa@example.com>', 'invalid_proof');
   assert.equal(f.tables.links.length, 1, 'nothing but the first proof was stored');
   // An unlink drops the link but not the used proof: it cannot be replayed.
-  await action({ kind: 'unlink', id: f.tables.links[0].id }, f.env, { request_id: 'cs-unlink-001' }, f.fetch);
+  await assert.rejects(action({ kind: 'unlink', key: 'lohi:u-2002', id: f.tables.links[0].id }, f.env, { request_id: 'cs-unlink-000' }, f.fetch), e => e.code === 'not_found', 'another person\'s link is never removed by row id');
+  assert.equal(f.tables.links.length, 1);
+  await action({ kind: 'unlink', key: 'lohi:u-1001', id: f.tables.links[0].id }, f.env, { request_id: 'cs-unlink-001' }, f.fetch);
   assert.equal(f.tables.links.length, 0);
   const mark = f.calls.length;
   assert.equal((await action({ kind: 'link', proof: proof({ sub: 'u-2002', alias: 'tg-888' }) }, f.env, { request_id: 'cs-link-0003' }, f.fetch)).added, true);
@@ -173,4 +176,17 @@ test('configuration refusals never echo the credential', () => {
     assert.throws(() => parseConfig(raw), e => e.code === 'not_configured' && !e.message.includes('k_000000000000000'), raw);
   }
   assert.throws(() => verifyLinkProof('a.b', LINK_KEYS), e => e.code === 'invalid_proof');
+});
+
+test('a note or link is removed only for its own person within the grants; a bare row id outside them removes nothing', async () => {
+  const f = fixture();
+  await action({ kind: 'note', key: 'lohi:u-1001', body: 'Ghi chú của Khoa' }, f.env, { request_id: 'cs-note-0001' }, f.fetch);
+  const id = f.tables.notes[0].id;
+  for (const [key, code] of [[undefined, 'not_found'], ['acme:u-1001', 'not_found'], ['lohi:u-2002', 'not_found']]) {
+    await assert.rejects(action({ kind: 'note_delete', key, id }, f.env, { request_id: 'cs-ndel-0001' }, f.fetch), e => e.code === code, String(key));
+  }
+  await assert.rejects(action({ kind: 'note_delete', key: 'lohi:u-1001' }, f.env, { request_id: 'cs-ndel-0002' }, f.fetch), e => e.code === 'invalid_request');
+  assert.equal(f.tables.notes.length, 1, 'nothing was deleted by a refused call');
+  assert.equal((await action({ kind: 'note_delete', key: 'lohi:u-1001', id }, f.env, { request_id: 'cs-ndel-0003' }, f.fetch)).removed, 1);
+  assert.equal(f.tables.notes.length, 0);
 });

@@ -25,8 +25,9 @@ signed principal; never pass a userId:
 - Two different counters exist: Pro audio LISTENING chapters vs Pro audio
   REQUEST count. Quote each from the lookup, do not merge them.
 - No active subscription → explain which plan gates the feature; do NOT
-  quote prices from memory — pricing lives in the knowledge pool /
-  public pricing page; handoff if the customer disputes amounts.
+  quote prices from memory or the `lohi-support` collection — read them
+  from `lohi_lookup` `kind=features` (X9); handoff if the customer disputes
+  amounts.
 - Renewal/billing complaints → switch to `topup-triage` (`orders`,
   `topups` show the charge rows).
 

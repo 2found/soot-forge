@@ -1,0 +1,361 @@
+#!/bin/sh
+# soot-lohi-api — lohi-cs pack tool runner (soot/v1 tool.call, stdin:"context").
+#
+# Reads ONE ToolCall JSON line on stdin. Model input is .input. Who the
+# reader is comes from the host, never from the model: the signed principal
+# token (env SOOT_PRINCIPAL_TOKEN, or .principal_token on stdin) is forwarded
+# as X-Soot-Principal and the api scopes every /lookup/me/* read to its `sub`
+# (principal-token contract). An anonymous conversation has no token: the
+# reader's own data answers {"code":"principal_required"}. conversationId,
+# from .event.subject, stays in the write bodies (lohi.agent-exec unchanged).
+# Neither secret is ever echoed or put on a command line: headers reach curl
+# through its config on stdin (-K -).
+#
+#   soot-lohi-api lookup         kind→GET $LOHI_API_BASE/agent/support/lookup/…
+#                                (the reader's own data: /lookup/me/<kind>)
+#   soot-lohi-api history        GET /agent/support/lookup/me/history
+#   soot-lohi-api request-novel  POST /agent/support/requests (idempotent)
+#   soot-lohi-api report-content POST /agent/support/content-reports (idempotent;
+#                                the api re-verifies the defect, staff approve)
+#   soot-lohi-api recover-topup  POST /agent/support/topups/recover
+#   soot-lohi-api fix-chapter    POST /agent/support/chapters/fix
+#
+# recover-topup and fix-chapter are held for an operator's approval
+# (approval:"operator", preflight:true). On hook tool.preflight they call the
+# route with dryRun:true and print {"preview":"…"} for the approval card, or
+# exit 1 with the api's code (the Soot gets it and no approval is filed). On
+# tool.call they run for real and forward approvalId from .approval.id when
+# the runtime sends it. The api decides and computes any credit: the Soot's
+# amountVnd is only a filter, and no other amount is ever sent.
+#
+# Deps: POSIX sh, curl, jq. Env: LOHI_API_BASE, LOHI_CS_API_KEY; state in the
+# runtime's SOOT_PACK_STATE (by hand: $HOME/.soot/state/lohi-cs).
+set -eu
+
+cmd=${1:-}
+
+err() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
+command -v curl >/dev/null 2>&1 || err '{"error":"missing_dep","dep":"curl"}'
+command -v jq   >/dev/null 2>&1 || err '{"error":"missing_dep","dep":"jq"}'
+[ -n "${LOHI_API_BASE:-}" ]   || err '{"error":"missing_env","env":"LOHI_API_BASE"}'
+[ -n "${LOHI_CS_API_KEY:-}" ] || err '{"error":"missing_env","env":"LOHI_CS_API_KEY"}'
+base=${LOHI_API_BASE%/}
+
+call=$(cat)
+[ -n "$call" ] || err '{"error":"empty_stdin"}'
+printf '%s\n' "$call" | jq -e '
+  (.api_version == "soot/v1") and (.hook == "tool.call" or .hook == "tool.preflight")' \
+  >/dev/null 2>&1 || err '{"error":"bad_toolcall","detail":"api_version/hook"}'
+hook=$(printf '%s\n' "$call" | jq -r '.hook')
+# Only the approval-gated tools know the preflight hook; any other tool must
+# never run its effect for one.
+case $hook:$cmd in
+  tool.preflight:recover-topup|tool.preflight:fix-chapter|tool.call:*) ;;
+  *) err '{"error":"bad_toolcall","detail":"preflight not supported"}' ;;
+esac
+cid=$(printf '%s\n' "$call" | jq -r '.event.subject // empty')
+[ -n "$cid" ] || err '{"error":"missing_subject"}'
+input=$(printf '%s\n' "$call" | jq -c '.input // {}')
+approval_id=$(printf '%s\n' "$call" | jq -r '.approval.id // empty')
+principal=${SOOT_PRINCIPAL_TOKEN:-$(printf '%s\n' "$call" | jq -r '.principal_token // empty')}
+# A JWS compact token is three base64url parts; anything else is never sent.
+if [ -n "$principal" ] && ! printf '%s' "$principal" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'; then
+  err '{"code":"principal_invalid","detail":"malformed token"}'
+fi
+case $LOHI_CS_API_KEY in *[\"\\]*|*'
+'*) err '{"error":"bad_env","env":"LOHI_CS_API_KEY"}' ;; esac
+
+# curl config on stdin: the key and the principal never appear in argv.
+# $1=1 when the request has a JSON body.
+headers() {
+  printf 'header = "X-API-Key: %s"\n' "$LOHI_CS_API_KEY"
+  [ -z "$principal" ] || printf 'header = "X-Soot-Principal: %s"\n' "$principal"
+  [ "${1:-0}" = 1 ] && printf 'header = "Content-Type: application/json"\n'
+  return 0
+}
+# The reader's own data needs the principal; without one nothing is asked.
+need_principal() {
+  [ -n "$principal" ] || { printf '%s\n' '{"code":"principal_required","detail":"anonymous conversation: the reader must sign in to Lohi"}'; exit 1; }
+}
+
+enc() { jq -rn --arg v "$1" '$v|@uri'; }
+
+# Durable state (idempotency ids) outlives a call. The runtime gives a tool
+# only its declared env plus SOOT_PACK_STATE, never HOME.
+pack_state() {
+  dir=${SOOT_PACK_STATE:-${HOME:+$HOME/.soot/state/lohi-cs}}
+  [ -n "$dir" ] || err '{"error":"missing_env","env":"SOOT_PACK_STATE"}'
+  mkdir -p "$dir" 2>/dev/null || err '{"error":"state_unavailable"}'
+  printf '%s' "$dir"
+}
+
+# curl helper: $1=METHOD $2=URL $3=optional JSON body.
+# Prints body on stdout; non-2xx prints the api error body and exits 1.
+req() {
+  method=$1; url=$2; body=${3:-}
+  out=$(mktemp "${TMPDIR:-/tmp}/soot-lohi-api.XXXXXX")
+  if [ -n "$body" ]; then
+    code=$(headers 1 | curl -sS -K - -o "$out" -w '%{http_code}' -X "$method" "$url" -d "$body")
+  else
+    code=$(headers | curl -sS -K - -o "$out" -w '%{http_code}' -X "$method" "$url")
+  fi
+  cat "$out"
+  rm -f "$out"
+  case $code in 2*) return 0 ;; *) exit 1 ;; esac
+}
+
+# exec helper for the approval-gated routes: $1=path $2=JSON body (dryRun is
+# added on preflight) $3=jq program rendering the dry-run body as the preview
+# $4=the route's refusals as {code: status} (lohi.agent-exec §3.6).
+# Exit 1 is decided (nothing was done or requested); exit ≥2 is uncertain and
+# the runtime fences the resource until a person checks.
+# - A refusal is the api's only when its code is one the route documents, with
+#   that status: the body is printed, exit 1. Anything else (a wrong base URL,
+#   a proxy page, an unhandled error) prints {"code":"http_<status>"} and
+#   exits 1, except a 5xx/408 on the
+#   real call, which may come after the write committed: exit 2.
+# - A transport failure prints {"code":"transport_<curl exit>"}; on the real
+#   call it keeps curl's exit code (uncertain);
+#   on preflight nothing is written, so it and an unreadable dry-run body are
+#   refusals (exit 1), never an approval card without a preview.
+exec_post() {
+  path=$1; body=$2; render=$3; refusals=$4
+  if [ "$hook" = tool.preflight ]; then
+    body=$(printf '%s\n' "$body" | jq -c '. + {dryRun: true}')
+  fi
+  out=$(mktemp "${TMPDIR:-/tmp}/soot-lohi-api.XXXXXX")
+  code=$(headers 1 | curl -s -K - -o "$out" -w '%{http_code}' -X POST "$base$path" -d "$body") || {
+    rc=$?; rm -f "$out"
+    jq -cn --arg c "transport_$rc" '{code: $c}'
+    [ "$hook" = tool.preflight ] && exit 1
+    exit "$rc"
+  }
+  resp=$(cat "$out")
+  rm -f "$out"
+  case $code in
+    2*) ;;
+    *)
+      if printf '%s\n' "$resp" | jq -ce --argjson r "$refusals" --argjson s "$code" '
+          select(type == "object" and (.code | type) == "string" and $r[.code] == $s)' 2>/dev/null; then
+        exit 1
+      fi
+      jq -cn --arg c "http_$code" '{code: $c}'
+      case $hook:$code in tool.call:5??|tool.call:408) exit 2 ;; esac
+      exit 1
+      ;;
+  esac
+  if [ "$hook" = tool.preflight ]; then
+    printf '%s\n' "$resp" | jq -c --argjson in "$input" "$PREVIEW_LIB $render | {preview: .}" 2>/dev/null \
+      || { jq -cn '{code: "bad_response"}'; exit 1; }
+  else
+    printf '%s\n' "$resp"
+  fi
+}
+
+# Preview helpers (approval card copy, Vietnamese). Times show in Vietnam time
+# (UTC+7, no DST) as dd/MM HH:mm; anything unparseable is shown as given.
+# Amounts read 50.000 đ.
+PREVIEW_LIB='
+def vn: . as $raw
+  | ((try (capture("^(?<d>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2})(?<s>:[0-9]{2})?(\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:[0-9]{2})$")
+      | ((.d + (.s // ":00") + "Z") | fromdateiso8601)
+        - (if .z == "Z" then 0 else ((.z[1:3] | tonumber) * 3600 + (.z[4:6] | tonumber) * 60) * (if .z[0:1] == "-" then -1 else 1 end) end)
+        + 25200
+      | strftime("%d/%m %H:%M")) catch null) // ($raw | tostring));
+def vnd: tostring as $s | ($s | length) as $n
+  | [range(0; $n) | $s[.:.+1] + (if . < $n - 1 and ($n - 1 - .) % 3 == 0 then "." else "" end)]
+  | join("") + " đ";
+def oneline: tostring | gsub("\\s+"; " ");
+'
+
+me() { need_principal; req GET "$base/agent/support/lookup/me${1:+/$1}${2:-}"; }
+
+case $cmd in
+  lookup)
+    kind=$(printf '%s\n' "$input" | jq -r '.kind // empty')
+    limit=$(printf '%s\n' "$input" | jq -r '.limit // 10')
+    case $kind in
+      me)
+        me
+        ;;
+      profile|wallet|topups|orders|subscription|requests|unlocks)
+        # The api scopes the read to the principal's sub (403
+        # principal_mismatch when the conversation is someone else's).
+        me "$kind" "?limit=$limit"
+        ;;
+      recommend)
+        # Reading suggestions: taste + ranked unread candidates, composed
+        # server-side. q/about/like/genres/tags/status are the reader's stated wish, optional.
+        query="?limit=$(printf '%s\n' "$input" | jq -r '.limit // 8')"
+        for f in q about like genres tags status; do
+          v=$(printf '%s\n' "$input" | jq -r --arg f "$f" '.[$f] // empty')
+          [ -n "$v" ] && query="$query&$f=$(enc "$v")"
+        done
+        me recommendations "$query"
+        ;;
+      find_novel)
+        # Title / slug / lohi2.com link -> novelId. Public catalogue, no user scope.
+        q=$(printf '%s\n' "$input" | jq -r '.q // empty')
+        [ -n "$q" ] || err '{"error":"missing_param","param":"q"}'
+        req GET "$base/agent/support/lookup/novels/find?q=$(enc "$q")&limit=5"
+        ;;
+      content_health)
+        nid=$(printf '%s\n' "$input" | jq -r '.novelId // empty')
+        from=$(printf '%s\n' "$input" | jq -r '.from // empty')
+        to=$(printf '%s\n' "$input" | jq -r '.to // empty')
+        [ -n "$nid" ] || err '{"error":"missing_param","param":"novelId"}'
+        [ -n "$from" ] || err '{"error":"missing_param","param":"from"}'
+        url="$base/agent/support/lookup/novels/$(enc "$nid")/content-health?from=$from"
+        [ -n "$to" ] && url="$url&to=$to"
+        req GET "$url"
+        ;;
+      features)
+        # Public product facts; optional free-text filter.
+        q=$(printf '%s\n' "$input" | jq -r '.q // empty')
+        url="$base/agent/support/lookup/features"
+        [ -n "$q" ] && url="$url?q=$(enc "$q")"
+        req GET "$url"
+        ;;
+      name_check)
+        nid=$(printf '%s\n' "$input" | jq -r '.novelId // empty')
+        name=$(printf '%s\n' "$input" | jq -r '.name // empty')
+        other=$(printf '%s\n' "$input" | jq -r '.other // empty')
+        from=$(printf '%s\n' "$input" | jq -r '.from // empty')
+        to=$(printf '%s\n' "$input" | jq -r '.to // empty')
+        [ -n "$nid" ] || err '{"error":"missing_param","param":"novelId"}'
+        [ -n "$name" ] || err '{"error":"missing_param","param":"name"}'
+        [ -n "$from" ] || err '{"error":"missing_param","param":"from"}'
+        url="$base/agent/support/lookup/novels/$(enc "$nid")/name-check?name=$(enc "$name")&from=$from"
+        [ -n "$other" ] && url="$url&other=$(enc "$other")"
+        [ -n "$to" ] && url="$url&to=$to"
+        req GET "$url"
+        ;;
+      novel_chapters)
+        nid=$(printf '%s\n' "$input" | jq -r '.novelId // empty')
+        [ -n "$nid" ] || err '{"error":"missing_param","param":"novelId"}'
+        req GET "$base/agent/support/lookup/novels/$(enc "$nid")/chapters"
+        ;;
+      chapter_tts)
+        chid=$(printf '%s\n' "$input" | jq -r '.chapterId // empty')
+        [ -n "$chid" ] || err '{"error":"missing_param","param":"chapterId"}'
+        req GET "$base/agent/support/lookup/chapters/$(enc "$chid")/tts"
+        ;;
+      *) err "{\"error\":\"bad_kind\",\"kind\":\"$kind\"}" ;;
+    esac
+    ;;
+  history)
+    # Read back what was already said in THIS conversation. The model passes
+    # only the narrowing args; the principal names the reader.
+    limit=$(printf '%s\n' "$input" | jq -r '.limit // 20')
+    before=$(printf '%s\n' "$input" | jq -r '.before // empty')
+    query=$(printf '%s\n' "$input" | jq -r '.q // empty')
+    q="?limit=$limit"
+    [ -n "$before" ] && q="$q&before=$(enc "$before")"
+    [ -n "$query" ] && q="$q&q=$(enc "$query")"
+    me history "$q"
+    ;;
+  request-novel)
+    need_principal
+    state_dir=$(pack_state)
+    # Idempotency per (conversation, title): a retry of the same filing reuses
+    # the stored id; a different title gets its own id. Persist only AFTER a
+    # successful POST so a rejected id never sticks.
+    key=$(printf '%s\n' "$input" | jq -r '.title // ""' | tr 'A-Z' 'a-z' | cksum | cut -d' ' -f1)
+    rid_file=$state_dir/request-$(printf '%s' "$cid" | tr -c 'A-Za-z0-9_.-' '_')-$key.id
+    if [ -s "$rid_file" ]; then
+      rid=$(cat "$rid_file")
+    else
+      # Only a UUID-shaped model id can serve as the idempotency key — the
+      # api validates z.uuid(). Any other string (a title slug, an empty
+      # echo, "abc123") gets a fresh generated id instead of a 400.
+      rid=$(printf '%s\n' "$input" | jq -r '.requestId // empty')
+      printf '%s' "$rid" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+        || rid=$(uuidgen | tr 'A-F' 'a-f')
+    fi
+    body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" --arg r "$rid" '{
+      conversationId: $c, requestId: $r, title: .title,
+      sourceUrl: (.sourceUrl // null), genre: (.genre // null),
+      description: (.description // null)}')
+    req POST "$base/agent/support/requests" "$body" && printf '%s' "$rid" >"$rid_file"
+    ;;
+  report-content)
+    state_dir=$(pack_state)
+    # Idempotency per (conversation, novel, kind, from): a retry reuses the
+    # stored id. Persist only AFTER a successful POST so a rejected id never sticks.
+    key=$(printf '%s\n' "$input" | jq -r '[.novelId, .kind, (.from|tostring), (.wrongName // "")] | join(":")' | cksum | cut -d' ' -f1)
+    rid_file=$state_dir/report-$(printf '%s' "$cid" | tr -c 'A-Za-z0-9_.-' '_')-$key.id
+    if [ -s "$rid_file" ]; then
+      rid=$(cat "$rid_file")
+    else
+      rid=$(printf '%s\n' "$input" | jq -r '.reportId // empty')
+      printf '%s' "$rid" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+        || rid=$(uuidgen | tr 'A-F' 'a-f')
+    fi
+    body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" --arg r "$rid" '{
+      conversationId: $c, reportId: $r, novelId: .novelId, kind: .kind,
+      from: .from, to: (.to // null), note: (.note // null),
+      wrongName: (.wrongName // null), rightName: (.rightName // null)} | with_entries(select(.value != null))')
+    req POST "$base/agent/support/content-reports" "$body" && printf '%s' "$rid" >"$rid_file"
+    ;;
+  recover-topup)
+    need_principal
+    # A missed SePay top-up: the api verifies with SePay and credits only
+    # exactly one paid top-up of this reader. Whitelisted fields only.
+    body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" --arg a "$approval_id" '{
+      conversationId: $c, from: .from, to: .to,
+      amountVnd: (.amountVnd // null), transferNote: (.transferNote // null),
+      reason: (.reason // null),
+      approvalId: (if $a == "" then null else $a end)} | with_entries(select(.value != null))')
+    exec_post /agent/support/topups/recover "$body" '
+      (.hints // {amountVnd: $in.amountVnd, transferNote: $in.transferNote}) as $h
+      | ($h | [(.amountVnd // empty | vnd), (.transferNote // empty | "nội dung \"\(oneline)\"")]) as $hints
+      | (.completedInWindow // []) as $done
+      | .candidates as $c | if ($c | type) != "array" then error("no candidates") else . end
+      | [ "Bạn đọc: \(.reader.displayName // "—") (\(.reader.userId))",
+          "Khung giờ: \((.window.from // $in.from) | vn) → \((.window.to // $in.to) | vn) (giờ VN)",
+          (if ($hints | length) > 0 then "Gợi ý: \($hints | join(", "))" else empty end),
+          "Khoản nạp khớp: \(.candidates | length)",
+          (.candidates[] | "- \(.topupId) · \(.amountVnd | vnd) · \(.status) · \(.createdAt | vn)"),
+          (if ($done | length) > 0 then "Đã hoàn tất trong khung giờ: \($done | length)" else empty end),
+          ($done[] | "- \(.topupId) · \(.amountVnd | vnd) · \(.completedAt | vn)"),
+          ($in.reason // empty | "Lý do: \(oneline)"),
+          "LT do máy chủ tính sau khi SePay xác nhận." ] | join("\n")' \
+      '{"not_found":404,"not_paid":409,"ambiguous":409,"amount_mismatch":409,
+        "not_creditable":409,"provider_unavailable":503,"invalid_window":422,
+        "thread_unbound":403}'
+    ;;
+  fix-chapter)
+    # A wrong passage (exact find/replace that must match expectOccurrences)
+    # or a broken chapter (re-crawl from its source).
+    mode=$(printf '%s\n' "$input" | jq -r '.mode // empty')
+    case $mode in
+      replace)
+        printf '%s\n' "$input" | jq -e '(.find | type == "string" and length > 0) and (.replace | type == "string")' >/dev/null 2>&1 \
+          || err '{"code":"invalid_input","detail":"replace needs find and replace"}'
+        ;;
+      recrawl) ;;
+      *) err '{"code":"invalid_input","detail":"mode must be replace or recrawl"}' ;;
+    esac
+    body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" --arg a "$approval_id" '{
+      conversationId: $c, novelId: .novelId, chapterNumber: .chapterNumber, mode: .mode,
+      reason: (.reason // null),
+      approvalId: (if $a == "" then null else $a end)}
+      + (if .mode == "replace" then {find: .find, replace: .replace, expectOccurrences: (.expectOccurrences // 1)} else {} end)
+      | with_entries(select(.value != null))')
+    exec_post /agent/support/chapters/fix "$body" '
+      if (.novel | type) != "object" then error("no novel") else . end
+      | [ "Truyện: \(.novel.title) · chương \(.chapter.number)",
+        (if .source then
+          "Cách sửa: lấy lại chương từ nguồn (\(if .source == "litrans" then "Litrans" else .source end))"
+        else
+          "Cách sửa: thay chữ",
+          "Tìm thấy: \(.found)/\($in.expectOccurrences // 1) chỗ trong \(.column)",
+          "«…\(.excerpt | oneline)…»",
+          "Thay bằng: «\($in.replace | oneline)»"
+        end),
+        ($in.reason // empty | "Lý do: \(oneline)") ] | join("\n")' \
+      '{"chapter_not_found":404,"occurrences_mismatch":409,"not_recrawlable":409,
+        "job_active":409,"thread_unbound":403}'
+    ;;
+  *) err "{\"error\":\"bad_cmd\",\"cmd\":\"$cmd\"}" ;;
+esac
