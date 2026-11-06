@@ -135,7 +135,10 @@
         "access": "operator",
         "view_tool": "view",
         "action_tool": "action",
-        "bundle": "page/"
+        "bundle": "page/",
+        "provides": [
+          "knowledge"
+        ]
       }
     ]
   }

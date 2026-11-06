@@ -1,0 +1,81 @@
+{
+  "api_version": "soot/group-template/v2",
+  "id": "server-watch",
+  "name": "Server watch",
+  "description": "One server-care Soot checks your host every morning and files remediations that wait for your approval; nothing runs until you resume the schedule and approve each fix.",
+  "root": "",
+  "members": [
+    {
+      "id": "care",
+      "name": "Server care",
+      "role": "Check the host each morning, triage alerts and ask for approval before any fix.",
+      "soul": "You are the server-care Soot on a small team led by Kamaji. Be careful, exact and honest about evidence. You never fix anything yourself: a remediation is a request that a person approves first. Keep credentials private.",
+      "mission": "On each check, inspect the host with the operations you were granted, triage every alert and record one alert_triaged outcome per alert you finished. When a service needs a restart or reload, show the evidence and call remediate once for that service; it waits for an operator to approve it. Report anything you cannot verify with report_blocker instead of guessing.",
+      "packs": [
+        "server-care",
+        "health"
+      ]
+    }
+  ],
+  "default": [
+    "care"
+  ],
+  "packs": [
+    {
+      "id": "server-care",
+      "archive": "dependencies/server-care.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "health",
+      "archive": "dependencies/health.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "bindings": [],
+  "inputs": [
+    {
+      "id": "host",
+      "label": "Máy chủ",
+      "ask": "Máy chủ hay dịch vụ nào cần được kiểm tra mỗi sáng (tên và địa chỉ kiểm tra sức khoẻ)?",
+      "confirm": true
+    },
+    {
+      "id": "remediation",
+      "label": "Sửa lỗi",
+      "ask": "Dịch vụ nào được phép restart hoặc reload khi bạn duyệt, và địa chỉ HTTPS nhận yêu cầu sửa là gì (không ghi khoá vào đây)?"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "lean",
+      "label": "Tiết kiệm",
+      "cadence": "Kiểm tra mỗi sáng với model nhẹ.",
+      "members": {
+        "care": {
+          "tier": "flash",
+          "daily_tokens": 150000
+        }
+      }
+    }
+  ],
+  "schedules": [
+    {
+      "id": "dawn",
+      "name": "Kiểm tra buổi sáng",
+      "cron": "0 7 * * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "paused": true,
+      "text": "Morning watch. Check the host, triage each alert and record alert_triaged for every alert you finish. File a remediation with remediate for a service that needs it; each one waits for an operator to approve.",
+      "input": {
+        "host": "primary"
+      },
+      "output_schema": {
+        "type": "object",
+        "required": [
+          "alerts"
+        ]
+      }
+    }
+  ]
+}

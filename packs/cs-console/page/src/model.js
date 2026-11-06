@@ -8,11 +8,28 @@
 /** @typedef {{ at: string, conversation: string, channel: string, role: 'c' | 's' | 'm', author: string, text: string, internal: boolean }} Entry */
 /** @typedef {{ customer: { key: string, name: string, status: Status, channels: string[], levels: string[], principals: string[] },
  *   control: { conversation: string, owner: string, state: string, revision: number, can_control: boolean },
- *   timeline: Entry[], memory: { id: string, content: string }[], facts: { label: string, value: string }[], facts_state: string,
+ *   timeline: Entry[], timeline_truncated?: boolean, notes_truncated?: boolean, memory: { id: string, content: string }[], facts: { label: string, value: string }[], facts_state: string,
  *   notes: { id: string, body: string, author: string, at: string }[], tags: { id: string, tag: string }[], links: { id: string, alias: string, proof: string }[] }} Detail */
 
 // ---- bodies: exactly the tools' parameters ----
-export const listBody = (q = '') => ({ kind: 'customers', ...(q.trim() ? { q: q.trim().slice(0, 100) } : {}) });
+export const listBody = (q = '', cursor = '') => ({ kind: 'customers', ...(q.trim() ? { q: q.trim().slice(0, 100) } : {}), ...(cursor ? { cursor } : {}) });
+
+const RANK = { need: 0, human: 1, soot: 2, done: 3 };
+const union = (/** @type {string[]} */ a, /** @type {string[]} */ b) => [...new Set([...a, ...b])].sort();
+/**
+ * The next page of people joins the rows already shown: a person whose
+ * conversations span two pages is one row with both counted.
+ * @param {Row[]} have @param {Row[]} more @returns {Row[]}
+ */
+export function mergeRows(have, more) {
+  const byKey = new Map(have.map(r => [r.key, r]));
+  for (const r of more) {
+    const o = byKey.get(r.key);
+    byKey.set(r.key, !o ? r : { ...o, status: RANK[r.status] < RANK[o.status] ? r.status : o.status, channels: union(o.channels, r.channels), levels: union(o.levels, r.levels),
+      latest: String(r.latest) > String(o.latest) ? r.latest : o.latest, conversations: o.conversations + r.conversations, tags: union(o.tags, r.tags) });
+  }
+  return [...byKey.values()].sort((a, b) => RANK[a.status] - RANK[b.status] || String(b.latest).localeCompare(String(a.latest)));
+}
 export const detailBody = (/** @type {string} */ key) => ({ kind: 'customer', key });
 
 /**
@@ -59,9 +76,12 @@ export function strings(/** @type {string} */ locale) {
     tags: 'Nhãn', addTag: 'Thêm nhãn', notes: 'Ghi chú của đội', addNote: 'Lưu ghi chú', delete: 'Xoá',
     links: 'Danh tính đã liên kết', linkHelp: 'Dán bằng chứng liên kết do sản phẩm ký (ví dụ khi người dùng xác nhận Telegram trong ứng dụng). Không liên kết theo tên hay email.', link: 'Liên kết', unlink: 'Gỡ liên kết', noLinkKeys: 'Chưa cấu hình khoá sản phẩm để xác minh liên kết.',
     unknown: 'Chưa biết kết quả. Bấm Thử lại — cùng yêu cầu sẽ không chạy hai lần.', retry: 'Thử lại', busy: 'Máy chủ đang bận, thử lại sau ít phút.', done: 'Đã lưu.', replayed: 'Yêu cầu này đã chạy trước đó.',
+    loadMore: 'Tải thêm khách', listTruncated: 'Mới hiện một phần danh sách. Bấm “Tải thêm khách” để xem tiếp; tìm kiếm chỉ lọc phần đã tải.',
+    timelineTruncated: 'Dòng thời gian chưa đầy đủ: chỉ hiện các tin gần nhất của những cuộc trò chuyện mới nhất.', notesTruncated: 'Còn ghi chú cũ hơn chưa hiển thị.',
     loadFailed: 'Không tải được. Kiểm tra kết nối bảng khách hàng.', back: 'Danh sách',
     errors: /** @type {Record<string, string>} */ ({
       not_configured: 'Gói chưa được cấu hình (CS_CONSOLE). Xem README của gói.', not_found: 'Không còn thấy người hoặc cuộc trò chuyện này trong quyền của Soot.',
+      too_large: 'Có quá nhiều dữ liệu để đọc một lần. Thu hẹp quyền của khoá hoặc gỡ bớt liên kết.',
       conflict: 'Cuộc trò chuyện vừa đổi. Tải lại rồi thử lại.', invalid_proof: 'Bằng chứng không hợp lệ.', proof_expired: 'Bằng chứng đã hết hạn — xin sản phẩm cấp lại.',
       proof_replayed: 'Bằng chứng này đã được dùng.', link_conflict: 'Người gửi này đã liên kết với người khác.', invalid_request: 'Dữ liệu chưa hợp lệ.', host_unavailable: 'Không kết nối được Soot.',
     }),
@@ -74,6 +94,8 @@ export function strings(/** @type {string} */ locale) {
     internal: 'Private', tags: 'Tags', addTag: 'Add tag', notes: 'Team notes', addNote: 'Save note', delete: 'Delete', links: 'Linked identities',
     linkHelp: 'Paste a product-signed link proof. Never link by name or email.', link: 'Link', unlink: 'Unlink', noLinkKeys: 'No product key is configured for links.',
     unknown: 'Outcome unknown. Retry — the same request never runs twice.', retry: 'Retry', busy: 'The host is busy; try again shortly.', done: 'Saved.', replayed: 'This request already ran.',
+    loadMore: 'Load more people', listTruncated: 'Only part of the list is shown. Press “Load more people” to continue; search only filters what is loaded.',
+    timelineTruncated: 'The timeline is incomplete: only the latest messages of the newest conversations are shown.', notesTruncated: 'Older notes are not shown.',
     loadFailed: 'Could not load. Check the console connection.', back: 'List',
   };
   return locale === 'en' ? en : vi;

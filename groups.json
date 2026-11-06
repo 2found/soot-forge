@@ -19,6 +19,12 @@
       "name": "Simulated society",
       "description": "A persona crowd, an expert panel and an analyst judge your feature, product, price, video or campaign: independent first impressions, social rounds, then a cited report.",
       "source": "groups/society-sim/group.source.json"
+    },
+    {
+      "id": "server-watch",
+      "name": "Server watch",
+      "description": "One server-care Soot checks your host every morning and files remediations that wait for your approval; nothing runs until you resume the schedule and approve each fix.",
+      "source": "groups/server-watch/group.source.json"
     }
   ]
 }

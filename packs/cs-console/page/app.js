@@ -113,11 +113,28 @@ const __model = (() => {
 /** @typedef {{ at: string, conversation: string, channel: string, role: 'c' | 's' | 'm', author: string, text: string, internal: boolean }} Entry */
 /** @typedef {{ customer: { key: string, name: string, status: Status, channels: string[], levels: string[], principals: string[] },
  *   control: { conversation: string, owner: string, state: string, revision: number, can_control: boolean },
- *   timeline: Entry[], memory: { id: string, content: string }[], facts: { label: string, value: string }[], facts_state: string,
+ *   timeline: Entry[], timeline_truncated?: boolean, notes_truncated?: boolean, memory: { id: string, content: string }[], facts: { label: string, value: string }[], facts_state: string,
  *   notes: { id: string, body: string, author: string, at: string }[], tags: { id: string, tag: string }[], links: { id: string, alias: string, proof: string }[] }} Detail */
 
 // ---- bodies: exactly the tools' parameters ----
-const listBody = (q = '') => ({ kind: 'customers', ...(q.trim() ? { q: q.trim().slice(0, 100) } : {}) });
+const listBody = (q = '', cursor = '') => ({ kind: 'customers', ...(q.trim() ? { q: q.trim().slice(0, 100) } : {}), ...(cursor ? { cursor } : {}) });
+
+const RANK = { need: 0, human: 1, soot: 2, done: 3 };
+const union = (/** @type {string[]} */ a, /** @type {string[]} */ b) => [...new Set([...a, ...b])].sort();
+/**
+ * The next page of people joins the rows already shown: a person whose
+ * conversations span two pages is one row with both counted.
+ * @param {Row[]} have @param {Row[]} more @returns {Row[]}
+ */
+function mergeRows(have, more) {
+  const byKey = new Map(have.map(r => [r.key, r]));
+  for (const r of more) {
+    const o = byKey.get(r.key);
+    byKey.set(r.key, !o ? r : { ...o, status: RANK[r.status] < RANK[o.status] ? r.status : o.status, channels: union(o.channels, r.channels), levels: union(o.levels, r.levels),
+      latest: String(r.latest) > String(o.latest) ? r.latest : o.latest, conversations: o.conversations + r.conversations, tags: union(o.tags, r.tags) });
+  }
+  return [...byKey.values()].sort((a, b) => RANK[a.status] - RANK[b.status] || String(b.latest).localeCompare(String(a.latest)));
+}
 const detailBody = (/** @type {string} */ key) => ({ kind: 'customer', key });
 
 /**
@@ -164,9 +181,12 @@ function strings(/** @type {string} */ locale) {
     tags: 'Nhãn', addTag: 'Thêm nhãn', notes: 'Ghi chú của đội', addNote: 'Lưu ghi chú', delete: 'Xoá',
     links: 'Danh tính đã liên kết', linkHelp: 'Dán bằng chứng liên kết do sản phẩm ký (ví dụ khi người dùng xác nhận Telegram trong ứng dụng). Không liên kết theo tên hay email.', link: 'Liên kết', unlink: 'Gỡ liên kết', noLinkKeys: 'Chưa cấu hình khoá sản phẩm để xác minh liên kết.',
     unknown: 'Chưa biết kết quả. Bấm Thử lại — cùng yêu cầu sẽ không chạy hai lần.', retry: 'Thử lại', busy: 'Máy chủ đang bận, thử lại sau ít phút.', done: 'Đã lưu.', replayed: 'Yêu cầu này đã chạy trước đó.',
+    loadMore: 'Tải thêm khách', listTruncated: 'Mới hiện một phần danh sách. Bấm “Tải thêm khách” để xem tiếp; tìm kiếm chỉ lọc phần đã tải.',
+    timelineTruncated: 'Dòng thời gian chưa đầy đủ: chỉ hiện các tin gần nhất của những cuộc trò chuyện mới nhất.', notesTruncated: 'Còn ghi chú cũ hơn chưa hiển thị.',
     loadFailed: 'Không tải được. Kiểm tra kết nối bảng khách hàng.', back: 'Danh sách',
     errors: /** @type {Record<string, string>} */ ({
       not_configured: 'Gói chưa được cấu hình (CS_CONSOLE). Xem README của gói.', not_found: 'Không còn thấy người hoặc cuộc trò chuyện này trong quyền của Soot.',
+      too_large: 'Có quá nhiều dữ liệu để đọc một lần. Thu hẹp quyền của khoá hoặc gỡ bớt liên kết.',
       conflict: 'Cuộc trò chuyện vừa đổi. Tải lại rồi thử lại.', invalid_proof: 'Bằng chứng không hợp lệ.', proof_expired: 'Bằng chứng đã hết hạn — xin sản phẩm cấp lại.',
       proof_replayed: 'Bằng chứng này đã được dùng.', link_conflict: 'Người gửi này đã liên kết với người khác.', invalid_request: 'Dữ liệu chưa hợp lệ.', host_unavailable: 'Không kết nối được Soot.',
     }),
@@ -179,6 +199,8 @@ function strings(/** @type {string} */ locale) {
     internal: 'Private', tags: 'Tags', addTag: 'Add tag', notes: 'Team notes', addNote: 'Save note', delete: 'Delete', links: 'Linked identities',
     linkHelp: 'Paste a product-signed link proof. Never link by name or email.', link: 'Link', unlink: 'Unlink', noLinkKeys: 'No product key is configured for links.',
     unknown: 'Outcome unknown. Retry — the same request never runs twice.', retry: 'Retry', busy: 'The host is busy; try again shortly.', done: 'Saved.', replayed: 'This request already ran.',
+    loadMore: 'Load more people', listTruncated: 'Only part of the list is shown. Press “Load more people” to continue; search only filters what is loaded.',
+    timelineTruncated: 'The timeline is incomplete: only the latest messages of the newest conversations are shown.', notesTruncated: 'Older notes are not shown.',
     loadFailed: 'Could not load. Check the console connection.', back: 'List',
   };
   return locale === 'en' ? en : vi;
@@ -194,7 +216,7 @@ function when(/** @type {string} */ iso, now = new Date()) {
   const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   return d.toDateString() === now.toDateString() ? hm : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${hm}`;
 }
-return { listBody, detailBody, actionBody, controlBody, tagBody, noteBody, linkBody, viewOutput, classify, strings, errorText, when };
+return { listBody, mergeRows, detailBody, actionBody, controlBody, tagBody, noteBody, linkBody, viewOutput, classify, strings, errorText, when };
 })();
 
 // ---- src/app.js ----
@@ -207,7 +229,7 @@ const M = __model;
 
 const S = {
   t: M.strings('vi'), started: false, busy: false, loadError: '', q: '', tagDraft: '', noteDraft: '', proofDraft: '',
-  /** @type {M.Row[] | null} */ rows: null, linkProofs: false,
+  /** @type {M.Row[] | null} */ rows: null, linkProofs: false, next: '', truncated: false,
   /** @type {string} */ selected: '',
   /** @type {M.Detail | null} */ detail: null,
   /** @type {{ request_id: string, body: object } | null} */ pending: null,
@@ -234,10 +256,14 @@ async function load() {
   S.loadError = '';
   try {
     const out = await view(M.listBody(S.q));
-    S.rows = out.customers ?? []; S.linkProofs = !!out.link_proofs;
+    S.rows = out.customers ?? []; S.linkProofs = !!out.link_proofs; S.next = out.next ?? ''; S.truncated = !!out.truncated;
     const keep = S.rows?.find(r => r.key === S.selected)?.key ?? S.rows?.[0]?.key ?? '';
     if (keep) await open(keep); else { S.selected = ''; S.detail = null; }
   } catch (e) { S.loadError = M.errorText(S.t, /** @type {any} */ (e)?.code); }
+}
+async function more() {
+  const out = await view(M.listBody(S.q, S.next));
+  S.rows = M.mergeRows(S.rows ?? [], out.customers ?? []); S.next = out.next ?? ''; S.truncated = !!out.truncated;
 }
 async function open(/** @type {string} */ key) {
   S.selected = key;
@@ -287,10 +313,12 @@ const input = (/** @type {string} */ id, /** @type {string} */ value, /** @type 
 function list() {
   const t = S.t;
   const rows = /** @type {M.Row[]} */ (S.rows);
-  return h('div', { class: 'card list', role: 'listbox', 'aria-label': t.title },
+  const listbox = h('div', { class: 'card list', role: 'listbox', 'aria-label': t.title },
     ...rows.map(r => h('button', { type: 'button', class: 'item', role: 'option', 'aria-selected': String(r.key === S.selected), onclick: () => void run(() => open(r.key)) },
       h('span', { class: 'line' }, h('b', {}, r.name), h('span', { class: 'muted' }, M.when(r.latest))),
       h('span', { class: 'line' }, pill(r.status), h('span', { class: 'muted' }, r.channels.join(' · ')), ...r.tags.map(tag => h('span', { class: 'tag' }, tag))))));
+  return h('div', { class: 'stack' }, listbox,
+    S.truncated && h('div', { class: 'stack' }, h('p', { class: 'muted', role: 'status' }, t.listTruncated), button(t.loadMore, () => void run(more), 'btn', locked())));
 }
 
 function detail() {
@@ -310,6 +338,7 @@ function detail() {
     h('div', { class: 'line wrap' }, ...d.tags.map(x => h('span', { class: 'tag' }, x.tag, ' ', button('×', () => void write(M.tagBody(c.key, x.tag, true)), 'btn ghost xs', locked())))),
     h('div', { class: 'line' }, input('tag', S.tagDraft, v => { S.tagDraft = v; }, t.addTag, 32), button(t.addTag, () => void write(M.tagBody(c.key, S.tagDraft)), 'btn', locked())));
   const notes = h('section', { class: 'stack' }, h('h2', {}, t.notes),
+    d.notes_truncated && h('p', { class: 'muted', role: 'status' }, t.notesTruncated),
     ...d.notes.map(n => h('div', { class: 'note' }, h('p', {}, n.body), h('p', { class: 'muted' }, `${n.author} · ${M.when(n.at)}`, ' ', button(t.delete, () => void write({ kind: 'note_delete', key: d.customer.key, id: n.id }), 'btn ghost xs', locked())))),
     h('textarea', { id: 'note', class: 'input', rows: 2, maxlength: 2000, 'aria-label': t.addNote, disabled: locked(), oninput: (/** @type {Event} */ e) => { S.noteDraft = /** @type {HTMLTextAreaElement} */ (e.target).value; } }, S.noteDraft),
     button(t.addNote, () => void write(M.noteBody(c.key, S.noteDraft)), 'btn', locked()));
@@ -319,6 +348,7 @@ function detail() {
       h('div', { class: 'line' }, input('proof', S.proofDraft, v => { S.proofDraft = v; }, t.link, 4096), button(t.link, () => void write(M.linkBody(S.proofDraft)), 'btn', locked())))
       : h('p', { class: 'muted' }, t.noLinkKeys));
   const timeline = h('section', { class: 'stack' }, h('h2', {}, t.timeline),
+    d.timeline_truncated && h('p', { class: 'muted', role: 'status' }, t.timelineTruncated),
     ...d.timeline.map(m => h('div', { class: `msg ${m.role}${m.internal ? ' internal' : ''}` },
       h('p', { class: 'muted' }, `${m.author || m.channel} · ${m.channel} · ${M.when(m.at)}${m.internal ? ` · ${t.internal}` : ''}`), h('p', {}, m.text))));
   return h('div', { class: 'card detail' }, head, facts, memory, timeline, tags, notes, links);
@@ -327,7 +357,7 @@ function detail() {
 function render() {
   const t = S.t, root = /** @type {HTMLElement} */ (document.getElementById('app'));
   const focused = document.activeElement?.id;
-  const out = [h('header', { class: 'head' }, h('h1', {}, t.title), h('p', { class: 'muted' }, t.purpose)),
+  const out = [h('header', { class: 'head' }, h('h2', { class: 'page-title' }, t.title), h('p', { class: 'muted' }, t.purpose)),
     h('div', { class: 'line' }, input('q', S.q, v => { S.q = v; }, t.search, 100), button(t.reload, () => void run(load), 'btn', locked()))];
   if (S.loadError) out.push(h('div', { class: 'notice', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load))));
   else if (!S.rows) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));

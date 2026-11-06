@@ -30,6 +30,12 @@ const bridge = createBridge({
   onTheme: msg => applyTheme(msg),
 });
 
+// Draft recovery rides the bridge when there is a host (B20); sessionStorage only without one.
+const draftIO = window.parent === window ? undefined : /** @type {M.DraftIO} */ (async (kind, value) => {
+  const r = await bridge.call('view', { kind, ...(value ? { value } : {}) }, undefined, 5000);
+  return r.ok ? { ok: true, output: r.output } : { ok: false };
+});
+
 // ---- calls ----
 const view = async (/** @type {object} */ body) => M.viewOutput(await bridge.call('view', body));
 const organized = () => !!S.overview?.organization_version;
@@ -79,7 +85,7 @@ async function mutate(body) {
   if (S.pending || S.busy) return;
   const p = { request_id: body.input.request_id, kind: body.kind, action: body.input.action, pool: body.input.pool, at: new Date().toISOString(), body, state: 'sending' };
   S.pending = p; S.notice = null; S.conflict = false;
-  if (!M.remember(storage, p)) S.notice = { kind: 'info', text: S.t.noStorage };
+  if (!(await M.rememberDraft(draftIO, storage, p))) S.notice = { kind: 'info', text: S.t.noStorage };
   await send();
 }
 async function send() {
@@ -93,7 +99,7 @@ async function send() {
 async function settle(c) {
   const p = S.pending; if (!p) return;
   if (c.state === 'unknown' || c.state === 'busy') { p.state = c.state; S.notice = c.state === 'busy' ? { kind: 'wait', text: S.t.busy } : null; render(); return; }
-  S.pending = null; M.remember(storage, null);
+  S.pending = null; await M.rememberDraft(draftIO, storage, null);
   if (c.state === 'conflict') { S.conflict = !!S.draft; S.notice = { kind: 'info', text: S.draft ? S.t.conflict : S.t.conflictPool }; render(); return; }
   if (c.state === 'rejected' || c.state === 'failed') { S.notice = { kind: 'info', text: c.state === 'failed' ? S.t.failed : c.message || S.t.failed }; render(); return; }
   const at = c.replayed ? new Date(c.output?.document?.updated_at ?? p.at).toLocaleTimeString(S.locale === 'en' ? 'en-GB' : 'vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -110,7 +116,7 @@ async function checkStatus() {
     S.busy = false; await settle(M.classify({ ok: true, output: receipt }));
   } catch (e) {
     S.busy = false;
-    if (p.recovered) { S.pending = null; M.remember(storage, null); S.notice = { kind: 'info', text: S.t.recoveredMissing }; }
+    if (p.recovered) { S.pending = null; await M.rememberDraft(draftIO, storage, null); S.notice = { kind: 'info', text: S.t.recoveredMissing }; }
     else S.notice = fail(e);
     render();
   }
@@ -161,7 +167,12 @@ const btn = (/** @type {string} */ label, /** @type {() => any} */ onclick, cls 
 const onEnter = (/** @type {() => void} */ act) => (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); act(); } };
 const later = (/** @type {() => Promise<void>} */ work) => () => void run(work);
 const date = (/** @type {string} */ iso, time = false) => { const d = new Date(iso); return isNaN(+d) ? '' : time ? d.toLocaleString(S.locale === 'en' ? 'en-GB' : 'vi-VN') : d.toLocaleDateString(S.locale === 'en' ? 'en-GB' : 'vi-VN'); };
-const name = (/** @type {string} */ id) => id;
+/** A Soot's display name when the host supplies `soot_names` (id → name); the id otherwise. */
+const name = (/** @type {string} */ id) => {
+  const names = S.detail?.soot_names ?? S.overview?.soot_names;
+  const n = names && typeof names === 'object' ? names[id] : '';
+  return typeof n === 'string' && n.trim() ? n : id;
+};
 
 function noticeView() {
   const t = S.t, p = S.pending, out = [];
@@ -273,7 +284,7 @@ function grantsView() {
   const rows = [...new Set([...(d.host_managers ?? []), ...(d.bound_soots ?? [])])];
   return h('div', { class: 'stack' }, h('p', { class: 'muted' }, t.grantsIntro), h('p', { class: 'who' }, t.readers(readerIds(d).map(name))),
     h('div', { class: 'card tbl' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t.grantSoot), h('th', {}, t.grantLevel), h('th', {}))),
-      h('tbody', {}, rows.map(id => h('tr', {}, h('td', {}, h('b', {}, name(id))),
+      h('tbody', {}, rows.map(id => h('tr', {}, h('td', {}, h('b', {}, name(id)), name(id) !== id ? h('span', { class: 'who' }, ` · ${id}`) : null),
         h('td', {}, managers.has(id) ? t.hostManager : /** @type {any} */ (t.levels)[d.effective_permissions?.[id] ?? d.grants?.[id] ?? ''] ?? t.levels['']),
         h('td', { class: 'who' }, managers.has(id) ? '' : t.changeAt)))))));
 }
@@ -311,14 +322,14 @@ function render() {
     }
     if (S.busy) body.push(h('p', { class: 'sr-only', role: 'status' }, t.working));
   }
-  root.replaceChildren(h('header', { class: 'head' }, h('h1', {}, t.title), h('p', { class: 'muted' }, t.intro)), ...body.flat(4).filter(Boolean));
+  root.replaceChildren(h('header', { class: 'head' }, h('h2', { class: 'page-title' }, t.title), h('p', { class: 'muted' }, t.intro)), ...body.flat(4).filter(Boolean));
   if (focus) document.getElementById(focus)?.focus();
 }
 
-function start() {
+async function start() {
   if (S.started) return;
   S.started = true;
-  const saved = M.recall(storage);
+  const saved = await M.recallDraft(draftIO, storage);
   if (saved) S.pending = { ...saved, recovered: true, state: 'unknown' };
   void run(load);
 }

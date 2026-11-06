@@ -64,10 +64,28 @@ website chat setup built in: it renders what these packs declare.
 - `scripts/catalog.mjs` checks `channel.platforms` the way the host does
   (id, mode, `request_prefix`, and the `ui` label, icon, guide, fields and
   errors).
+- **Outcomes** (Soot 0.13.0 jobs): `team-cs` counts resolved conversations
+  with `void_on: binding_activity` (a new message from the person undoes the
+  outcome), `server-care` counts triaged alerts, and
+  `marketing` counts published posts and leads.
+- **`server-watch`** group template: a watcher Soot with a cron schedule that
+  hands alerts to `server-care`.
+- **`server-care`** `remediate` tool (bounded to 50 s, under the run timeout).
+- **`cs-console`**: cursors on every list, with a `truncated` flag when a host
+  read is capped; proofs are claimed once in a `proof_claims` table with a
+  per-tenant `unique` `jti`, and a replay answers `proof_replayed`. Links
+  carry `alias_tenant`.
+- **`data-pool-console`** keeps its unsaved draft across a reload through the
+  Nest `draft.*` bridge, and declares `provides: ["knowledge"]`.
+- **`website-chat`**: `tests/loader-parity.test.mjs` replays the old
+  `/public/v1` and the new `/v1/channel` loaders on one fixture.
 
 ### Changed
 
 - `website-chat` drops its `live-chat` tool area; the settings page replaces it.
+- The 0.11.0 packs need **Soot 0.13.0**: an older Soot refuses the new fields
+  (`outcomes[].void_on`, `storage` `unique`, page `provides`) and keeps its
+  current packs. Update Soot first.
 
 ## 0.10.0
 

@@ -80,14 +80,14 @@ export function createBridge(io) {
     /**
      * One call. A missing result within the timeout resolves as `no_response`: for an
      * action the outcome is then unknown, never assumed failed.
-     * @param {'view' | 'action'} mode @param {object} input @param {string} [requestID]
+     * @param {'view' | 'action'} mode @param {object} input @param {string} [requestID] @param {number} [waitMs]
      * @returns {Promise<CallResult>}
      */
-    call(mode, input, requestID) {
+    call(mode, input, requestID, waitMs = timeoutMs) {
       if (mode === 'action' && !(requestID && REQUEST_ID.test(requestID))) throw new Error('action needs a request_id');
       const id = randomID('c', 8);
       return new Promise(resolve => {
-        const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, error: { code: 'no_response', message: 'no result from the host' } }); }, timeoutMs);
+        const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, error: { code: 'no_response', message: 'no result from the host' } }); }, waitMs);
         waiting.set(id, { resolve, timer });
         io.post({ v: 1, type: 'call', id, mode, input, ...(requestID ? { request_id: requestID } : {}) });
       });

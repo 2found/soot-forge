@@ -24,7 +24,8 @@
         "properties": {
           "kind": { "type": "string", "enum": ["customers", "customer"] },
           "key": { "type": "string", "maxLength": 300 },
-          "q": { "type": "string", "maxLength": 100 }
+          "q": { "type": "string", "maxLength": 100 },
+          "cursor": { "type": "string", "maxLength": 800 }
         },
         "required": ["kind"],
         "additionalProperties": false
@@ -116,6 +117,13 @@
         "name": "proofs",
         "columns": [
           { "name": "jti", "type": "text", "required": true, "index": true },
+          { "name": "kid", "type": "text" }
+        ]
+      },
+      {
+        "name": "proof_claims",
+        "columns": [
+          { "name": "jti", "type": "text", "required": true, "unique": true },
           { "name": "kid", "type": "text" }
         ]
       }

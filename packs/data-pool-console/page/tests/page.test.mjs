@@ -179,3 +179,38 @@ test('the shipped classic app.js is the current build of src/ and parses as a cl
   assert.equal(await readFile(new URL('app.js', page), 'utf8'), built, 'run node packs/data-pool-console/page/tests/build.mjs');
   assert.doesNotThrow(() => new Function(built));
 });
+
+test('B20: behind a host the draft record rides draft.get/set/clear; sessionStorage is the fallback only without a bridge', async () => {
+  const calls = [];
+  let held = null;
+  const io = async (kind, value) => {
+    calls.push(kind);
+    if (kind === 'draft.set') { held = value; return { ok: true, output: { saved: true } }; }
+    if (kind === 'draft.clear') { held = null; return { ok: true, output: { cleared: true } }; }
+    return { ok: true, output: { value: held } };
+  };
+  const throwing = () => { throw new DOMException('denied', 'SecurityError'); };
+  const pending = { request_id: 'kho-0123456789abcdef', kind: 'write', action: 'upsert', pool: 'lohi-support', at: '2026-11-01T00:00:00Z', body: { secret: 'NỘI DUNG' } };
+  assert.equal(await M.rememberDraft(io, throwing, pending), true, 'a blocked sessionStorage does not matter behind a host');
+  assert.deepEqual(Object.keys(held).sort(), ['action', 'at', 'kind', 'pool', 'request_id']);
+  assert.deepEqual(await M.recallDraft(io, throwing), M.recoveryRecord(pending));
+  held = { request_id: 'short' };
+  assert.equal(await M.recallDraft(io, throwing), null, 'an invalid record cannot start work');
+  assert.equal(await M.rememberDraft(io, throwing, null), true);
+  assert.deepEqual(calls, ['draft.set', 'draft.get', 'draft.get', 'draft.clear']);
+  const refusing = async () => ({ ok: false });
+  assert.equal(await M.rememberDraft(refusing, throwing, pending), false);
+  const store = new Map();
+  const storage = () => ({ setItem: (k, v) => store.set(k, v), getItem: k => store.get(k) ?? null, removeItem: k => store.delete(k) });
+  assert.equal(await M.rememberDraft(undefined, storage, pending), true);
+  assert.deepEqual(await M.recallDraft(undefined, storage), M.recoveryRecord(pending));
+});
+
+test('E6: the page has no h1 of its own (Nest owns it) and B21: it declares the knowledge capability', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8') + readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /h\('h1'|<h1/);
+  const pack = JSON.parse(readFileSync(new URL('../../pack.json', import.meta.url), 'utf8'));
+  const page = pack.interface.pages[0];
+  assert.deepEqual([page.placement, page.provides], ['data', ['knowledge']]);
+});

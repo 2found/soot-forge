@@ -244,11 +244,24 @@ function checkPresentation(manifest, byName) {
     if (!view?.run) problems.push(`${at}: tool_missing view_tool ${page.view_tool}`);
     else if (view.run.mode !== 'read') problems.push(`${at}: view_not_read ${page.view_tool}`);
     else if (view.run.stdin !== 'context') problems.push(`${at}: stdin_not_context ${page.view_tool}`);
+    if (page.provides !== undefined && !(Array.isArray(page.provides) && page.provides.length <= 8 && page.provides.every(c => typeof c === 'string' && pageID.test(c)))) problems.push(`${at}: provides is at most 8 capability names`);
     if (page.action_tool !== undefined) {
       const action = byName.get(page.action_tool);
       if (!action?.run) problems.push(`${at}: tool_missing action_tool ${page.action_tool}`);
       else if (action.run.stdin !== 'context') problems.push(`${at}: stdin_not_context ${page.action_tool}`);
     }
+  }
+  // outcomes (host config.validateOutcomes): what a finished unit of work is.
+  const outcomes = new Set();
+  if ((manifest.outcomes ?? []).length > 32) problems.push('at most 32 outcomes');
+  for (const [i, o] of (manifest.outcomes ?? []).entries()) {
+    const at = `Outcome ${o?.id ?? i}`;
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(o?.id ?? '') || outcomes.has(o.id)) problems.push(`${at}: invalid or duplicate id`);
+    outcomes.add(o?.id);
+    if (!localizedText(o?.label, 80)) problems.push(`${at}: label needs vi text`);
+    if (typeof o?.unit !== 'string' || !o.unit.trim() || o.unit.length > 32) problems.push(`${at}: unit is 1..32 characters`);
+    if (o?.void_window !== undefined && !(/^(\d+h)?(\d+m)?(\d+s)?$/.test(o.void_window) && o.void_window !== '')) problems.push(`${at}: void_window is a duration such as 72h`);
+    if (o?.void_on !== undefined && o.void_on !== 'binding_activity') problems.push(`${at}: void_on is binding_activity`);
   }
   const programs = new Set();
   for (const program of manifest.programs ?? []) {

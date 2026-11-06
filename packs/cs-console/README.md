@@ -14,7 +14,7 @@ tenant. The page shows:
 
 The pack stores only **tags**, **notes** and **identity links**, in its own
 `storage` tables, keyed by `<tenant>:<sub>` (`principal` columns, so a
-principal erasure removes them), plus the ids (`jti`) of link proofs already
+principal erasure removes them), plus the ids (`jti`) of link proofs already (a UNIQUE `proof_claims.jti` column; older claims stay in `proofs`)
 used, which hold no person and outlive an unlink so a proof is never
 replayed. It keeps no copy of a conversation.
 
@@ -51,10 +51,14 @@ Two principals are shown as one person only when:
    asserted on the web and the same user paired on Telegram), or
 2. a **product-signed link proof** says so. The product signs an EdDSA JWS
    with one of `link_keys`: `{iss, aud: "soot-identity-link", tenant, sub,
-   alias, iat, exp (≤ 300 s after iat), jti}`, meaning "product user `sub` is
-   also principal `alias`". A member pastes it under *Danh tính đã liên kết*.
+   alias, alias_tenant?, iat, exp (≤ 300 s after iat), jti}`, meaning "product
+   user `sub` of `tenant` is also principal `alias` of `alias_tenant`" (default:
+   `tenant`). A member pastes it under *Danh tính đã liên kết*.
    Expired, replayed, unknown-key, wrong-audience and conflicting proofs are
-   refused.
+   refused. Two members pasting one proof at once: one link, the other is
+   refused (`proof_replayed`).
+
+Lists are read a page at a time (*Tải thêm khách*) and say when they are cut.
 
 There is no way to link by name, email or anything a model or member types.
 

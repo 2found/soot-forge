@@ -15,6 +15,12 @@ Installing this pack alone does not enable any of those.
 
 ## Canonical Live-Chat Browser Widget
 
+> New sites should embed the browser-mode widget of the
+> [website-chat](../website-chat/README.md) pack, the anonymous level of a `web`
+> binding. The `/public/v1` API and `/public/widget/loader.js` described below are
+> frozen: they keep working unchanged and receive no new features. Both loaders
+> are replayed against the same fixtures in `website-chat/tests/loader-parity.test.mjs`.
+
 The live-chat pack contains the canonical standalone static browser widget under `widget/`:
 
 - `loader.js`: Asynchronous embed script for the host website. Loads the sandboxed iframe, dynamically imports the browser SDK, manages Turnstile challenges, and establishes parent-frame RPC communication.

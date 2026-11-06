@@ -19,17 +19,18 @@ test('the declaration is a member rail page on a read view tool and a write acti
   assert.equal(tool(p.view_tool).run.mode, 'read');
   assert.equal(tool(p.action_tool).run.mode, 'write', 'storage writes need a write-mode token');
   for (const t of pack.tools) { assert.equal(t.run.stdin, 'context'); assert.equal(t.approval, undefined, 'pages refuse approval-gated tools'); }
-  assert.deepEqual(pack.storage.tables.map(t => t.name), ['tags', 'notes', 'links', 'proofs']);
-  for (const t of pack.storage.tables.filter(t => t.name !== 'proofs')) assert.equal(t.columns.find(c => c.name === 'sub').principal, true, t.name);
+  assert.deepEqual(pack.storage.tables.map(t => t.name), ['tags', 'notes', 'links', 'proofs', 'proof_claims']);
+  for (const t of pack.storage.tables.filter(t => !['proofs', 'proof_claims'].includes(t.name))) assert.equal(t.columns.find(c => c.name === 'sub').principal, true, t.name);
   // Used proof ids only (no person in them): kept past an unlink so a proof is never replayed.
   assert.deepEqual(pack.storage.tables.find(t => t.name === 'proofs').columns.map(c => [c.name, !!c.principal]), [['jti', false], ['kid', false]]);
+  assert.equal(pack.storage.tables.find(t => t.name === 'proof_claims').columns.find(c => c.name === 'jti').unique, true, 'D3: the jti claim is a declared unique column');
   assert.equal(pack.storage.tables.find(t => t.name === 'links').columns.find(c => c.name === 'alias').principal, true);
 });
 
 test('every body the page builds passes the tool parameters; writes carry the stable request id', () => {
   const ajv = new Ajv2020({ strict: false });
   const view = ajv.compile(tool('console_view').parameters), action = ajv.compile(tool('console_action').parameters);
-  for (const body of [M.listBody(), M.listBody(' Khoa '), M.detailBody('lohi:u-1001')]) assert.ok(view(body), JSON.stringify(view.errors));
+  for (const body of [M.listBody(), M.listBody(' Khoa '), M.listBody('', 'eyJrIjowLCJhIjoiMTAwIn0'), M.detailBody('lohi:u-1001')]) assert.ok(view(body), JSON.stringify(view.errors));
   const id = randomID('cs', 12);
   assert.match(id, REQUEST_ID);
   const control = { conversation: 'c1', owner: 'agent', state: 'active', revision: 3, can_control: true };
@@ -97,4 +98,22 @@ test('the shipped classic app.js is the current build of src/ and parses as a cl
   const built = await build();
   assert.equal(await readFile(new URL('app.js', page), 'utf8'), built, 'run node packs/cs-console/page/tests/build.mjs');
   assert.doesNotThrow(() => new Function(built));
+});
+
+test('D2: the next page of people joins the rows shown; one person across two pages is one row with both counted', () => {
+  const row = (key, o = {}) => ({ key, name: key, status: 'done', channels: ['web'], levels: ['asserted'], latest: '2026-11-01T07:00:00Z', conversations: 1, tags: [], ...o });
+  const merged = M.mergeRows([row('a'), row('b', { status: 'soot' })], [row('a', { status: 'need', channels: ['tg'], conversations: 2, tags: ['vip'], latest: '2026-11-02T00:00:00Z' }), row('c')]);
+  assert.deepEqual(merged.map(r => r.key), ['a', 'b', 'c']);
+  assert.deepEqual([merged[0].status, merged[0].channels, merged[0].conversations, merged[0].tags, merged[0].latest], ['need', ['tg', 'web'], 3, ['vip'], '2026-11-02T00:00:00Z']);
+  assert.equal(M.listBody('', 'cur').cursor, 'cur');
+  assert.equal('cursor' in M.listBody(), false);
+});
+
+test('D2: the page words the cut list, timeline and notes in both languages, and renders the Load more control', async () => {
+  for (const loc of ['vi', 'en']) { const t = M.strings(loc); for (const k of ['loadMore', 'listTruncated', 'timelineTruncated', 'notesTruncated']) assert.ok(t[k], `${loc}.${k}`); }
+  assert.notEqual(M.strings('vi').loadMore, M.strings('en').loadMore);
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(src, /S\.truncated &&/);
+  assert.match(src, /d\.timeline_truncated &&/);
+  assert.match(src, /d\.notes_truncated &&/);
 });

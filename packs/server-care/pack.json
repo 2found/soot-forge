@@ -27,5 +27,76 @@
       "description": "Inspect unhealthy apps, use granted runbooks, verify or escalate.",
       "file": "skill.md"
     }
-  ]
+  ],
+  "outcomes": [
+    {
+      "id": "alert_triaged",
+      "label": {
+        "vi": "Cảnh báo đã xử lý",
+        "en": "Alert triaged"
+      },
+      "unit": "alert",
+      "void_window": "24h"
+    }
+  ],
+  "tools": [
+    {
+      "name": "remediate",
+      "title": "Sửa máy chủ (cần duyệt)",
+      "description": "Ask the operator's remediation endpoint to restart or reload one named service after you have shown the evidence. Every call waits for an operator to approve that exact input in Nest, then runs once. One service per call; never retry after an uncertain answer.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._@:-]{1,64}$",
+            "description": "the service or unit to act on"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "restart",
+              "reload"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "one line for the approver: the evidence and why this fixes it"
+          }
+        },
+        "required": [
+          "service",
+          "action",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/remediate.mjs"
+        ],
+        "stdin": "context",
+        "mode": "repair",
+        "preflight": true,
+        "approval": "operator",
+        "resource": "server_care_remediate",
+        "timeout": "60s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "SERVER_CARE_REMEDIATE": "{{cred:SERVER_CARE_REMEDIATE}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "SERVER_CARE_REMEDIATE": {
+        "title": "Điểm sửa lỗi máy chủ",
+        "description": "JSON {url, key?}: địa chỉ HTTPS nhận yêu cầu sửa (restart hoặc reload một dịch vụ) và khoá tuỳ chọn gửi kèm. Chỉ chạy sau khi người vận hành duyệt."
+      }
+    }
+  }
 }

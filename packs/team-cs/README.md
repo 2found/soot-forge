@@ -23,43 +23,44 @@ The pack names no product and imports no product skill. Product knowledge is a
 Kho tài liệu collection you grant, and product facts and actions come from your
 product pack (for Lohi, `lohi-cs` layers on this one).
 
-## Install
+## Install in 3 steps
 
-1. **Add the packs.**
+1. **Add the pack.**
    ```sh
-   soot add 2found/soot-forge/packs/live-chat
-   soot add 2found/soot-forge/packs/team-cs
+   soot pack add team-cs
    ```
-   Your product pack (tools for price, plan, account) is added the same way.
-2. **Create the two Soots** from `soots/cs-triage/` and `soots/cs-escalation/`:
-   copy each folder into your workspace's Soot sources and list its `soot.json`
-   in the deployment's `soots`. Add your product pack to each Soot's `packs`.
-   (When group templates carry `interaction`, this step becomes one
-   `soot group add`; the files stay valid for it.)
-3. **Grant a collection.** In Nest, open **Kho tài liệu**, create or pick the
-   collection that holds your how-to and policy pages, and give both Soots read
-   access. Then add its id to each Soot's `knowledge` and to the host's
-   `data_pool.knowledge`. Do not put prices or plan terms there as the source of
-   truth: the Soots read them from the product tool.
-4. **Declare one binding.** In Nest's channel settings, add an `app` binding
-   answered by `cs-triage`, or in `deployment.json`:
-   ```json
-   "channels": {
-     "acme-app": { "platform": "app", "mode": "remote", "enabled": true, "soot": "cs-triage" }
-   }
-   ```
-   Add `"admit": "asserted"` and a declared `"tenant"` once your server signs in
-   its users, so a returning person keeps their memory across conversations.
-5. **Mint the adapter secret.** On the binding's sheet in Nest, choose
-   **Tạo khoá kết nối** (or `POST /v1/channel/bindings/acme-app/secrets` with an
-   operator credential). The `scb_…` secret is shown once: put it straight into
-   your server's secret store. Never commit it, paste it in chat or log it. A
-   binding holds at most two active secrets, so you can rotate without downtime.
-6. **First-message test.** With the runtime running, connect the SDK's channel
+   It brings `live-chat` with it. Your product pack (tools for price, plan,
+   account) is added the same way.
+2. **Create a binding in Nest.** Open the channel settings and add a `web/<name>`
+   binding answered by `cs-triage`. The website chat widget is the anonymous
+   level of that binding (SDK browser mode); sign your users in with an
+   assertion (`admit: "asserted"`, a declared `tenant`, and the `bid` claim) so a
+   returning person keeps their memory.
+3. **Paste env.** On the binding's sheet choose **Tạo khoá kết nối** and put
+   the `scb_…` secret and the binding id into your server's environment. The
+   secret is shown once; never commit it, paste it in chat or log it. A binding
+   holds two active secrets, so you can rotate without downtime.
+
+Then give both Soots read access to a **Kho tài liệu** collection with your
+how-to and policy pages (add its id to each Soot's `knowledge` and to the host's
+`data_pool.knowledge`). Do not put prices or plan terms there: the Soots read
+them from the product tool. The Soot sources are in `soots/cs-triage/` and
+`soots/cs-escalation/`.
+
+Advanced: the same binding can be declared in `deployment.json`:
+```json
+"channels": {
+  "acme-web": { "platform": "web", "mode": "remote", "enabled": true, "soot": "cs-triage" }
+}
+```
+
+Check it end to end:
+
+**First-message test.** With the runtime running, connect the SDK's channel
    demo adapter as the binding and send one message:
    ```sh
-   SOOT_CHANNEL_HOST=http://127.0.0.1:<port> SOOT_CHANNEL_BINDING=acme-app \
-   SOOT_CHANNEL_SECRET=<scb_ from step 5> bun examples/channel-demo/run.ts
+   SOOT_CHANNEL_HOST=http://127.0.0.1:<port> SOOT_CHANNEL_BINDING=acme-web \
+   SOOT_CHANNEL_SECRET=<scb_ from step 3> bun examples/channel-demo/run.ts
    ```
    (from `contrib/sdk/typescript` of the Soot repository). A reply from
    `cs-triage` arriving for the right sender means the agent is live. Then ask

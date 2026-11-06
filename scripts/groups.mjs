@@ -49,9 +49,17 @@ function validateV2(t, v2, members, ident, keys, text) {
   for (const i of t.inputs ?? []) { keys(i,['id','label','ask','confirm']); if (!ident(i.id) || seen.has(i.id) || !text(i.label,80) || !text(i.ask,300) || (i.confirm !== undefined && typeof i.confirm !== 'boolean')) throw new Error(`Invalid input ${i.id}`); seen.add(i.id); }
   const schedules = new Set();
   for (const s of t.schedules ?? []) {
-    keys(s,['id','name','every','at','timezone','text']);
-    const hours = /^(\d+)h$/.exec(s.every)?.[1];
-    if (!ident(s.id) || schedules.has(s.id) || !text(s.name,80) || !text(s.text,4096) || !hours || +hours < 1 || +hours > 744 || (s.at !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(s.at)) || (s.timezone !== undefined && (s.at === undefined || !text(s.timezone,64)))) throw new Error(`Invalid schedule ${s.id}`);
+    keys(s,['id','name','every','at','timezone','text','cron','paused','input','output_schema']);
+    if (!ident(s.id) || schedules.has(s.id) || !text(s.name,80) || !text(s.text,4096)) throw new Error(`Invalid schedule ${s.id}`);
+    // The runtime takes exactly one of every (hours) or cron (five fields).
+    if ((s.every === undefined) === (s.cron === undefined)) throw new Error(`Invalid schedule ${s.id}: give every or cron`);
+    if (s.cron !== undefined) {
+      if (typeof s.cron !== 'string' || s.cron.trim().split(/\s+/).length !== 5 || s.at !== undefined || (s.timezone !== undefined && !text(s.timezone,64))) throw new Error(`Invalid schedule ${s.id}`);
+    } else {
+      const hours = /^(\d+)h$/.exec(s.every)?.[1];
+      if (!hours || +hours < 1 || +hours > 744 || (s.at !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(s.at)) || (s.timezone !== undefined && (s.at === undefined || !text(s.timezone,64)))) throw new Error(`Invalid schedule ${s.id}`);
+    }
+    if ((s.paused !== undefined && typeof s.paused !== 'boolean') || (s.input !== undefined && (!s.input || typeof s.input !== 'object' || Array.isArray(s.input))) || (s.output_schema !== undefined && (!s.output_schema || typeof s.output_schema !== 'object' || Array.isArray(s.output_schema)))) throw new Error(`Invalid schedule ${s.id}`);
     schedules.add(s.id);
   }
   const profiles = new Set();

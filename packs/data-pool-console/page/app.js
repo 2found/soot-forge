@@ -84,14 +84,14 @@ function createBridge(io) {
     /**
      * One call. A missing result within the timeout resolves as `no_response`: for an
      * action the outcome is then unknown, never assumed failed.
-     * @param {'view' | 'action'} mode @param {object} input @param {string} [requestID]
+     * @param {'view' | 'action'} mode @param {object} input @param {string} [requestID] @param {number} [waitMs]
      * @returns {Promise<CallResult>}
      */
-    call(mode, input, requestID) {
+    call(mode, input, requestID, waitMs = timeoutMs) {
       if (mode === 'action' && !(requestID && REQUEST_ID.test(requestID))) throw new Error('action needs a request_id');
       const id = randomID('c', 8);
       return new Promise(resolve => {
-        const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, error: { code: 'no_response', message: 'no result from the host' } }); }, timeoutMs);
+        const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, error: { code: 'no_response', message: 'no result from the host' } }); }, waitMs);
         waiting.set(id, { resolve, timer });
         io.post({ v: 1, type: 'call', id, mode, input, ...(requestID ? { request_id: requestID } : {}) });
       });
@@ -216,18 +216,43 @@ function remember(storage, /** @type {any} */ pending) {
     return true;
   } catch { return false; }
 }
+/** The saved record when it is a valid pending write, else null. @param {any} saved */
+function validRecord(saved) {
+  const ok = (/** @type {unknown} */ v, max = 256) => typeof v === 'string' && v.length > 0 && v.length <= max;
+  if (!saved || typeof saved !== 'object' || !/^[A-Za-z0-9_-]{8,64}$/.test(saved.request_id) || !ACTION_KINDS.includes(saved.kind) || !ok(saved.action, 32) || !ok(saved.pool)) return null;
+  return recoveryRecord(saved);
+}
 /** @param {() => Storage | undefined} storage */
 function recall(storage) {
   try {
     const raw = storage()?.getItem(RECOVERY_KEY);
-    if (!raw) return null;
-    const saved = JSON.parse(raw);
-    const ok = (/** @type {unknown} */ v, max = 256) => typeof v === 'string' && v.length > 0 && v.length <= max;
-    if (!saved || typeof saved !== 'object' || !/^[A-Za-z0-9_-]{8,64}$/.test(saved.request_id) || !ACTION_KINDS.includes(saved.kind) || !ok(saved.action, 32) || !ok(saved.pool)) return null;
-    return recoveryRecord(saved);
+    return raw ? validRecord(JSON.parse(raw)) : null;
   } catch { return null; }
 }
-return { VIEW_KINDS, ACTION_KINDS, viewBody, actionBody, PAGE, listDocuments, searchDocuments, readDocument, listPools, poolDetail, activity, requestStatus, saveDocument, removeDocument, createPool, removePool, classify, viewOutput, RECOVERY_KEY, recoveryRecord, remember, recall };
+
+// Behind a host the frame has no usable storage (an opaque-origin sandbox), so
+// the record is held by Nest through three bridge calls (B20): `draft.get`,
+// `draft.set` with `value` and `draft.clear`, 8 KB of JSON at most. `io` is
+// (kind, value?) => Promise<{ok, output}>; with no bridge (a page opened on
+// its own) the sessionStorage path above is the fallback.
+/** @typedef {(kind: 'draft.get' | 'draft.set' | 'draft.clear', value?: object) => Promise<{ ok: boolean, output?: any }>} DraftIO */
+/** @param {DraftIO | undefined} io @param {() => Storage | undefined} storage */
+async function rememberDraft(io, storage, /** @type {any} */ pending) {
+  if (!io) return remember(storage, pending);
+  try {
+    const out = pending ? await io('draft.set', recoveryRecord(pending)) : await io('draft.clear');
+    return out.ok === true;
+  } catch { return false; }
+}
+/** @param {DraftIO | undefined} io @param {() => Storage | undefined} storage */
+async function recallDraft(io, storage) {
+  if (!io) return recall(storage);
+  try {
+    const out = await io('draft.get');
+    return out.ok ? validRecord(out.output?.value) : null;
+  } catch { return null; }
+}
+return { VIEW_KINDS, ACTION_KINDS, viewBody, actionBody, PAGE, listDocuments, searchDocuments, readDocument, listPools, poolDetail, activity, requestStatus, saveDocument, removeDocument, createPool, removePool, classify, viewOutput, RECOVERY_KEY, recoveryRecord, remember, validRecord, recall, rememberDraft, recallDraft };
 })();
 
 // ---- src/text.js ----
@@ -268,8 +293,8 @@ const vi = {
   busy: 'Máy chủ đang bận. Thử lại sau ít phút.', retry: 'Thử lại', loading: 'Đang tải…', working: 'Đang xử lý…',
   noStorage: 'Không lưu được thông tin khôi phục trên thiết bị. Đừng tải lại trang trước khi kiểm tra xong yêu cầu.',
   loadFailed: 'Chưa đọc được kho dữ liệu. Kiểm tra dịch vụ kho dữ liệu đang chạy và khoá giao diện đã được cấp.',
-  grantsIntro: 'Soot nào được đọc bộ sưu tập này. Trang này chỉ hiển thị; đổi quyền ở Quyền hạn của từng Soot.',
-  grantSoot: 'Soot', grantLevel: 'Quyền', hostManager: 'Người quản lý máy chủ', changeAt: 'Đổi ở Quyền hạn',
+  grantsIntro: 'Soot nào được đọc bộ sưu tập này. Trang này chỉ hiển thị; đổi quyền ở Cài đặt › Soot › Quyền hạn của từng Soot.',
+  grantSoot: 'Soot', grantLevel: 'Quyền', hostManager: 'Người quản lý máy chủ', changeAt: 'Đổi ở Cài đặt › Soot › Quyền hạn',
   levels: { '': 'Không có quyền', read: 'Đọc', write: 'Đọc và ghi', manage: 'Quản lý' }, readers: (/** @type {string[]} */ n) => n.length ? `Đọc được: ${n.join(', ')}` : 'Chưa Soot nào đọc được',
   documents: (/** @type {number} */ n) => `${n} tài liệu`,
   activityIntro: (/** @type {number} */ n) => `Giữ tối đa ${n} sự kiện. Nhật ký truy cập không xác nhận dữ liệu đã được dùng trong câu trả lời.`,
@@ -315,7 +340,7 @@ const en = {
   noStorage: 'Recovery details could not be stored on this device. Do not reload until the request is checked.',
   loadFailed: 'Could not read the library. Check that the data-pool service runs and the interface key is granted.',
   grantsIntro: 'Which Soots may read this collection. This page only shows it; change it under each Soot’s Permissions.',
-  grantSoot: 'Soot', grantLevel: 'Access', hostManager: 'Host manager', changeAt: 'Change under Permissions',
+  grantSoot: 'Soot', grantLevel: 'Access', hostManager: 'Host manager', changeAt: 'Change in Settings › Soot › Permissions',
   levels: { '': 'No access', read: 'Read', write: 'Read and write', manage: 'Manage' }, readers: n => n.length ? `Readable by: ${n.join(', ')}` : 'No Soot can read it yet',
   documents: n => `${n} documents`,
   activityIntro: n => `Keeps at most ${n} events. Access records do not prove a source was used in an answer.`,
@@ -389,6 +414,12 @@ const bridge = createBridge({
   onTheme: msg => applyTheme(msg),
 });
 
+// Draft recovery rides the bridge when there is a host (B20); sessionStorage only without one.
+const draftIO = window.parent === window ? undefined : /** @type {M.DraftIO} */ (async (kind, value) => {
+  const r = await bridge.call('view', { kind, ...(value ? { value } : {}) }, undefined, 5000);
+  return r.ok ? { ok: true, output: r.output } : { ok: false };
+});
+
 // ---- calls ----
 const view = async (/** @type {object} */ body) => M.viewOutput(await bridge.call('view', body));
 const organized = () => !!S.overview?.organization_version;
@@ -438,7 +469,7 @@ async function mutate(body) {
   if (S.pending || S.busy) return;
   const p = { request_id: body.input.request_id, kind: body.kind, action: body.input.action, pool: body.input.pool, at: new Date().toISOString(), body, state: 'sending' };
   S.pending = p; S.notice = null; S.conflict = false;
-  if (!M.remember(storage, p)) S.notice = { kind: 'info', text: S.t.noStorage };
+  if (!(await M.rememberDraft(draftIO, storage, p))) S.notice = { kind: 'info', text: S.t.noStorage };
   await send();
 }
 async function send() {
@@ -452,7 +483,7 @@ async function send() {
 async function settle(c) {
   const p = S.pending; if (!p) return;
   if (c.state === 'unknown' || c.state === 'busy') { p.state = c.state; S.notice = c.state === 'busy' ? { kind: 'wait', text: S.t.busy } : null; render(); return; }
-  S.pending = null; M.remember(storage, null);
+  S.pending = null; await M.rememberDraft(draftIO, storage, null);
   if (c.state === 'conflict') { S.conflict = !!S.draft; S.notice = { kind: 'info', text: S.draft ? S.t.conflict : S.t.conflictPool }; render(); return; }
   if (c.state === 'rejected' || c.state === 'failed') { S.notice = { kind: 'info', text: c.state === 'failed' ? S.t.failed : c.message || S.t.failed }; render(); return; }
   const at = c.replayed ? new Date(c.output?.document?.updated_at ?? p.at).toLocaleTimeString(S.locale === 'en' ? 'en-GB' : 'vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -469,7 +500,7 @@ async function checkStatus() {
     S.busy = false; await settle(M.classify({ ok: true, output: receipt }));
   } catch (e) {
     S.busy = false;
-    if (p.recovered) { S.pending = null; M.remember(storage, null); S.notice = { kind: 'info', text: S.t.recoveredMissing }; }
+    if (p.recovered) { S.pending = null; await M.rememberDraft(draftIO, storage, null); S.notice = { kind: 'info', text: S.t.recoveredMissing }; }
     else S.notice = fail(e);
     render();
   }
@@ -520,7 +551,12 @@ const btn = (/** @type {string} */ label, /** @type {() => any} */ onclick, cls 
 const onEnter = (/** @type {() => void} */ act) => (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); act(); } };
 const later = (/** @type {() => Promise<void>} */ work) => () => void run(work);
 const date = (/** @type {string} */ iso, time = false) => { const d = new Date(iso); return isNaN(+d) ? '' : time ? d.toLocaleString(S.locale === 'en' ? 'en-GB' : 'vi-VN') : d.toLocaleDateString(S.locale === 'en' ? 'en-GB' : 'vi-VN'); };
-const name = (/** @type {string} */ id) => id;
+/** A Soot's display name when the host supplies `soot_names` (id → name); the id otherwise. */
+const name = (/** @type {string} */ id) => {
+  const names = S.detail?.soot_names ?? S.overview?.soot_names;
+  const n = names && typeof names === 'object' ? names[id] : '';
+  return typeof n === 'string' && n.trim() ? n : id;
+};
 
 function noticeView() {
   const t = S.t, p = S.pending, out = [];
@@ -632,7 +668,7 @@ function grantsView() {
   const rows = [...new Set([...(d.host_managers ?? []), ...(d.bound_soots ?? [])])];
   return h('div', { class: 'stack' }, h('p', { class: 'muted' }, t.grantsIntro), h('p', { class: 'who' }, t.readers(readerIds(d).map(name))),
     h('div', { class: 'card tbl' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t.grantSoot), h('th', {}, t.grantLevel), h('th', {}))),
-      h('tbody', {}, rows.map(id => h('tr', {}, h('td', {}, h('b', {}, name(id))),
+      h('tbody', {}, rows.map(id => h('tr', {}, h('td', {}, h('b', {}, name(id)), name(id) !== id ? h('span', { class: 'who' }, ` · ${id}`) : null),
         h('td', {}, managers.has(id) ? t.hostManager : /** @type {any} */ (t.levels)[d.effective_permissions?.[id] ?? d.grants?.[id] ?? ''] ?? t.levels['']),
         h('td', { class: 'who' }, managers.has(id) ? '' : t.changeAt)))))));
 }
@@ -670,14 +706,14 @@ function render() {
     }
     if (S.busy) body.push(h('p', { class: 'sr-only', role: 'status' }, t.working));
   }
-  root.replaceChildren(h('header', { class: 'head' }, h('h1', {}, t.title), h('p', { class: 'muted' }, t.intro)), ...body.flat(4).filter(Boolean));
+  root.replaceChildren(h('header', { class: 'head' }, h('h2', { class: 'page-title' }, t.title), h('p', { class: 'muted' }, t.intro)), ...body.flat(4).filter(Boolean));
   if (focus) document.getElementById(focus)?.focus();
 }
 
-function start() {
+async function start() {
   if (S.started) return;
   S.started = true;
-  const saved = M.recall(storage);
+  const saved = await M.recallDraft(draftIO, storage);
   if (saved) S.pending = { ...saved, recovered: true, state: 'unknown' };
   void run(load);
 }

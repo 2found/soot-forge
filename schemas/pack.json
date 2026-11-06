@@ -159,6 +159,19 @@
                   "null"
                 ]
               },
+              "provides": {
+                "description": "What the page offers the host, such as knowledge; the host picks a page by capability, never by position.",
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
               "settings_group": {
                 "type": [
                   "string",
@@ -567,6 +580,71 @@
       },
       "type": [
         "object",
+        "null"
+      ]
+    },
+    "outcomes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "oneOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "en": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "vi": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vi"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "void_on": {
+            "description": "binding_activity voids the outcome when a new inbound customer message arrives on its conversation within void_window.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "void_window": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "type": [
+        "array",
         "null"
       ]
     },

@@ -7,7 +7,7 @@ import * as M from './model.js';
 
 const S = {
   t: M.strings('vi'), started: false, busy: false, loadError: '', q: '', tagDraft: '', noteDraft: '', proofDraft: '',
-  /** @type {M.Row[] | null} */ rows: null, linkProofs: false,
+  /** @type {M.Row[] | null} */ rows: null, linkProofs: false, next: '', truncated: false,
   /** @type {string} */ selected: '',
   /** @type {M.Detail | null} */ detail: null,
   /** @type {{ request_id: string, body: object } | null} */ pending: null,
@@ -34,10 +34,14 @@ async function load() {
   S.loadError = '';
   try {
     const out = await view(M.listBody(S.q));
-    S.rows = out.customers ?? []; S.linkProofs = !!out.link_proofs;
+    S.rows = out.customers ?? []; S.linkProofs = !!out.link_proofs; S.next = out.next ?? ''; S.truncated = !!out.truncated;
     const keep = S.rows?.find(r => r.key === S.selected)?.key ?? S.rows?.[0]?.key ?? '';
     if (keep) await open(keep); else { S.selected = ''; S.detail = null; }
   } catch (e) { S.loadError = M.errorText(S.t, /** @type {any} */ (e)?.code); }
+}
+async function more() {
+  const out = await view(M.listBody(S.q, S.next));
+  S.rows = M.mergeRows(S.rows ?? [], out.customers ?? []); S.next = out.next ?? ''; S.truncated = !!out.truncated;
 }
 async function open(/** @type {string} */ key) {
   S.selected = key;
@@ -87,10 +91,12 @@ const input = (/** @type {string} */ id, /** @type {string} */ value, /** @type 
 function list() {
   const t = S.t;
   const rows = /** @type {M.Row[]} */ (S.rows);
-  return h('div', { class: 'card list', role: 'listbox', 'aria-label': t.title },
+  const listbox = h('div', { class: 'card list', role: 'listbox', 'aria-label': t.title },
     ...rows.map(r => h('button', { type: 'button', class: 'item', role: 'option', 'aria-selected': String(r.key === S.selected), onclick: () => void run(() => open(r.key)) },
       h('span', { class: 'line' }, h('b', {}, r.name), h('span', { class: 'muted' }, M.when(r.latest))),
       h('span', { class: 'line' }, pill(r.status), h('span', { class: 'muted' }, r.channels.join(' · ')), ...r.tags.map(tag => h('span', { class: 'tag' }, tag))))));
+  return h('div', { class: 'stack' }, listbox,
+    S.truncated && h('div', { class: 'stack' }, h('p', { class: 'muted', role: 'status' }, t.listTruncated), button(t.loadMore, () => void run(more), 'btn', locked())));
 }
 
 function detail() {
@@ -110,6 +116,7 @@ function detail() {
     h('div', { class: 'line wrap' }, ...d.tags.map(x => h('span', { class: 'tag' }, x.tag, ' ', button('×', () => void write(M.tagBody(c.key, x.tag, true)), 'btn ghost xs', locked())))),
     h('div', { class: 'line' }, input('tag', S.tagDraft, v => { S.tagDraft = v; }, t.addTag, 32), button(t.addTag, () => void write(M.tagBody(c.key, S.tagDraft)), 'btn', locked())));
   const notes = h('section', { class: 'stack' }, h('h2', {}, t.notes),
+    d.notes_truncated && h('p', { class: 'muted', role: 'status' }, t.notesTruncated),
     ...d.notes.map(n => h('div', { class: 'note' }, h('p', {}, n.body), h('p', { class: 'muted' }, `${n.author} · ${M.when(n.at)}`, ' ', button(t.delete, () => void write({ kind: 'note_delete', key: d.customer.key, id: n.id }), 'btn ghost xs', locked())))),
     h('textarea', { id: 'note', class: 'input', rows: 2, maxlength: 2000, 'aria-label': t.addNote, disabled: locked(), oninput: (/** @type {Event} */ e) => { S.noteDraft = /** @type {HTMLTextAreaElement} */ (e.target).value; } }, S.noteDraft),
     button(t.addNote, () => void write(M.noteBody(c.key, S.noteDraft)), 'btn', locked()));
@@ -119,6 +126,7 @@ function detail() {
       h('div', { class: 'line' }, input('proof', S.proofDraft, v => { S.proofDraft = v; }, t.link, 4096), button(t.link, () => void write(M.linkBody(S.proofDraft)), 'btn', locked())))
       : h('p', { class: 'muted' }, t.noLinkKeys));
   const timeline = h('section', { class: 'stack' }, h('h2', {}, t.timeline),
+    d.timeline_truncated && h('p', { class: 'muted', role: 'status' }, t.timelineTruncated),
     ...d.timeline.map(m => h('div', { class: `msg ${m.role}${m.internal ? ' internal' : ''}` },
       h('p', { class: 'muted' }, `${m.author || m.channel} · ${m.channel} · ${M.when(m.at)}${m.internal ? ` · ${t.internal}` : ''}`), h('p', {}, m.text))));
   return h('div', { class: 'card detail' }, head, facts, memory, timeline, tags, notes, links);
@@ -127,7 +135,7 @@ function detail() {
 function render() {
   const t = S.t, root = /** @type {HTMLElement} */ (document.getElementById('app'));
   const focused = document.activeElement?.id;
-  const out = [h('header', { class: 'head' }, h('h1', {}, t.title), h('p', { class: 'muted' }, t.purpose)),
+  const out = [h('header', { class: 'head' }, h('h2', { class: 'page-title' }, t.title), h('p', { class: 'muted' }, t.purpose)),
     h('div', { class: 'line' }, input('q', S.q, v => { S.q = v; }, t.search, 100), button(t.reload, () => void run(load), 'btn', locked()))];
   if (S.loadError) out.push(h('div', { class: 'notice', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load))));
   else if (!S.rows) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));

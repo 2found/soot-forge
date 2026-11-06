@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { view, action, verifyLinkProof, parseConfig, groupPeople, LINK_AUDIENCE } from '../tools/console.mjs';
+import { view, action, verifyLinkProof, parseConfig, groupPeople, queryAll, LINK_AUDIENCE } from '../tools/console.mjs';
 
 const HOST = 'http://soot.test';
 const TEAM_KEY = 'sk_team_key_0000000000', OTHER_KEY = 'sk_other_key_000000000';
@@ -44,7 +44,7 @@ function fixture() {
       { id: 2, role: 'user', actor_role: 'member', author: 'Hà', text: 'Đang tạo lại audio', created: '2026-11-01T07:12:00Z', audience: 'public' }],
   };
   const memory = { 'lohi:u-1001': [{ id: 'm1', content: 'Thích đọc tiên hiệp', kind: 'preference' }] };
-  const tables = { tags: [], notes: [], links: [], proofs: [] };
+  const tables = { tags: [], notes: [], links: [], proofs: [], proof_claims: [] };
   const calls = [];
   let seq = 0;
   const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -56,9 +56,18 @@ function fixture() {
       const [table, op] = u.pathname.split('/').slice(-2);
       const rows = tables[table], body = JSON.parse(init.body);
       if (!rows) return json(404, { code: 'table_not_found', error: 'no table' });
-      const match = r => Object.entries(body.where ?? {}).every(([k, v]) => r[k] === v);
-      if (op === 'query') return json(200, { rows: rows.filter(match).slice(0, body.limit ?? 50) });
+      const conds = Array.isArray(body.where) ? body.where : Object.entries(body.where ?? {}).map(([column, value]) => ({ column, op: 'eq', value }));
+      const test = (r, c) => c.op === 'eq' ? r[c.column] === c.value : c.op === 'lte' ? String(r[c.column]) <= String(c.value) : c.op === 'in' ? c.values.includes(r[c.column]) : false;
+      const match = r => conds.every(c => test(r, c));
+      if (op === 'query') {
+        // The real route orders by one column (ties: id desc) and honours a limit.
+        const out = rows.filter(match);
+        if (body.order) out.sort((x, y) => (String(x[body.order]).localeCompare(String(y[body.order])) || String(x.id).localeCompare(String(y.id))) * (body.desc ? -1 : 1));
+        return json(200, { rows: out.slice(0, body.limit ?? 50) });
+      }
       if (op === 'get') return json(200, { row: rows.find(r => r.id === body.id) ?? null });
+      // proof_claims.jti is a declared UNIQUE column: the host answers 409 conflict.
+      if (op === 'insert' && table === 'proof_claims' && rows.some(r => r.jti === body.row.jti)) return json(409, { code: 'conflict', reason: 'unique_violation', error: 'duplicate jti' });
       if (op === 'insert') { const row = { id: `r${++seq}`, created_at: new Date().toISOString(), ...body.row }; rows.push(row); return json(200, { id: row.id, affected: 1 }); }
       if (op === 'delete') { const before = rows.length; tables[table] = rows.filter(r => !(body.id ? r.id === body.id : match(r))); return json(200, { affected: before - tables[table].length }); }
       return json(400, { code: 'invalid', error: op });
@@ -189,4 +198,77 @@ test('a note or link is removed only for its own person within the grants; a bar
   assert.equal(f.tables.notes.length, 1, 'nothing was deleted by a refused call');
   assert.equal((await action({ kind: 'note_delete', key: 'lohi:u-1001', id }, f.env, { request_id: 'cs-ndel-0003' }, f.fetch)).removed, 1);
   assert.equal(f.tables.notes.length, 0);
+});
+
+test('D3: a link proof names the alias tenant; the link keys each side by its own tenant, defaulting to the proof tenant', async () => {
+  const f = fixture();
+  const v = jws => verifyLinkProof(jws, LINK_KEYS);
+  assert.deepEqual([v(proof({ sub: 'u-1', alias: 'tg-1' })).sub, v(proof({ sub: 'u-1', alias: 'tg-1' })).alias], ['lohi:u-1', 'lohi:tg-1'], 'no alias_tenant → the tenant');
+  assert.equal(v(proof({ sub: 'u-1', alias: 'tg-1', alias_tenant: 'tgbot' })).alias, 'tgbot:tg-1');
+  assert.equal(v(proof({ sub: 'same', alias: 'same', alias_tenant: 'tgbot' })).alias, 'tgbot:same', 'the same sub under another tenant is another principal');
+  assert.throws(() => v(proof({ sub: 'same', alias: 'same' })), e => e.code === 'invalid_proof');
+  assert.throws(() => v(proof({ sub: 'u-1', alias: 'tg-1', alias_tenant: 'Bad Tenant' })), e => e.code === 'invalid_proof');
+  const out = await action({ kind: 'link', proof: proof({ sub: 'u-1001', alias: 'tg-777', alias_tenant: 'tgbot' }) }, f.env, { request_id: 'cs-link-0003' }, f.fetch);
+  assert.deepEqual(out.link, { sub: 'lohi:u-1001', alias: 'tgbot:tg-777' });
+  assert.equal(f.tables.links[0].alias, 'tgbot:tg-777');
+});
+
+test('D3: two simultaneous links with one proof: exactly one wins, the other is refused and leaves no second claim', async () => {
+  const f = fixture();
+  const good = proof({ sub: 'u-1001', alias: 'tg-777' });
+  const results = await Promise.allSettled([1, 2, 3].map(i => action({ kind: 'link', proof: good }, f.env, { request_id: `cs-link-race-${i}` }, f.fetch)));
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  assert.deepEqual(results.filter(r => r.status === 'rejected').map(r => r.reason.code), ['proof_replayed', 'proof_replayed']);
+  assert.equal(f.tables.proof_claims.length, 1, 'the unique column kept one claim');
+  assert.equal(f.tables.links.length, 1);
+  await assert.rejects(action({ kind: 'link', proof: good }, f.env, { request_id: 'cs-link-race-4' }, f.fetch), e => e.code === 'proof_replayed');
+});
+
+test('D2: customers are read page by page with a cursor and an explicit truncated flag; every person arrives once the pages are followed', async () => {
+  const f = fixture();
+  const total = 650; // 7 host pages of 100: more than one call's budget of 4
+  const all = Array.from({ length: total }, (_, i) => conv(`c${i}`, 'lohi-web', P(`u-${i}`, 'lohi-web'), { label: `Khách ${i}`, created: new Date(Date.UTC(2026, 10, 1) + i * 1000).toISOString() }));
+  const hostCalls = [];
+  const fetchImpl = async (url, init) => {
+    const u = new URL(url);
+    if (u.origin === HOST && u.pathname === '/v1/conversations') {
+      hostCalls.push(u.search);
+      const start = Number(u.searchParams.get('after') || 0), end = Math.min(start + 100, total);
+      return new Response(JSON.stringify({ conversations: all.slice(start, end), next_after: end < total ? String(end) : '' }), { status: 200 });
+    }
+    return f.fetch(url, init);
+  };
+  const first = await view({ kind: 'customers' }, f.env, fetchImpl);
+  assert.equal(first.truncated, true);
+  assert.ok(first.next);
+  assert.equal(first.customers.length, 400, 'four host pages, no more');
+  const second = await view({ kind: 'customers', cursor: first.next }, f.env, fetchImpl);
+  assert.equal(second.truncated, false);
+  assert.equal(second.next, '');
+  const keys = [...first.customers, ...second.customers].map(c => c.key);
+  assert.equal(new Set(keys).size, total);
+  await assert.rejects(view({ kind: 'customers', cursor: 'not-a-cursor' }, f.env, fetchImpl), e => e.code === 'invalid_request');
+  const small = await view({ kind: 'customers' }, f.env, f.fetch);
+  assert.equal(small.truncated, false, 'a small team is never marked truncated');
+});
+
+test('D2: a person with a long history says the timeline is cut; a short one does not', async () => {
+  const f = fixture();
+  assert.equal((await view({ kind: 'customer', key: 'lohi:u-2002' }, f.env, f.fetch)).timeline_truncated, false);
+  f.byKey[TEAM_KEY].find(c => c.id === 'c-ha').message_cursor = 80;
+  const d = await view({ kind: 'customer', key: 'lohi:u-2002' }, f.env, f.fetch);
+  assert.equal(d.timeline_truncated, true);
+  assert.equal(d.notes_truncated, false);
+});
+
+test('D2: queryAll walks past the page size, and says truncated when it stops early', async () => {
+  const mk = n => Array.from({ length: n }, (_, i) => ({ id: `r${i}`, created_at: `2026-11-01T00:00:${String(i).padStart(2, '0')}Z` }));
+  const store = rows => async (_t, _op, b) => ({ rows: rows.filter(r => (b.where ?? []).every(c => c.op !== 'lte' || r.created_at <= c.value)).sort((x, y) => y.created_at.localeCompare(x.created_at)).slice(0, b.limit) });
+  const full = await queryAll(store(mk(7)), 't', [], { pageSize: 3, maxRows: 100 });
+  assert.equal(full.rows.length, 7); assert.equal(full.truncated, false);
+  const capped = await queryAll(store(mk(7)), 't', [], { pageSize: 3, maxRows: 5 });
+  assert.equal(capped.truncated, true);
+  const ties = Array.from({ length: 4 }, (_, i) => ({ id: `t${i}`, created_at: '2026-11-01T00:00:00Z' }));
+  const stuck = await queryAll(store(ties), 't', [], { pageSize: 2, maxRows: 100 });
+  assert.equal(stuck.truncated, true, 'rows sharing one stamp past a page are reported, not looped on');
 });

@@ -8,8 +8,8 @@ const source = id => JSON.parse(readFileSync(new URL(`../groups/${id}/group.sour
 
 test('the catalog lists the Kamaji-led templates first and every template validates', async () => {
   const catalog = await readGroups(root);
-  assert.deepEqual(catalog.groups.map(g => g.id), ['marketing-team', 'support-team', 'society-sim']);
-  for (const id of ['marketing-team', 'support-team']) {
+  assert.deepEqual(catalog.groups.map(g => g.id), ['marketing-team', 'support-team', 'society-sim', 'server-watch']);
+  for (const id of ['marketing-team', 'support-team', 'server-watch']) {
     const t = source(id);
     assert.equal(t.api_version, 'soot/group-template/v2');
     assert.equal(t.root, '', `${id} is led by the host's lead`);
@@ -23,6 +23,24 @@ test('templates carry no credentials, grants or approvals', () => {
     const raw = readFileSync(new URL(`../groups/${id}/group.source.json`, import.meta.url), 'utf8');
     assert.doesNotMatch(raw, /service_token|"token"|approvals|host_use|host_packs|access"/, id);
   }
+});
+
+test('server-watch: one server-care Soot, a paused daily cron job, remediation held for an operator', async () => {
+  const t = validateGroup(source('server-watch'));
+  assert.deepEqual(t.members.map(m => m.id), ['care']);
+  assert.ok(t.members[0].packs.includes('server-care'));
+  assert.equal(t.schedules.length, 1);
+  assert.equal(t.schedules[0].paused, true);
+  assert.equal(t.schedules[0].cron, '0 7 * * *');
+  assert.equal(t.schedules[0].every, undefined);
+  const pack = JSON.parse(readFileSync(new URL('../packs/server-care/pack.json', import.meta.url), 'utf8'));
+  assert.equal(pack.tools.find(x => x.name === 'remediate').run.approval, 'operator');
+  assert.ok(pack.outcomes.some(o => o.id === 'alert_triaged'));
+  const bad = (change, why) => assert.throws(() => validateGroup(change(structuredClone(t))), undefined, why);
+  bad(x => { x.schedules[0].every = '24h'; return x; }, 'every and cron together');
+  bad(x => { delete x.schedules[0].cron; return x; }, 'neither every nor cron');
+  bad(x => { x.schedules[0].cron = '0 7 * *'; return x; }, 'a four-field cron');
+  bad(x => { x.schedules[0].paused = 'yes'; return x; }, 'paused is a boolean');
 });
 
 test('v2 fields are refused on v1, and v2 is checked like the runtime checks it', () => {

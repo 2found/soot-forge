@@ -35,5 +35,17 @@
       "description": "What to remember about a returning person, what never to keep, and how to recall and forget it."
     }
   ],
-  "tools": []
+  "tools": [],
+  "outcomes": [
+    {
+      "id": "conversation_resolved",
+      "label": {
+        "vi": "Cuộc trò chuyện đã giải quyết",
+        "en": "Conversation resolved"
+      },
+      "unit": "conversation",
+      "void_window": "72h",
+      "void_on": "binding_activity"
+    }
+  ]
 }

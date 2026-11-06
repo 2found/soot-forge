@@ -111,14 +111,39 @@ export function remember(storage, /** @type {any} */ pending) {
     return true;
   } catch { return false; }
 }
+/** The saved record when it is a valid pending write, else null. @param {any} saved */
+export function validRecord(saved) {
+  const ok = (/** @type {unknown} */ v, max = 256) => typeof v === 'string' && v.length > 0 && v.length <= max;
+  if (!saved || typeof saved !== 'object' || !/^[A-Za-z0-9_-]{8,64}$/.test(saved.request_id) || !ACTION_KINDS.includes(saved.kind) || !ok(saved.action, 32) || !ok(saved.pool)) return null;
+  return recoveryRecord(saved);
+}
 /** @param {() => Storage | undefined} storage */
 export function recall(storage) {
   try {
     const raw = storage()?.getItem(RECOVERY_KEY);
-    if (!raw) return null;
-    const saved = JSON.parse(raw);
-    const ok = (/** @type {unknown} */ v, max = 256) => typeof v === 'string' && v.length > 0 && v.length <= max;
-    if (!saved || typeof saved !== 'object' || !/^[A-Za-z0-9_-]{8,64}$/.test(saved.request_id) || !ACTION_KINDS.includes(saved.kind) || !ok(saved.action, 32) || !ok(saved.pool)) return null;
-    return recoveryRecord(saved);
+    return raw ? validRecord(JSON.parse(raw)) : null;
+  } catch { return null; }
+}
+
+// Behind a host the frame has no usable storage (an opaque-origin sandbox), so
+// the record is held by Nest through three bridge calls (B20): `draft.get`,
+// `draft.set` with `value` and `draft.clear`, 8 KB of JSON at most. `io` is
+// (kind, value?) => Promise<{ok, output}>; with no bridge (a page opened on
+// its own) the sessionStorage path above is the fallback.
+/** @typedef {(kind: 'draft.get' | 'draft.set' | 'draft.clear', value?: object) => Promise<{ ok: boolean, output?: any }>} DraftIO */
+/** @param {DraftIO | undefined} io @param {() => Storage | undefined} storage */
+export async function rememberDraft(io, storage, /** @type {any} */ pending) {
+  if (!io) return remember(storage, pending);
+  try {
+    const out = pending ? await io('draft.set', recoveryRecord(pending)) : await io('draft.clear');
+    return out.ok === true;
+  } catch { return false; }
+}
+/** @param {DraftIO | undefined} io @param {() => Storage | undefined} storage */
+export async function recallDraft(io, storage) {
+  if (!io) return recall(storage);
+  try {
+    const out = await io('draft.get');
+    return out.ok ? validRecord(out.output?.value) : null;
   } catch { return null; }
 }

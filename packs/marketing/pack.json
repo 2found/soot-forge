@@ -872,5 +872,23 @@
         "description": "Kết nối tới marketing hub của sản phẩm: các site, kênh và quyền đăng của nhóm này. Lấy ở trang quản trị hub; nhập trong Nest, không nhập trong chat."
       }
     }
-  }
+  },
+  "outcomes": [
+    {
+      "id": "post_published",
+      "label": {
+        "vi": "Bài đã đăng",
+        "en": "Post published"
+      },
+      "unit": "post"
+    },
+    {
+      "id": "lead",
+      "label": {
+        "vi": "Khách tiềm năng",
+        "en": "Lead"
+      },
+      "unit": "lead"
+    }
+  ]
 }

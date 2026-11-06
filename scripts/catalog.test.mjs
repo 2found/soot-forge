@@ -60,6 +60,19 @@ test('a retired pack merges into a listed one by an explicit tool map', () => {
   assert.throws(() => checkRetiredTarget({ ...retired, tools: { view: 'view' } }, manifest), /no tool view/);
 });
 
+test('outcomes and page capabilities are checked like the host checks them', () => {
+  const tool = { name: 'view', run: { program: 'tools/run', mode: 'read', stdin: 'context' } };
+  const base = () => ({ id: 'p', skills: [], tools: [tool], outcomes: [{ id: 'conversation_resolved', label: { vi: 'Đã giải quyết' }, unit: 'conversation', void_window: '72h', void_on: 'binding_activity' }],
+    interface: { pages: [{ id: 'kho', label: 'Kho', icon: 'library', placement: 'data', access: 'operator', view_tool: 'view', bundle: 'page/', provides: ['knowledge'] }] } });
+  checkPackModel(base(), 'p');
+  const bad = (change, pattern) => assert.throws(() => checkPackModel(change(base()), 'p'), pattern);
+  bad(p => { p.outcomes[0].void_on = 'always'; return p; }, /void_on/);
+  bad(p => { p.outcomes[0].void_window = 'soon'; return p; }, /void_window/);
+  bad(p => { p.outcomes.push(p.outcomes[0]); return p; }, /duplicate/);
+  bad(p => { p.outcomes[0].unit = ''; return p; }, /unit/);
+  bad(p => { p.interface.pages[0].provides = ['Knowledge!']; return p; }, /provides/);
+});
+
 test('the pack model: write tools are marked, and needs match the credentials tools read', () => {
   const need = { title: 'Key', description: 'The key.' };
   const tool = (name, mode, cred) => ({ name, run: { program: 'tools/run', mode, ...(cred ? { secret_env: { KEY: `{{cred:${cred}}}` } } : {}) } });

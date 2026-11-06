@@ -18,6 +18,9 @@ import { pathToFileURL } from 'node:url';
 export const LINK_AUDIENCE = 'soot-identity-link';
 const MAX_LINK_LIFE = 300, SKEW = 5;
 const MAX_PAGES = 4, PAGE = 100, MAX_TIMELINE_CONVERSATIONS = 10, MESSAGES = 50;
+// A look-up that must see everyone (a person's detail, a write) walks at most this many host pages, then refuses; it never answers from a silent prefix.
+const MAX_ALL_PAGES = 100;
+const STORE_PAGE = 500, STORE_MAX = 5000;
 const STATUS_RANK = { need: 0, human: 1, soot: 2, done: 3 };
 
 export class ConsoleError extends Error {
@@ -63,24 +66,50 @@ function hostClient(cfg, fetchImpl) {
   return { get, post };
 }
 
-/** Every verified conversation the configured keys can read, deduplicated. */
-export async function readConversations(cfg, fetchImpl) {
+const encodeCursor = (k, a) => Buffer.from(JSON.stringify({ k, a })).toString('base64url');
+function decodeCursor(cursor, keys) {
+  if (!cursor) return { k: 0, a: '' };
+  let c;
+  try { c = JSON.parse(Buffer.from(String(cursor), 'base64url').toString('utf8')); } catch { c = null; }
+  if (!c || !Number.isInteger(c.k) || c.k < 0 || c.k >= keys || typeof c.a !== 'string' || c.a.length > 512) fail('invalid_request', 'The cursor is not valid.');
+  return c;
+}
+
+/**
+ * One page of the verified conversations the configured keys can read: at most
+ * `budget` host pages from `cursor`. `next` is the cursor of the rest and
+ * `truncated` says there is a rest; nothing is dropped without saying so.
+ */
+export async function readConversationPage(cfg, fetchImpl, cursor = '', budget = MAX_PAGES) {
   const host = hostClient(cfg, fetchImpl);
   const seen = new Map();
-  for (const key of cfg.keys) {
-    let after = '';
-    for (let i = 0; i < MAX_PAGES; i++) {
-      const page = await host.get(key, `/v1/conversations?limit=${PAGE}${after ? `&after=${encodeURIComponent(after)}` : ''}`);
-      for (const c of page?.conversations ?? []) {
-        const p = c.principal;
-        if (!p || !p.tenant || !p.sub || !['asserted', 'paired'].includes(p.level) || seen.has(c.id)) continue;
-        seen.set(c.id, { ...c, key });
-      }
-      after = page?.next_after ?? '';
-      if (!after) break;
+  let { k, a: after } = decodeCursor(cursor, cfg.keys.length);
+  while (k < cfg.keys.length) {
+    if (budget-- <= 0) return { conversations: [...seen.values()], next: encodeCursor(k, after), truncated: true };
+    const key = cfg.keys[k];
+    const page = await host.get(key, `/v1/conversations?limit=${PAGE}${after ? `&after=${encodeURIComponent(after)}` : ''}`);
+    for (const c of page?.conversations ?? []) {
+      const p = c.principal;
+      if (!p || !p.tenant || !p.sub || !['asserted', 'paired'].includes(p.level) || seen.has(c.id)) continue;
+      seen.set(c.id, { ...c, key });
     }
+    after = page?.next_after ?? '';
+    if (!after) k++;
   }
-  return [...seen.values()];
+  return { conversations: [...seen.values()], next: '', truncated: false };
+}
+
+/** Every verified conversation, deduplicated, or a refusal; used where a partial answer would be wrong (a person's detail, a write). */
+export async function readConversations(cfg, fetchImpl) {
+  const seen = new Map();
+  let cursor = '';
+  for (let pages = 0; pages < MAX_ALL_PAGES; pages += MAX_PAGES) {
+    const page = await readConversationPage(cfg, fetchImpl, cursor);
+    for (const c of page.conversations) if (!seen.has(c.id)) seen.set(c.id, c);
+    cursor = page.next;
+    if (!cursor) return [...seen.values()];
+  }
+  return fail('too_large', 'There are too many conversations to search; narrow the keys’ grants.');
 }
 
 export const principalKey = p => `${p.tenant}:${p.sub}`;
@@ -142,6 +171,25 @@ function storage(env, fetchImpl) {
   };
 }
 
+/**
+ * Every row matching `where` (a condition list), newest first, in pages of
+ * STORE_PAGE by the created_at keyset. More than STORE_MAX rows → `truncated`.
+ */
+export async function queryAll(store, table, where = [], { pageSize = STORE_PAGE, maxRows = STORE_MAX } = {}) {
+  const rows = [], seen = new Set();
+  let before = '';
+  for (;;) {
+    const conds = before ? [...where, { column: 'created_at', op: 'lte', value: before }] : where;
+    const page = (await store(table, 'query', { where: conds, order: 'created_at', desc: true, limit: pageSize })).rows ?? [];
+    const fresh = page.filter(r => !seen.has(r.id));
+    for (const r of fresh) { seen.add(r.id); rows.push(r); }
+    if (page.length < pageSize) return { rows, truncated: false };
+    if (fresh.length === 0 || rows.length >= maxRows) return { rows, truncated: true };
+    before = page[page.length - 1].created_at;
+  }
+}
+const eq = (column, value) => ({ column, op: 'eq', value });
+
 // ---------- identity link proof ----------
 
 const b64url = s => Buffer.from(s, 'base64url');
@@ -150,8 +198,9 @@ const SUB = /^[A-Za-z0-9._:@-]{1,128}$/, TENANT = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /**
  * Verify a product-signed link proof: an EdDSA JWS whose claims say that the
- * product's user `sub` of `tenant` is also the principal `alias` (another sub
- * of the same tenant, e.g. their paired Telegram sender). Same shape and
+ * product's user `sub` of `tenant` is also the principal `alias` of
+ * `alias_tenant` (default: `tenant`; e.g. their paired Telegram sender, whose
+ * principal lives under the binding's own tenant). Same shape and
  * lifetime rules as a browser-mode assertion; aud is "soot-identity-link".
  */
 export function verifyLinkProof(jws, keys, now = Date.now() / 1000) {
@@ -169,16 +218,23 @@ export function verifyLinkProof(jws, keys, now = Date.now() / 1000) {
   if (!ok) fail('invalid_proof', 'The proof signature does not verify.');
   const c = decodeJSON(parts[1]);
   const aud = Array.isArray(c?.aud) ? c.aud : [c?.aud];
-  if (!c || c.iss !== key.iss || !aud.includes(LINK_AUDIENCE) || !TENANT.test(c.tenant ?? '') || !SUB.test(c.sub ?? '') || !SUB.test(c.alias ?? '') ||
+  if (!c || c.iss !== key.iss || !aud.includes(LINK_AUDIENCE) || !TENANT.test(c.tenant ?? '') || (c.alias_tenant !== undefined && !TENANT.test(c.alias_tenant ?? '')) || !SUB.test(c.sub ?? '') || !SUB.test(c.alias ?? '') ||
       typeof c.jti !== 'string' || !c.jti || c.jti.length > 128 || typeof c.iat !== 'number' || typeof c.exp !== 'number')
     fail('invalid_proof', 'The proof claims are incomplete.');
   if (c.exp <= c.iat || c.exp - c.iat > MAX_LINK_LIFE || c.iat > now + SKEW) fail('invalid_proof', 'The proof lifetime is invalid.');
   if (now >= c.exp + SKEW) fail('proof_expired', 'The proof has expired.');
-  if (c.sub === c.alias) fail('invalid_proof', 'A person cannot be linked to themselves.');
-  return { sub: `${c.tenant}:${c.sub}`, alias: `${c.tenant}:${c.alias}`, kid: key.kid, jti: c.jti };
+  const sub = `${c.tenant}:${c.sub}`, alias = `${c.alias_tenant ?? c.tenant}:${c.alias}`;
+  if (sub === alias) fail('invalid_proof', 'A person cannot be linked to themselves.');
+  return { sub, alias, kid: key.kid, jti: c.jti };
 }
 
 // ---------- view ----------
+
+async function allLinks(store) {
+  const r = await queryAll(store, 'links');
+  if (r.truncated) fail('too_large', 'There are too many identity links to read; unlink some.');
+  return r.rows;
+}
 
 function role(m) {
   if (m.actor_role === 'member') return 'm';
@@ -188,7 +244,10 @@ function role(m) {
 
 async function timeline(host, conversations) {
   const out = [];
+  // Said, not silent: older conversations, or messages before the last MESSAGES of one, are not shown.
+  let truncated = conversations.length > MAX_TIMELINE_CONVERSATIONS;
   for (const c of conversations.slice(0, MAX_TIMELINE_CONVERSATIONS)) {
+    if (Number(c.message_cursor ?? 0) > MESSAGES) truncated = true;
     const after = Math.max(0, Number(c.message_cursor ?? 0) - MESSAGES);
     const page = await host.get(c.key, `/v1/conversations/${encodeURIComponent(c.id)}/messages?limit=${MESSAGES}${after ? `&after=${after}` : ''}`);
     for (const m of page?.messages ?? []) {
@@ -196,7 +255,7 @@ async function timeline(host, conversations) {
       out.push({ at: m.created, conversation: c.id, channel: c.source?.ref ?? '', role: role(m), author: m.author ?? '', text: m.text.slice(0, 4000), internal: m.audience === 'internal' });
     }
   }
-  return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  return { timeline: out.sort((a, b) => String(a.at).localeCompare(String(b.at))), timeline_truncated: truncated };
 }
 
 async function facts(cfg, fetchImpl, key) {
@@ -216,13 +275,21 @@ async function facts(cfg, fetchImpl, key) {
 export async function view(input, env, fetchImpl = fetch) {
   const cfg = parseConfig(env.CS_CONSOLE);
   const store = storage(env, fetchImpl);
-  const links = (await store('links', 'query', { where: {}, limit: 500 })).rows ?? [];
-  const people = groupPeople(await readConversations(cfg, fetchImpl), links);
   const kind = input?.kind ?? 'customers';
+  const links = await allLinks(store);
   if (kind === 'customers') {
-    const tags = (await store('tags', 'query', { where: {}, limit: 500 })).rows ?? [];
+    // One bounded page of conversations per call; `next` is the cursor of the
+    // rest and `truncated` says there is a rest. The page asks again to load more.
+    const page = await readConversationPage(cfg, fetchImpl, typeof input?.cursor === 'string' ? input.cursor : '');
+    const people = groupPeople(page.conversations, links);
+    const tags = [];
+    for (let i = 0; i < people.length; i += 50) {
+      const keys = people.slice(i, i + 50).map(p => p.key);
+      tags.push(...(await queryAll(store, 'tags', [{ column: 'sub', op: 'in', values: keys }])).rows);
+    }
     const q = typeof input?.q === 'string' ? input.q.trim().toLowerCase() : '';
     return {
+      next: page.next, truncated: page.truncated,
       customers: people
         .filter(p => !q || p.name.toLowerCase().includes(q) || p.key.toLowerCase().includes(q))
         .map(p => ({ key: p.key, name: p.name, status: p.status, channels: p.channels, levels: p.levels, latest: p.latest, conversations: p.conversations.length,
@@ -231,6 +298,7 @@ export async function view(input, env, fetchImpl = fetch) {
     };
   }
   if (kind === 'customer') {
+    const people = groupPeople(await readConversations(cfg, fetchImpl), links);
     const p = people.find(x => x.key === input?.key);
     if (!p) fail('not_found', 'No such person within this Soot’s conversations.');
     const host = hostClient(cfg, fetchImpl);
@@ -240,17 +308,17 @@ export async function view(input, env, fetchImpl = fetch) {
       const read = await host.get(c.key, `/v1/conversations/${encodeURIComponent(c.id)}/principal?limit=50`);
       for (const e of read?.memory?.entries ?? []) memory.push({ id: e.id, content: e.content, kind: e.kind ?? '' });
     }
-    const where = { sub: p.key };
-    const [notes, tags] = await Promise.all([store('notes', 'query', { where, limit: 200, order: 'created_at', desc: true }), store('tags', 'query', { where, limit: 100 })]);
+    const [notes, tags] = await Promise.all([queryAll(store, 'notes', [eq('sub', p.key)]), queryAll(store, 'tags', [eq('sub', p.key)])]);
     const latest = p.conversations[0];
     return {
       customer: { key: p.key, name: p.name, status: p.status, channels: p.channels, levels: p.levels, principals: p.principals },
       control: { conversation: latest.id, owner: latest.control?.owner ?? 'agent', state: latest.control?.state ?? '', revision: latest.control?.revision ?? 0, can_control: (latest.capabilities ?? []).includes('control') },
-      timeline: await timeline(host, p.conversations),
+      ...(await timeline(host, p.conversations)),
       memory,
       ...(await facts(cfg, fetchImpl, p.key)),
-      notes: (notes.rows ?? []).map(n => ({ id: n.id, body: n.body, author: n.author ?? '', at: n.created_at })),
-      tags: (tags.rows ?? []).map(t => ({ id: t.id, tag: t.tag })),
+      notes_truncated: notes.truncated,
+      notes: notes.rows.map(n => ({ id: n.id, body: n.body, author: n.author ?? '', at: n.created_at })),
+      tags: tags.rows.map(t => ({ id: t.id, tag: t.tag })),
       links: links.filter(l => l.sub === p.key).map(l => ({ id: l.id, alias: l.alias, proof: l.proof })),
     };
   }
@@ -265,7 +333,7 @@ export async function action(input, env, ctx, fetchImpl = fetch) {
   const cfg = parseConfig(env.CS_CONSOLE);
   const store = storage(env, fetchImpl);
   const kind = input?.kind;
-  const people = async () => groupPeople(await readConversations(cfg, fetchImpl), (await store('links', 'query', { where: {}, limit: 500 })).rows ?? []);
+  const people = async () => groupPeople(await readConversations(cfg, fetchImpl), await allLinks(store));
   // Every write names a person the configured keys can read: a tag or note
   // can never be attached to someone outside this Soot's grants.
   const person = async key => (await people()).find(p => p.key === key) ?? fail('not_found', 'No such person within this Soot’s conversations.');
@@ -311,12 +379,21 @@ export async function action(input, env, ctx, fetchImpl = fetch) {
       // row 500 must still be seen. A used jti is kept in `proofs`, which an
       // unlink never touches, so a proof cannot be replayed after an unlink.
       const rows = async (table, where) => (await store(table, 'query', { where, limit: 1 })).rows ?? [];
-      if ((await rows('proofs', { jti: proof.jti })).length) fail('proof_replayed', 'This proof was already used.');
+      if ((await rows('proofs', { jti: proof.jti })).length || (await rows('proof_claims', { jti: proof.jti })).length) fail('proof_replayed', 'This proof was already used.');
       const [taken] = await rows('links', { alias: proof.alias });
       if (taken && taken.sub !== proof.sub) fail('link_conflict', 'That sender is already linked to another person.');
       if ((await rows('links', { alias: proof.sub })).length) fail('link_conflict', 'The product user is itself an alias; unlink it first.');
       if ((await rows('links', { sub: proof.alias })).length) fail('link_conflict', 'That sender already has linked aliases; unlink them first.');
-      await store('proofs', 'insert', { row: { jti: proof.jti, kid: proof.kid } });
+      // The jti is claimed by a UNIQUE column (`proof_claims.jti`): of two
+      // racers with one proof the host lets exactly one insert succeed and
+      // answers the other 409 conflict. `proofs` holds claims made before the
+      // unique table existed and is only read.
+      try {
+        await store('proof_claims', 'insert', { row: { jti: proof.jti, kid: proof.kid } });
+      } catch (e) {
+        if (e?.code === 'conflict') fail('proof_replayed', 'This proof was already used.');
+        throw e;
+      }
       if (taken) return { link: { sub: proof.sub, alias: proof.alias }, added: false };
       await store('links', 'insert', { row: { sub: proof.sub, alias: proof.alias, proof: 'product_assertion', kid: proof.kid, jti: proof.jti } });
       return { link: { sub: proof.sub, alias: proof.alias }, added: true };
