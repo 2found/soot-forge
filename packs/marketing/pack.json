@@ -1503,7 +1503,11 @@
         "title": "Google Search Console",
         "description": "Đăng nhập Google trong Nest để Soot đọc số hiển thị, lượt bấm và vị trí của các bài đã đăng (chỉ quyền đọc Search Console).",
         "from": "operator",
-        "optional": true
+        "optional": true,
+        "oauth": {
+          "provider": "google",
+          "scopes": ["https://www.googleapis.com/auth/webmasters.readonly"]
+        }
       }
     }
   },

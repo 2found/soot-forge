@@ -264,19 +264,6 @@
       }
     },
     {
-      "id": "lohi-blog",
-      "name": "Lohi blog",
-      "description": "The blog-lohi publisher: a signed claim from the marketing pack goes live on blog.lohi2.com through its own worktree, a zero-warning build, one-file commit, fast-forward push, deploy and URL check; a failed deploy is reverted.",
-      "tags": [
-        "marketing",
-        "publishing"
-      ],
-      "source": {
-        "kind": "bundled",
-        "path": "packs/lohi-blog"
-      }
-    },
-    {
       "id": "research",
       "name": "Research",
       "description": "Research guidance using the Soot runtime web search and fetch tools.",

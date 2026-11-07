@@ -6,7 +6,8 @@ import { randomBytes, createHash } from 'node:crypto';
 import { fail, eq, gte, isNull } from './store.mjs';
 import { autoChecks, briefLint, claimWindow, CHANNEL_DEFAULTS } from './guard.mjs';
 import { nextSlot, DEFAULT_QUIET } from './time.mjs';
-import { contentHash, signClaim, CLAIM_TTL_MS } from './claim.mjs';
+import { contentHash, signClaim, CLAIM_TTL_MS, INTENT_STALE_MS } from './claim.mjs';
+import { metricsRows } from './page.mjs';
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const iso = ms => new Date(ms).toISOString();
@@ -80,7 +81,7 @@ export async function draft_save(input, { store, now, soot }) {
     return { id: row.ref, revision: 1, content_hash: row.content_hash, state: 'draft', lint };
   }
   const cur = await post(store, id);
-  if (['publishing', 'published', 'unpublishing'].includes(cur.state)) fail('conflict', 'Bài đang đăng hoặc đã đăng; gỡ trước rồi sửa.');
+  if (['publishing', 'published', 'unpublishing', 'uncertain'].includes(cur.state)) fail('conflict', 'Bài đang đăng, đã đăng hoặc chưa rõ đã lên chưa; gỡ hoặc xác nhận trước rồi sửa.');
   if (expected_revision !== cur.revision) fail('revision_conflict', `Bài đang ở bản ${cur.revision}.`);
   const revision = cur.revision + 1;
   const n = await store.update('posts', [eq('ref', id), eq('revision', cur.revision)], { ...fields, content_hash: hashOf(fields), state: 'draft', reason: null, revision });
@@ -157,7 +158,7 @@ export async function due(_input, { store, now }) {
   for (const c of channels) if (c.paused && c.paused_reason && c.paused_reason !== 'person') out.needs_person.push({ id: c.key, channel: c.key, reason: c.paused_reason });
   for (const q of rows) {
     const ch = byKey[q.channel];
-    const stuck = q.intent_id && now - ms(q.intent_at) > CLAIM_TTL_MS;
+    const stuck = q.intent_id && now - ms(q.intent_at) > INTENT_STALE_MS;
     if (q.intent_id && !stuck) continue;
     if (q.action === 'unpublish') { out.unpublish.push(q.post); continue; }
     if (now - ms(q.scheduled_at) > settings.stale_after_h * HOUR) out.late.push(q.post);
@@ -206,9 +207,12 @@ export async function claim(input, { store, now, env }) {
   // An open intent: the last attempt may have gone out. Re-issue the same
   // intent and make the publisher look before it acts (crash recovery).
   if (q.intent_id) {
-    if (now - ms(q.intent_at) <= CLAIM_TTL_MS) return { refused: { code: 'open_intent', reason: 'Bài đang được đăng ở lượt khác.' } };
+    if (now - ms(q.intent_at) <= INTENT_STALE_MS) return { refused: { code: 'open_intent', reason: 'Bài đang được đăng ở lượt khác.' } };
     if (action === 'publish' && (settings.paused_all || ch.paused)) return refuse(store, p, 'paused', 'Đang tạm dừng đăng.');
     await store.update('queue', [eq('post', p.ref), eq('intent_id', q.intent_id)], { intent_at: iso(now) });
+    if (!(await store.one('publish_log', [eq('intent_id', q.intent_id)]))) {
+      await store.insert('publish_log', { post: p.ref, channel: ch.key, action, intent_id: q.intent_id, status: 'intent', body: p.body, link: p.link ?? null, url: p.url ?? null, platform_id: null, reason: null, at: iso(q.intent_at ?? now) });
+    }
     return { claim: signClaim(claimBody(p, ch, action, q.intent_id, now), key), verify_first: true };
   }
 
@@ -362,8 +366,12 @@ export async function gsc_sync(input, { store, now, env, fetch }) {
   if (typeof site !== 'string' || !site) fail('invalid_request', 'site is the Search Console property, e.g. sc-domain:example.com.');
   const days = Math.min(Math.max(Number(input.days) || 3, 1), 28);
   const needsPerson = async reason => {
-    await setSetting(store, 'gsc', { state: 'needs_person', reason, at: iso(now) });
-    return { status: 'needs_person', reason, message: reason === 'revoked' ? 'Quyền đọc Search Console đã bị thu hồi: cần đăng nhập Google lại.' : 'Cần đăng nhập Google cho Search Console.' };
+    // The page's note is best effort; the sign-in signal below must go out even if storage is down.
+    await setSetting(store, 'gsc', { state: 'needs_person', reason, at: iso(now) }).catch(() => {});
+    // `needs_person` is the host's sign-in signal (2agent operations/sign_in.go): with exit 1 the
+    // host marks GSC_GOOGLE and Cần bạn shows one "Đăng nhập Google lại" item, with no model call.
+    return { status: 'needs_person', reason, message: reason === 'revoked' ? 'Quyền đọc Search Console đã bị thu hồi: cần đăng nhập Google lại.' : 'Cần đăng nhập Google cho Search Console.',
+      needs_person: { credential: 'GSC_GOOGLE', reason: `oauth_${reason}` } };
   };
   const auth = await googleToken(env.GSC_GOOGLE ?? '', fetch);
   if (auth.error) return needsPerson(auth.error);
@@ -406,7 +414,7 @@ export function totals(rows, url, days, now) {
 }
 
 export async function seo_brief(_input, { store, now }) {
-  const rows = await store.query('metrics', [eq('source', 'gsc'), gte('day', new Date(now - 30 * DAY).toISOString().slice(0, 10))], { limit: 500 });
+  const rows = await metricsRows(store, now);
   const byQuery = new Map();
   for (const r of rows.filter(r => r.query)) {
     const q = byQuery.get(r.query) ?? { query: r.query, impressions: 0, clicks: 0, w: 0, urls: new Set() };

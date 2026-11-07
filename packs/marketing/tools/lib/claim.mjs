@@ -5,6 +5,10 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 export const CLAIM_TTL_MS = 10 * 60 * 1000;
+// An open intent is re-issued only after any publisher run it started must have
+// ended (lohi-blog publish/unpublish time out at 25 minutes), so a slow deploy
+// is never raced by a second claim on the same post.
+export const INTENT_STALE_MS = 30 * 60 * 1000;
 
 export function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

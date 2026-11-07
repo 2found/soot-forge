@@ -1,7 +1,7 @@
 # Lohi blog
 
 The publisher of the marketing pack's `blog-lohi` channel
-([design](../marketing/README.md#publishing-without-a-hub)). It takes a signed
+([design](../../../../packs/marketing/README.md#publishing-without-a-hub)). It takes a signed
 claim from `marketing_claim` and makes it live on `blog.lohi2.com`.
 
 | Tool | Mode | What it does |
@@ -33,4 +33,4 @@ claim from `marketing_claim` and makes it live on `blog.lohi2.com`.
   the `2server` login work as they do for the founder. `LOHI_BLOG_URL` is
   optional (default `https://blog.lohi2.com`).
 - Credential `MARKETING_CLAIM_KEY`: the same value as the marketing pack's.
-- Recipe: [`examples/lohi-marketing`](../../examples/lohi-marketing/README.md).
+- Recipe: [`examples/lohi-marketing`](../../README.md).

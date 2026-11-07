@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { run } from '../tools/marketing.mjs';
 import { fakeStore } from './fake-store.mjs';
 import { checkFacts, checkPersonal, checkPlatform, checkDuplicate, claimWindow, factClaims, CHANNEL_DEFAULTS } from '../tools/lib/guard.mjs';
-import { verifyClaim as publisherVerify, contentHash as publisherHash } from '../../lohi-blog/tools/blog.mjs';
+import { verifyClaim as publisherVerify, contentHash as publisherHash } from '../../../examples/lohi-marketing/packs/lohi-blog/tools/blog.mjs';
 import { verifyClaim, contentHash, signClaim } from '../tools/lib/claim.mjs';
 
 const KEY = 'k'.repeat(32);
@@ -243,6 +243,9 @@ test('a crash between post and record never posts twice: the same intent comes b
   const first = won[0].claim;
   // The publisher posted, then the Soot crashed before record.
   w.now += 11 * 60_000;
+  assert.deepEqual((await w.call('due', {})).publish, [], 'a publisher may still be deploying: not due yet');
+  assert.equal((await w.call('claim', { id: d.id, action: 'publish' })).refused.code, 'open_intent', 'never raced by a second claim inside the publisher timeout');
+  w.now += 20 * 60_000;
   assert.deepEqual((await w.call('due', {})).publish, [d.id], 'a stuck intent is due again');
   const again = await w.call('claim', { id: d.id, action: 'publish' });
   assert.equal(again.verify_first, true);
@@ -264,7 +267,8 @@ test('fail: failed retries later, needs_person pauses the channel, uncertain kee
   const c2 = (await w.call('claim', { id: d.id, action: 'publish' })).claim;
   assert.notEqual(c2.intent_id, c1.intent_id);
   await w.call('fail', { intent_id: c2.intent_id, status: 'uncertain', reason: 'tool crashed' });
-  w.now += 11 * 60_000;
+  await assert.rejects(w.call('draft_save', { id: d.id, expected_revision: 1, ...ARTICLE, body: ARTICLE.body + ' Sửa sau.' }), { code: 'conflict' }, 'an uncertain post may be live: no edit rides on its open intent');
+  w.now += 31 * 60_000;
   const c3 = await w.call('claim', { id: d.id, action: 'publish' });
   assert.equal(c3.claim.intent_id, c2.intent_id);
   assert.equal(c3.verify_first, true);
@@ -374,6 +378,7 @@ test('AC3 non-happy: no sign-in or a revoked token answers needs_person and stor
   w.fetch = google({ grant: 'revoked', rows: {} });
   const out = await w.call('gsc_sync', { site: 'sc-domain:lohi2.com' });
   assert.deepEqual([out.status, out.reason], ['needs_person', 'revoked']);
+  assert.deepEqual(out.needs_person, { credential: 'GSC_GOOGLE', reason: 'oauth_revoked' }, 'the host sign-in signal');
   assert.equal(w.store.data.metrics.length, 0);
   assert.equal(w.store.data.settings.find(s => s.key === 'gsc').value.state, 'needs_person');
 });
@@ -422,4 +427,33 @@ test('the declaration: hub optional, two flow-marketing pages, unguarded page to
   const lib = new URL('../tools/lib/', import.meta.url);
   const sources = [new URL('../tools/marketing.mjs', import.meta.url), ...readdirSync(lib).map(f => new URL(f, lib))];
   for (const f of sources) for (const [, spec] of readFileSync(f, 'utf8').matchAll(/from '([^']+)'/g)) assert.ok(spec.startsWith('node:') || spec.startsWith('./') || spec.startsWith('../'), `${f.pathname}: ${spec}`);
+});
+
+test('a claim whose intent row was lost (crash after the compare-and-set) writes it before re-issuing', async () => {
+  const w = world();
+  const d = await scheduledNow(w);
+  const { claim } = await w.call('claim', { id: d.id, action: 'publish' });
+  w.store.data.publish_log.length = 0;
+  w.now += 31 * 60_000;
+  const again = await w.call('claim', { id: d.id, action: 'publish' });
+  assert.equal(again.claim.intent_id, claim.intent_id);
+  assert.deepEqual(w.store.data.publish_log.map(r => [r.intent_id, r.status]), [[claim.intent_id, 'intent']]);
+  assert.equal((await w.call('record', { intent_id: claim.intent_id, url: 'https://blog.lohi2.com/a/b/vi/' })).state, 'published');
+});
+
+test('the CLI exits 1 with the host sign-in line when Google refuses, so the host raises one Cần bạn item', async () => {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../tools/marketing.mjs', import.meta.url)), 'gsc_sync'], { env: { PATH: process.env.PATH, SOOT_STORAGE_URL: 'http://127.0.0.1:9', SOOT_STORAGE_TOKEN: 't', GSC_GOOGLE: '' } });
+  let out = '';
+  child.stdout.on('data', c => { out += c; });
+  child.stdin.end(JSON.stringify({ input: { site: 'sc-domain:lohi2.com' } }));
+  const code = await new Promise(r => child.on('close', r));
+  assert.equal(code, 1);
+  assert.deepEqual(JSON.parse(out).needs_person, { credential: 'GSC_GOOGLE', reason: 'oauth_signed_out' });
+});
+
+test('spacing holds even when a log row has no parseable time', () => {
+  const now = T0;
+  const ch = { ...CHANNEL_DEFAULTS['blog-lohi'], key: 'blog-lohi', cap_per_day: 5 };
+  const log = [{ action: 'publish', status: 'published', at: new Date(now - H).toISOString() }, { action: 'publish', status: 'intent', at: null }];
+  assert.equal(claimWindow({ settings: {}, channel: ch, log, now })?.code, 'spacing');
 });

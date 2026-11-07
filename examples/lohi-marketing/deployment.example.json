@@ -43,8 +43,7 @@
       "at": "06:00",
       "timezone": "Asia/Ho_Chi_Minh",
       "tool": { "pack": "marketing", "name": "gsc_sync", "input": { "site": "sc-domain:lohi2.com", "days": 3 } },
-      "wake_when": { "path": "status", "equals": "needs_person" },
-      "text": "Search Console needs a Google sign-in again. Raise it once with report_blocker: the founder signs in from Nest; nothing else to do."
+      "text": "Read yesterday's Search Console numbers for the published posts. A revoked sign-in is raised by the host as one Cần bạn item; nothing for a model to do."
     },
     {
       "id": "marketing-facts",

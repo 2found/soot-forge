@@ -11,7 +11,11 @@ const json = async path => JSON.parse(await readFile(new URL(path, root), 'utf8'
 test('the Lohi recipe: product Lohi, marketing_claim auto, three tool-only schedules on declared tools', async () => {
   const host = await json('examples/lohi-marketing/deployment.example.json');
   const catalog = await json('catalog.json');
-  const packs = Object.fromEntries(await Promise.all(['marketing', 'lohi-blog'].map(async id => [id, await json(`packs/${id}/pack.json`)])));
+  // lohi-blog is Lohi's own publisher: a local pack inside the recipe, never a catalog row.
+  const local = { 'lohi-blog': 'examples/lohi-marketing/packs/lohi-blog' };
+  const packs = Object.fromEntries(await Promise.all(['marketing', 'lohi-blog'].map(async id => [id, await json(`${local[id] ?? `packs/${id}`}/pack.json`)])));
+  assert.ok(!catalog.packs.some(p => p.id === 'lohi-blog'), 'lohi-blog stays out of the catalog');
+  const known = id => id in local || catalog.packs.some(p => p.id === id);
   assert.equal(host.product, 'Lohi');
   assert.deepEqual(host.approvals, { marketing_claim: 'auto' });
   assert.equal(packs.marketing.tools.find(t => t.name === 'claim').run.approval, 'operator', 'the pack stays guarded; only this host relaxes it');
@@ -29,7 +33,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto, three tool-only sched
   assert.deepEqual(byId['marketing-gsc'].tool.input.site, 'sc-domain:lohi2.com');
 
   for (const [id, grant] of Object.entries(host.pack_grants)) {
-    assert.ok(catalog.packs.some(p => p.id === id), id);
+    assert.ok(known(id), id);
     for (const name of Object.keys(grant.credentials ?? {})) assert.ok(packs[id].needs.credentials[name], `${id} declares ${name}`);
     for (const name of grant.env ?? []) assert.ok(packs[id].needs.env.includes(name), `${id} declares env ${name}`);
   }
@@ -39,7 +43,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto, three tool-only sched
     const soot = await json(`examples/lohi-marketing/${file}`);
     assert.notEqual(soot.tier ?? 'pro', 'pro', `${soot.id}: lean budgets stay off the pro tier`);
     assert.ok(soot.execution.daily_tokens <= 150000, soot.id);
-    for (const ref of soot.packs) assert.ok(catalog.packs.some(p => p.id === ref.split(':')[0]), `${soot.id}: ${ref}`);
+    for (const ref of soot.packs) assert.ok(known(ref.split(':')[0]), `${soot.id}: ${ref}`);
     for (const f of [soot.soul, soot.mission]) assert.ok((await readFile(new URL(`examples/lohi-marketing/soots/${f}`, root), 'utf8')).trim(), f);
   }
   const editor = await json('examples/lohi-marketing/soots/lohi-editor.json');

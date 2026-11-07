@@ -17,8 +17,13 @@ const CHANNEL_LABEL = { 'blog-lohi': 'Blog', x: 'X', facebook: 'Facebook', reddi
 const channelLabel = key => CHANNEL_LABEL[key] ?? key;
 const title = p => p.brief?.title ?? p.title ?? String(p.body ?? '').slice(0, 80);
 
-async function metricsRows(store, now) {
-  return store.query('metrics', [eq('source', 'gsc'), gte('day', new Date(now - 30 * DAY).toISOString().slice(0, 10))], { limit: 500 });
+export async function metricsRows(store, now) {
+  const since = [eq('source', 'gsc'), gte('day', new Date(now - 30 * DAY).toISOString().slice(0, 10))];
+  const [days, queries] = await Promise.all([
+    store.query('metrics', [...since, eq('query', '')], { limit: 500 }),
+    store.query('metrics', [...since, { column: 'query', op: 'ne', value: '' }], { order: 'impressions', limit: 500 }),
+  ]);
+  return [...days, ...queries];
 }
 
 export async function page_view(input, { store, now, page }) {

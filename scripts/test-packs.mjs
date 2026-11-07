@@ -23,6 +23,12 @@ async function discover(folder) {
   }
 }
 for (const pack of packs) await discover(join(root, pack.source.path));
+// Workspace recipes may carry their own local packs (examples/<recipe>/packs/<id>); their tests run too.
+for (const recipe of await readdir(join(root, 'examples'), {withFileTypes:true})) {
+  if (!recipe.isDirectory()) continue;
+  const local = join(root, 'examples', recipe.name, 'packs');
+  if (await stat(local).then(s => s.isDirectory(), () => false)) await discover(local);
+}
 const report = {catalog_entries:catalog.packs.length, bundled_packs:packs.length, lanes:[], external:'Pinned external source is validated separately; its code is not executed', python:options.python ? 'requested' : 'NOT RUN: pass --python with Office dependencies, FFmpeg and fonts installed'};
 report.node_test_files = nodeTests.map(p=>p.slice(root.length+1)).sort();
 report.go_modules = goModules.map(p=>p.slice(root.length+1)).sort();

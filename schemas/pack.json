@@ -557,6 +557,33 @@
                 "pattern": "^(operator|workspace|data_pool|env:[A-Za-z_][A-Za-z0-9_]*)$",
                 "type": "string"
               },
+              "oauth": {
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "scopes": {
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "optional": {
                 "type": [
                   "boolean",

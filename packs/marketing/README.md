@@ -82,11 +82,16 @@ draft_save → check (guard + editor verdict) → schedule → due (tool-only sc
   guard still runs.
 - **Once only.** The intent row is written before the claim is returned; a
   claim re-issued after a crash says `verify_first` and the publisher looks
-  before it acts.
+  before it acts. An open intent is re-issued only after 30 minutes, longer
+  than any publisher run, so a slow deploy is never raced.
 - **Search Console.** `gsc_sync {site, days}` reads impressions, clicks and
   position for every published URL with the operator's Google sign-in
-  (`GSC_GOOGLE`, a `google_oauth` value written by Nest's sign-in); a missing
-  or revoked sign-in answers `needs_person`. `seo_brief` feeds the radar.
+  (`GSC_GOOGLE`, a `google_oauth` value written by Nest's sign-in, declared
+  with `oauth {provider: "google", scopes: [webmasters.readonly]}`); a missing
+  or revoked sign-in exits 1 with the host's `needs_person` line, so the host
+  shows one "Đăng nhập Google lại" item in Cần bạn. `seo_brief` feeds the
+  radar. The `oauth` field needs Soot 0.13.10 or later: an older runtime
+  refuses the pack (strict decoding).
 
 The hub tools above are unchanged and still forward when `MARKETING_HUB` is
 bound; the new tools never forward.

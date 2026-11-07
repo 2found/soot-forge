@@ -7,7 +7,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { publish, unpublish, find, postFile, postURL, warnings } from '../tools/blog.mjs';
-import { signClaim, contentHash } from '../../marketing/tools/lib/claim.mjs';
+import { signClaim, contentHash } from '../../../../../packs/marketing/tools/lib/claim.mjs';
 
 const KEY = 'k'.repeat(32);
 const BASE = 'https://blog.test';

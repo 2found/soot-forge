@@ -33,7 +33,10 @@ async function readStdin() {
 
 export async function main(name) {
   try {
-    process.stdout.write(JSON.stringify(await run(name, await readStdin())) + '\n');
+    const out = await run(name, await readStdin());
+    process.stdout.write(JSON.stringify(out) + '\n');
+    // A person must sign in again: exit 1 (a decided refusal) so the host raises its sign-in item.
+    if (out?.needs_person) process.exitCode = 1;
   } catch (e) {
     const known = e instanceof MarketingError;
     process.stdout.write(JSON.stringify({ error: { code: known ? e.code : 'failed', message: known ? e.message : 'The marketing tool could not complete the request.' } }) + '\n');

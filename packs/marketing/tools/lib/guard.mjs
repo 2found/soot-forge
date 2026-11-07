@@ -175,7 +175,7 @@ export function claimWindow({ settings, channel, log, now }) {
   const start = localDayStart(now, quiet.tz || DEFAULT_QUIET.tz);
   const today = live.filter(r => Date.parse(r.at) >= start).length;
   if (today >= (channel.cap_per_day ?? 1)) return { code: 'over_cap', reason: `Đã đủ ${channel.cap_per_day} bài hôm nay trên kênh này.` };
-  const last = Math.max(0, ...live.map(r => Date.parse(r.at)));
+  const last = Math.max(0, ...live.map(r => Date.parse(r.at)).filter(Number.isFinite));
   if (channel.spacing_min && now - last < channel.spacing_min * 60_000) return { code: 'spacing', reason: `Cần cách bài trước ít nhất ${Math.round(channel.spacing_min / 60)} giờ.` };
   return null;
 }
