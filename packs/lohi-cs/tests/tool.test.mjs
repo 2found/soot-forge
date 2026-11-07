@@ -142,3 +142,64 @@ test('legacy scope: no principal + LOHI_CS_LEGACY_SCOPE=1 reads by conversationI
   assert.equal(JSON.parse(off.stdout).code, 'principal_required');
   assert.equal(seen.length, 0);
 });
+
+// interface.subject (subject.v1): the host runs `card` for a conversation's
+// principal and shows the card in Nest. I4 → neutral card with Vietnamese
+// labels, vi-VN money and dd/MM/yyyy dates in Vietnam time.
+const I4 = {
+  userId: '3f2c0000-0000-4000-8000-000000000001', name: '  Nguyễn Văn A ', email: 'a+1@example.com',
+  tier: 'reader_pass', tierLabel: 'Reading Pass', tierEndsAt: '2026-11-30T18:00:00.000Z',
+  ltBalance: 1250, joinedAt: '2025-03-04T10:00:00.000Z',
+  lastTopup: { amountVnd: 50000, ltAmount: 500, status: 'pending', createdAt: '2026-11-07T16:30:00.000Z', completedAt: null },
+  adminUrl: 'https://lohi2.com/admin/users/list?q=a%2B1%40example.com',
+};
+
+test('card maps I4 to a verified subject.v1 card', async () => {
+  answer = () => [200, I4];
+  const r = await run('card', { conversation: 'conv-1' });
+  assert.equal(r.code, 0, r.stdout + r.stderr);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].url, '/agent/support/lookup/me/card');
+  assert.equal(seen[0].headers['x-soot-principal'], TOKEN);
+  assert.deepEqual(JSON.parse(r.stdout), {
+    state: 'verified',
+    title: 'Nguyễn Văn A',
+    subtitle: 'a+1@example.com',
+    fields: [
+      { label: 'Mã người dùng', value: I4.userId },
+      // 18:00Z on 30/11 is 01:00 on 01/12 in Vietnam.
+      { label: 'Gói', value: 'Reading Pass · hết hạn 01/12/2026' },
+      { label: 'Số dư', value: '1.250 LT' },
+      { label: 'Tham gia', value: '04/03/2025' },
+      { label: 'Nạp gần nhất', value: '50.000 đ · 500 LT · đang chờ · 07/11/2026' },
+    ],
+    badges: ['Có nạp đang chờ'],
+    link: { label: 'Mở trên Lohi', url: I4.adminUrl },
+  });
+  assert.ok(!(r.stdout + r.stderr).includes(TOKEN) && !(r.stdout + r.stderr).includes(KEY));
+  answer = () => [200, { ok: true }];
+});
+
+test('card: a free reader with no name and no top-up; a non-https link is dropped', async () => {
+  answer = () => [200, { ...I4, name: null, tier: null, tierLabel: null, tierEndsAt: null, ltBalance: 0, lastTopup: null, adminUrl: 'http://lohi2.com/x' }];
+  const r = await run('card', {});
+  assert.equal(r.code, 0, r.stdout + r.stderr);
+  const card = JSON.parse(r.stdout);
+  assert.equal(card.title, 'a+1@example.com');
+  assert.deepEqual(card.fields.map(f => f.value).slice(1), ['Miễn phí', '0 LT', '04/03/2025', 'Chưa có']);
+  assert.deepEqual(card.badges, []);
+  assert.equal(card.link, undefined);
+  answer = () => [200, { ok: true }];
+});
+
+test('card: no principal asks nothing; an api refusal exits 1 with its body', async () => {
+  const anon = await run('card', {}, { token: '', env: { LOHI_CS_LEGACY_SCOPE: '1' } });
+  assert.equal(anon.code, 1);
+  assert.equal(JSON.parse(anon.stdout).code, 'principal_required');
+  assert.equal(seen.length, 0);
+  answer = () => [404, { error: 'user_not_found' }];
+  const gone = await run('card', {});
+  assert.equal(gone.code, 1);
+  assert.equal(JSON.parse(gone.stdout).error, 'user_not_found');
+  answer = () => [200, { ok: true }];
+});

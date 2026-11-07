@@ -229,6 +229,35 @@
       }
     },
     {
+      "name": "lohi_subject_card",
+      "description": "The reader card for a support console (interface.subject, subject.v1): who the signed-in reader is — name, email, user id, plan, LT balance, join date and latest top-up, with the 'Mở trên Lohi' admin link. Run by the host for the conversation's principal; not for answering the reader (use lohi_lookup for balances, prices and quotas).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "conversation": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-api",
+        "args": [
+          "card"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "5s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
       "name": "lohi_request_novel",
       "description": "Create a novel request on behalf of the chatting user (type novel only, idempotent). One per request; confirm the title back to the user.",
       "parameters": {
@@ -483,6 +512,11 @@
       }
     }
   ],
+  "interface": {
+    "subject": {
+      "view_tool": "lohi_subject_card"
+    }
+  },
   "needs": {
     "credentials": {
       "LOHI_CS": {

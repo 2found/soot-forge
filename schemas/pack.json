@@ -222,6 +222,19 @@
             "null"
           ]
         },
+        "subject": {
+          "additionalProperties": false,
+          "properties": {
+            "view_tool": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "view_tool"
+          ],
+          "type": "object"
+        },
         "tool_area": {
           "additionalProperties": false,
           "properties": {

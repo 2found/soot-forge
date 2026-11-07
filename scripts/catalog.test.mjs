@@ -286,7 +286,10 @@ test('lohi-cs layers on team-cs with no skill conflict, keeps credit-bearing ops
   for (const page of pages) assert.doesNotMatch(await readFile(join(seed, page), 'utf8'), /\d[\d.,]*\s*(đ|₫|vnđ|vnd|k\b|nghìn|LT\b)/i, `${page}: prices only come from lohi_lookup features`);
   const evals = JSON.parse(await readFile(join(seed, '..', '..', 'evals', 'lohi-cs', 'support.eval.json'), 'utf8'));
   const called = new Set(evals.cases.flatMap(c => c.turns.flatMap(t => t.expect.called ?? [])));
-  for (const t of lohi.tools) assert.ok(called.has(`lohi-cs_${t.name}`), `an eval case calls ${t.name}`);
+  // The subject view tool is run by the host for Nest and the run envelope, never chosen by the model.
+  const subjectTool = lohi.interface?.subject?.view_tool;
+  if (subjectTool) assert.equal(lohi.tools.find(t => t.name === subjectTool)?.run.mode, 'read', `${subjectTool}: the subject view tool is a read tool of this pack`);
+  for (const t of lohi.tools) if (t.name !== subjectTool) assert.ok(called.has(`lohi-cs_${t.name}`), `an eval case calls ${t.name}`);
   assert.ok(evals.cases.some(c => c.tags.includes('price')), 'one price question from features');
 });
 
