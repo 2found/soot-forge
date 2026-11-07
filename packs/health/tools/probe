@@ -1,0 +1,79 @@
+#!/bin/sh
+# health probe — HTTP readiness of operator-configured endpoints (soot/v1 tool).
+#
+# Destinations come only from operator config, never from the model or an
+# event: one URL in argv (pack.json), or the granted env HEALTH_TARGETS,
+# "name=url" pairs separated by spaces or commas. HEALTH_TARGETS wins when set.
+# Each target prints one line: "<name> status=<code> latency_ms=<n>" or
+# "<name> unreachable". Bodies and redirect destinations are never read or
+# printed. Needs only sh and curl, so the pack works right after install.
+set -uf
+
+MAX_TARGETS=16
+
+fail() { printf '%s\n' "$1" >&2; exit 1; }
+
+valid_url() {
+  case "$1" in
+    http://?*|https://?*) ;;
+    *) return 1 ;;
+  esac
+  case "$1" in
+    *[[:space:]]*|*'#'*) return 1 ;;
+  esac
+  rest=${1#*://}
+  authority=${rest%%/*}
+  case "$authority" in
+    ''|*@*) return 1 ;;
+  esac
+  return 0
+}
+
+valid_name() {
+  case "$1" in
+    ''|*[!A-Za-z0-9_.-]*) return 1 ;;
+  esac
+  [ "${#1}" -le 40 ]
+}
+
+probe() { # name url
+  out=$(curl --silent --output /dev/null --max-time 3 --max-redirs 0 \
+    --proto '=http,https' --write-out '%{http_code} %{time_total}' -- "$2" 2>/dev/null)
+  code=${out%% *}
+  secs=${out#* }
+  if [ -z "$out" ] || [ "$code" = "000" ]; then
+    printf '%s unreachable (network, TLS or timeout)\n' "$1"
+    return
+  fi
+  ms=$(awk -v s="$secs" 'BEGIN { printf "%d", s * 1000 }')
+  printf '%s status=%s latency_ms=%s\n' "$1" "$code" "$ms"
+}
+
+command -v curl >/dev/null 2>&1 || fail "health probe needs curl on the host"
+
+targets=${HEALTH_TARGETS:-}
+if [ -z "$targets" ]; then
+  [ "$#" -eq 1 ] || fail "expected one configured HTTP(S) health URL, or HEALTH_TARGETS"
+  valid_url "$1" || fail "invalid health URL"
+  probe endpoint "$1"
+  exit 0
+fi
+
+# Validate every target before probing any, so a typo is a config error.
+list=$(printf '%s' "$targets" | tr ',' ' ')
+count=0
+for pair in $list; do
+  count=$((count + 1))
+  [ "$count" -le "$MAX_TARGETS" ] || fail "HEALTH_TARGETS has more than $MAX_TARGETS targets"
+  case "$pair" in
+    *=*) ;;
+    *) fail "HEALTH_TARGETS entry $count is not name=url" ;;
+  esac
+  valid_name "${pair%%=*}" || fail "HEALTH_TARGETS entry $count has an invalid name"
+  valid_url "${pair#*=}" || fail "HEALTH_TARGETS entry $count has an invalid URL"
+done
+[ "$count" -gt 0 ] || fail "HEALTH_TARGETS is empty"
+
+for pair in $list; do
+  probe "${pair%%=*}" "${pair#*=}"
+done

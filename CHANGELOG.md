@@ -3,6 +3,20 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.2
+
+### Changed
+
+- **`health`** works right after `soot pack add health`: the probe is a POSIX
+  sh script that uses `curl`, so no Go build or toolchain is needed on the
+  host (the Go `runner/` is gone). One pack now watches several endpoints: the
+  operator sets `HEALTH_TARGETS` (`name=url` pairs, up to 16) and grants it
+  (`needs.env`); each endpoint answers on its own line. Addresses still come
+  only from operator config, never from the model. A single URL in `run.args`
+  keeps working.
+- **`server-care`** skill names the real operations (`health_probe`,
+  `server-care_remediate`) and records one `alert_triaged` per endpoint alert.
+
 ## 0.11.1
 
 ### Changed

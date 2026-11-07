@@ -1,7 +1,7 @@
 # Server-care example
 
 Skill của pack và mission trong Soot definition giúp một Soot kiểm tra máy chủ bằng các operation operator đã cấp.
-Pack chỉ có skill, dùng tool `health_probe` của pack `health` (Soot chọn riêng cả hai); không chứa daemon, case worker, lịch mặc định hay policy
+Pack chỉ có skill, dùng operation `health_probe` (tool `probe` của pack `health`) (Soot chọn riêng cả hai); không chứa daemon, case worker, lịch mặc định hay policy
 repair trong core. Không tự restart dịch vụ hoặc tạo ticket.
 
 Build/cài [health](../health/README.md), copy hai pack vào packs_dir và gắn

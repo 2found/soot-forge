@@ -20,25 +20,31 @@
     ]
   },
   "description": {
-    "vi": "Kiểm tra một dịch vụ đã sẵn sàng chưa qua địa chỉ HTTP đã cấu hình.",
-    "en": "Inspect readiness using a configured HTTP endpoint."
+    "vi": "Kiểm tra các dịch vụ đã sẵn sàng chưa qua địa chỉ HTTP do operator cấu hình.",
+    "en": "Inspect readiness of operator-configured HTTP endpoints."
   },
   "skills": [
     {
       "file": "skill.md",
-      "description": "Inspect readiness using a configured HTTP endpoint"
+      "description": "Inspect readiness of the configured HTTP endpoints"
     }
   ],
   "tools": [
     {
       "name": "probe",
       "run": {
-        "program": "bin/soot-health",
+        "program": "tools/probe",
         "args": [
           "http://127.0.0.1:7788/healthz"
         ],
-        "mode": "read"
+        "mode": "read",
+        "timeout": "60s"
       }
     }
-  ]
+  ],
+  "needs": {
+    "env": [
+      "HEALTH_TARGETS"
+    ]
+  }
 }
