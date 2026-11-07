@@ -375,5 +375,10 @@ function start() {
   void run(load);
 }
 
+// Nest sends init only after the frame says ready (soot-pages §5); the
+// standalone shell may not send init, so start anyway after a short wait.
+bridge.ready();
+setTimeout(start, 1500);
+
 })();
 })();

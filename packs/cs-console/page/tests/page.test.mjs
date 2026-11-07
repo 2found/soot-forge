@@ -94,6 +94,12 @@ test('the bundle makes no network call and has no inline script, style, form or 
   }
 });
 
+test('the page tells Nest it is ready, so Nest sends init and the list loads (soot-pages §5)', async () => {
+  const app = await readFile(new URL('src/app.js', page), 'utf8');
+  assert.match(app, /^bridge\.ready\(\);$/m, 'Nest waits for ready before init');
+  assert.match(app, /setTimeout\(start, \d+\)/, 'the standalone shell may send no init');
+});
+
 test('the shipped classic app.js is the current build of src/ and parses as a classic script', async () => {
   const built = await build();
   assert.equal(await readFile(new URL('app.js', page), 'utf8'), built, 'run node packs/cs-console/page/tests/build.mjs');
