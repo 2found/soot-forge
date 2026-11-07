@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { run } from '../tools/marketing.mjs';
+import { run, signInExit } from '../tools/marketing.mjs';
 import { fakeStore } from './fake-store.mjs';
 import { checkFacts, checkPersonal, checkPlatform, checkDuplicate, claimWindow, factClaims, CHANNEL_DEFAULTS } from '../tools/lib/guard.mjs';
 import { verifyClaim as publisherVerify, contentHash as publisherHash } from '../../../examples/lohi-marketing/packs/lohi-blog/tools/blog.mjs';
@@ -449,6 +449,12 @@ test('the CLI exits 1 with the host sign-in line when Google refuses, so the hos
   const code = await new Promise(r => child.on('close', r));
   assert.equal(code, 1);
   assert.deepEqual(JSON.parse(out).needs_person, { credential: 'GSC_GOOGLE', reason: 'oauth_signed_out' });
+});
+
+test('only the host sign-in shape exits 1; due\'s needs_person list does not, so the dispatch schedule can wake', () => {
+  assert.equal(signInExit({ wake: true, publish: ['P-0000000001'], needs_person: [], notify: true }), false);
+  assert.equal(signInExit({ needs_person: [{ id: 'blog-lohi', channel: 'blog-lohi', reason: 'signed_out' }] }), false);
+  assert.equal(signInExit({ status: 'needs_person', needs_person: { credential: 'GSC_GOOGLE', reason: 'oauth_revoked' } }), true);
 });
 
 test('spacing holds even when a log row has no parseable time', () => {

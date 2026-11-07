@@ -39,9 +39,11 @@ every 10 m  marketing_due ──(notify)──▶ Editor: marketing_claim ─▶
    folder's `packs/` (`soot add 2found/soot-forge/packs/<id>`). `lohi-blog`
    is already there: it is Lohi's own publisher, kept out of the Forge
    catalog. Grant it with `soot grant lohi-blog`.
-2. Export one random claim key. Both packs read it, so claims are signed and
-   checked with the same value:
-   `export LOHI_MARKETING_CLAIM_KEY=$(openssl rand -hex 32)`.
+2. Store one random claim key for the Editor (for example the output of
+   `openssl rand -hex 32`): in Nest, Đội Soot → Editor → the tool connections,
+   `MARKETING_CLAIM_KEY`. Both packs declare it `from: operator`, so they read
+   that one stored value and claims are signed and checked with the same key;
+   an environment variable is not read.
 3. Set `LOHI_REPO` to a clone of the kiem-lai repository whose `origin` the
    machine can push to over SSH. The publisher keeps its own clean worktree
    under the pack's state directory and never touches yours.

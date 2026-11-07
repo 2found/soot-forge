@@ -37,7 +37,12 @@ test('the Lohi recipe: product Lohi, marketing_claim auto, three tool-only sched
     for (const name of Object.keys(grant.credentials ?? {})) assert.ok(packs[id].needs.credentials[name], `${id} declares ${name}`);
     for (const name of grant.env ?? []) assert.ok(packs[id].needs.env.includes(name), `${id} declares env ${name}`);
   }
-  assert.equal(host.pack_grants.marketing.credentials.MARKETING_CLAIM_KEY, host.pack_grants['lohi-blog'].credentials.MARKETING_CLAIM_KEY, 'one claim key signs and verifies');
+  // One claim key signs and verifies: both packs read it from the Soot's operator
+  // store, which the host binds per Soot; a pack_grants env entry would be ignored.
+  for (const id of ['marketing', 'lohi-blog']) {
+    assert.equal(packs[id].needs.credentials.MARKETING_CLAIM_KEY.from, 'operator', `${id} reads the stored claim key`);
+    assert.equal(host.pack_grants[id]?.credentials?.MARKETING_CLAIM_KEY, undefined, `${id}: no ignored env grant for the claim key`);
+  }
 
   for (const file of host.soots) {
     const soot = await json(`examples/lohi-marketing/${file}`);

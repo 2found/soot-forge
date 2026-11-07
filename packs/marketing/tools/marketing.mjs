@@ -31,12 +31,16 @@ async function readStdin() {
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
 }
 
+/** A person must sign in again: the host sign-in shape `{needs_person: {credential}}`
+ * exits 1 (a decided refusal) so the host raises its sign-in item. `due` always
+ * lists its needs_person items as an array, which is not that signal. */
+export const signInExit = out => typeof out?.needs_person?.credential === 'string';
+
 export async function main(name) {
   try {
     const out = await run(name, await readStdin());
     process.stdout.write(JSON.stringify(out) + '\n');
-    // A person must sign in again: exit 1 (a decided refusal) so the host raises its sign-in item.
-    if (out?.needs_person) process.exitCode = 1;
+    if (signInExit(out)) process.exitCode = 1;
   } catch (e) {
     const known = e instanceof MarketingError;
     process.stdout.write(JSON.stringify({ error: { code: known ? e.code : 'failed', message: known ? e.message : 'The marketing tool could not complete the request.' } }) + '\n');
