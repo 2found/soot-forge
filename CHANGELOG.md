@@ -3,6 +3,18 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.1
+
+### Changed
+
+- **`lohi-cs`** keeps working for conversations from the legacy cs bridge
+  during the Lohi dual-write window (CS engine P5.3). A host that still runs
+  the bridge grants `LOHI_CS_LEGACY_SCOPE=1` (`needs.env`); a conversation
+  without a principal is then scoped by `conversationId`, and the api checks
+  the bound support thread (`403 thread_unbound` otherwise). Without the grant
+  nothing changes: an anonymous conversation asks nothing about a reader. The
+  fallback goes away with the legacy path (R2).
+
 ## 0.11.0
 
 **Requires a Soot whose host reads `channel.platforms[].ui` and settings

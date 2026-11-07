@@ -110,3 +110,35 @@ test('secrets reach curl only through its config on stdin, never argv', async ()
     assert.doesNotMatch(line, /LOHI_CS_API_KEY|principal|-H /, line);
   }
 });
+
+// Dual-write window (CS engine P5.3, removed in R2): with LOHI_CS_LEGACY_SCOPE=1
+// granted, a conversation from the legacy cs bridge (no principal) is scoped by
+// conversationId and the api checks the bound thread.
+test('legacy scope: no principal + LOHI_CS_LEGACY_SCOPE=1 reads by conversationId; the api decides', async () => {
+  const legacy = { token: '', env: { LOHI_CS_LEGACY_SCOPE: '1' } };
+  answer = req => req.url.startsWith('/agent/support/lookup/me?') ? [200, { userId: 'u 1' }] : [200, { ok: true }];
+  const w = await run('lookup', { kind: 'wallet', limit: 3 }, legacy);
+  assert.equal(w.code, 0, w.stdout + w.stderr);
+  assert.deepEqual(seen.map(s => s.url), ['/agent/support/lookup/me?conversationId=conv-1', '/agent/support/lookup/users/u%201/wallet?conversationId=conv-1&limit=3']);
+  assert.ok(seen.every(s => s.headers['x-soot-principal'] === undefined));
+  const h = await run('history', { limit: 5 }, legacy);
+  assert.equal(h.code, 0);
+  assert.equal(seen[1].url, '/agent/support/lookup/users/u%201/messages?conversationId=conv-1&limit=5');
+  const me = await run('lookup', { kind: 'me' }, legacy);
+  assert.equal(me.code, 0);
+  assert.deepEqual(seen.map(s => s.url), ['/agent/support/lookup/me?conversationId=conv-1']);
+  const n = await run('request-novel', { title: 'Legacy' }, legacy);
+  assert.equal(n.code, 0, n.stdout + n.stderr);
+  assert.equal(seen[0].body.conversationId, 'conv-1');
+  // An unbound conversation is the api's refusal, passed through.
+  answer = () => [403, { error: 'thread_unbound' }];
+  const u = await run('lookup', { kind: 'topups' }, legacy);
+  assert.equal(u.code, 1);
+  assert.equal(JSON.parse(u.stdout).error, 'thread_unbound');
+  assert.equal(seen.length, 1, 'no second request after the refusal');
+  answer = () => [200, { ok: true }];
+  // Without the grant an anonymous conversation still asks nothing.
+  const off = await run('lookup', { kind: 'wallet' }, { token: '', env: { LOHI_CS_LEGACY_SCOPE: '0' } });
+  assert.equal(JSON.parse(off.stdout).code, 'principal_required');
+  assert.equal(seen.length, 0);
+});

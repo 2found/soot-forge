@@ -73,9 +73,16 @@ headers() {
   [ "${1:-0}" = 1 ] && printf 'header = "Content-Type: application/json"\n'
   return 0
 }
-# The reader's own data needs the principal; without one nothing is asked.
+# The reader's own data needs the principal. Dual-write window (CS engine
+# P5.3, removed in R2): a conversation from the legacy cs bridge carries no
+# principal but is bound to the reader's support thread, and the api scopes
+# it by conversationId (unbound → 403 thread_unbound). That fallback is on
+# only where the host grants LOHI_CS_LEGACY_SCOPE=1 (needs.env); otherwise a
+# conversation without a principal asks nothing about a reader.
+legacy=0
+[ -n "$principal" ] || [ "${LOHI_CS_LEGACY_SCOPE:-}" != 1 ] || legacy=1
 need_principal() {
-  [ -n "$principal" ] || { printf '%s\n' '{"code":"principal_required","detail":"anonymous conversation: the reader must sign in to Lohi"}'; exit 1; }
+  [ -n "$principal" ] || [ "$legacy" = 1 ] || { printf '%s\n' '{"code":"principal_required","detail":"anonymous conversation: the reader must sign in to Lohi"}'; exit 1; }
 }
 
 enc() { jq -rn --arg v "$1" '$v|@uri'; }
@@ -168,7 +175,20 @@ def vnd: tostring as $s | ($s | length) as $n
 def oneline: tostring | gsub("\\s+"; " ");
 '
 
-me() { need_principal; req GET "$base/agent/support/lookup/me${1:+/$1}${2:-}"; }
+me() {
+  need_principal
+  if [ -n "$principal" ]; then req GET "$base/agent/support/lookup/me${1:+/$1}${2:-}"; return; fi
+  # Legacy scope: resolve the bound reader, then the conversationId route.
+  scope="conversationId=$(enc "$cid")"
+  [ -n "${1:-}" ] || { req GET "$base/agent/support/lookup/me?$scope"; return; }
+  # A refusal (thread_unbound, …) is the api's own body, passed through.
+  bound=$(req GET "$base/agent/support/lookup/me?$scope") || { printf '%s\n' "$bound"; exit 1; }
+  uid=$(printf '%s\n' "$bound" | jq -r '.userId // empty')
+  [ -n "$uid" ] || err '{"error":"no_userId","detail":"lookup/me"}'
+  case $1 in history) path=messages ;; unlocks) err '{"code":"principal_required","detail":"unlocks needs the signed-in principal"}' ;; *) path=$1 ;; esac
+  q=${2:-}; q=${q#\?}
+  req GET "$base/agent/support/lookup/users/$(enc "$uid")/$path?$scope${q:+&$q}"
+}
 
 case $cmd in
   lookup)

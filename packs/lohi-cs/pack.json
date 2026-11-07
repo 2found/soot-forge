@@ -500,6 +500,9 @@
         "description": "Key for the support actions that change an account (top-up recovery, chapter fixes).",
         "from": "env:LOHI_CS_EXEC_API_KEY"
       }
-    }
+    },
+    "env": [
+      "LOHI_CS_LEGACY_SCOPE"
+    ]
   }
 }

@@ -16,6 +16,10 @@ unlocks, recommendations, thread history) is read from
 scopes each read to the token's `sub` and answers `401 principal_required`,
 `401 principal_invalid` or `403 principal_mismatch`. An anonymous conversation
 has no token: those reads answer `principal_required` without calling the api.
+**Dual-write window only** (CS engine P5.3, removed in R2): a host that still
+runs the legacy cs bridge grants `LOHI_CS_LEGACY_SCOPE=1` (`pack_grants.lohi-cs.env`).
+A conversation without a principal is then scoped by `conversationId`, which the
+api resolves to the bound support thread (`403 thread_unbound` otherwise).
 `find_novel`, `content_health`, `name_check`, `features`, `novel_chapters` and
 `chapter_tts` are public. Write routes keep their bodies and add the header.
 Neither the key nor the token is ever put on a command line or printed.
