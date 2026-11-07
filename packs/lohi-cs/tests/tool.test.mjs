@@ -30,9 +30,9 @@ before(async () => {
 });
 after(async () => { server.close(); await rm(state, { recursive: true, force: true }); });
 
-function run(cmd, input, { token = TOKEN, hook = 'tool.call', env = {} } = {}) {
+function run(cmd, input, { token = TOKEN, hook = 'tool.call', env = {}, event = { subject: 'conv-1' } } = {}) {
   seen = [];
-  const call = { api_version: 'soot/v1', hook, event: { subject: 'conv-1' }, input };
+  const call = { api_version: 'soot/v1', hook, event, input };
   return new Promise(resolve => {
     const child = spawn(bin, [cmd], { env: { PATH: process.env.PATH, LOHI_API_BASE: base, LOHI_CS_API_KEY: KEY, SOOT_PACK_STATE: state, ...(token ? { SOOT_PRINCIPAL_TOKEN: token } : {}), ...env } });
     let stdout = '', stderr = '';
@@ -202,4 +202,21 @@ test('card: no principal asks nothing; an api refusal exits 1 with its body', as
   assert.equal(gone.code, 1);
   assert.equal(JSON.parse(gone.stdout).error, 'user_not_found');
   answer = () => [200, { ok: true }];
+});
+
+test('card: a negative balance and a fractional amount keep their sign and decimals', async () => {
+  answer = () => [200, { ...I4, ltBalance: -1250, lastTopup: { ...I4.lastTopup, amountVnd: 50000, ltAmount: 12.5, status: 'completed' } }];
+  const r = await run('card', {}, { event: {} });
+  assert.equal(r.code, 0, r.stdout + r.stderr);
+  const card = JSON.parse(r.stdout);
+  assert.equal(card.fields[2].value, '-1.250 LT');
+  assert.equal(card.fields[4].value, '50.000 đ · 12,5 LT · đã vào ví · 07/11/2026');
+  answer = () => [200, { ok: true }];
+});
+
+test('only the host names the conversation: a model-supplied input.conversation is never used', async () => {
+  const r = await run('lookup', { kind: 'me', conversation: 'someone-elses' }, { token: '', env: { LOHI_CS_LEGACY_SCOPE: '1' }, event: {} });
+  assert.equal(r.code, 1);
+  assert.match(r.stdout + r.stderr, /missing_subject/);
+  assert.equal(seen.length, 0);
 });
