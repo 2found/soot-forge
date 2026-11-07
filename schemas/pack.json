@@ -160,7 +160,6 @@
                 ]
               },
               "provides": {
-                "description": "What the page offers the host, such as knowledge; the host picks a page by capability, never by position.",
                 "items": {
                   "type": [
                     "string",
@@ -226,14 +225,16 @@
           "additionalProperties": false,
           "properties": {
             "view_tool": {
-              "minLength": 1,
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
-          "required": [
-            "view_tool"
-          ],
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "tool_area": {
           "additionalProperties": false,
@@ -638,7 +639,6 @@
             ]
           },
           "void_on": {
-            "description": "binding_activity voids the outcome when a new inbound customer message arrives on its conversation within void_window.",
             "type": [
               "string",
               "null"
