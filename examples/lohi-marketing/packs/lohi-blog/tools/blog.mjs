@@ -10,9 +10,9 @@
 import { execFile } from 'node:child_process';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const DEFAULT_BASE = 'https://blog.lohi2.com';
@@ -68,6 +68,7 @@ function defaults(env) {
       } finally { await rm(out, { recursive: true, force: true }); }
     },
     async deploy(wt) {
+      await linkConnection(env.LOHI_REPO, wt);
       const r = await run('bash', [join(wt, 'blog', 'infra', 'gce', 'deploy.sh'), '--env', 'prod'], { cwd: join(wt, 'blog'), timeout: 15 * 60_000 });
       return { ok: r.ok, detail: (r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ').slice(0, 300) };
     },
@@ -78,6 +79,31 @@ function defaults(env) {
 }
 
 // ---------- worktree ----------
+
+/**
+ * 2server finds its VM connection as the nearest .2server/connection.yaml
+ * (or .json) above the working directory. The tool's worktree lives under the
+ * pack state, outside the founder's checkout, so deploy.sh would find none:
+ * link the checkout's connection file (only that file, never the rest of the
+ * operator directory) into the worktree's own ignored .2server.
+ */
+export async function linkConnection(repo, wt) {
+  if (!repo) return null;
+  for (let dir = resolve(repo); ; dir = dirname(dir)) {
+    for (const name of ['connection.yaml', 'connection.json']) {
+      const file = join(dir, '.2server', name);
+      if (!existsSync(file)) continue;
+      const own = join(wt, '.2server');
+      await rm(own, { recursive: true, force: true });
+      await mkdir(own, { recursive: true, mode: 0o700 });
+      await writeFile(join(own, '.gitignore'), '*\n', { mode: 0o600 });
+      await symlink(file, join(own, name));
+      return file;
+    }
+    if (dirname(dir) === dir) return null;
+  }
+}
+
 
 async function git(d, cwd, ...args) {
   const r = await d.run('git', ['-c', 'core.hooksPath=/dev/null', ...args], { cwd });

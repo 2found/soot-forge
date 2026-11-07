@@ -3,10 +3,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, lstatSync, readlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { publish, unpublish, find, postFile, postURL, warnings } from '../tools/blog.mjs';
+import { publish, unpublish, find, postFile, postURL, warnings, linkConnection } from '../tools/blog.mjs';
 import { signClaim, contentHash } from '../../../../../packs/marketing/tools/lib/claim.mjs';
 
 const KEY = 'k'.repeat(32);
@@ -168,4 +168,22 @@ test('a forged, expired, mis-hashed, wrong-action or wrong-publisher claim is re
 test('the URL is the generator\'s vi-only path', () => {
   assert.equal(postURL({ series: 'truyen-hay', slug: 'a-b' }), 'https://blog.lohi2.com/truyen-hay/a-b/vi/');
   assert.equal(postURL({ slug: 'a-b' }, 'http://127.0.0.1:9/'), 'http://127.0.0.1:9/truyen-hay/a-b/vi/');
+});
+
+test('deploy finds the founder checkout\'s 2server connection from the tool\'s own worktree (only that file, ignored)', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'lohi-conn-'));
+  const repo = join(root, 'kiem-lai'), wt = join(root, 'state', 'blog-worktree');
+  mkdirSync(join(repo, '.2server', 'work'), { recursive: true });
+  mkdirSync(wt, { recursive: true });
+  writeFileSync(join(repo, '.2server', 'connection.yaml'), 'ssh: x\n');
+  writeFileSync(join(repo, '.2server', 'connection.json'), '{}');
+  assert.equal(await linkConnection(repo, wt), join(repo, '.2server', 'connection.yaml'));
+  assert.ok(lstatSync(join(wt, '.2server', 'connection.yaml')).isSymbolicLink());
+  assert.equal(readlinkSync(join(wt, '.2server', 'connection.yaml')), join(repo, '.2server', 'connection.yaml'));
+  assert.equal(existsSync(join(wt, '.2server', 'work')), false, 'the rest of the operator directory stays out');
+  assert.equal(readFileSync(join(wt, '.2server', '.gitignore'), 'utf8'), '*\n');
+  assert.equal(await linkConnection(repo, wt), join(repo, '.2server', 'connection.yaml'), 'a second deploy relinks');
+  const bare = mkdtempSync(join(tmpdir(), 'lohi-noconn-'));
+  assert.equal(await linkConnection(join(bare, 'repo'), join(bare, 'wt')), null, 'no connection: deploy.sh says so itself');
+  assert.equal(await linkConnection(undefined, wt), null);
 });
