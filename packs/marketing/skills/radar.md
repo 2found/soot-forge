@@ -66,3 +66,9 @@ fact each, so the writers and the lead see them next cycle.
   only while it is on. `radar_scan` says when they were last handed in. Nothing
   for two days is one line in your report.
 - A source that errors three scans in a row is one line in your report.
+
+## Without a hub
+
+Once a week, `marketing_seo_brief`: queries with at least 20 impressions at
+position 8–20 (or a click-through under 1 %) are the strongest topic picks;
+put the top three, with their numbers, at the top of the brief.

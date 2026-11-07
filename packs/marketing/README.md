@@ -53,3 +53,40 @@ channel — and never who read it (`visits` is `null`). Reader numbers come from
 product's own data pack when it has one.
 
 Tests: `node --test packs/marketing/tests/*.test.mjs` (no network, no posts).
+
+## Publishing without a hub
+
+With no `MARKETING_HUB` bound (it is optional), the pack keeps its own work in
+its storage (`pack:marketing`, version 1: posts, checks, queue, publish_log,
+metrics, facts, channels, settings and the tables later phases fill) and
+shows it on two operator rail pages that belong to the **Marketing** flow
+(`provides: ["flow-marketing"]`): **Bài viết** (posts, the SEO brief lint,
+the editor's check, Search Console numbers or "Chưa có số liệu") and **Hàng
+đợi** (the queue, pause for every channel or one, what just went out).
+
+```text
+draft_save → check (guard + editor verdict) → schedule → due (tool-only schedule)
+  → claim (guard again, pause/cap/spacing/quiet hours, intent row, signed claim)
+  → publisher publish/find → record (post_published) | fail
+```
+
+- **The guard** refuses a post whose prices, percentages or "free" offers are
+  not in `facts` read from the product's served source in the last 24 hours
+  (`facts_sync`), that holds personal data, breaks the channel's rules or
+  repeats a post of the last 90 days; the reason is shown on the post and
+  nothing is posted. Pause, cap, spacing and quiet hours only make it wait.
+- **The claim** (`marketing_claim`, `approval: operator` by default) is signed
+  with `MARKETING_CLAIM_KEY` (HMAC-SHA256 over canonical JSON, 10 minutes) and
+  carries the content hash; publishers refuse anything else. A host that wants
+  autonomous publishing sets `approvals: {"marketing_claim": "auto"}`; the
+  guard still runs.
+- **Once only.** The intent row is written before the claim is returned; a
+  claim re-issued after a crash says `verify_first` and the publisher looks
+  before it acts.
+- **Search Console.** `gsc_sync {site, days}` reads impressions, clicks and
+  position for every published URL with the operator's Google sign-in
+  (`GSC_GOOGLE`, a `google_oauth` value written by Nest's sign-in); a missing
+  or revoked sign-in answers `needs_person`. `seo_brief` feeds the radar.
+
+The hub tools above are unchanged and still forward when `MARKETING_HUB` is
+bound; the new tools never forward.

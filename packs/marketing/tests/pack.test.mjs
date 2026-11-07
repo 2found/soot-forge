@@ -16,17 +16,22 @@ const accepts = (tool, input) => ajv.compile(tools[tool].parameters)(input);
 const HUB = ['cms_list', 'cms_read', 'cms_save', 'cms_publish', 'social_channels', 'social_queue', 'social_list', 'social_update', 'social_publish', 'social_record', 'radar_feeds', 'radar_scan', 'radar_items', 'radar_mark', 'content_stats'];
 const READS = ['cms_list', 'cms_read', 'social_channels', 'social_list', 'radar_feeds', 'radar_items', 'content_stats'];
 
-test('the pack is one flat set: five role skills and every hub tool once', () => {
+// Hubless mode adds the pack's own tools (tests/hubless.test.mjs); the hub
+// tools stay exactly as they were.
+const OWN = ['draft_save', 'check', 'schedule', 'due', 'claim', 'record', 'fail', 'pause', 'items', 'facts_sync', 'gsc_sync', 'seo_brief', 'page_view', 'page_action'];
+
+test('the pack is one flat set: five role skills, every hub tool once and the hubless tools', () => {
   assert.deepEqual(pack.skills.map(s => s.name), ['marketing-radar', 'marketing-write', 'marketing-edit', 'marketing-publish', 'marketing-measure']);
-  assert.deepEqual(pack.tools.map(t => t.name).sort(), [...HUB].sort());
-  assert.equal(new Set(pack.tools.map(t => t.name)).size, HUB.length);
+  assert.deepEqual(pack.tools.map(t => t.name).sort(), [...HUB, ...OWN].sort());
+  assert.equal(new Set(pack.tools.map(t => t.name)).size, HUB.length + OWN.length);
   assert.equal(pack.capabilities, undefined);
   assert.equal(pack.use, undefined);
   assert.deepEqual(pack.needs.credentials.MARKETING_HUB.from ?? 'operator', 'operator');
 });
 
-test('every tool forwards to the hub through the MARKETING_HUB binding and nothing else', () => {
-  for (const [name, t] of Object.entries(tools)) {
+test('every hub tool forwards to the hub through the MARKETING_HUB binding and nothing else', () => {
+  for (const name of HUB) {
+    const t = tools[name];
     assert.equal(t.run.program, 'soot', name);
     assert.deepEqual(t.run.args, ['tool-forward', '--binding-env', 'MARKETING_HUB'], name);
     assert.deepEqual(t.run.secret_env, { MARKETING_HUB: '{{cred:MARKETING_HUB}}' }, name);

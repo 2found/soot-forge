@@ -1,0 +1,69 @@
+{
+  "listen": "127.0.0.1:7790",
+  "packs_dir": "packs",
+  "data_dir": "data",
+  "product": "Lohi",
+  "default_soot": "lohi-editor",
+  "soots": [
+    "soots/lohi-radar.json",
+    "soots/lohi-writer.json",
+    "soots/lohi-editor.json"
+  ],
+  "approvals": {
+    "marketing_claim": "auto"
+  },
+  "pack_grants": {
+    "marketing": {
+      "credentials": {
+        "MARKETING_CLAIM_KEY": "env:LOHI_MARKETING_CLAIM_KEY"
+      }
+    },
+    "lohi-blog": {
+      "credentials": {
+        "MARKETING_CLAIM_KEY": "env:LOHI_MARKETING_CLAIM_KEY"
+      },
+      "env": ["LOHI_REPO", "PATH", "HOME", "SSH_AUTH_SOCK", "LOHI_BLOG_URL"]
+    }
+  },
+  "schedules": [
+    {
+      "id": "marketing-dispatch",
+      "name": "Đăng bài đến giờ",
+      "soot": "lohi-editor",
+      "every": "10m",
+      "tool": { "pack": "marketing", "name": "due", "input": {} },
+      "wake_when": { "notify": true },
+      "text": "marketing_due says something is due or needs a person. Follow the marketing-publish skill, section \"Without a hub\": claim, publish through the channel's publisher, record. Raise needs_person items in one report_blocker."
+    },
+    {
+      "id": "marketing-gsc",
+      "name": "Đọc Search Console",
+      "soot": "lohi-editor",
+      "every": "24h",
+      "at": "06:00",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": { "pack": "marketing", "name": "gsc_sync", "input": { "site": "sc-domain:lohi2.com", "days": 3 } },
+      "wake_when": { "path": "status", "equals": "needs_person" },
+      "text": "Search Console needs a Google sign-in again. Raise it once with report_blocker: the founder signs in from Nest; nothing else to do."
+    },
+    {
+      "id": "marketing-facts",
+      "name": "Đọc giá và ưu đãi",
+      "soot": "lohi-editor",
+      "every": "24h",
+      "at": "05:30",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": { "pack": "marketing", "name": "facts_sync", "input": { "url": "https://api.lohi2.com/novel/v1/app-config" } },
+      "text": "Refresh the product facts the guard checks prices and offers against."
+    }
+  ],
+  "execution": {
+    "max_turns": 16,
+    "max_tool_calls": 30,
+    "tool_timeout": "25m",
+    "subagents": 0,
+    "advisor": false,
+    "memory_consolidation": false,
+    "todo_nudges": 0
+  }
+}

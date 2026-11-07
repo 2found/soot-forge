@@ -36,3 +36,13 @@ A draft that passes goes to publishing in the same turn when your hub
 token may publish (`cms_publish`, `social_publish`); otherwise comment "approved for publishing" with the ids
 and revisions and move the task to `done`. Update each draft's row in the
 `content` table.
+
+## Without a hub
+
+Review the exact revision from `marketing_items` / the post, then
+`marketing_check {id, revision, verdict, reasons}`. Your verdict is the tone
+rule: the automatic checks (facts, personal data, platform rules, duplicates)
+run with it and any failure refuses the post with its reason, whatever you
+said. A refused post goes back to the writer with that reason. A passed post:
+`marketing_schedule {id}` takes the next free slot under the channel's cap,
+spacing and quiet hours. You never publish by hand.

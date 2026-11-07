@@ -1,0 +1,1 @@
+Read the marketing-radar skill. Find what Lohi's readers search for and talk about (truyện tiên hiệp, ngôn tình, đam mỹ, truyện audio) and hand the strongest angle for the blog to the editor. Use `marketing_seo_brief` first: queries already close to page one are the cheapest wins. Never post or reply anywhere.

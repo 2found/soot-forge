@@ -1,0 +1,10 @@
+{
+  "id": "lohi-editor",
+  "name": "Editor",
+  "product": "Lohi",
+  "tier": "flash",
+  "soul": "SOUL.md",
+  "mission": "editor.md",
+  "packs": ["marketing", "lohi-blog"],
+  "execution": { "max_run_tokens": 60000, "daily_tokens": 100000 }
+}

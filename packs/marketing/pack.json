@@ -863,13 +863,647 @@
           "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
         }
       }
+    },
+    {
+      "name": "draft_save",
+      "title": "Lưu bản nháp",
+      "description": "Save a post draft in the pack's own storage (no hub): article, social, video or reply. A new draft needs request_id; an edit needs id and expected_revision. Returns the brief lint (title 30–60, meta 120–160, slug, ≥2 internal links, keyword). Never publishes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 16,
+            "pattern": "^P-[0-9A-F]{10}$"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "enum": [
+              "article",
+              "social",
+              "video",
+              "reply"
+            ]
+          },
+          "channel": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9-]{1,32}$"
+          },
+          "campaign": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "parent": {
+            "type": "string",
+            "maxLength": 16
+          },
+          "brief": {
+            "type": "object",
+            "properties": {
+              "keyword": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "meta": {
+                "type": "string",
+                "maxLength": 400
+              },
+              "slug": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "series": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9-]{1,64}$"
+              },
+              "internal_links": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 40000
+          },
+          "link": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "asset_ids": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "channel",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "draft_save"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144,
+        "max_input_bytes": 65536
+      }
+    },
+    {
+      "name": "items",
+      "title": "Xem bài",
+      "description": "List posts from pack storage by state, channel, campaign or an accent-insensitive search.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "draft",
+              "checking",
+              "refused",
+              "ready",
+              "scheduled",
+              "publishing",
+              "published",
+              "failed",
+              "pulled",
+              "unpublishing",
+              "removed",
+              "uncertain"
+            ]
+          },
+          "channel": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9-]{1,32}$"
+          },
+          "campaign": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "items"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "check",
+      "title": "Kiểm tra bài",
+      "description": "The Editor's check of one exact revision: runs the automatic guard (facts from served sources, no personal data, platform rules, no duplicate) and stores the verdict. Any automatic failure forces fail; the post becomes ready or refused with its reason.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 16,
+            "pattern": "^P-[0-9A-F]{10}$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "verdict"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "check"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "schedule",
+      "title": "Xếp lịch đăng",
+      "description": "Queue a checked post. Without scheduled_at it takes the next free slot under the channel cap, spacing and quiet hours.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 16,
+            "pattern": "^P-[0-9A-F]{10}$"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "schedule"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "due",
+      "title": "Việc đến hạn",
+      "description": "For the dispatch schedule: which queued posts are due to publish or unpublish, which are late and which channels need a person. wake and notify are true only when there is work (a schedule wakes on wake_when {notify: true}).",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "due"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "claim",
+      "title": "Nhận lượt đăng",
+      "description": "Claim one due post for its publisher. Re-runs the guard, checks pause, cap, spacing, quiet hours and the Editor's verdict on this exact content, writes the intent record, then returns a signed claim; otherwise a refusal with its reason. With verify_first the publisher must look for an earlier post before acting.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 16,
+            "pattern": "^P-[0-9A-F]{10}$"
+          },
+          "action": {
+            "enum": [
+              "publish",
+              "unpublish",
+              "reply"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "claim"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144,
+        "secret_env": {
+          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}"
+        },
+        "approval": "operator"
+      }
+    },
+    {
+      "name": "record",
+      "title": "Ghi đã đăng",
+      "description": "Record the publisher's result for a claim: the live URL. Returns the outcome {id: post_published, ref: url} for the Soot to report.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "platform_id": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "intent_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "record"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "fail",
+      "title": "Ghi đăng lỗi",
+      "description": "Record that a claimed publish did not happen (failed: retried later), needs a person (pauses the channel) or is uncertain (the next claim verifies first).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "status": {
+            "enum": [
+              "failed",
+              "needs_person",
+              "uncertain"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "platform": {
+            "type": "string",
+            "maxLength": 32
+          }
+        },
+        "required": [
+          "intent_id",
+          "status",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "fail"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "pause",
+      "title": "Tạm dừng đăng",
+      "description": "Pause or resume publishing on every channel or on one channel. Writing and checking go on while paused.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9-]{1,32}$"
+          },
+          "paused": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "paused"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "pause"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "page_view",
+      "title": "Xem trang marketing",
+      "description": "Bài viết / Hàng đợi page model: {page?, filter?, id?}. The page id comes from the page context when omitted.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "enum": [
+              "bai-viet",
+              "hang-doi"
+            ]
+          },
+          "filter": {
+            "enum": [
+              "all",
+              "draft",
+              "waiting",
+              "published",
+              "refused",
+              "removed"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 16,
+            "pattern": "^P-[0-9A-F]{10}$"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "page_view"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "page_action",
+      "title": "Đổi trang marketing",
+      "description": "Bài viết / Hàng đợi page action: pull from the queue, restore, reschedule, unpublish, pause or resume. Needs a request_id.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "enum": [
+              "pull",
+              "restore",
+              "reschedule",
+              "unpublish",
+              "pause",
+              "resume"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 16,
+            "pattern": "^P-[0-9A-F]{10}$"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "channel": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9-]{1,32}$"
+          }
+        },
+        "required": [
+          "op",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "page_action"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "facts_sync",
+      "title": "Đọc giá và số liệu",
+      "description": "Read the product's served price/config source (https JSON) into facts; the guard accepts only prices, percentages and free offers found there within 24 hours.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "facts_sync"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "gsc_sync",
+      "title": "Đọc Search Console",
+      "description": "Read Search Console impressions, clicks and position for every published post URL (page by day for the last days, queries for 28 days). Needs the Google sign-in; a missing or revoked sign-in answers needs_person.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28
+          }
+        },
+        "required": [
+          "site"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "gsc_sync"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 262144,
+        "secret_env": {
+          "GSC_GOOGLE": "{{cred:GSC_GOOGLE}}"
+        }
+      }
+    },
+    {
+      "name": "seo_brief",
+      "title": "Gợi ý SEO",
+      "description": "Search queries worth a post (impressions ≥ 20 and position 8–20 or CTR under 1 %) and the published posts' 14-day numbers (null when not read yet).",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "seo_brief"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
     }
   ],
   "needs": {
     "credentials": {
       "MARKETING_HUB": {
         "title": "Marketing hub",
-        "description": "Kết nối tới marketing hub của sản phẩm: các site, kênh và quyền đăng của nhóm này. Lấy ở trang quản trị hub; nhập trong Nest, không nhập trong chat."
+        "description": "Kết nối tới marketing hub của sản phẩm: các site, kênh và quyền đăng của nhóm này. Lấy ở trang quản trị hub; nhập trong Nest, không nhập trong chat.",
+        "optional": true
+      },
+      "MARKETING_CLAIM_KEY": {
+        "title": "Khoá ký lượt đăng",
+        "description": "Một chuỗi bí mật dài (ví dụ 32 byte ngẫu nhiên) dùng để ký mỗi lượt đăng. Nhập cùng giá trị cho gói đăng bài (publisher) của kênh; nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
+      },
+      "GSC_GOOGLE": {
+        "title": "Google Search Console",
+        "description": "Đăng nhập Google trong Nest để Soot đọc số hiển thị, lượt bấm và vị trí của các bài đã đăng (chỉ quyền đọc Search Console).",
+        "from": "operator",
+        "optional": true
       }
     }
   },
@@ -890,5 +1524,617 @@
       },
       "unit": "lead"
     }
-  ]
+  ],
+  "storage": {
+    "version": 1,
+    "tables": [
+      {
+        "name": "settings",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "value",
+            "type": "json"
+          }
+        ]
+      },
+      {
+        "name": "channels",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "kind",
+            "type": "text"
+          },
+          {
+            "name": "publisher",
+            "type": "text"
+          },
+          {
+            "name": "cap_per_day",
+            "type": "integer"
+          },
+          {
+            "name": "spacing_min",
+            "type": "integer"
+          },
+          {
+            "name": "reply_cap_per_day",
+            "type": "integer"
+          },
+          {
+            "name": "paused",
+            "type": "boolean"
+          },
+          {
+            "name": "paused_reason",
+            "type": "text"
+          },
+          {
+            "name": "rules",
+            "type": "json"
+          },
+          {
+            "name": "account",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "sources",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "kind",
+            "type": "text"
+          },
+          {
+            "name": "url",
+            "type": "text"
+          },
+          {
+            "name": "last_read_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "last_error",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "signals",
+        "columns": [
+          {
+            "name": "source",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "url",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "summary",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "score",
+            "type": "number"
+          }
+        ]
+      },
+      {
+        "name": "posts",
+        "columns": [
+          {
+            "name": "ref",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "request_id",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "kind",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "channel",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "campaign",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "parent",
+            "type": "text"
+          },
+          {
+            "name": "brief",
+            "type": "json"
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "body",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "link",
+            "type": "text"
+          },
+          {
+            "name": "asset_ids",
+            "type": "json"
+          },
+          {
+            "name": "content_hash",
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "name": "url",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "platform_id",
+            "type": "text"
+          },
+          {
+            "name": "revision",
+            "type": "integer",
+            "required": true
+          },
+          {
+            "name": "author_soot",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "assets",
+        "columns": [
+          {
+            "name": "ref",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "post",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "kind",
+            "type": "text"
+          },
+          {
+            "name": "path",
+            "type": "text"
+          },
+          {
+            "name": "meta",
+            "type": "json"
+          },
+          {
+            "name": "pretest",
+            "type": "json"
+          }
+        ]
+      },
+      {
+        "name": "checks",
+        "columns": [
+          {
+            "name": "post",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "revision",
+            "type": "integer"
+          },
+          {
+            "name": "content_hash",
+            "type": "text"
+          },
+          {
+            "name": "checker_soot",
+            "type": "text"
+          },
+          {
+            "name": "verdict",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "auto",
+            "type": "json"
+          },
+          {
+            "name": "reasons",
+            "type": "json"
+          },
+          {
+            "name": "at",
+            "type": "timestamp",
+            "index": true
+          }
+        ]
+      },
+      {
+        "name": "queue",
+        "columns": [
+          {
+            "name": "post",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "channel",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "action",
+            "type": "text"
+          },
+          {
+            "name": "scheduled_at",
+            "type": "timestamp",
+            "index": true
+          },
+          {
+            "name": "intent_id",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "intent_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "attempts",
+            "type": "integer"
+          },
+          {
+            "name": "wait_reason",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "publish_log",
+        "columns": [
+          {
+            "name": "post",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "channel",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "action",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "intent_id",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "status",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "body",
+            "type": "text"
+          },
+          {
+            "name": "link",
+            "type": "text"
+          },
+          {
+            "name": "url",
+            "type": "text"
+          },
+          {
+            "name": "platform_id",
+            "type": "text"
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp",
+            "required": true,
+            "index": true
+          }
+        ]
+      },
+      {
+        "name": "replies",
+        "columns": [
+          {
+            "name": "ref",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "channel",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "thread_url",
+            "type": "text"
+          },
+          {
+            "name": "parent_post",
+            "type": "text"
+          },
+          {
+            "name": "author_handle",
+            "type": "text"
+          },
+          {
+            "name": "text",
+            "type": "text"
+          },
+          {
+            "name": "class",
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "reply_post",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "metrics",
+        "columns": [
+          {
+            "name": "url",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "source",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "day",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "query",
+            "type": "text"
+          },
+          {
+            "name": "impressions",
+            "type": "integer"
+          },
+          {
+            "name": "clicks",
+            "type": "integer"
+          },
+          {
+            "name": "position",
+            "type": "number"
+          },
+          {
+            "name": "views",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "facts",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "value",
+            "type": "json"
+          },
+          {
+            "name": "source_url",
+            "type": "text"
+          },
+          {
+            "name": "fetched_at",
+            "type": "timestamp"
+          }
+        ]
+      },
+      {
+        "name": "campaigns",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "name",
+            "type": "text"
+          },
+          {
+            "name": "goal",
+            "type": "json"
+          },
+          {
+            "name": "channels",
+            "type": "json"
+          },
+          {
+            "name": "starts",
+            "type": "timestamp"
+          },
+          {
+            "name": "ends",
+            "type": "timestamp"
+          },
+          {
+            "name": "token_budget",
+            "type": "integer"
+          },
+          {
+            "name": "tokens_used",
+            "type": "integer"
+          },
+          {
+            "name": "state",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "links",
+        "columns": [
+          {
+            "name": "code",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "campaign",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "channel",
+            "type": "text"
+          },
+          {
+            "name": "post",
+            "type": "text"
+          },
+          {
+            "name": "target",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  },
+  "interface": {
+    "pages": [
+      {
+        "id": "bai-viet",
+        "label": {
+          "vi": "Bài viết",
+          "en": "Posts"
+        },
+        "icon": "file-text",
+        "placement": "rail",
+        "access": "operator",
+        "provides": [
+          "flow-marketing"
+        ],
+        "view_tool": "page_view",
+        "action_tool": "page_action",
+        "bundle": "page/"
+      },
+      {
+        "id": "hang-doi",
+        "label": {
+          "vi": "Hàng đợi",
+          "en": "Queue"
+        },
+        "icon": "calendar-clock",
+        "placement": "rail",
+        "access": "operator",
+        "provides": [
+          "flow-marketing"
+        ],
+        "view_tool": "page_view",
+        "action_tool": "page_action",
+        "bundle": "page/"
+      }
+    ]
+  }
 }

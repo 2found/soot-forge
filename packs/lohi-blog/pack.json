@@ -1,0 +1,146 @@
+{
+  "api_version": "soot/v1",
+  "id": "lohi-blog",
+  "name": "Lohi blog",
+  "label": {
+    "vi": "Blog Lohi",
+    "en": "Lohi blog"
+  },
+  "description": {
+    "vi": "Nơi đăng của kênh blog-lohi: nhận lượt đăng đã ký từ gói marketing, viết bài vào một worktree riêng của kiem-lai, dựng blog không cảnh báo, commit đúng một tệp, push, triển khai và kiểm tra địa chỉ; triển khai lỗi thì hoàn lại.",
+    "en": "The blog-lohi channel's publisher: takes a signed claim from the marketing pack, writes the post in its own kiem-lai worktree, builds the blog with zero warnings, commits only that file, pushes, deploys and checks the URL; a failed deploy is reverted."
+  },
+  "keywords": {
+    "vi": [
+      "blog",
+      "đăng bài",
+      "lohi"
+    ],
+    "en": [
+      "blog",
+      "publish",
+      "lohi"
+    ]
+  },
+  "needs": {
+    "env": [
+      "LOHI_REPO",
+      "PATH",
+      "HOME",
+      "SSH_AUTH_SOCK",
+      "LOHI_BLOG_URL"
+    ],
+    "credentials": {
+      "MARKETING_CLAIM_KEY": {
+        "title": "Khoá ký lượt đăng",
+        "description": "Cùng giá trị MARKETING_CLAIM_KEY đã nhập cho gói marketing của Soot này; lượt đăng không có chữ ký đúng, hết hạn hay sai nội dung bị từ chối. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator"
+      }
+    }
+  },
+  "skills": [
+    {
+      "name": "lohi-blog-publish",
+      "description": "Publish or unpublish a claimed blog-lohi post with this pack's tools and report the result back to the marketing pack.",
+      "file": "skills/publish.md"
+    }
+  ],
+  "tools": [
+    {
+      "name": "publish",
+      "title": "Đăng bài blog",
+      "description": "Publish one signed blog-lohi claim: own clean worktree at origin/main, look for an earlier commit of the same intent first, write posts/<series>/<slug>.vi.md, build with zero warnings, commit only that file, push fast-forward, deploy, poll the URL. Answers {status: published, url, platform_id} or {status: failed, reason, retry}.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "claim"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/blog.mjs",
+          "publish"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "25m",
+        "max_input_bytes": 131072,
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "unpublish",
+      "title": "Gỡ bài blog",
+      "description": "Remove one published blog-lohi post from a signed unpublish claim: delete the file in a commit, push, deploy and check the URL is gone. Answers {status: removed} or {status: failed, reason, retry}.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "claim"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/blog.mjs",
+          "unpublish"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "25m",
+        "max_input_bytes": 131072,
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "find",
+      "title": "Tìm bài đã đăng",
+      "description": "Crash recovery: is this claim's post already on main (commit trailer Soot-Intent) and live? Answers {found, url?, platform_id?}. Changes nothing outside the tool's own worktree.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "claim"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/blog.mjs",
+          "find"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "2m",
+        "max_input_bytes": 131072,
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}"
+        }
+      }
+    }
+  ]
+}

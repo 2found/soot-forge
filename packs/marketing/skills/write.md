@@ -72,3 +72,18 @@ When the drafts are saved, comment on your task with each draft's site, slug or
 `SP-…` id, revision and `preview_url`, and what the editor should check (claims,
 links, numbers). Move the task to `review`: no draft goes live without an
 editor's review. Mark the signal `used` with `used_in`.
+
+## Without a hub
+
+When the team has no hub (no `cms_*` / `social_*` answers, or the brief says
+so), drafts live in this pack's own storage:
+
+- `marketing_items {query}` first: update an existing post on the topic.
+- `marketing_draft_save {request_id, kind, channel, brief, body, link?}`; an
+  edit passes `id` and `expected_revision`. For an article, `brief` carries
+  `keyword`, `title` (30–60 characters), `meta` (120–160), `slug`
+  (`a-z0-9-`), `series` and `internal_links`; the body links at least two of
+  the product's own pages. Fix every `lint` line the answer returns.
+- Write prices, discounts and "free" only as the product serves them today;
+  the guard refuses any amount it cannot find in `facts`.
+- Never schedule or publish; hand the post id to the editor.

@@ -60,3 +60,27 @@ the task: `done` when everything went live or waits for the browser poster;
 `blocked` with what is needed when a hand-off or decision is open. End with a
 short report: what went live (URLs), what waits for the poster or a person,
 what you held back and why.
+
+## Without a hub: claim, publish, record
+
+The queue publishes on its own pace: a tool-only schedule runs
+`marketing_due` and wakes you only when something is due.
+
+1. For each id in `publish`: `marketing_claim {id, action: "publish"}`. The
+   claim re-runs the guard, checks pause, caps, spacing, quiet hours and the
+   editor's verdict on this exact content, and writes the intent before
+   anything goes out. A `refused` answer is final for this turn; its reason is
+   already on the post.
+2. Give the signed claim to the channel's publisher (its pack's `publish` tool,
+   or the posting skill). With `verify_first: true`, call the publisher's
+   `find` first and record what it finds instead of posting again.
+3. `published` → `marketing_record {intent_id, url, platform_id}` and report
+   the `post_published` outcome it returns. `failed` →
+   `marketing_fail {intent_id, status: "failed", reason}`; a sign-in or layout
+   problem → `status: "needs_person"` (the channel pauses); not knowing whether
+   it went out → `status: "uncertain"`. Never call the publisher twice for one
+   claim.
+4. `unpublish` ids follow the same steps with `action: "unpublish"`.
+
+`marketing_pause {paused: true}` stops every channel at once; writing and
+checking go on.

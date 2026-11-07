@@ -1,0 +1,10 @@
+{
+  "id": "lohi-writer",
+  "name": "Writer",
+  "product": "Lohi",
+  "tier": "flash",
+  "soul": "SOUL.md",
+  "mission": "writer.md",
+  "packs": ["marketing", "writing"],
+  "execution": { "max_run_tokens": 80000, "daily_tokens": 150000 }
+}

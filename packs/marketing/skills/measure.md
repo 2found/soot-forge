@@ -28,3 +28,11 @@ next cycle uses.
 4. Report in a few lines: shipped, waiting, the lessons, and the one change you
    propose for the next period. A change to the budget, the schedule or the
    team is the person's decision: propose it, do not make it.
+
+## Without a hub
+
+`marketing_seo_brief` gives the published posts' 14-day Search Console
+numbers and the queries worth a post. A post with `null` numbers has not been
+read yet: say "no data yet", never 0. Search Console data comes from the
+daily `marketing_gsc_sync` schedule; a `needs_person` answer means the Google
+sign-in must be renewed in Nest.

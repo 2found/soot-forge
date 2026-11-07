@@ -140,6 +140,7 @@
         "icon": "users",
         "placement": "rail",
         "access": "member",
+        "provides": ["flow-ho-tro"],
         "view_tool": "console_view",
         "action_tool": "console_action",
         "bundle": "page/"
