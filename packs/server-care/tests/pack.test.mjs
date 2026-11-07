@@ -12,7 +12,10 @@ test('the pack declares alert_triaged and a remediation that waits for an operat
   const tool = pack.tools.find(t => t.name === 'remediate');
   assert.equal(tool.run.approval, 'operator');
   assert.equal(tool.run.preflight, true);
-  assert.notEqual(tool.run.mode, 'read');
+  // write, not repair: a repair operation needs preauthorized + verify_target from
+  // the host, so a Forge-installed pack selecting it fails soot check. The
+  // operator approval already holds every call.
+  assert.equal(tool.run.mode, 'write');
 });
 
 test('preflight describes the call and sends nothing; the approved call posts once', async () => {

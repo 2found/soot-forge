@@ -79,7 +79,7 @@
           "tools/remediate.mjs"
         ],
         "stdin": "context",
-        "mode": "repair",
+        "mode": "write",
         "preflight": true,
         "approval": "operator",
         "resource": "server_care_remediate",

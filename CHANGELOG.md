@@ -3,6 +3,17 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.3
+
+### Fixed
+
+- **`server-care`** can be selected straight from the Forge. Its `remediate`
+  tool was a `repair` operation, which Soot loads only with a host-specific
+  `preauthorized` flag and `verify_target`, so `soot check` refused every Soot
+  that picked the pack, including the `server-watch` group. It is now a
+  `write` operation: `approval: operator` still holds each restart or reload
+  until an operator approves that exact request, and it still runs once.
+
 ## 0.11.2
 
 ### Changed
