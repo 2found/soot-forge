@@ -57,7 +57,11 @@ yourself, and you never choose an amount of LT.
 For "the bank took the money, no LT" with no `completed` row:
 
 1. **Get the window.** You need when they transferred (day + rough time) in
-   their own words. If they have not said it, ask in one message — and ask for
+   their own words. "vừa nạp", "mới nạp", "vừa chuyển", "lúc nãy" ARE their
+   words: the window is the last 3 hours up to now — call at once, with the
+   amount if they gave one ("mới nạp 50k" → `amountVnd: 50000`); do not ask
+   when first. "hôm nay" is today from 00:00 +07:00 up to now. If they have
+   not said when at all, ask in one message — and ask for
    the amount and the transfer note (nội dung chuyển khoản) too if they know
    them, without making those a condition. A `pending` row's time is not their
    word; do not call before they say when. If a receipt image arrives, read the

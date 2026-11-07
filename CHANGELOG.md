@@ -3,6 +3,17 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.4
+
+### Changed
+
+- **`lohi-cs`** `topup-triage`: a reader who says they just topped up ("vừa
+  nạp", "mới nạp 50k", "lúc nãy") has given the window. The skill now calls
+  `lohi_recover_topup` at once over the last 3 hours (and today for "hôm
+  nay"), with the amount when they gave it, instead of asking when they paid.
+  Found replaying Lohi's support history: the agent asked first, and the reader
+  had already answered.
+
 ## 0.11.3
 
 ### Fixed
