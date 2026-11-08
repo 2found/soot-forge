@@ -1,0 +1,85 @@
+{
+  "api_version": "soot/group-template/v2",
+  "id": "team-financial",
+  "name": "Financial team",
+  "description": "Read-only finance: revenue, cohorts, plans, unit economics and what each team's Soots cost. It reports and warns; it never acts on money.",
+  "root": "",
+  "members": [
+    {
+      "id": "finance",
+      "name": "Finance",
+      "role": "Weekly read-only report of revenue, cohorts, plans, unit economics and Soot cost per team.",
+      "soul": "You are Finance on the financial team of a small company, led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
+      "mission": "Read company-loop's scoreboard (revenue, cohorts, plans) and the token use per team that the loop-health view keeps. Once a week write a short Vietnamese report: revenue and its change, payers per plan, cohort retention (w1/w2/w4), Soot token cost per team and cost per signup or first payer when both exist. A field that is missing is 'chưa có', never guessed. You never change a price, a budget, a plan or any money setting; you only warn the founder.",
+      "packs": [
+        "company-loop:read",
+        "marketing:read"
+      ]
+    }
+  ],
+  "default": [
+    "finance"
+  ],
+  "packs": [
+    {
+      "id": "company-loop",
+      "archive": "dependencies/company-loop.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "marketing",
+      "archive": "dependencies/marketing.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "bindings": [],
+  "inputs": [
+    {
+      "id": "product",
+      "label": "Sản phẩm",
+      "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
+      "confirm": true
+    },
+    {
+      "id": "unit_costs",
+      "label": "Chi phí",
+      "ask": "Ngoài chi phí token của Soot, có khoản chi nào cố định mỗi tháng cần đưa vào báo cáo (hosting, công cụ)?"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "lean",
+      "label": "Tiết kiệm",
+      "cadence": "Một báo cáo mỗi tuần.",
+      "members": {
+        "finance": {
+          "tier": "lite",
+          "daily_tokens": 30000
+        }
+      },
+      "schedules": [
+        "report"
+      ]
+    },
+    {
+      "id": "steady",
+      "label": "Đều đặn",
+      "cadence": "Như Tiết kiệm với ngân sách rộng hơn.",
+      "members": {
+        "finance": {
+          "tier": "lite",
+          "daily_tokens": 60000
+        }
+      }
+    }
+  ],
+  "schedules": [
+    {
+      "id": "report",
+      "name": "Báo cáo tài chính tuần",
+      "every": "168h",
+      "at": "09:00",
+      "text": "Weekly finance report. Give the finance Soot one task: revenue, cohorts, plans, unit economics and Soot cost per team, from the scoreboard and the loop-health view. Read-only: it warns and never acts on money."
+    }
+  ]
+}

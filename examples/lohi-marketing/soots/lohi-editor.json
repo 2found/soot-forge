@@ -1,18 +1,18 @@
 {
   "id": "lohi-editor",
-  "name": "Editor",
+  "name": "Ops",
   "product": "Lohi",
   "tier": "flash",
   "soul": "SOUL.md",
   "mission": "editor.md",
   "packs": [
-    "marketing:tools=due,claim,record,fail,raised,answer,pause,items,check,schedule,draft_save,reply_save,replies_sync,channels_setup,channels_probe,gsc_sync,report,campaign_report,campaign_save,campaign_verify,page_view,page_action",
-    "company-loop:tools=scoreboard_sync,signals,digest_save,team_watch,review,page_view,page_action",
+    "marketing:tools=due,claim,record,fail,raised,answer,pause,items,check,schedule,reply_save,replies_sync,channels_setup,channels_probe,gsc_sync,report,video_stats,page_view,page_action",
+    "company-loop:tools=scoreboard_sync,team_watch,review,page_view,page_action",
     "lohi-blog:tools=publish,unpublish,find,ready",
     "browser-use"
   ],
   "execution": {
     "max_run_tokens": 100000,
-    "daily_tokens": 300000
+    "daily_tokens": 150000
   }
 }

@@ -10,6 +10,9 @@ import { campaign_save, campaign_report, campaign_verify } from './lib/campaign.
 import { plan } from './lib/plan.mjs';
 import { channels_probe } from './lib/probe.mjs';
 import { report } from './lib/report.mjs';
+import { radar_read, signals_list, signals_mark } from './lib/radar.mjs';
+import { video_stats } from './lib/stats.mjs';
+import { inputs_health } from './lib/health.mjs';
 
 export const TOOLS = {
   draft_save: ops.draft_save, items: ops.items, check: ops.check, schedule: ops.schedule, due: ops.due,
@@ -17,14 +20,15 @@ export const TOOLS = {
   page_view, page_action, facts_sync: ops.facts_sync, gsc_sync: ops.gsc_sync, seo_brief: ops.seo_brief,
   channels_setup: ops.channels_setup, raised: ops.raised, answer, replies_sync: ops.replies_sync, reply_save: ops.reply_save,
   video_import, campaign_save, campaign_report, campaign_verify, plan, channels_probe, report,
+  radar_read, signals_list, signals_mark, video_stats, inputs_health,
 };
 
 /** Run one tool; `deps` overrides the store, clock and fetch in tests. */
-export async function run(name, ctx, { env = process.env, store, now = Date.now(), fetchImpl = fetch, apiTimeoutMs } = {}) {
+export async function run(name, ctx, { env = process.env, store, now = Date.now(), fetchImpl = fetch, apiTimeoutMs, exec } = {}) {
   const tool = TOOLS[name];
   if (!tool) throw new MarketingError('invalid_request', `Unknown tool ${name}.`);
   const input = ctx?.input ?? {};
-  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, soot: ctx?.soot ?? ctx?.page?.soot ?? null, page: ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id });
+  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, exec, soot: ctx?.soot ?? ctx?.page?.soot ?? null, page: ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id });
 }
 
 async function readStdin() {

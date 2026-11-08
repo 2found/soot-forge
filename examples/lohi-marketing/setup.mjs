@@ -91,6 +91,20 @@ export function installPack(forgeDir, out, id) {
   return 'copied';
 }
 
+/** An optional local pack of this recipe: copied (without tests) when the recipe has it, its fragment merged into the host. */
+export function installLocalPack(out, id, host, from = join(here, 'packs', id)) {
+  if (!existsSync(join(from, 'pack.json'))) return { installed: false };
+  rmSync(join(out, 'packs', id), { recursive: true, force: true });
+  cpSync(from, join(out, 'packs', id), { recursive: true, filter: s => !/[\\/](tests|node_modules)([\\/]|$)/.test(s) });
+  const file = join(from, 'deployment.fragment.json');
+  if (!existsSync(file)) return { installed: true };
+  const frag = JSON.parse(readFileSync(file, 'utf8'));
+  host.pack_grants = { ...host.pack_grants, ...(frag.pack_grants ?? {}) };
+  const have = new Set(host.schedules.map(x => x.id));
+  host.schedules = [...host.schedules.filter(x => !(frag.replace_schedules ?? []).includes(x.id)), ...(frag.schedules ?? []).filter(x => !have.has(x.id) || (frag.replace_schedules ?? []).includes(x.id))];
+  return { installed: true, soot_packs: frag.soot_packs };
+}
+
 export function build(dir, { port = 7790, video, blogRemote, productRepo, csRuntimeUrl, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
   const out = resolve(dir);
   // The Video Soot selects the 2build pack, which comes from 2found/2build, not
@@ -107,22 +121,35 @@ export function build(dir, { port = 7790, video, blogRemote, productRepo, csRunt
   }
   const packs = ['marketing', 'browser-use', 'company-loop', ...(video ? ['toolbox'] : [])];
   const hostEnv = { ...HOST_ENV, ...(blogRemote ? { LOHI_BLOG_REMOTE: blogRemote } : {}), ...(productRepo ? { PRODUCT_REPO: productRepo } : {}), ...(csRuntimeUrl ? { CS_RUNTIME_URL: csRuntimeUrl } : {}), ...(connection ? { LOHI_CONNECTION: connection } : {}) };
+  // The Vòng lặp view asks this workspace's own soot CLI for runs and tokens: it needs the deployment file's absolute path.
+  hostEnv.LOOP_SOOT_CONFIG = join(out, 'deployment.json');
   if (env) host.env = hostEnv;
   mkdirSync(join(out, 'packs'), { recursive: true });
   mkdirSync(join(out, 'soots'), { recursive: true });
   for (const id of packs) installPack(forge, out, id);
   rmSync(join(out, 'packs', 'lohi-blog'), { recursive: true, force: true });
   cpSync(join(here, 'packs', 'lohi-blog'), join(out, 'packs', 'lohi-blog'), { recursive: true, filter: s => !/[\\/]tests([\\/]|$)/.test(s) });
+  // The slot for the Ops publisher pack (`lohi-ops`, built apart): when the recipe ships packs/lohi-ops it is copied like lohi-blog
+  // and its optional deployment.fragment.json ({pack_grants, soot_packs: {<soot>: [refs]}, schedules}) is merged in. Absent: nothing changes.
+  const ops = installLocalPack(out, 'lohi-ops', host);
   for (const f of host.soots) cpSync(join(here, f), join(out, f));
-  for (const f of ['SOUL.md', 'writer.md', 'editor.md', ...(video ? ['video.md'] : [])]) cpSync(join(here, 'soots', f), join(out, 'soots', f));
+  if (ops.soot_packs) for (const [id, refs] of Object.entries(ops.soot_packs)) {
+    const file = join(out, 'soots', `${id}.json`);
+    const soot = JSON.parse(readFileSync(file, 'utf8'));
+    soot.packs = [...soot.packs.filter(r => !refs.some(x => x.split(':')[0] === r.split(':')[0])), ...refs];
+    writeFileSync(file, JSON.stringify(soot, null, 2) + '\n');
+  }
+  for (const f of ['SOUL.md', 'writer.md', 'editor.md', 'analyst.md', 'radar.md', 'finance.md', ...(video ? ['video.md'] : [])]) cpSync(join(here, 'soots', f), join(out, 'soots', f));
   writeFileSync(join(out, 'deployment.json'), JSON.stringify(host, null, 2) + '\n');
   const key = claimKeyFile('lohi-editor', { home, credentialsDir: host.credentials_dir });
+  if (ops.installed) packs.push('lohi-ops');
   return { out, packs, video, env, hostEnv, connection: Boolean(connection), keyMade: ensureClaimKey(key), key };
 }
 
 export const personSteps = ({ productRepo } = {}) => [
   'Đăng nhập X, Facebook, Reddit trong Nest khi Cần bạn hiện thẻ (mỗi nền tảng một lần bấm).',
-  'Đăng nhập Google trong Nest cho Search Console (tuỳ chọn; không có thì chọn chủ đề theo danh mục).',
+  'Đăng nhập Google trong Nest cho Search Console (tuỳ chọn; không có thì chọn chủ đề theo danh mục). Chưa đăng nhập thì mục Vòng lặp ghi đúng "GSC chưa nối".',
+  'Số TikTok/YouTube (tuỳ chọn): cài yt-dlp một lần (`brew install yt-dlp`); chưa cài thì mục Vòng lặp ghi "chưa có số TikTok".',
   'Đăng blog: máy cần git qua SSH tới kho kiem-lai, go, 2server, gcloud đã đăng nhập; thiếu gì Soot báo đúng một thẻ Cần bạn.',
   'Chiến dịch và bảng số công ty (tuỳ chọn): khoá API vai trò agent_mod của Lohi, nhập PRODUCT_ADMIN_KEY trong Nest.',
   'Vòng lặp công ty: mở trang Công ty, bấm Go / Để sau / Bỏ cho từng cơ hội sản phẩm (nội dung thì Soot tự chạy). ' + (productRepo ? 'Bấm Go thì Soot mở đội bbs:team; đội cần bbs và Orca trên máy này.' : 'Muốn Soot mở đội bbs:team thì chạy setup với --product-repo; đội cần bbs và Orca trên máy này.'),

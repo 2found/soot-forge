@@ -63,1190 +63,320 @@
       "title": "Xem nguồn radar",
       "description": "List the radar's sources (Reddit, Hacker News, dev.to, Medium, Lobsters, Product Hunt, vendor blogs, X searches) with when each was last read, its last error and how many new items it found.",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "read",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "read", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "radar_scan",
       "title": "Quét nguồn radar",
       "description": "Read the sources that are due (each at most every 15 minutes; Reddit one feed per scan) and store new items once per URL. Returns the newest untriaged items. Not available from a customer conversation.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "feeds": {
-            "type": "array",
-            "items": {"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":48},
-            "minItems": 1,
-            "maxItems": 40,
-            "description": "Feed ids from radar_feeds; omit for all."
-          },
-          "max_new": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 60,
-            "default": 30,
-            "description": "How many new items to return."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "write",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"feeds":{"type":"array","items":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":48},"minItems":1,"maxItems":40,"description":"Feed ids from radar_feeds; omit for all."},"max_new":{"type":"integer","minimum":1,"maximum":60,"default":30,"description":"How many new items to return."}},"required":[],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "write", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "radar_items",
       "title": "Xem tin radar",
       "description": "List radar items by triage status (default new), optionally by feed, an accent-insensitive text query, or the last N hours.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "status": {"type":"string","enum":["new","kept","dismissed","used"],"default":"new"},
-          "feeds": {
-            "type": "array",
-            "items": {"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":48},
-            "minItems": 1,
-            "maxItems": 40,
-            "description": "Feed ids from radar_feeds; omit for all."
-          },
-          "query": {"type":"string","maxLength":100},
-          "since_hours": {"type":"integer","minimum":1,"maximum":720},
-          "limit": {"type":"integer","minimum":1,"maximum":50,"default":25}
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "read",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"status":{"type":"string","enum":["new","kept","dismissed","used"],"default":"new"},"feeds":{"type":"array","items":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":48},"minItems":1,"maxItems":40,"description":"Feed ids from radar_feeds; omit for all."},"query":{"type":"string","maxLength":100},"since_hours":{"type":"integer","minimum":1,"maximum":720},"limit":{"type":"integer","minimum":1,"maximum":50,"default":25}},"required":[],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "read", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "radar_mark",
       "title": "Phân loại tin radar",
       "description": "Triage radar items in one call: each item kept (with the angle as note), dismissed, or used once written about. All or nothing: an unknown or repeated id changes none.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "description": "Every item to triage, each once.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {"type":"string","pattern":"^RI-[0-9A-F]{8}$"},
-                "status": {"type":"string","enum":["new","kept","dismissed","used"]},
-                "note": {
-                  "type": "string",
-                  "maxLength": 500,
-                  "description": "For a kept item: product, angle and why now, one line."
-                }
-              },
-              "required": ["id","status"],
-              "additionalProperties": false
-            },
-            "minItems": 1,
-            "maxItems": 50
-          }
-        },
-        "required": ["items"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "write",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"items":{"type":"array","description":"Every item to triage, each once.","items":{"type":"object","properties":{"id":{"type":"string","pattern":"^RI-[0-9A-F]{8}$"},"status":{"type":"string","enum":["new","kept","dismissed","used"]},"note":{"type":"string","maxLength":500,"description":"For a kept item: product, angle and why now, one line."}},"required":["id","status"],"additionalProperties":false},"minItems":1,"maxItems":50}},"required":["items"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "write", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "cms_list",
       "title": "Xem danh sách bài CMS",
       "description": "List the newest posts of a CMS site in every status (draft, published, archived) with revision, live flag and public URL. Check it before drafting so you never duplicate a topic.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "site": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "maxLength": 64,
-            "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-          },
-          "limit": {"type":"integer","minimum":1,"maximum":50,"default":20}
-        },
-        "required": ["site"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "read",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"site":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":64,"description":"The hub's site id for a blog (social_channels lists this team's sites)."},"limit":{"type":"integer","minimum":1,"maximum":50,"default":20}},"required":["site"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "read", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "cms_read",
       "title": "Đọc một bài CMS",
       "description": "Read the latest revision of a CMS post: body_markdown, revision, status and preview_url (a signed page showing exactly this revision, for anyone who reviews it before it goes live).",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "site": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "maxLength": 64,
-            "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-          },
-          "slug": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "maxLength": 96,
-            "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
-          }
-        },
-        "required": ["site","slug"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "read",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"site":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":64,"description":"The hub's site id for a blog (social_channels lists this team's sites)."},"slug":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":96,"description":"URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."}},"required":["site","slug"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "read", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "cms_save",
       "title": "Lưu bản nháp CMS",
       "description": "Save a CMS draft revision; it never goes live (cms_publish does that). New post: expected_revision 0. Edit: the revision cms_read returned. Body is Markdown, at most 40000 bytes.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "site": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "maxLength": 64,
-            "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-          },
-          "slug": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "maxLength": 96,
-            "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
-          },
-          "request_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "A fresh UUID per change. Reuse it only to retry the exact same change after an unknown outcome."
-          },
-          "expected_revision": {"type":"integer","minimum":0},
-          "title": {"type":"string","maxLength":200},
-          "summary": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "One or two sentences shown in blog lists and link previews."
-          },
-          "body_markdown": {"type":"string","maxLength":40000},
-          "language": {"type":"string","enum":["en","vi"]}
-        },
-        "required": [
-          "site",
-          "slug",
-          "request_id",
-          "expected_revision",
-          "title",
-          "summary",
-          "body_markdown",
-          "language"
-        ],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "write",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"},
-        "max_input_bytes": 49152
-      }
+      "parameters": {"type":"object","properties":{"site":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":64,"description":"The hub's site id for a blog (social_channels lists this team's sites)."},"slug":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":96,"description":"URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."},"request_id":{"type":"string","format":"uuid","description":"A fresh UUID per change. Reuse it only to retry the exact same change after an unknown outcome."},"expected_revision":{"type":"integer","minimum":0},"title":{"type":"string","maxLength":200},"summary":{"type":"string","maxLength":500,"description":"One or two sentences shown in blog lists and link previews."},"body_markdown":{"type":"string","maxLength":40000},"language":{"type":"string","enum":["en","vi"]}},"required":["site","slug","request_id","expected_revision","title","summary","body_markdown","language"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "write", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}, "max_input_bytes": 49152 }
     },
     {
       "name": "social_channels",
       "title": "Xem kênh mạng xã hội",
       "description": "Show each social channel: its length limit, whether the hub can post to it, and what you may do there.",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "read",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "read", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "social_queue",
       "title": "Tạo bản nháp mạng xã hội",
       "description": "Queue a social post draft for one channel. Length is checked as the platform counts it (X: 280, link 23, accented letters 2). TikTok is a video: text is the caption and media_note the shot list and voice-over script.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "request_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "A fresh UUID per change. Reuse it only to retry the exact same change after an unknown outcome."
-          },
-          "channel": {"type":"string","enum":["x","facebook","tiktok"]},
-          "language": {"type":"string","enum":["en","vi"]},
-          "text": {"type":"string","maxLength":5000},
-          "link": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "https link the post points to, usually the CMS post URL."
-          },
-          "media_note": {"type":"string","maxLength":4000},
-          "source": {
-            "type": "object",
-            "properties": {
-              "site": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                "maxLength": 64,
-                "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-              },
-              "slug": {
-                "type": "string",
-                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                "maxLength": 96,
-                "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
-              }
-            },
-            "required": ["site","slug"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["request_id","channel","language","text"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "write",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"},
-        "max_input_bytes": 32768
-      }
+      "parameters": {"type":"object","properties":{"request_id":{"type":"string","format":"uuid","description":"A fresh UUID per change. Reuse it only to retry the exact same change after an unknown outcome."},"channel":{"type":"string","enum":["x","facebook","tiktok"]},"language":{"type":"string","enum":["en","vi"]},"text":{"type":"string","maxLength":5000},"link":{"type":"string","maxLength":500,"description":"https link the post points to, usually the CMS post URL."},"media_note":{"type":"string","maxLength":4000},"source":{"type":"object","properties":{"site":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":64,"description":"The hub's site id for a blog (social_channels lists this team's sites)."},"slug":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":96,"description":"URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."}},"required":["site","slug"],"additionalProperties":false}},"required":["request_id","channel","language","text"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "write", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}, "max_input_bytes": 32768 }
     },
     {
       "name": "social_list",
       "title": "Xem bản nháp mạng xã hội",
       "description": "List social posts, newest first, optionally by channel or status. Uncertain Facebook posts are looked up on the Page first. approved means released for X and waiting for the browser poster on the operator's computer. approval_asked_at is set on a draft whose revision waits for an operator's decision in Nest.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "channel": {"type":"string","enum":["x","facebook","tiktok"]},
-          "status": {
-            "type": "string",
-            "enum": ["draft","approved","publishing","published","uncertain","failed","discarded"]
-          },
-          "limit": {"type":"integer","minimum":1,"maximum":50,"default":20}
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "read",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"channel":{"type":"string","enum":["x","facebook","tiktok"]},"status":{"type":"string","enum":["draft","approved","publishing","published","uncertain","failed","discarded"]},"limit":{"type":"integer","minimum":1,"maximum":50,"default":20}},"required":[],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "read", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "social_update",
       "title": "Sửa bản nháp mạng xã hội",
       "description": "Edit or discard a draft, approved or failed social post. Pass the revision you listed. Changing an approved post takes it back from the X poster (it becomes a draft again). A publisher may reopen an uncertain post as draft once a human confirmed it was not posted.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {"type":"string","pattern":"^SP-[0-9A-F]{8}$"},
-          "expected_revision": {"type":"integer","minimum":1},
-          "text": {"type":"string","maxLength":5000},
-          "link": {"type":["string","null"],"maxLength":500},
-          "media_note": {"type":["string","null"],"maxLength":4000},
-          "status": {"type":"string","enum":["draft","discarded"]}
-        },
-        "required": ["id","expected_revision"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "write",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"},
-        "max_input_bytes": 32768
-      }
+      "parameters": {"type":"object","properties":{"id":{"type":"string","pattern":"^SP-[0-9A-F]{8}$"},"expected_revision":{"type":"integer","minimum":1},"text":{"type":"string","maxLength":5000},"link":{"type":["string","null"],"maxLength":500},"media_note":{"type":["string","null"],"maxLength":4000},"status":{"type":"string","enum":["draft","discarded"]}},"required":["id","expected_revision"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "write", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}, "max_input_bytes": 32768 }
     },
     {
       "name": "cms_publish",
       "title": "Đăng hoặc gỡ bài trên CMS",
       "description": "Take one reviewed CMS revision live (status published) or take a live post down (archived). Runs at once; it is public. Copy site, slug, revision and title from cms_read of that same revision; the hub refuses anything else.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "site": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "maxLength": 64,
-            "description": "The hub's site id for a blog (social_channels lists this team's sites)."
-          },
-          "slug": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "maxLength": 96,
-            "description": "URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."
-          },
-          "revision": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "The revision you reviewed; it must still be the latest."
-          },
-          "title": {
-            "type": "string",
-            "maxLength": 200,
-            "description": "The revision's title, exactly as cms_read returned it."
-          },
-          "status": {"type":"string","enum":["published","archived"],"default":"published"}
-        },
-        "required": ["site","slug","revision","title"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "preflight": true,
-        "stdin": "context",
-        "mode": "write",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"site":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":64,"description":"The hub's site id for a blog (social_channels lists this team's sites)."},"slug":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":96,"description":"URL slug, lowercase words joined by single hyphens. Give each language its own slug (…-en, …-vi)."},"revision":{"type":"integer","minimum":1,"description":"The revision you reviewed; it must still be the latest."},"title":{"type":"string","maxLength":200,"description":"The revision's title, exactly as cms_read returned it."},"status":{"type":"string","enum":["published","archived"],"default":"published"}},"required":["site","slug","revision","title"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "preflight": true, "stdin": "context", "mode": "write", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "social_publish",
       "title": "Đăng bài lên mạng xã hội",
       "description": "Post one reviewed social draft to its connected channel (X is posted by the browser poster on the operator's computer). Runs at once; it is public. Copy channel, text and link from social_list exactly: the hub refuses anything that differs from the queued post.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {"type":"string","pattern":"^SP-[0-9A-F]{8}$"},
-          "expected_revision": {"type":"integer","minimum":1},
-          "channel": {"type":"string","enum":["x","facebook","tiktok"]},
-          "text": {
-            "type": "string",
-            "maxLength": 10000,
-            "description": "The queued text, exactly as social_list returned it."
-          },
-          "link": {
-            "type": ["string","null"],
-            "maxLength": 500,
-            "description": "The queued link, or null when the post has none."
-          }
-        },
-        "required": ["id","expected_revision","channel","text"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "preflight": true,
-        "stdin": "context",
-        "mode": "write",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"},
-        "max_input_bytes": 32768
-      }
+      "parameters": {"type":"object","properties":{"id":{"type":"string","pattern":"^SP-[0-9A-F]{8}$"},"expected_revision":{"type":"integer","minimum":1},"channel":{"type":"string","enum":["x","facebook","tiktok"]},"text":{"type":"string","maxLength":10000,"description":"The queued text, exactly as social_list returned it."},"link":{"type":["string","null"],"maxLength":500,"description":"The queued link, or null when the post has none."}},"required":["id","expected_revision","channel","text"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "preflight": true, "stdin": "context", "mode": "write", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}, "max_input_bytes": 32768 }
     },
     {
       "name": "social_record",
       "title": "Ghi link bài đã đăng tay",
       "description": "Record a post a human made by hand (TikTok, or a channel the hub is not connected to) with its public URL.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {"type":"string","pattern":"^SP-[0-9A-F]{8}$"},
-          "expected_revision": {"type":"integer","minimum":1},
-          "url": {"type":"string","maxLength":500}
-        },
-        "required": ["id","expected_revision","url"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "write",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"id":{"type":"string","pattern":"^SP-[0-9A-F]{8}$"},"expected_revision":{"type":"integer","minimum":1},"url":{"type":"string","maxLength":500}},"required":["id","expected_revision","url"],"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "write", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "content_stats",
       "title": "Xem số liệu nội dung",
       "description": "What this team shipped in the last days, per site: articles that went live (with URL), drafts in progress and social posts published by channel. The hub counts what went out, not who read it: visits is always null.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "site": {
-            "type": "string",
-            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "maxLength": 64,
-            "description": "One site; all of this team's sites when left out."
-          },
-          "days": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 90,
-            "description": "How many days back; 7 when left out."
-          }
-        },
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "soot",
-        "args": ["tool-forward","--binding-env","MARKETING_HUB"],
-        "stdin": "context",
-        "mode": "read",
-        "resource": "marketing_hub",
-        "timeout": "20s",
-        "max_output_bytes": 131072,
-        "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"}
-      }
+      "parameters": {"type":"object","properties":{"site":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":64,"description":"One site; all of this team's sites when left out."},"days":{"type":"integer","minimum":1,"maximum":90,"description":"How many days back; 7 when left out."}},"additionalProperties":false},
+      "run": { "program": "soot", "args": ["tool-forward","--binding-env","MARKETING_HUB"], "stdin": "context", "mode": "read", "resource": "marketing_hub", "timeout": "20s", "max_output_bytes": 131072, "secret_env": {"MARKETING_HUB":"{{cred:MARKETING_HUB}}"} }
     },
     {
       "name": "draft_save",
       "title": "Lưu bản nháp",
       "description": "Save a post draft in the pack's own storage (no hub): article, social, video or reply. A new draft needs request_id; an edit needs id and expected_revision. Returns the brief lint (title 30–60, meta 120–160, slug, ≥2 internal links, keyword). Never publishes.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "request_id": {"type":"string","maxLength":64},
-          "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
-          "expected_revision": {"type":"integer","minimum":1},
-          "kind": {"type":"string","enum":["article","social","video","reply"]},
-          "channel": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
-          "campaign": {"type":"string","maxLength":64},
-          "parent": {
-            "type": "string",
-            "maxLength": 16,
-            "description": "For kind \"reply\": the saved reply (R-…) it answers; only safe replies, or the fixed support pointer for an account question."
-          },
-          "brief": {
-            "type": "object",
-            "properties": {
-              "keyword": {"type":"string","maxLength":120},
-              "title": {"type":"string","maxLength":200},
-              "meta": {"type":"string","maxLength":400},
-              "slug": {"type":"string","maxLength":80},
-              "series": {"type":"string","maxLength":64,"pattern":"^[a-z0-9-]{1,64}$"},
-              "internal_links": {"type":"array","maxItems":20,"items":{"type":"string","maxLength":500}},
-              "subreddit": {"type":"string","maxLength":21,"pattern":"^[A-Za-z0-9_]{2,21}$"}
-            },
-            "required": [],
-            "additionalProperties": false
-          },
-          "body": {"type":"string","maxLength":40000},
-          "link": {"type":"string","maxLength":500},
-          "asset_ids": {"type":"array","maxItems":10,"items":{"type":"string","maxLength":64}}
-        },
-        "required": ["kind","channel","body"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","draft_save"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144,
-        "max_input_bytes": 65536
-      }
+      "parameters": {"type":"object","properties":{"request_id":{"type":"string","maxLength":64},"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},"expected_revision":{"type":"integer","minimum":1},"kind":{"type":"string","enum":["article","social","video","reply"]},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"campaign":{"type":"string","maxLength":64},"parent":{"type":"string","maxLength":16,"description":"For kind \"reply\": the saved reply (R-…) it answers; only safe replies, or the fixed support pointer for an account question."},"brief":{"type":"object","properties":{"keyword":{"type":"string","maxLength":120},"title":{"type":"string","maxLength":200},"meta":{"type":"string","maxLength":400},"slug":{"type":"string","maxLength":80},"series":{"type":"string","maxLength":64,"pattern":"^[a-z0-9-]{1,64}$"},"internal_links":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":500}},"subreddit":{"type":"string","maxLength":21,"pattern":"^[A-Za-z0-9_]{2,21}$"}},"required":[],"additionalProperties":false},"body":{"type":"string","maxLength":40000},"link":{"type":"string","maxLength":500},"asset_ids":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":64}}},"required":["kind","channel","body"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","draft_save"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144, "max_input_bytes": 65536 }
     },
     {
       "name": "items",
       "title": "Xem bài",
       "description": "List posts from pack storage by state, channel, campaign or an accent-insensitive search.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "state": {"type":"string","enum": [
-              "draft",
-              "checking",
-              "refused",
-              "ready",
-              "scheduled",
-              "publishing",
-              "published",
-              "failed",
-              "pulled",
-              "unpublishing",
-              "removed",
-              "uncertain"
-            ]
-          },
-          "channel": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
-          "campaign": {"type":"string","maxLength":64},
-          "query": {"type":"string","maxLength":200},
-          "limit": {"type":"integer","minimum":1,"maximum":50}
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","items"],
-        "stdin": "context",
-        "mode": "read",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"state":{"type":"string","enum":["draft","checking","refused","ready","scheduled","publishing","published","failed","pulled","unpublishing","removed","uncertain"]},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"campaign":{"type":"string","maxLength":64},"query":{"type":"string","maxLength":200},"limit":{"type":"integer","minimum":1,"maximum":50}},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","items"], "stdin": "context", "mode": "read", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "check",
       "title": "Kiểm tra bài",
       "description": "The Editor's check of one exact revision: the automatic guard (facts from served sources, no personal data, platform rules, no duplicate, internal links open: a 404 fails) and your verdict. Any automatic failure forces fail; the post becomes ready or refused with its reason.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
-          "revision": {"type":"integer","minimum":1},
-          "verdict": {"type":"string","enum":["pass","fail"]},
-          "reasons": {"type":"array","maxItems":20,"items":{"type":"string","maxLength":300}}
-        },
-        "required": ["id","revision","verdict"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","check"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},"revision":{"type":"integer","minimum":1},"verdict":{"type":"string","enum":["pass","fail"]},"reasons":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":300}}},"required":["id","revision","verdict"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","check"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "schedule",
       "title": "Xếp lịch đăng",
       "description": "Queue a checked post. Without scheduled_at it takes the next free slot under the channel cap, spacing and quiet hours.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
-          "scheduled_at": {"type":"string","maxLength":40}
-        },
-        "required": ["id"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","schedule"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},"scheduled_at":{"type":"string","maxLength":40}},"required":["id"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","schedule"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "due",
       "title": "Việc đến hạn",
       "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised; resolves_need when none is left. The dispatch schedule passes schedule: true and skip: channels a tool chain publishes. With channel: {id, action} of the one due publish there for marketing_claim, or {done: true}.",
       "parameters": {"type":"object","properties":{"refile":{"type":"boolean"},"schedule":{"type":"boolean"},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"skip":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":32}}},"required":[],"additionalProperties":false},
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","due"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "run": { "program": "node", "args": ["tools/marketing.mjs","due"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "claim",
       "title": "Nhận lượt đăng",
       "description": "Claim one due post (publish), reply (reply) or removal (unpublish) for its publisher. Re-runs the guard, checks pause, cap, spacing, quiet hours, staleness and the Editor's verdict on this exact content, writes the intent record, then returns a signed claim; otherwise a refusal with its reason (done: true). With verify_first the publisher must look for an earlier post (find) and never post again.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
-          "action": {"type":"string","enum":["publish","unpublish","reply"]}
-        },
-        "required": ["id","action"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","claim"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144,
-        "secret_env": {"MARKETING_CLAIM_KEY":"{{cred:MARKETING_CLAIM_KEY}}"},
-        "approval": "operator"
-      }
+      "parameters": {"type":"object","properties":{"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},"action":{"type":"string","enum":["publish","unpublish","reply"]}},"required":["id","action"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","claim"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144, "secret_env": {"MARKETING_CLAIM_KEY":"{{cred:MARKETING_CLAIM_KEY}}"}, "approval": "operator" }
     },
     {
       "name": "record",
       "title": "Ghi đã đăng",
       "description": "Record the publisher's result for a claim: the live URL. A tool chain passes the publisher's answer as is. A post returns the outcome {id: post_published, ref: url}; a reply or removal returns none.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "intent_id": {"type":"string","maxLength":40},
-          "url": {"type":"string","maxLength":500},
-          "platform_id": {"type":"string","maxLength":200},
-          "ok": {"type":"boolean"},
-          "status": {"type":"string","maxLength":16}
-        },
-        "required": ["intent_id"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","record"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"intent_id":{"type":"string","maxLength":40},"url":{"type":"string","maxLength":500},"platform_id":{"type":"string","maxLength":200},"ok":{"type":"boolean"},"status":{"type":"string","maxLength":16}},"required":["intent_id"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","record"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "fail",
       "title": "Ghi đăng lỗi",
       "description": "Record that a claimed action did not happen (failed: retried later), needs a person (reason signed_out, layout_changed or captcha: pauses only that channel) or is uncertain (never claimed again until a person answers).",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "intent_id": {"type":"string","maxLength":40},
-          "status": {"type":"string","enum":["failed","needs_person","uncertain"]},
-          "reason": {"type":"string","maxLength":500},
-          "platform": {"type":"string","maxLength":32}
-        },
-        "required": ["intent_id","status","reason"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","fail"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"intent_id":{"type":"string","maxLength":40},"status":{"type":"string","enum":["failed","needs_person","uncertain"]},"reason":{"type":"string","maxLength":500},"platform":{"type":"string","maxLength":32}},"required":["intent_id","status","reason"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","fail"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "pause",
       "title": "Tạm dừng đăng",
       "description": "Pause or resume publishing on every channel or on one channel. Writing and checking go on while paused.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "channel": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
-          "paused": {"type":"boolean"},
-          "signed_in": {"type":"boolean","description":"True with channel and paused true once you saw the person signed in on a channel paused as signed_out: its sign-in item ends; it stays paused until the person chooses Bật."}
-        },
-        "required": ["paused"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","pause"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"paused":{"type":"boolean"},"signed_in":{"type":"boolean","description":"True with channel and paused true once you saw the person signed in on a channel paused as signed_out: its sign-in item ends; it stays paused until the person chooses Bật."}},"required":["paused"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","pause"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "page_view",
       "title": "Xem trang marketing",
       "description": "Bài viết / Hàng đợi / Chiến dịch page model: {page?, filter?, id?, campaign?}. The page id comes from the page context when omitted.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "page": {"type":"string","enum":["bai-viet","hang-doi","chien-dich"]},
-          "campaign": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
-          "filter": {"type":"string","enum":["all","need","draft","ready","waiting","published","refused","removed"]},
-          "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"}
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","page_view"],
-        "stdin": "context",
-        "mode": "read",
-        "timeout": "20s",
-        "max_output_bytes": 1048576
-      }
+      "parameters": {"type":"object","properties":{"page":{"type":"string","enum":["bai-viet","hang-doi","chien-dich"]},"campaign":{"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},"filter":{"type":"string","enum":["all","need","draft","ready","waiting","published","refused","removed"]},"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"}},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","page_view"], "stdin": "context", "mode": "read", "timeout": "20s", "max_output_bytes": 1048576 }
     },
     {
       "name": "page_action",
       "title": "Đổi trang marketing",
       "description": "Bài viết / Hàng đợi / Chiến dịch page action: pull, restore, reschedule, unpublish, set_limits (a channel's caps), pause, resume, campaign_save or campaign_refresh. Needs a request_id. Only campaign ops need PRODUCT_ADMIN_KEY (optional).",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "op": {"type":"string","enum": [
-              "pull",
-              "restore",
-              "reschedule",
-              "unpublish",
-              "post_now",
-              "drop",
-              "confirm_posted",
-              "confirm_not_posted",
-              "set_limits",
-              "pause",
-              "resume",
-              "campaign_save",
-              "campaign_refresh"
-            ]
-          },
-          "campaign": {"type":"object"},
-          "campaign_id": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
-          "request_id": {"type":"string","maxLength":64},
-          "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
-          "scheduled_at": {"type":"string","maxLength":40},
-          "channel": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
-          "url": {"type":"string","maxLength":500},
-          "cap_per_day": {"type":"integer","minimum":0,"maximum":50},
-          "spacing_min": {"type":"integer","minimum":0,"maximum":10080},
-          "reply_cap_per_day": {"type":"integer","minimum":0,"maximum":50}
-        },
-        "required": ["op","request_id"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","page_action"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 262144,
-        "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}
-      }
+      "parameters": {"type":"object","properties":{"op":{"type":"string","enum":["pull","restore","reschedule","unpublish","post_now","drop","confirm_posted","confirm_not_posted","set_limits","pause","resume","campaign_save","campaign_refresh"]},"campaign":{"type":"object"},"campaign_id":{"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},"request_id":{"type":"string","maxLength":64},"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},"scheduled_at":{"type":"string","maxLength":40},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"url":{"type":"string","maxLength":500},"cap_per_day":{"type":"integer","minimum":0,"maximum":50},"spacing_min":{"type":"integer","minimum":0,"maximum":10080},"reply_cap_per_day":{"type":"integer","minimum":0,"maximum":50}},"required":["op","request_id"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","page_action"], "stdin": "context", "mode": "write", "timeout": "60s", "max_output_bytes": 262144, "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"} }
     },
     {
       "name": "facts_sync",
       "title": "Đọc giá và số liệu",
       "description": "Read the product's served price/config source into facts; the guard accepts only prices and offers found there within 24 hours. url is optional: the source the schedule set is remembered. Without one, write with no prices or offers.",
-      "parameters": {
-        "type": "object",
-        "properties": {"url":{"type":"string","maxLength":500}},
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","facts_sync"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"url":{"type":"string","maxLength":500}},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","facts_sync"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "gsc_sync",
       "title": "Đọc Search Console",
       "description": "Read Search Console numbers for published post URLs. Needs the Google sign-in; missing or revoked answers needs_person.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "site": {"type":"string","maxLength":200},
-          "days": {"type":"integer","minimum":1,"maximum":28}
-        },
-        "required": ["site"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","gsc_sync"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 262144,
-        "secret_env": {"GSC_GOOGLE":"{{cred:GSC_GOOGLE}}"}
-      }
+      "parameters": {"type":"object","properties":{"site":{"type":"string","maxLength":200},"days":{"type":"integer","minimum":1,"maximum":28}},"required":["site"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","gsc_sync"], "stdin": "context", "mode": "write", "timeout": "60s", "max_output_bytes": 262144, "secret_env": {"GSC_GOOGLE":"{{cred:GSC_GOOGLE}}"} }
     },
     {
       "name": "seo_brief",
       "title": "Gợi ý SEO",
       "description": "Search queries worth a post (impressions ≥ 20 and position 8–20 or CTR under 1 %) and the published posts' 14-day numbers (null when not read yet).",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","seo_brief"],
-        "stdin": "context",
-        "mode": "read",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "run": { "program": "node", "args": ["tools/marketing.mjs","seo_brief"], "stdin": "context", "mode": "read", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "plan",
       "title": "Kế hoạch bài hôm nay",
       "description": "The daily content plan. wake: true is the schedule, tool-only: it queues a checked draft nobody scheduled, and wakes the Writer only for a free blog slot or a published post still to share on a signed-in social channel. Without wake it is the Writer's ready brief (query: a subject asked for): topic, keyword, angle, real novels with links, internal_links, titles to avoid, social (posts to share per channel). Saves the catalog it was given.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "wake": {"type":"boolean"},
-          "channel": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
-          "facts_url": {"type":"string","maxLength":500},
-          "depth": {"type":"integer","minimum":1,"maximum":5},
-          "query": {"type":"string","maxLength":120},
-          "catalog": {
-            "type": "object",
-            "properties": {
-              "feed": {"type":"string","maxLength":500},
-              "genres": {"type":"string","maxLength":500},
-              "search": {"type":"string","maxLength":500},
-              "page": {"type":"string","maxLength":500},
-              "links": {"type":"array","maxItems":6,"items":{"type":"string","maxLength":500}}
-            },
-            "required": [],
-            "additionalProperties": false
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","plan"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 65536
-      }
+      "parameters": {"type":"object","properties":{"wake":{"type":"boolean"},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"facts_url":{"type":"string","maxLength":500},"depth":{"type":"integer","minimum":1,"maximum":5},"query":{"type":"string","maxLength":120},"catalog":{"type":"object","properties":{"feed":{"type":"string","maxLength":500},"genres":{"type":"string","maxLength":500},"search":{"type":"string","maxLength":500},"page":{"type":"string","maxLength":500},"links":{"type":"array","maxItems":6,"items":{"type":"string","maxLength":500}}},"required":[],"additionalProperties":false}},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","plan"], "stdin": "context", "mode": "write", "timeout": "60s", "max_output_bytes": 65536 }
     },
     {
       "name": "channels_probe",
       "title": "Kiểm tra đăng nhập kênh",
       "description": "For a tool chain around the Editor's browser: with no result it names the next paused social channel's check page ({action: navigate, url}, the browser-use_control input) or {done: true}; with the page's result it decides signed in or out from the page text, unpauses only a channel the person confirmed that is really signed in, and sends a confirmed-but-signed-out one back to its sign-in card.",
       "parameters": {"type":"object","properties":{"session":{"type":"string","maxLength":200},"result":{},"resource":{"type":"object"}},"required":[],"additionalProperties":false},
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","channels_probe"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 16384
-      }
+      "run": { "program": "node", "args": ["tools/marketing.mjs","channels_probe"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 16384 }
     },
     {
       "name": "report",
       "title": "Báo cáo hằng ngày",
       "description": "The Editor's daily report in at most six plain Vietnamese lines: what went out, the top posts by clicks or sign-ups, what the plan does next, stale drafts (once). Say the lines as they are.",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","report"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 16384
-      }
+      "run": { "program": "node", "args": ["tools/marketing.mjs","report"], "stdin": "context", "mode": "write", "timeout": "60s", "max_output_bytes": 16384 }
+    },
+    {
+      "name": "radar_read",
+      "title": "Đọc nguồn radar",
+      "description": "Read-only radar for a tool-only schedule: seed the sources table (new keys only), read the sources that are due (https feeds, oldest first), keep each new item once in signals. Wakes the triage Soot only when enough new signals arrived since the last wake.",
+      "parameters": {"type":"object","properties":{"sources":{"type":"array","maxItems":40,"items":{"type":"object","properties":{"key":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":48},"kind":{"type":"string","maxLength":24},"url":{"type":"string","maxLength":400}},"required":["key","url"],"additionalProperties":false}},"per_call":{"type":"integer","minimum":1,"maximum":5},"min_hours":{"type":"number","minimum":1,"maximum":168},"wake_at":{"type":"integer","minimum":1,"maximum":60},"schedule":{"type":"boolean"}},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","radar_read"], "stdin": "context", "mode": "write", "timeout": "90s", "max_output_bytes": 65536 }
+    },
+    {
+      "name": "signals_list",
+      "title": "Xem tín hiệu thị trường",
+      "description": "List market signals by state (default new): ref, source, title, url, a short summary. For the radar triage.",
+      "parameters": {"type":"object","properties":{"state":{"type":"string","enum":["new","kept","dismissed","used"]},"limit":{"type":"integer","minimum":1,"maximum":40}},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","signals_list"], "stdin": "context", "mode": "read", "timeout": "20s", "max_output_bytes": 65536 }
+    },
+    {
+      "name": "signals_mark",
+      "title": "Phân loại tín hiệu",
+      "description": "Triage signals in one call, all or nothing: kept (with a one-line note: the angle and why now), dismissed or used.",
+      "parameters": {"type":"object","properties":{"items":{"type":"array","minItems":1,"maxItems":40,"items":{"type":"object","properties":{"ref":{"type":"string","pattern":"^RS-[0-9A-F]{8}$"},"state":{"type":"string","enum":["kept","dismissed","used"]},"note":{"type":"string","maxLength":300}},"required":["ref","state"],"additionalProperties":false}}},"required":["items"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","signals_mark"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 65536 }
+    },
+    {
+      "name": "video_stats",
+      "title": "Đọc số video TikTok/YouTube",
+      "description": "Read view, like, comment and repost counts of published TikTok and YouTube video posts (and optionally the latest videos of a channel handle) with yt-dlp, no login, into metrics. Without yt-dlp it says how to install it.",
+      "parameters": {"type":"object","properties":{"handles":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"url":{"type":"string","maxLength":300},"limit":{"type":"integer","minimum":1,"maximum":10}},"required":["url"],"additionalProperties":false}},"limit":{"type":"integer","minimum":1,"maximum":40}},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","video_stats"], "stdin": "context", "mode": "write", "timeout": "600s", "max_output_bytes": 65536 }
+    },
+    {
+      "name": "inputs_health",
+      "title": "Đầu vào còn thiếu",
+      "description": "Which inputs of the marketing stage are starving, in plain Vietnamese (Search Console, market signals, TikTok and YouTube numbers). Read-only; chain it into company-loop health_sync.",
+      "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","inputs_health"], "stdin": "context", "mode": "read", "timeout": "20s", "max_output_bytes": 65536 }
     },
     {
       "name": "channels_setup",
       "title": "Thiết lập kênh",
       "description": "For a tool-only schedule: create missing channels (social ones paused until signed in) and fill only unset caps, account, rules, quiet hours, stale_after_h, the product name and the writer Soot. Never unpauses or overwrites an edit.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "channels": {
-            "type": "array",
-            "maxItems": 20,
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
-                "account": {"type":"string","maxLength":200},
-                "cap_per_day": {"type":"integer","minimum":0,"maximum":50},
-                "spacing_min": {"type":"integer","minimum":0,"maximum":10080},
-                "reply_cap_per_day": {"type":"integer","minimum":0,"maximum":50},
-                "rules": {"type":"object"}
-              },
-              "required": ["id"],
-              "additionalProperties": false
-            }
-          },
-          "quiet_hours": {
-            "type": "object",
-            "properties": {
-              "from": {"type":"string","maxLength":5},
-              "to": {"type":"string","maxLength":5},
-              "tz": {"type":"string","maxLength":64}
-            },
-            "required": ["from","to","tz"],
-            "additionalProperties": false
-          },
-          "stale_after_h": {"type":"integer","minimum":1,"maximum":72},
-          "product": {"type":"string","maxLength":64},
-          "writer": {"type":"string","maxLength":63}
-        },
-        "required": ["channels"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","channels_setup"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"channels":{"type":"array","maxItems":20,"items":{"type":"object","properties":{"id":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"account":{"type":"string","maxLength":200},"cap_per_day":{"type":"integer","minimum":0,"maximum":50},"spacing_min":{"type":"integer","minimum":0,"maximum":10080},"reply_cap_per_day":{"type":"integer","minimum":0,"maximum":50},"rules":{"type":"object"}},"required":["id"],"additionalProperties":false}},"quiet_hours":{"type":"object","properties":{"from":{"type":"string","maxLength":5},"to":{"type":"string","maxLength":5},"tz":{"type":"string","maxLength":64}},"required":["from","to","tz"],"additionalProperties":false},"stale_after_h":{"type":"integer","minimum":1,"maximum":72},"product":{"type":"string","maxLength":64},"writer":{"type":"string","maxLength":63}},"required":["channels"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","channels_setup"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "raised",
       "title": "Đã báo Cần bạn",
       "description": "Mark due.needs items as filed with report_blocker (their key), so the dispatch schedule does not wake again for them.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "keys": {"type":"array","minItems":1,"maxItems":50,"items":{"type":"string","maxLength":120}}
-        },
-        "required": ["keys"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","raised"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"keys":{"type":"array","minItems":1,"maxItems":50,"items":{"type":"string","maxLength":120}}},"required":["keys"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","raised"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "answer",
       "title": "Áp dụng câu trả lời Cần bạn",
       "description": "The person picked an option on a due.ask item: pass its key and the option label exactly (with url when they sent the live link). It applies the pick; then file the next due.ask.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "key": {"type":"string","maxLength":120},
-          "option": {"type":"string","maxLength":200},
-          "url": {"type":"string","maxLength":2000}
-        },
-        "required": ["option"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","answer"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"key":{"type":"string","maxLength":120},"option":{"type":"string","maxLength":200},"url":{"type":"string","maxLength":2000}},"required":["option"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","answer"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "replies_sync",
       "title": "Đọc phản hồi",
       "description": "For the replies schedule: read watched Reddit threads by RSS, drop reader handles after 30 days, list replies to classify and channels to read. wake/notify only when there is something to do.",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","replies_sync"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "run": { "program": "node", "args": ["tools/marketing.mjs","replies_sync"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "reply_save",
       "title": "Lưu phản hồi",
       "description": "Save replies the Publisher read on one social channel with their class: safe (answer via draft_save kind reply, check, schedule), complaint, money, account, flagged (never answered; one Cần bạn item each; account also gets the fixed support pointer as a draft) or spam (ignored). Marks the channel's notifications read.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "channel": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
-          "items": {
-            "type": "array",
-            "maxItems": 50,
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {"type":"string","maxLength":16,"pattern":"^R-[0-9A-F]{10}$"},
-                "reply_url": {"type":"string","maxLength":2000},
-                "thread_url": {"type":"string","maxLength":2000},
-                "parent_post": {"type":"string","maxLength":16},
-                "author_handle": {"type":"string","maxLength":64},
-                "text": {"type":"string","maxLength":2000},
-                "class": {"type":"string","enum":["safe","complaint","money","account","flagged","spam"]}
-              },
-              "required": ["class"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["channel","items"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","reply_save"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
-      }
+      "parameters": {"type":"object","properties":{"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"items":{"type":"array","maxItems":50,"items":{"type":"object","properties":{"id":{"type":"string","maxLength":16,"pattern":"^R-[0-9A-F]{10}$"},"reply_url":{"type":"string","maxLength":2000},"thread_url":{"type":"string","maxLength":2000},"parent_post":{"type":"string","maxLength":16},"author_handle":{"type":"string","maxLength":64},"text":{"type":"string","maxLength":2000},"class":{"type":"string","enum":["safe","complaint","money","account","flagged","spam"]}},"required":["class"],"additionalProperties":false}}},"required":["channel","items"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","reply_save"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "video_import",
       "title": "Nhận video từ mvf",
       "description": "Read a finished 2build marketing-video (mvf) folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook) with its assets. A render failure or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "request_id": {"type":"string","minLength":1,"maxLength":31},
-          "campaign": {"type":"string","maxLength":512,"description":"Workspace-relative mvf campaign folder (holds campaign.json)."},
-          "script": {"type":"string","maxLength":80,"pattern":"^[A-Za-z0-9_-]{1,80}$","description":"Script id; default the pretest winner."},
-          "hook": {"type":"string","pattern":"^H[0-9]{1,2}$","description":"Default the pretest winner's hook."},
-          "canvas": {"type":"string","pattern":"^[0-9]{1,2}x[0-9]{1,2}$"},
-          "channels": {"type":"array","minItems":1,"maxItems":4,"items":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"}},
-          "parent": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$","description":"The source post (blog article) the video was cut from."},
-          "title": {"type":"string","maxLength":200},
-          "error": {"type":"string","maxLength":1000,"description":"mvf's FAIL line when the render or export failed."}
-        },
-        "required": ["request_id","campaign","channels"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","video_import"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "2m",
-        "max_output_bytes": 65536,
-        "secret_env": {"FILE_ROOT":"{{cred:FILE_ROOT}}"}
-      }
+      "parameters": {"type":"object","properties":{"request_id":{"type":"string","minLength":1,"maxLength":31},"campaign":{"type":"string","maxLength":512,"description":"Workspace-relative mvf campaign folder (holds campaign.json)."},"script":{"type":"string","maxLength":80,"pattern":"^[A-Za-z0-9_-]{1,80}$","description":"Script id; default the pretest winner."},"hook":{"type":"string","pattern":"^H[0-9]{1,2}$","description":"Default the pretest winner's hook."},"canvas":{"type":"string","pattern":"^[0-9]{1,2}x[0-9]{1,2}$"},"channels":{"type":"array","minItems":1,"maxItems":4,"items":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"}},"parent":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$","description":"The source post (blog article) the video was cut from."},"title":{"type":"string","maxLength":200},"error":{"type":"string","maxLength":1000,"description":"mvf's FAIL line when the render or export failed."}},"required":["request_id","campaign","channels"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","video_import"], "stdin": "context", "mode": "write", "timeout": "2m", "max_output_bytes": 65536, "secret_env": {"FILE_ROOT":"{{cred:FILE_ROOT}}"} }
     },
     {
       "name": "campaign_save",
       "title": "Lưu chiến dịch",
       "description": "Create or update a campaign {name, goal{metric,target}, channels, starts, ends, token_budget}; makes one UTM short link per channel through the product api (PRODUCT_API_URL, needs PRODUCT_ADMIN_KEY). Saving again fills links that failed.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "request_id": {"type":"string","maxLength":64},
-          "id": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
-          "name": {"type":"string","minLength":1,"maxLength":120},
-          "goal": {"type":"object","properties":{"metric":{"type":"string","enum":["signups","first_topups","clicks","published"]},"target":{"type":"integer","minimum":1}},"required":["metric","target"],"additionalProperties":false},
-          "channels": {"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","pattern":"^[a-z0-9-]{1,32}$"}},
-          "starts": {"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},
-          "ends": {"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},
-          "token_budget": {"type":"integer","minimum":0},
-          "landing": {"type":"string","maxLength":300},
-          "state": {"type":"string","enum":["active","stopped"]}
-        },
-        "required": ["name","goal","channels","starts","ends"],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","campaign_save"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 65536,
-        "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}
-      }
+      "parameters": {"type":"object","properties":{"request_id":{"type":"string","maxLength":64},"id":{"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},"name":{"type":"string","minLength":1,"maxLength":120},"goal":{"type":"object","properties":{"metric":{"type":"string","enum":["signups","first_topups","clicks","published"]},"target":{"type":"integer","minimum":1}},"required":["metric","target"],"additionalProperties":false},"channels":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","pattern":"^[a-z0-9-]{1,32}$"}},"starts":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},"ends":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},"token_budget":{"type":"integer","minimum":0},"landing":{"type":"string","maxLength":300},"state":{"type":"string","enum":["active","stopped"]}},"required":["name","goal","channels","starts","ends"],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","campaign_save"], "stdin": "context", "mode": "write", "timeout": "60s", "max_output_bytes": 65536, "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"} }
     },
     {
       "name": "campaign_report",
       "title": "Đọc số chiến dịch",
       "description": "Read clicks and attributed signups per channel from the product api for running campaigns (or one id) and store them for Chiến dịch. Returns new signups as lead outcomes to record; with {id, tokens_used} also says when 80% of the token budget is used.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
-          "tokens_used": {"type":"integer","minimum":0}
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": ["tools/marketing.mjs","campaign_report"],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 65536,
-        "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}
-      }
+      "parameters": {"type":"object","properties":{"id":{"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},"tokens_used":{"type":"integer","minimum":0}},"required":[],"additionalProperties":false},
+      "run": { "program": "node", "args": ["tools/marketing.mjs","campaign_report"], "stdin": "context", "mode": "write", "timeout": "60s", "max_output_bytes": 65536, "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"} }
     },
     {"name":"campaign_verify","title":"Kiểm tra khoá chiến dịch","description":"Check the saved admin key with one read-only request: state ok, wrong_key or no_role.","parameters":{"type":"object","properties":{},"additionalProperties":false},"run":{"program":"node","args":["tools/marketing.mjs","campaign_verify"],"stdin":"context","mode":"read","timeout":"30s","max_output_bytes":4096,"secret_env":{"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}}}
   ],
   "needs": {
-    "env": ["PRODUCT_API_URL"],
+    "env": ["PRODUCT_API_URL","YT_DLP_BIN","PATH","HOME"],
     "credentials": {
       "PRODUCT_ADMIN_KEY": {
         "title": "Khoá admin sản phẩm",
@@ -1285,7 +415,7 @@
     {"id":"lead","label":{"vi":"Khách tiềm năng","en":"Lead"},"unit":"lead"}
   ],
   "storage": {
-    "version": 4,
+    "version": 5,
     "tables": [
       {
         "name": "settings",
@@ -1329,7 +459,10 @@
           {"name":"url","type":"text","index":true},
           {"name":"summary","type":"text","search":true},
           {"name":"state","type":"text","index":true},
-          {"name":"score","type":"number"}
+          {"name":"score","type":"number"},
+          {"name":"ref","type":"text","unique":true},
+          {"name":"note","type":"text"},
+          {"name":"found_at","type":"text","index":true}
         ]
       },
       {
@@ -1441,7 +574,10 @@
           {"name":"impressions","type":"integer"},
           {"name":"clicks","type":"integer"},
           {"name":"position","type":"number"},
-          {"name":"views","type":"integer"}
+          {"name":"views","type":"integer"},
+          {"name":"likes","type":"integer"},
+          {"name":"comments","type":"integer"},
+          {"name":"reposts","type":"integer"}
         ]
       },
       {

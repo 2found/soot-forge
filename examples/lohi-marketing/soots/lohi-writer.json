@@ -10,7 +10,7 @@
     "company-loop:tools=topic_next"
   ],
   "execution": {
-    "max_run_tokens": 200000,
-    "daily_tokens": 250000
+    "max_run_tokens": 80000,
+    "daily_tokens": 100000
   }
 }

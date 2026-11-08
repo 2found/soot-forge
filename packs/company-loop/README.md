@@ -16,7 +16,10 @@ Needs Soot 0.13.14 or later.
 | `team_watch` | every 30 minutes finds the parent ticket from the team id (`bbs ticket find --json`, then ticket files) and reads `bbs team snapshot`; a handover waiting for the release go files one Cần bạn ask; a released team records `requirement_shipped` and queues a launch topic | none |
 | `topic_next` | the next queued topic, for the marketing plan (`chain: true` gives the query only, at most one a day) | none |
 | `review` | weekly: fills `actual_delta` once `check_after_days` have passed; a hit is actual at least half of expected | none |
-| `page_view`, `page_action` | the operator page "Công ty" (480 px, Vietnamese): one next-step bar, opportunities, handoffs, the decision log and hit rate | none |
+| `health_sync` | daily, no model: stores the loop-health view. Takes the marketing pack's `inputs_health` as `input_from: previous`, asks the workspace's `soot` CLI (`schedules list`, `traces list --since 7d`, `attention list`, read-only) for each stage's last run and tokens, counts the founder's decisions and chat instructions. Without a reachable CLI the inputs are still stored and the runtime part says why | none |
+| `page_view`, `page_action` | the operator page "Công ty" (480 px, Vietnamese): one next-step bar, opportunities, handoffs, the decision log and hit rate, and a "Vòng lặp" section: per stage (insight, build, marketing, CS) the last run, tokens in 7 days, the starving inputs (GSC 0 dòng, chưa có tín hiệu thị trường, chưa có số TikTok) and the founder's effort. The scoreboard's additive `cohorts` and `plans` show as "chưa có" until the product serves them | none |
+
+The scoreboard may add `cohorts` (`cohort` ISO week, `signups`, `active_w1/w2/w4`, `first_payers`) and `plans` (`tier`, `started`, `active`, `revenue_vnd`); both are optional and anything malformed is dropped.
 
 Storage: `scoreboard`, `opportunities`, `decisions` (the CL4.3 fields), `handoffs`, `topics`, `state`.
 Outcomes: `opportunity_found`, `requirement_shipped`.
@@ -28,6 +31,7 @@ Outcomes: `opportunity_found`, `requirement_shipped`.
 | `CS_RUNTIME_URL`, `CS_RUNTIME_TOKEN` | env, credential, optional | support knowledge gaps and the feedback desk (`GET /v1/sessions?source=event`, desk Soot notes: counts by kind plus up to 5 scrubbed samples each, ≤ 1 KiB) for the digest |
 | `SUPPORT_QUEUE_URL` | env, optional | where a person answers waiting readers; named in the daily Cần bạn card (`waiting_human` ≥ 5, once per count bucket 5/10/20/50, closed with `resolves_need` below 5) |
 | `RELEASE_TAGS` | env, optional | git tag patterns of a release in `PRODUCT_REPO` (comma separated, default `v*,*-v*`); the week's count goes to the company baseline as `--releases`, the shipping cadence §7 holds the loop to |
+| `LOOP_SOOT_BIN`, `LOOP_SOOT_CONFIG` | env, optional | the `soot` binary (default: PATH, then `~/.local/bin/soot`) and the absolute path of this workspace's `deployment.json`; only for `health_sync` |
 | `PRODUCT_REPO` | env, no default | absolute path of the product checkout that receives requirement files |
 | `BBS_BIN` | env, optional | the `bbs` binary (default: PATH, then `~/.local/bin/bbs`) |
 

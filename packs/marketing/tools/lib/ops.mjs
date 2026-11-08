@@ -244,6 +244,9 @@ export async function clearAttention(store, kind, ref) {
   await store.remove('attention', [eq('kind', 'woke-' + kind), eq('ref', ref)]);
 }
 
+/** What a due queue row is, for waking the Editor once: the post, its action, its slot and its intent. */
+const itemKey = q => `item:${q.post}:${q.action ?? 'publish'}:${String(q.scheduled_at ?? '').slice(0, 16)}:${q.intent_id ?? '-'}`;
+
 export async function due(input, { store, now, soot }) {
   const settings = await getSettings(store);
   const rows = await store.query('queue', [{ column: 'scheduled_at', op: 'lte', value: iso(now) }], { order: 'scheduled_at', desc: false, limit: 200 });
@@ -258,6 +261,7 @@ export async function due(input, { store, now, soot }) {
   const skip = Array.isArray(input.skip) ? input.skip : [];
   if (typeof input.channel === 'string') return dueChain(input.channel, { rows, channels, held, settings, now });
   const out = { wake: false, publish: [], unpublish: [], reply: [], late: [], needs_person: [], needs: [] };
+  const items = [];
   // `woken`: the dispatch schedule already woke the Editor for this need (it may not have filed it yet); never wake twice for one.
   const need = n => out.needs.push({ ...n, key: needKey(n), label: n.label ?? NEED_LABEL[n.reason] ?? n.reason, raised: seen.has(needKey(n)), woken: seen.has('woke:' + needKey(n)) });
   for (const c of channels) {
@@ -283,7 +287,7 @@ export async function due(input, { store, now, soot }) {
     const ch = byKey[q.channel];
     const stuck = q.intent_id && now - ms(q.intent_at) > INTENT_STALE_MS;
     if (q.intent_id && !stuck) continue;
-    if (q.action === 'unpublish') { out.unpublish.push(q.post); continue; }
+    if (q.action === 'unpublish') { out.unpublish.push(q.post); items.push({ q, key: itemKey(q) }); continue; }
     // A paused channel is one Cần bạn item, not one per held post (claim still refuses a stale one).
     if (!q.intent_id && (settings.paused_all || ch?.paused)) continue;
     // A stale item is never posted on its own (a stuck intent is only verified, never re-posted).
@@ -296,6 +300,7 @@ export async function due(input, { store, now, soot }) {
     // A channel the schedule's tool chain publishes is not the Editor's to claim.
     if (q.action !== 'reply' && skip.includes(q.channel)) continue;
     (q.action === 'reply' ? out.reply : out.publish).push(q.post);
+    items.push({ q, key: itemKey(q) });
   }
   // Every platform still signed out, as one ready Cần bạn item (report_blocker takes it as is).
   const order = Object.keys(LOGIN_URL);
@@ -319,9 +324,19 @@ export async function due(input, { store, now, soot }) {
   const fresh = out.needs.filter(n => !n.raised && !n.woken);
   // Nothing outstanding any more: the runtime closes the Cần bạn card this schedule raised (resolves_need).
   out.resolves_need = out.needs.length === 0;
-  out.wake = out.notify = out.publish.length + out.unpublish.length + out.reply.length > 0 || fresh.length > 0;
+  // A due item the Editor was already woken for (and could not finish: it parked on a person) never wakes it again
+  // until the item changes state: a new slot, a new intent, or its channel resumed (pause clears these markers).
+  const freshItems = items.filter(i => !seen.has('woke:' + i.key));
+  out.waiting = items.length - freshItems.length;
+  // A marker whose item is gone (published, dropped, rescheduled) is done with.
+  const live = new Set(items.map(i => 'woke:' + i.key));
+  for (const r of raised) if (r.kind === 'woke-item' && !live.has(r.key)) await store.remove('attention', [eq('key', r.key)]);
+  out.wake = out.notify = freshItems.length > 0 || fresh.length > 0;
   // The schedule's own call remembers whom it woke for, so an unchanged need costs one model turn, ever.
   if (input.schedule === true && out.notify) {
+    for (const i of freshItems) {
+      try { await store.insert('attention', { key: 'woke:' + i.key, kind: 'woke-item', ref: i.q.post, reason: i.q.channel, raised_at: iso(now) }); } catch (e) { if (e.code !== 'conflict') throw e; }
+    }
     for (const n of fresh) {
       try { await store.insert('attention', { key: 'woke:' + n.key, kind: 'woke-' + n.kind, ref: n.id, reason: n.reason, raised_at: iso(now) }); } catch (e) { if (e.code !== 'conflict') throw e; }
     }
@@ -553,11 +568,13 @@ export async function pause(input, { store, now }) {
     if (input.signed_in && !(ch.paused && ch.paused_reason === 'signed_out')) fail('conflict', `Kênh ${ch.key} không chờ đăng nhập.`);
     await store.update('channels', [eq('key', input.channel)], { paused: input.paused, paused_reason: input.paused ? (input.signed_in ? 'signed_in' : 'person') : null });
     if (input.signed_in) await clearAttention(store, 'channel', input.channel);
+    if (!input.paused) await store.remove('attention', [eq('kind', 'woke-item'), eq('reason', input.channel)]);
     // Resuming ends that episode: a later sign-out is a new Cần bạn item.
     if (!input.paused) await clearAttention(store, 'channel', input.channel);
   } else {
     await setSetting(store, 'paused_all', input.paused);
     await setSetting(store, 'paused_at', input.paused ? iso(now) : null);
+    if (!input.paused) await store.remove('attention', [eq('kind', 'woke-item')]);
   }
   const settings = await getSettings(store);
   const channels = await store.query('channels', [], { limit: 50 });
@@ -633,6 +650,17 @@ async function gscQuery(site, token, body, fetch) {
   return { rows: (await res.json()).rows ?? [] };
 }
 
+const GSC_NOT_CONNECTED = 'Chưa đăng nhập Google cho Search Console nên chưa có dòng nào (0 dòng). Mở Nest → Thiết lập → Đăng nhập Google bằng tài khoản là chủ sở hữu thuộc tính Search Console của blog.';
+const GSC_WHY = {
+  no_published_posts: 'Chưa có bài đã đăng nên chưa có gì để đọc từ Search Console.',
+  search_console_listed_nothing: 'Search Console chưa liệt kê trang nào trong các ngày vừa rồi: bài còn mới (Google cần vài ngày để lập chỉ mục) hoặc thuộc tính chưa nhận blog.',
+  no_page_matches_a_post: 'Search Console có trang nhưng không trang nào khớp bài đã đăng: kiểm tra địa chỉ bài với thuộc tính đã chọn.',
+};
+/** host + path with no trailing slash, query or fragment; a url that does not parse is compared as written. */
+export function canonUrl(u) {
+  try { const x = new URL(String(u)); return `${x.hostname.toLowerCase()}${x.pathname.replace(/\/+$/, '')}`; } catch { return String(u ?? ''); }
+}
+
 export async function gsc_sync(input, { store, now, env, fetch }) {
   const site = input.site;
   if (typeof site !== 'string' || !site) fail('invalid_request', 'site is the Search Console property, e.g. sc-domain:example.com.');
@@ -647,22 +675,40 @@ export async function gsc_sync(input, { store, now, env, fetch }) {
   };
   // Never signed in to Google: Search Console is optional, so this is a quiet skip, not a sign-in item.
   if (!env.GSC_GOOGLE) {
-    if ((await getSettings(store)).gsc?.state !== 'ok') return skippedFor('GSC_GOOGLE');
+    if ((await getSettings(store)).gsc?.state !== 'ok') {
+      // The host cannot raise a card for a credential that was never stored, so the reason is kept where the daily report and the
+      // loop-health page read it: Search Console shows 0 rows because nobody signed Google in, not because the sync is broken.
+      await setSetting(store, 'gsc', { state: 'not_connected', message: GSC_NOT_CONNECTED, at: iso(now) }).catch(() => {});
+      return { ...skippedFor('GSC_GOOGLE'), message: GSC_NOT_CONNECTED };
+    }
     return needsPerson('signed_out');
   }
   const auth = await googleToken(env.GSC_GOOGLE, fetch);
   if (auth.error) return needsPerson(auth.error);
   const published = await store.query('posts', [eq('state', 'published')], { limit: 500 });
-  const urls = new Set(published.map(p => p.url).filter(Boolean));
+  // A page is matched by its canonical form (host and path, no trailing slash, query or fragment): Search Console and the
+  // blog may disagree on `/slug` against `/slug/`, which used to drop every row.
+  const canon = new Map(published.filter(p => p.url).map(p => [canonUrl(p.url), p.url]));
+  const urls = new Set(canon.keys());
+  const noAccess = async () => {
+    const message = `Tài khoản Google đã đăng nhập không có quyền đọc ${site}. Thêm tài khoản đó làm chủ sở hữu hoặc người dùng của thuộc tính này trong Search Console (hoặc đăng nhập lại bằng tài khoản đã xác minh ${site}).`;
+    await setSetting(store, 'gsc', { state: 'no_access', message, site, at: iso(now) }).catch(() => {});
+    return { status: 'no_access', ok: false, site, message, notify: false, wake: false };
+  };
   const day = d => new Date(now - d * DAY).toISOString().slice(0, 10);
   const pages = await gscQuery(site, auth.token, { startDate: day(days), endDate: day(1), dimensions: ['page', 'date'], rowLimit: 5000 }, fetch);
+  if (pages.error === 'no_access') return noAccess();
   if (pages.error) return needsPerson(pages.error);
   const queries = await gscQuery(site, auth.token, { startDate: day(28), endDate: day(1), dimensions: ['page', 'query'], rowLimit: 5000 }, fetch);
+  if (queries.error === 'no_access') return noAccess();
   if (queries.error) return needsPerson(queries.error);
   let stored = 0;
+  let matched = 0;
   for (const r of pages.rows) {
-    const [url, d] = r.keys ?? [];
-    if (!urls.has(url)) continue;
+    const [seen, d] = r.keys ?? [];
+    const url = canon.get(canonUrl(seen));
+    if (!url) continue;
+    matched++;
     await store.remove('metrics', [eq('url', url), eq('day', d), eq('source', 'gsc'), eq('query', '')]);
     await store.insert('metrics', { url, source: 'gsc', day: d, query: '', impressions: r.impressions ?? 0, clicks: r.clicks ?? 0, position: r.position ?? null, views: null });
     stored++;
@@ -670,13 +716,17 @@ export async function gsc_sync(input, { store, now, env, fetch }) {
   // Query rows are a 28-day window ending yesterday, replaced on every read.
   await store.remove('metrics', [eq('source', 'gsc'), { column: 'query', op: 'ne', value: '' }]);
   for (const r of queries.rows) {
-    const [url, query] = r.keys ?? [];
-    if (!urls.has(url) || !query) continue;
+    const [seen, query] = r.keys ?? [];
+    const url = canon.get(canonUrl(seen));
+    if (!url || !query) continue;
     await store.insert('metrics', { url, source: 'gsc', day: day(1), query, impressions: r.impressions ?? 0, clicks: r.clicks ?? 0, position: r.position ?? null, views: null });
     stored++;
   }
-  await setSetting(store, 'gsc', { state: 'ok', at: iso(now) });
-  return { status: 'ok', rows: stored, urls: urls.size };
+  // Say why there are no rows instead of a bare 0: nothing published yet, Google listed no page, or none of its pages is ours.
+  const why = stored > 0 ? null : !urls.size ? 'no_published_posts' : !pages.rows.length ? 'search_console_listed_nothing' : 'no_page_matches_a_post';
+  const message = why ? GSC_WHY[why] : null;
+  await setSetting(store, 'gsc', { state: 'ok', at: iso(now), listed: pages.rows.length, matched, ...(why ? { why, message } : {}) });
+  return { status: 'ok', rows: stored, urls: urls.size, listed: pages.rows.length, matched, ...(why ? { why, message } : {}) };
 }
 
 /** Page-day totals for a url over the last `days`; null when nothing was read yet (never 0). */

@@ -158,6 +158,21 @@ function log(d) {
         h('td', {}, x.actual_delta === null || x.actual_delta === undefined ? (x.decision === 'go' ? `chấm sau ${x.check_after_days} ngày` : '') : nf.format(x.actual_delta))))))) : h('div', { class: 'card empty' }, 'Chưa có quyết định nào. Bản tin đầu tiên chạy vào thứ Hai 08:30.'));
 }
 
+function healthSection(d) {
+  const hl = d.health;
+  if (!hl) return h('div', { class: 'card empty' }, 'Chưa có số về vòng lặp. Soot cập nhật mỗi sáng; chưa có thì các bước chưa chạy lần nào.');
+  const rt = hl.runtime?.tokens_7d;
+  return h('div', { class: 'stack' },
+    h('p', { class: 'muted' }, `Cập nhật ${day(hl.at)}${hl.age_h > 30 ? ' (đã cũ)' : ''}. ${rt === undefined ? 'Chưa đọc được số token từ Soot.' : `Token 7 ngày: ${nf.format(rt)}.`}`),
+    h('div', { class: 'stack' }, hl.stages.map(st => h('div', { class: 'card stack' },
+      h('div', { class: 'line between' }, h('span', { class: 'strong' }, st.label), badge(st.starving?.length ? `${st.starving.length} nguồn đang đói` : 'đủ nguồn', st.starving?.length ? 'warn' : '')),
+      h('p', { class: 'muted' }, st.external ? 'Chạy ở máy chủ Hỗ trợ riêng.' : st.last_run ? `Lần chạy gần nhất: ${st.last_run.name} (${day(st.last_run.at)}, ${st.last_run.status ?? 'chưa rõ'}). Token 7 ngày: ${nf.format(st.tokens_7d ?? 0)}, gọi model ${st.model_wakes_7d ?? 0} lần.` : 'Chưa có lần chạy nào.'),
+      (st.starving ?? []).map(i => h('p', {}, h('span', { class: 'strong' }, i.label + ': '), i.detail || 'chưa có'))))),
+    h('div', { class: 'card stack' }, h('span', { class: 'strong' }, 'Công sức của bạn (7 ngày)'),
+      h('p', {}, `Quyết định cơ hội: ${hl.effort?.decisions_tapped_7d ?? 0}. Lần nhắn Soot: ${hl.effort?.chat_instructions_7d ?? 'chưa rõ'}. Thẻ Cần bạn đang mở: ${hl.effort?.cards_open ?? 'chưa rõ'}.`),
+      h('p', { class: 'muted' }, hl.effort?.note || '')));
+}
+
 function render() {
   const root = document.getElementById('app');
   root.replaceChildren();
@@ -176,6 +191,7 @@ function render() {
     ...(d.next.code === 'choose' ? [h('h2', {}, 'Số liệu'), tiles(d.scoreboard)] : []),
     h('h2', {}, 'Bàn giao'),
     d.handoffs.length ? h('div', { class: 'stack' }, d.handoffs.map(handoffCard)) : h('div', { class: 'card empty' }, 'Chưa có bàn giao nào. Khi bạn bấm Go cho một cơ hội sản phẩm, yêu cầu được viết và đội bbs:team mở ở đây.'),
+    h('h2', {}, 'Vòng lặp'), healthSection(d),
     h('h2', {}, 'Nhật ký quyết định'), log(d));
 }
 

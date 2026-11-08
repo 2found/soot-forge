@@ -55,7 +55,7 @@ Do not publish an item, and ask in the hand-off below, when:
 
 ## Close the loop
 
-Update each item's row in the `content` table (`live` with `url`, or `held`) and
+With a hub, update each item's row in the `content` table (`live` with `url`, or `held`); without one `marketing_record` is the record. Then update
 the task: `done` when everything went live or waits for the browser poster;
 `blocked` with what is needed when a hand-off or decision is open. End with a
 short report: what went live (URLs), what waits for the poster or a person,

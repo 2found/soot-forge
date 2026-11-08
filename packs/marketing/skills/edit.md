@@ -21,7 +21,7 @@ Fix small problems yourself: `cms_save` a new draft revision, `social_update`
 with the revision you listed. Send bigger ones back: comment on the task with
 exactly what to change and move it to `todo` for the writer. A draft that fails
 review after one round of fixes is discarded (`social_update
-status:discarded`) or kept as a draft, marked `held` in the `content` table and
+status:discarded`) or kept as a draft, marked `held` (in the hub `content` table when the team has one, else the post's own state) and
 named in your report; it is never published to fill a slot.
 
 ## Keep the voice
@@ -34,8 +34,8 @@ draft. Update a rule rather than adding a near-copy of it.
 
 A draft that passes goes to publishing in the same turn when your hub
 token may publish (`cms_publish`, `social_publish`); otherwise comment "approved for publishing" with the ids
-and revisions and move the task to `done`. Update each draft's row in the
-`content` table.
+and revisions and move the task to `done`. With a hub, update each draft's row in the
+`content` table; without one the post's state is the record.
 
 ## Without a hub
 

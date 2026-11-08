@@ -205,7 +205,7 @@ test('the key goes only to PRODUCT_API_URL: no tool takes an api address from it
     assert.ok(!Object.keys(t.parameters.properties).some(k => /api|host|base|endpoint/i.test(k)), name);
   }
   assert.equal(pack.needs.credentials.PRODUCT_ADMIN_KEY.from, 'operator');
-  assert.deepEqual(pack.needs.env, ['PRODUCT_API_URL']);
+  assert.deepEqual(pack.needs.env, ['PRODUCT_API_URL', 'YT_DLP_BIN', 'PATH', 'HOME'], 'one api address is an operator env; the rest is where yt-dlp is found');
   assert.equal(pack.tools.find(t => t.name === 'campaign_report').run.mode, 'write');
   assert.deepEqual(pack.interface.pages.find(p => p.id === 'chien-dich').provides, ['flow-marketing']);
 });

@@ -13,7 +13,12 @@ sub-agents, no other tool than the ones named here.
    lacked, when present: `n` counts by kind, `ex` a few short samples per kind),
    `waiting` and `later` (opportunities already open),
    `decisions` (what was decided, with `act`ual change once measured),
-   `hit_rate`, `launched`, `topics_queued`.
+   `hit_rate`, `launched`, `topics_queued`, `cohorts` (signup weeks: `su` signups,
+   `w1`/`w2`/`w4` still active after 1/2/4 weeks, `fp` first payers) and `plans`
+   (`t` tier, `st` started, `ac` active, `rev` revenue). `cohorts` or `plans`
+   `null` means the product does not serve it yet: say "chưa có", never guess a
+   retention or plan number. A cohort whose `w1` falls week over week is evidence
+   like any falling metric.
 2. Pick **at most five** opportunities, best first. Rank by evidence first
    (`signal_count`, how many numbers and sources point at it), then value over
    effort, then confidence. Prefer the metric that fell or the gap that repeats

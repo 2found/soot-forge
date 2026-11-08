@@ -26,10 +26,27 @@ const WHY = {
   bad: host => `${host} trả bảng số không đúng dạng (cần version 1 có metrics).`,
 };
 
+const int = v => (Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
+/** Anonymous cohorts by ISO week of signup (counts only, no ids). Anything that is not that shape is dropped: absent means "chưa có". */
+export function cleanCohorts(list) {
+  if (!Array.isArray(list)) return null;
+  const out = list.filter(c => c && typeof c === 'object' && /^\d{4}-W\d{2}$/.test(String(c.cohort))).slice(0, 12)
+    .map(c => ({ cohort: c.cohort, signups: int(c.signups), active_w1: int(c.active_w1), active_w2: int(c.active_w2), active_w4: int(c.active_w4), first_payers: int(c.first_payers) }));
+  return out.length ? out : null;
+}
+/** Subscription plans: one row per tier key of the product (the api serves them; this pack never lists tiers). */
+export function cleanPlans(list) {
+  if (!Array.isArray(list)) return null;
+  const out = list.filter(p => p && typeof p === 'object' && /^[a-z0-9_-]{1,16}$/.test(String(p.tier))).slice(0, 12)
+    .map(p => ({ tier: p.tier, started: int(p.started), active: int(p.active), revenue_vnd: int(p.revenue_vnd) }));
+  return out.length ? out : null;
+}
+
 const rowOf = board => ({
   key: `${board.range.from}..${board.range.to}`,
   period_from: board.range.from, period_to: board.range.to, product: String(board.product ?? ''),
   metrics: board.metrics, support: board.support ?? null, sources: board.sources ?? [], comparison: board.comparison ?? null,
+  cohorts: cleanCohorts(board.cohorts), plans: cleanPlans(board.plans),
 });
 
 const valid = b => b && b.version === 1 && b.metrics && typeof b.metrics === 'object' && !Array.isArray(b.metrics)

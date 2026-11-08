@@ -1,0 +1,119 @@
+{
+  "extends": "company-team",
+  "id": "lohi",
+  "name": "Lohi",
+  "description": "Lohi as a company of teams. Soot ids are the recipe's; op-catalog is a slot that the lohi-ops pack fills; support and the desk run on the CS server and are declared here, not deployed by setup.",
+  "teams": {
+    "insight": {
+      "soots": [
+        {
+          "id": "lohi-analyst",
+          "role": "analyst"
+        },
+        {
+          "id": "lohi-radar",
+          "role": "radar"
+        }
+      ]
+    },
+    "marketing": {
+      "soots": [
+        {
+          "id": "lohi-writer",
+          "role": "writer"
+        },
+        {
+          "id": "lohi-editor",
+          "role": "publisher"
+        }
+      ],
+      "daily_tokens": 250000
+    },
+    "cs": {
+      "soots": [
+        {
+          "id": "support",
+          "role": "answers readers"
+        },
+        {
+          "id": "desk",
+          "role": "sorts feedback"
+        }
+      ]
+    },
+    "financial": {
+      "soots": [
+        {
+          "id": "lohi-finance",
+          "role": "finance"
+        }
+      ]
+    }
+  },
+  "add": [
+    {
+      "id": "op-catalog",
+      "kind": "group",
+      "group": "team-op",
+      "soots": [
+        {
+          "id": "lohi-ops",
+          "role": "operator"
+        }
+      ],
+      "takes_in": [
+        {
+          "from": "insight",
+          "what": "approved catalog opportunities",
+          "contract": "catalog-requests",
+          "optional": true
+        }
+      ],
+      "gives_out": [
+        {
+          "table": "catalog_jobs",
+          "pack": "lohi-ops",
+          "fields": [
+            "job",
+            "state",
+            "at"
+          ],
+          "note": "what the catalog job did; the pack W3 builds owns it"
+        }
+      ],
+      "decides": {
+        "alone": [
+          "routine catalog jobs inside the pack's limits"
+        ],
+        "with_founder": [
+          "anything that deletes or republishes novels"
+        ]
+      },
+      "daily_tokens": 80000,
+      "escalates_when": [
+        "a source is down",
+        "a job would remove content"
+      ],
+      "slot": "examples/lohi-marketing/packs/lohi-ops"
+    }
+  ],
+  "contracts": {
+    "add": [
+      {
+        "id": "catalog-requests",
+        "owner": "insight",
+        "reader": "op-catalog",
+        "table": "opportunities",
+        "pack": "company-loop",
+        "mode": "read",
+        "fields": [
+          "ref",
+          "title",
+          "kind",
+          "state"
+        ],
+        "optional": true
+      }
+    ]
+  }
+}

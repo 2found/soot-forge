@@ -27,6 +27,8 @@
   },
   "needs": {
     "env": [
+      "LOOP_SOOT_BIN",
+      "LOOP_SOOT_CONFIG",
       "SCOREBOARD_URL",
       "PRODUCT_REPO",
       "BBS_BIN",
@@ -78,7 +80,7 @@
     }
   ],
   "storage": {
-    "version": 1,
+    "version": 2,
     "tables": [
       {
         "name": "scoreboard",
@@ -118,6 +120,14 @@
           },
           {
             "name": "comparison",
+            "type": "json"
+          },
+          {
+            "name": "cohorts",
+            "type": "json"
+          },
+          {
+            "name": "plans",
             "type": "json"
           },
           {
@@ -658,6 +668,30 @@
         "stdin": "context",
         "mode": "write",
         "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "health_sync",
+      "title": "Sức khoẻ vòng lặp",
+      "description": "Read-only. Keep the loop-health view: per stage (insight, build, marketing, CS) the last run, tokens spent in 7 days and the starving inputs, plus the founder's effort. Takes marketing_inputs_health as its input (input_from previous); asks the workspace's soot CLI (LOOP_SOOT_CONFIG) for runs. No model.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "inputs": {"type": "array", "maxItems": 20, "items": {"type": "object", "properties": {"key": {"type": "string", "maxLength": 24}, "label": {"type": "string", "maxLength": 60}, "starving": {"type": "boolean"}, "detail": {"type": "string", "maxLength": 400}, "rows": {"type": "integer"}}, "additionalProperties": false}},
+          "posts": {"type": "object", "additionalProperties": true},
+          "daily_report": {"type": "object", "additionalProperties": true},
+          "stages": {"type": "array", "maxItems": 8, "items": {"type": "object", "properties": {"key": {"type": "string", "maxLength": 24}, "label": {"type": "string", "maxLength": 60}, "schedules": {"type": "array", "items": {"type": "string", "maxLength": 64}, "maxItems": 40}, "prefixes": {"type": "array", "items": {"type": "string", "maxLength": 32}, "maxItems": 10}, "external": {"type": "boolean"}}, "required": ["key"], "additionalProperties": false}}
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": ["tools/loop.mjs", "health_sync"],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
         "max_output_bytes": 65536
       }
     },
