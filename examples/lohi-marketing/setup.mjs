@@ -72,7 +72,10 @@ function runtimeKnowsEnv(soot) {
 }
 
 const RECEIPT = '.soot-source.json';
-const versionOf = file => { try { const v = JSON.parse(readFileSync(file, 'utf8')).version; return typeof v === 'number' || typeof v === 'string' ? String(v) : ''; } catch { return ''; } };
+const forgeVersion = JSON.parse(readFileSync(join(forge, 'package.json'), 'utf8')).version;
+/** A pack manifest has no top-level version; the release it came from is in the receipt URL, its data shape in storage.version. */
+const releaseOf = dir => { try { return /\/download\/v?([0-9][0-9.]*)\//.exec(JSON.parse(readFileSync(join(dir, RECEIPT), 'utf8')).repository)?.[1] ?? ''; } catch { return ''; } };
+const storageOf = dir => { try { const v = JSON.parse(readFileSync(join(dir, 'pack.json'), 'utf8')).storage?.version; return typeof v === 'number' ? v : 0; } catch { return 0; } };
 const newer = (a, b) => a.localeCompare(b, 'en', { numeric: true }) > 0;
 
 /**
@@ -84,7 +87,8 @@ export function installPack(forgeDir, out, id) {
   const to = join(out, 'packs', id);
   const from = join(forgeDir, 'packs', id);
   const receipt = join(to, RECEIPT);
-  if (existsSync(receipt) && !newer(versionOf(join(from, 'pack.json')), versionOf(join(to, 'pack.json')))) return 'kept';
+  // Kept only when the installed copy is the recipe's release or newer: an older release, or an older data shape, is replaced.
+  if (existsSync(receipt) && !(releaseOf(to) && newer(forgeVersion, releaseOf(to))) && storageOf(from) <= storageOf(to)) return 'kept';
   if (existsSync(to)) for (const name of readdirSync(to)) if (name !== RECEIPT) rmSync(join(to, name), { recursive: true, force: true });
   // The release archive's own rule: a copy with a test file the archive omits is no longer the Forge copy.
   cpSync(from, to, { recursive: true, filter: s => !/[\\/]node_modules([\\/]|$)/.test(s) && !isDevOnly(relative(from, s).split(sep).join('/')) });

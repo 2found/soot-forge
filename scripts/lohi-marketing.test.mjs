@@ -196,14 +196,16 @@ test('setup over a Forge-installed pack keeps the receipt and the release file s
   const now = (await packFiles(dest, { slim: false })).filter(f => f !== '.soot-source.json');
   assert.deepEqual(now, release);
   // An older installed copy is brought to the release set and keeps its receipt.
-  const manifest = JSON.parse(await readFile(join(dest, 'pack.json'), 'utf8'));
-  await writeFile(join(dest, 'pack.json'), JSON.stringify({ ...manifest, version: '0.0.1' }));
+  await writeFile(join(dest, '.soot-source.json'), '{"id":"marketing","repository":"https://github.com/2found/soot-forge/releases/download/v0.0.1/marketing-pack_0.0.1.tar.gz"}\n');
   await mkdir(join(dest, 'tests'), { recursive: true });
   await writeFile(join(dest, 'tests', 'x.mjs'), '');
-  const fromVersion = JSON.parse(await readFile(join(forge, 'packs', 'marketing', 'pack.json'), 'utf8')).version;
-  if (fromVersion !== undefined) {
-    assert.equal(installPack(forge, out, 'marketing'), 'copied');
-    assert.equal(await readFile(join(dest, '.soot-source.json'), 'utf8'), '{"id":"marketing"}\n');
-    assert.deepEqual((await packFiles(dest, { slim: false })).filter(f => f !== '.soot-source.json'), release);
-  }
+  assert.equal(installPack(forge, out, 'marketing'), 'copied');
+  assert.match(await readFile(join(dest, '.soot-source.json'), 'utf8'), /v0\.0\.1/);
+  assert.deepEqual((await packFiles(dest, { slim: false })).filter(f => f !== '.soot-source.json'), release);
+  // An installed copy with an older data shape is replaced even at the same release.
+  const man = JSON.parse(await readFile(join(dest, 'pack.json'), 'utf8'));
+  man.storage.version = 1;
+  await writeFile(join(dest, 'pack.json'), JSON.stringify(man));
+  await writeFile(join(dest, '.soot-source.json'), `{"id":"marketing","repository":"https://github.com/2found/soot-forge/releases/download/v${JSON.parse(await readFile(join(forge, 'package.json'), 'utf8')).version}/m.tar.gz"}\n`);
+  assert.equal(installPack(forge, out, 'marketing'), 'copied');
 });
