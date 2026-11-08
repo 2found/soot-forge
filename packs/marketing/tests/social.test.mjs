@@ -495,6 +495,7 @@ test('Cần bạn one item at a time: due.ask is each comment on its own with it
   const { ask } = await w.call('due', { }, { soot: 'lohi-editor' });
   assert.deepEqual([ask.summary, ask.missing, ask.options.map(o => o.label)], ['X đổi giao diện: Editor không tìm thấy chỗ đăng bài',
     'Chưa đăng gì. Đăng X đã dừng; bài vẫn ở hàng đợi.\nXem trang Editor gặp: nest://browser/lohi-editor\nBấm Chạy lại X khi trang đã bình thường.', ['Chạy lại X', 'Để X dừng']]);
+  assert.deepEqual(ask.options[0], { label: 'Chạy lại X', recommended: true }, 'the prototype\'s primary action');
   await w.call('raised', { keys: ask.keys });
   assert.equal((await w.call('answer', { key: ask.keys[0], option: 'Chạy lại X' })).state, 'resumed');
   assert.deepEqual([w.ch('x-lohi').paused, w.store.data.attention.some(a => a.key === ask.keys[0])], [false, false]);

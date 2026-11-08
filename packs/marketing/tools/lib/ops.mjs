@@ -276,12 +276,12 @@ async function askFor(n, { store, settings, soot, byKey, replies }) {
   const ch = byKey[n.channel] ?? {};
   const L = PLATFORM_LABEL[ch.platform ?? platformOf(n.channel)] ?? (n.channel === 'blog-lohi' ? 'Blog' : n.channel);
   const browser = soot ? `nest://browser/${soot}` : null;
-  const item = (summary, missing, options) => ({ keys: [n.key], summary, missing: missing.filter(Boolean).join('\n'), options: options.map(label => ({ label })) });
+  const item = (summary, missing, options, rec) => ({ keys: [n.key], summary, missing: missing.filter(Boolean).join('\n'), options: options.map(label => (label === rec ? { label, recommended: true } : { label })) });
   if (n.kind === 'channel') {
     const held = `Chưa đăng gì. Đăng ${L} đã dừng; bài vẫn ở hàng đợi.`;
     const opts = [`Chạy lại ${L}`, `Để ${L} dừng`];
-    if (n.reason === 'captcha') return item(`${L} hỏi captcha`, [browser && `Giải captcha trong trình duyệt của Editor: ${browser}`, held], opts);
-    return item(`${L} đổi giao diện: Editor không tìm thấy chỗ đăng bài`, [held, browser && `Xem trang Editor gặp: ${browser}`, `Bấm Chạy lại ${L} khi trang đã bình thường.`], opts);
+    if (n.reason === 'captcha') return item(`${L} hỏi captcha`, [browser && `Giải captcha trong trình duyệt của Editor: ${browser}`, held], opts, opts[0]);
+    return item(`${L} đổi giao diện: Editor không tìm thấy chỗ đăng bài`, [held, browser && `Xem trang Editor gặp: ${browser}`, `Bấm Chạy lại ${L} khi trang đã bình thường.`], opts, opts[0]);
   }
   if (n.kind === 'reply') {
     const r = replies.find(x => x.ref === n.id) ?? {};
