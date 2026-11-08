@@ -1,0 +1,748 @@
+{
+  "api_version": "soot/v1",
+  "id": "company-loop",
+  "label": {
+    "vi": "Công ty",
+    "en": "Company loop"
+  },
+  "keywords": {
+    "vi": [
+      "công ty",
+      "bản tin",
+      "cơ hội",
+      "số liệu",
+      "vòng lặp"
+    ],
+    "en": [
+      "company",
+      "insight",
+      "digest",
+      "scoreboard",
+      "loop"
+    ]
+  },
+  "description": {
+    "vi": "Vòng lặp công ty cho một sản phẩm: đọc bảng số, lập bản tin cơ hội mỗi tuần, nội dung tự chạy, sản phẩm chờ bạn bấm Go rồi bàn giao cho đội bbs:team và theo dõi đến khi phát hành.",
+    "en": "A product-agnostic company loop: reads the scoreboard, makes a weekly digest of opportunities, sends content to marketing by itself, hands a founder-approved product change to bbs:team and watches it to release."
+  },
+  "needs": {
+    "env": [
+      "SCOREBOARD_URL",
+      "PRODUCT_REPO",
+      "BBS_BIN",
+      "BBS_TEAM_AGENT",
+      "CS_RUNTIME_URL",
+      "PATH",
+      "HOME"
+    ],
+    "credentials": {
+      "PRODUCT_ADMIN_KEY": {
+        "title": "Khoá admin sản phẩm",
+        "description": "Khoá API vai trò agent_mod của sản phẩm để đọc bảng số tổng hợp (không có dữ liệu cá nhân). Chỉ gửi tới địa chỉ SCOREBOARD_URL. Dùng chung khoá đã nhập cho marketing; nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
+      },
+      "CS_RUNTIME_TOKEN": {
+        "title": "Khoá runtime Hỗ trợ",
+        "description": "Khoá vận hành của runtime Hỗ trợ (CS_RUNTIME_URL) để đọc những câu khách hỏi mà kho kiến thức chưa trả lời được. Tuỳ chọn: không có thì bản tin bỏ phần này. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
+      }
+    }
+  },
+  "skills": [
+    {
+      "name": "company-digest",
+      "description": "Weekly: rank at most five opportunities from the signals packet (content vs product), save them with digest_save, file the one Cần bạn card, end in one line.",
+      "file": "skills/digest.md"
+    }
+  ],
+  "outcomes": [
+    {
+      "id": "opportunity_found",
+      "label": {
+        "vi": "Cơ hội mới",
+        "en": "Opportunity found"
+      },
+      "unit": "opportunity"
+    },
+    {
+      "id": "requirement_shipped",
+      "label": {
+        "vi": "Yêu cầu đã phát hành",
+        "en": "Requirement shipped"
+      },
+      "unit": "requirement"
+    }
+  ],
+  "storage": {
+    "version": 1,
+    "tables": [
+      {
+        "name": "scoreboard",
+        "description": "Bảng số của sản phẩm: một dòng cho mỗi kỳ 7 ngày, kèm so sánh kỳ trước.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "period_from",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "period_to",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "product",
+            "type": "text"
+          },
+          {
+            "name": "metrics",
+            "type": "json"
+          },
+          {
+            "name": "support",
+            "type": "json"
+          },
+          {
+            "name": "sources",
+            "type": "json"
+          },
+          {
+            "name": "comparison",
+            "type": "json"
+          },
+          {
+            "name": "fetched_at",
+            "type": "timestamp"
+          }
+        ]
+      },
+      {
+        "name": "opportunities",
+        "description": "Cơ hội Soot tìm ra từ số liệu: nội dung tự chạy, sản phẩm chờ bạn bấm Go.",
+        "columns": [
+          {
+            "name": "ref",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "product",
+            "type": "text"
+          },
+          {
+            "name": "kind",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "query",
+            "type": "text"
+          },
+          {
+            "name": "summary",
+            "type": "text"
+          },
+          {
+            "name": "evidence_refs",
+            "type": "json"
+          },
+          {
+            "name": "signal_count",
+            "type": "integer"
+          },
+          {
+            "name": "est_effort",
+            "type": "text"
+          },
+          {
+            "name": "est_value",
+            "type": "text"
+          },
+          {
+            "name": "confidence",
+            "type": "number"
+          },
+          {
+            "name": "target_outcome",
+            "type": "text"
+          },
+          {
+            "name": "expected_delta",
+            "type": "number"
+          },
+          {
+            "name": "check_after_days",
+            "type": "integer"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "digest_week",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "decisions",
+        "description": "Nhật ký quyết định: ai quyết gì, đo bằng gì, kết quả thật sau bao lâu.",
+        "columns": [
+          {
+            "name": "at",
+            "type": "timestamp",
+            "index": true
+          },
+          {
+            "name": "stage",
+            "type": "text"
+          },
+          {
+            "name": "opportunity_ref",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "decision",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "by",
+            "type": "text"
+          },
+          {
+            "name": "note",
+            "type": "text"
+          },
+          {
+            "name": "evidence_refs",
+            "type": "json"
+          },
+          {
+            "name": "target_outcome",
+            "type": "text"
+          },
+          {
+            "name": "expected_delta",
+            "type": "number"
+          },
+          {
+            "name": "check_after_days",
+            "type": "integer"
+          },
+          {
+            "name": "baseline_value",
+            "type": "number"
+          },
+          {
+            "name": "actual_delta",
+            "type": "number"
+          },
+          {
+            "name": "reviewed_at",
+            "type": "timestamp"
+          }
+        ]
+      },
+      {
+        "name": "handoffs",
+        "description": "Bàn giao sang đội dựng (bbs:team): yêu cầu, mã đội, trạng thái.",
+        "columns": [
+          {
+            "name": "opportunity",
+            "type": "text",
+            "index": true,
+            "unique": true
+          },
+          {
+            "name": "repo",
+            "type": "text"
+          },
+          {
+            "name": "requirement_path",
+            "type": "text"
+          },
+          {
+            "name": "team_id",
+            "type": "text"
+          },
+          {
+            "name": "ticket",
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "command",
+            "type": "text"
+          },
+          {
+            "name": "note",
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "released_at",
+            "type": "timestamp"
+          }
+        ]
+      },
+      {
+        "name": "topics",
+        "description": "Hàng chờ chủ đề cho marketing: từ khoá tìm kiếm và lý do.",
+        "columns": [
+          {
+            "name": "query",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "name": "opportunity_ref",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "kind",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          }
+        ]
+      },
+      {
+        "name": "state",
+        "description": "Trạng thái nhỏ: lần đọc số gần nhất, tuần đã ghi vào sổ công ty, thẻ đã báo.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "value",
+            "type": "json"
+          }
+        ]
+      }
+    ]
+  },
+  "interface": {
+    "pages": [
+      {
+        "id": "cong-ty",
+        "label": {
+          "vi": "Công ty",
+          "en": "Company"
+        },
+        "icon": "building-2",
+        "placement": "rail",
+        "access": "operator",
+        "view_tool": "page_view",
+        "action_tool": "page_action",
+        "bundle": "page/"
+      }
+    ]
+  },
+  "tools": [
+    {
+      "name": "scoreboard_sync",
+      "title": "Đọc bảng số sản phẩm",
+      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. Answers {done: true}, or with for_digest the sync result for the digest chain.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "for_digest": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "scoreboard_sync"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "signals",
+      "title": "Gói tín hiệu cho bản tin",
+      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps (optional), opportunities and decisions with actual_delta, last launches. Wakes the Lead in a chain.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "signals"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "30s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "CS_RUNTIME_TOKEN": "{{cred:CS_RUNTIME_TOKEN}}"
+        }
+      }
+    },
+    {
+      "name": "digest_save",
+      "title": "Lưu cơ hội của bản tin",
+      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed and returns one ask (Cần bạn card) when something new waits.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "opportunities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 140
+                },
+                "product": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{1,31}$"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "content",
+                    "product"
+                  ]
+                },
+                "query": {
+                  "type": "string",
+                  "maxLength": 120,
+                  "description": "content: a Vietnamese search phrase of 2+ words the audience types."
+                },
+                "summary": {
+                  "type": "string",
+                  "maxLength": 600,
+                  "description": "product: what to build and why, 20+ chars."
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                },
+                "signal_count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "est_effort": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "description": "S, M, L or XL."
+                },
+                "est_value": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "description": "low, medium or high."
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "target_outcome": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{1,47}$",
+                  "description": "A scoreboard metric key (signups, revenue_vnd, support_threads_new...) or a declared outcome id."
+                },
+                "expected_delta": {
+                  "type": "number",
+                  "description": "Expected change of the target over one 7-day window; negative to reduce. Not 0."
+                },
+                "check_after_days": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 180
+                }
+              },
+              "required": [
+                "title",
+                "product",
+                "kind",
+                "evidence_refs",
+                "signal_count",
+                "est_effort",
+                "est_value",
+                "confidence",
+                "target_outcome",
+                "expected_delta",
+                "check_after_days"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 5
+          }
+        },
+        "required": [
+          "opportunities"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "digest_save"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "decide",
+      "title": "Quyết định một cơ hội",
+      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go writes docs/requirements/REQ-<id>.md in PRODUCT_REPO and spawns bbs team (never land or release); without bbs or Orca the handoff is draft_ready with the exact command. Needs the operator approval; the Công ty page does the same on the founder tap.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^OP-[0-9A-F]{8}$"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "go",
+              "later",
+              "drop"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "id",
+          "decision"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "decide"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
+        "max_output_bytes": 65536,
+        "approval": "operator"
+      }
+    },
+    {
+      "name": "topic_next",
+      "title": "Chủ đề marketing kế tiếp",
+      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked taken, or {}. With chain: true only {query}, at most one a day, to merge into marketing plan.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "chain": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "topic_next"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "team_watch",
+      "title": "Theo dõi đội dựng",
+      "description": "Read bbs team snapshot for each open handoff with no model. A released team returns outcomes requirement_shipped to record and queues one launch topic; nothing changed answers {done: true}.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "team_watch"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "120s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "review",
+      "title": "Chấm kết quả quyết định",
+      "description": "For go decisions past check_after_days fill actual_delta from the scoreboard (the target_outcome key is the metric) and return the hit rate: a hit is actual at least half of expected.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "review"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "page_view",
+      "title": "Xem trang Công ty",
+      "description": "Công ty page model: scoreboard tiles with deltas, opportunities, handoffs, decision log, hit rate and the one next step.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "string",
+            "enum": [
+              "cong-ty"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "page_view"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 1048576
+      }
+    },
+    {
+      "name": "page_action",
+      "title": "Đổi trang Công ty",
+      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval), retry_handoff, link_ticket (the bbs:team parent ticket id) or sync. Needs a request_id.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "go",
+              "later",
+              "drop",
+              "retry_handoff",
+              "link_ticket",
+              "sync"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^OP-[0-9A-F]{8}$"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "ticket": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "op",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "page_action"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+        }
+      }
+    }
+  ]
+}

@@ -35,9 +35,22 @@ test('build: the Forge packs are copied exactly as the release archive ships the
   const { packFiles } = await import('../../scripts/archive.mjs');
   const { join: j, resolve: r } = await import('node:path');
   const out = build(tmp(), { env: true, video: false, connection: null, home: tmp() }).out;
-  for (const id of ['marketing', 'browser-use']) {
+  for (const id of ['marketing', 'browser-use', 'company-loop']) {
     const want = (await packFiles(r(import.meta.dirname, '..', '..', 'packs', id))).sort();
     const got = (await packFiles(j(out, 'packs', id), { slim: false })).sort();
     assert.deepEqual(got, want, `${id}: installed files differ from the release archive's`);
   }
+});
+
+test('build: --product-repo has no default; the company loop gets the scoreboard address and the repo only when given', async () => {
+  const { build, HOST_ENV } = await import('./setup.mjs');
+  const { readFileSync } = await import('node:fs');
+  assert.equal(HOST_ENV.PRODUCT_REPO, undefined, 'the real checkout is never a default');
+  assert.match(HOST_ENV.SCOREBOARD_URL, /^https:\/\/.+\/scoreboard$/);
+  const none = build(tmp(), { env: true, video: false, connection: null, home: tmp() });
+  const d0 = JSON.parse(readFileSync(join(none.out, 'deployment.json'), 'utf8'));
+  assert.equal(d0.env.PRODUCT_REPO, undefined);
+  assert.equal(d0.env.SCOREBOARD_URL, HOST_ENV.SCOREBOARD_URL);
+  const set = build(tmp(), { env: true, video: false, connection: null, home: tmp(), productRepo: '/tmp/scratch-product' });
+  assert.equal(JSON.parse(readFileSync(join(set.out, 'deployment.json'), 'utf8')).env.PRODUCT_REPO, '/tmp/scratch-product');
 });

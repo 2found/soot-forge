@@ -6,7 +6,8 @@
   "soul": "SOUL.md",
   "mission": "writer.md",
   "packs": [
-    "marketing:tools=plan,draft_save,check,schedule,items"
+    "marketing:tools=plan,draft_save,check,schedule,items",
+    "company-loop:tools=topic_next"
   ],
   "execution": {
     "max_run_tokens": 200000,

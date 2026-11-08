@@ -7,6 +7,7 @@
   "mission": "editor.md",
   "packs": [
     "marketing:tools=due,claim,record,fail,raised,answer,pause,items,check,schedule,draft_save,reply_save,replies_sync,channels_setup,channels_probe,gsc_sync,report,campaign_report,campaign_save,campaign_verify,page_view,page_action",
+    "company-loop:tools=scoreboard_sync,signals,digest_save,team_watch,review,page_view,page_action",
     "lohi-blog:tools=publish,unpublish,find,ready",
     "browser-use"
   ],

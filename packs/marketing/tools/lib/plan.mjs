@@ -31,6 +31,18 @@ async function planConfig(store, input) {
   return cfg;
 }
 
+/**
+ * A topic the company loop handed to the wake call (`input.query` with `wake`): kept until a post
+ * is written about it (or 48 hours pass), so the Writer's own plan call, which carries no query,
+ * sees the same one even when the blog slot opens later.
+ */
+async function keepTopic(store, input, now, posts) {
+  const kept = (await store.one('settings', [eq('key', 'plan_topic')]))?.value;
+  const live = kept?.query && now - Date.parse(kept.at) < 48 * HOUR && !posts.some(p => fold(p.brief?.keyword ?? '') === fold(kept.query));
+  if (input.wake && input.query && !live) { await setSetting(store, 'plan_topic', { query: input.query, at: iso(now) }); return input.query; }
+  return live ? kept.query : null;
+}
+
 const short = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
 
 async function getJSON(fetch, url, timeout = 15_000) {
@@ -238,6 +250,7 @@ export async function plan(input, deps) {
     const scheduled = await rescueReady(store, ch, now, deps);
     const social = await socialToWake(store, cfg, settings, now);
     const why = await slotVerdict(store, ch, settings, now, cfg.depth ?? 1);
+    await keepTopic(store, input, now, await recentPosts(store, ch.key));
     const stamp = (await store.one('settings', [eq('key', 'plan_wake')]))?.value;
     const extra = { ...(scheduled.length ? { scheduled } : {}), ...(social.length ? { social: social.length } : {}) };
     const slotFree = !why && stamp?.day !== today;
@@ -257,7 +270,8 @@ export async function plan(input, deps) {
   if (social.length && !input.query && await slotVerdict(store, ch, settings, now, cfg.depth ?? 1)) {
     return { channel: ch.key, date: today, mode: 'social', social, ...f, note: 'Không viết bài blog mới. Mỗi mục trong social: một bản nháp cho từng kênh (kind social, link đúng như đã cho, brief.from là mã bài blog), rồi check và schedule.' };
   }
-  const { topic, novels, brief } = await pickTopic(store, cfg, posts, now, fetch, input);
+  const handed = input.query ? null : await keepTopic(store, input, now, posts);
+  const { topic, novels, brief } = await pickTopic(store, cfg, posts, now, fetch, handed ? { ...input, query: handed } : input);
   const links = [...novels.map(n => n.url), ...(cfg.catalog?.links ?? [])].filter(Boolean);
   return {
     channel: ch.key, series: ch.rules?.series ?? 'truyen-hay', date: today,

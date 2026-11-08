@@ -13,7 +13,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   const catalog = await json('catalog.json');
   // lohi-blog is Lohi's own publisher: a local pack inside the recipe, never a catalog row.
   const local = { 'lohi-blog': 'examples/lohi-marketing/packs/lohi-blog' };
-  const packs = Object.fromEntries(await Promise.all(['marketing', 'lohi-blog', 'browser-use'].map(async id => [id, await json(`${local[id] ?? `packs/${id}`}/pack.json`)])));
+  const packs = Object.fromEntries(await Promise.all(['marketing', 'lohi-blog', 'browser-use', 'company-loop'].map(async id => [id, await json(`${local[id] ?? `packs/${id}`}/pack.json`)])));
   assert.ok(!catalog.packs.some(p => p.id === 'lohi-blog'), 'lohi-blog stays out of the catalog');
   const known = id => id in local || catalog.packs.some(p => p.id === id);
   assert.equal(host.product, 'Lohi');
@@ -21,15 +21,18 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   assert.equal(packs.marketing.tools.find(t => t.name === 'claim').run.approval, 'operator', 'the pack stays guarded; only this host relaxes it');
 
   const byId = Object.fromEntries(host.schedules.map(s => [s.id, s]));
-  assert.deepEqual(Object.keys(byId).sort(), ['blog-ready', 'marketing-blog', 'marketing-campaigns', 'marketing-channels', 'marketing-dispatch', 'marketing-gsc', 'marketing-plan', 'marketing-probe', 'marketing-replies', 'marketing-report']);
+  assert.deepEqual(Object.keys(byId).sort(), ['blog-ready', 'company-digest', 'company-review', 'company-scoreboard', 'company-watch', 'marketing-blog', 'marketing-campaigns', 'marketing-channels', 'marketing-dispatch', 'marketing-gsc', 'marketing-plan', 'marketing-probe', 'marketing-replies', 'marketing-report']);
   // Campaigns: a daily api read that wakes the Đầu mối (the Editor) for lead outcomes and the token budget.
   assert.deepEqual([byId['marketing-campaigns'].tool.name, byId['marketing-campaigns'].at, byId['marketing-campaigns'].wake_when, byId['marketing-campaigns'].soot], ['campaign_report', '07:00', { notify: true }, host.default_soot]);
   assert.ok(host.pack_grants.marketing.env.includes('PRODUCT_API_URL'), 'the api address is an operator env, never tool input');
   assert.deepEqual([byId['marketing-dispatch'].cron, byId['marketing-dispatch'].timezone, byId['marketing-dispatch'].tool.input], ['*/10 7-22 * * *', 'Asia/Ho_Chi_Minh', { schedule: true, skip: ['blog-lohi'] }], 'the dispatch records its own wakes and sleeps at night');
   // The daily plan wakes the Writer only for a free blog slot; it also keeps the facts fresh (no facts schedule).
-  assert.deepEqual([byId['marketing-plan'].soot, byId['marketing-plan'].tool.name, byId['marketing-plan'].wake_when], ['lohi-writer', 'plan', { notify: true }]);
-  assert.equal(byId['marketing-plan'].tool.input.wake, true);
-  assert.ok(byId['marketing-plan'].tool.input.facts_url && byId['marketing-plan'].tool.input.catalog.feed);
+  // The company loop's next topic (if any) is merged into the plan's per-call query: topic_next, then plan with input_from previous.
+  const planStep = byId['marketing-plan'].then[0];
+  assert.deepEqual([byId['marketing-plan'].soot, byId['marketing-plan'].tool.pack, byId['marketing-plan'].tool.name, byId['marketing-plan'].tool.input, byId['marketing-plan'].wake_when], ['lohi-writer', 'company-loop', 'topic_next', { chain: true }, { notify: true }]);
+  assert.deepEqual([byId['marketing-plan'].then.length, planStep.pack, planStep.tool, planStep.input_from], [1, 'marketing', 'plan', 'previous']);
+  assert.equal(planStep.input.wake, true);
+  assert.ok(planStep.input.facts_url && planStep.input.catalog.feed);
   assert.deepEqual([byId['blog-ready'].soot, byId['blog-ready'].tool.pack, byId['blog-ready'].tool.name], [host.default_soot, 'lohi-blog', 'ready']);
   assert.deepEqual(byId['marketing-dispatch'].wake_when, { notify: true }, 'the runtime wakes on a boolean only through notify');
   assert.equal(byId['marketing-gsc'].at, '06:00');
@@ -76,7 +79,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
     for (const f of [soot.soul, soot.mission]) assert.ok((await readFile(new URL(`examples/lohi-marketing/soots/${f}`, root), 'utf8')).trim(), f);
   }
   const editor = await json('examples/lohi-marketing/soots/lohi-editor.json');
-  assert.deepEqual(editor.packs.map(r => r.split(':')[0]), ['marketing', 'lohi-blog', 'browser-use']);
+  assert.deepEqual(editor.packs.map(r => r.split(':')[0]), ['marketing', 'company-loop', 'lohi-blog', 'browser-use']);
   // The Editor carries only what its skills and schedules call, and every schedule/chain tool it runs.
   const granted = new Set(editor.packs.find(r => r.startsWith('marketing:tools=')).slice('marketing:tools='.length).split(','));
   for (const t of granted) assert.ok(packs.marketing.tools.some(x => x.name === t), `editor tool ${t}`);
@@ -89,13 +92,41 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   assert.equal(blogChain.wake_when, undefined, 'a chain wakes the Soot only through its failure path');
   assert.ok(!host.soots.includes('soots/lohi-radar.json'), 'no Radar Soot: the plan tool supplies the topic');
   const writer = (await json('examples/lohi-marketing/soots/lohi-writer.json')).packs;
-  assert.equal(writer.length, 1);
+  assert.deepEqual(writer.map(r => r.split(':')[0]), ['marketing', 'company-loop']);
+  assert.equal(writer[1], 'company-loop:tools=topic_next', 'the Writer only runs the topic step of the chain');
   assert.deepEqual(writer[0].replace(/^marketing:tools=/, '').split(',').sort(), ['check', 'draft_save', 'items', 'plan', 'schedule']);
   const tools = writer[0].replace(/^marketing:tools=/, '').split(',');
   const declared = new Set((await json('packs/marketing/pack.json')).tools.map((t) => t.name));
   for (const t of tools) assert.ok(declared.has(t), `writer tool ${t} is declared by marketing`);
   assert.ok(tools.includes('draft_save') && tools.includes('plan'), 'the Writer only gets the tools it writes with');
   assert.match(await readFile(new URL('examples/lohi-marketing/soots/writer.md', root), 'utf8'), /blog-lohi/);
+});
+
+test('the Lohi recipe: the company loop is the Editor (Đầu mối) with four schedules, a topic chain into marketing, and no default product repo', async () => {
+  const host = await json('examples/lohi-marketing/deployment.example.json');
+  const pack = await json('packs/company-loop/pack.json');
+  const byId = Object.fromEntries(host.schedules.map(s => [s.id, s]));
+  const mine = host.schedules.filter(x => x.id.startsWith('company-'));
+  assert.deepEqual(mine.map(x => x.id).sort(), ['company-digest', 'company-review', 'company-scoreboard', 'company-watch']);
+  assert.ok(mine.every(x => x.soot === host.default_soot && x.tool.pack === 'company-loop' && x.text));
+  assert.deepEqual([byId['company-scoreboard'].at, byId['company-scoreboard'].every, byId['company-scoreboard'].tool.name], ['06:15', '24h', 'scoreboard_sync']);
+  assert.deepEqual([byId['company-digest'].cron, byId['company-digest'].timezone, byId['company-digest'].tool.input, byId['company-digest'].then.map(x => `${x.pack}_${x.tool}`), byId['company-digest'].wake_when], ['30 8 * * 1', 'Asia/Ho_Chi_Minh', { for_digest: true }, ['company-loop_signals'], { notify: true }]);
+  assert.equal(byId['company-digest'].then[0].input_from, undefined, 'signals takes its own empty input, not the sync output');
+  assert.deepEqual([byId['company-watch'].cron, byId['company-watch'].tool.name], ['*/30 7-23 * * *', 'team_watch']);
+  assert.deepEqual([byId['company-review'].cron, byId['company-review'].tool.name, byId['company-review'].wake_when], ['0 8 * * 1', 'review', undefined]);
+  assert.match(byId['company-digest'].text, /company-digest skill/);
+  assert.ok(pack.skills.some(s => s.name === 'company-digest'));
+  const editor = await json('examples/lohi-marketing/soots/lohi-editor.json');
+  const granted = new Set(editor.packs.find(r => r.startsWith('company-loop:tools=')).slice('company-loop:tools='.length).split(','));
+  for (const t of granted) assert.ok(pack.tools.some(x => x.name === t), `editor tool ${t}`);
+  for (const s of mine) for (const st of [{ tool: s.tool.name }, ...(s.then ?? [])]) assert.ok(granted.has(st.tool ?? st.name), `${s.id} runs company-loop_${st.tool} as the Editor`);
+  assert.ok(!granted.has('decide') && !granted.has('topic_next'), 'the Editor never decides for the founder');
+  // Every env the pack reads is granted from the host; credentials are the Soot\'s operator store.
+  for (const name of host.pack_grants['company-loop'].env) assert.ok(pack.needs.env.includes(name), name);
+  assert.equal(pack.tools.find(t => t.name === 'decide').run.approval, 'operator');
+  const { HOST_ENV } = await import('../examples/lohi-marketing/setup.mjs');
+  assert.equal(HOST_ENV.PRODUCT_REPO, undefined, 'a scratch workspace never points at the real repo');
+  assert.equal(HOST_ENV.SCOREBOARD_URL, 'https://api.lohi2.com/admin/analysis/scoreboard');
 });
 
 test('the Lohi recipe: one video path, the Video Soot runs 2build mvf and the Editor uploads from one shared workspace', async () => {

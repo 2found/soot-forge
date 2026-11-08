@@ -5,6 +5,7 @@
 // key. What is left for a person is printed at the end.
 //
 //   node examples/lohi-marketing/setup.mjs <workspace-dir> [--port 7790] [--no-video] [--blog-remote <git url>]
+//                                       [--product-repo <abs path>] [--cs-runtime-url <url>]
 //
 // Safe to run again: existing files are replaced from the recipe, the claim key
 // and any credential already stored are never touched, no secret is printed.
@@ -12,7 +13,7 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDevOnly } from '../../scripts/archive.mjs';
 
@@ -23,8 +24,12 @@ const forge = resolve(here, '..', '..');
 export const HOST_ENV = {
   PRODUCT_API_URL: 'https://api.lohi2.com',
   SOOT_BROWSER_PERSISTENT_SOOTS: 'lohi-editor',
+  // The scoreboard contract of the Lohi api (company-loop): aggregate numbers, read with the agent_mod key.
+  SCOREBOARD_URL: 'https://api.lohi2.com/admin/analysis/scoreboard',
 };
 // LOHI_BLOG_REMOTE has no default: a workspace set up without `--blog-remote` must never be able to push to the real blog repo.
+// PRODUCT_REPO has no default either: the company loop writes a requirement file into it and spawns a bbs team there, so a scratch
+// workspace never points at the real checkout unless `--product-repo` says so. CS_RUNTIME_URL (`--cs-runtime-url`) is optional.
 
 /**
  * The founder's 2server connection, found without asking: LOHI_REPO, else the kiem-lai checkout
@@ -81,7 +86,7 @@ export function installPack(forgeDir, out, id) {
   return 'copied';
 }
 
-export function build(dir, { port = 7790, video = true, blogRemote, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
+export function build(dir, { port = 7790, video = true, blogRemote, productRepo, csRuntimeUrl, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
   const out = resolve(dir);
   const host = JSON.parse(readFileSync(join(here, 'deployment.example.json'), 'utf8'));
   host.listen = `127.0.0.1:${port}`;
@@ -89,8 +94,8 @@ export function build(dir, { port = 7790, video = true, blogRemote, soot = 'soot
     host.soots = host.soots.filter(f => !f.includes('lohi-video'));
     delete host.tool_hosts?.['lohi-video'];
   }
-  const packs = ['marketing', 'browser-use', ...(video ? ['toolbox'] : [])];
-  const hostEnv = { ...HOST_ENV, ...(blogRemote ? { LOHI_BLOG_REMOTE: blogRemote } : {}), ...(connection ? { LOHI_CONNECTION: connection } : {}) };
+  const packs = ['marketing', 'browser-use', 'company-loop', ...(video ? ['toolbox'] : [])];
+  const hostEnv = { ...HOST_ENV, ...(blogRemote ? { LOHI_BLOG_REMOTE: blogRemote } : {}), ...(productRepo ? { PRODUCT_REPO: productRepo } : {}), ...(csRuntimeUrl ? { CS_RUNTIME_URL: csRuntimeUrl } : {}), ...(connection ? { LOHI_CONNECTION: connection } : {}) };
   if (env) host.env = hostEnv;
   mkdirSync(join(out, 'packs'), { recursive: true });
   mkdirSync(join(out, 'soots'), { recursive: true });
@@ -108,18 +113,26 @@ export const PERSON_STEPS = [
   'Đăng nhập X, Facebook, Reddit trong Nest khi Cần bạn hiện thẻ (mỗi nền tảng một lần bấm).',
   'Đăng nhập Google trong Nest cho Search Console (tuỳ chọn; không có thì chọn chủ đề theo danh mục).',
   'Đăng blog: máy cần git qua SSH tới kho kiem-lai, go, 2server, gcloud đã đăng nhập; thiếu gì Soot báo đúng một thẻ Cần bạn.',
-  'Chiến dịch (tuỳ chọn): khoá API vai trò agent_mod của Lohi, nhập PRODUCT_ADMIN_KEY trong Nest.',
+  'Chiến dịch và bảng số công ty (tuỳ chọn): khoá API vai trò agent_mod của Lohi, nhập PRODUCT_ADMIN_KEY trong Nest.',
+  'Vòng lặp công ty: mở trang Công ty, bấm Go / Để sau / Bỏ cho từng cơ hội sản phẩm (nội dung thì Soot tự chạy). Muốn Soot mở đội bbs:team thì chạy setup với --product-repo; đội cần bbs và Orca trên máy này.',
 ];
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   const flagValue = name => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-  const dir = args.find((a, i) => !a.startsWith('--') && !['--port', '--blog-remote'].includes(args[i - 1]));
-  if (!dir) { console.error('usage: node setup.mjs <workspace-dir> [--port 7790] [--no-video] [--blog-remote <git url>]'); process.exit(2); }
+  const dir = args.find((a, i) => !a.startsWith('--') && !['--port', '--blog-remote', '--product-repo', '--cs-runtime-url'].includes(args[i - 1]));
+  if (!dir) { console.error('usage: node setup.mjs <workspace-dir> [--port 7790] [--no-video] [--blog-remote <git url>] [--product-repo <abs path>] [--cs-runtime-url <url>]'); process.exit(2); }
+  for (const f of ['--product-repo', '--cs-runtime-url']) {
+    const v = flagValue(f);
+    if (args.includes(f) && (!v || v.startsWith('--'))) { console.error(`${f} needs a value.`); process.exit(2); }
+  }
+  const productRepo = flagValue('--product-repo');
+  if (productRepo && !isAbsolute(productRepo)) { console.error('--product-repo needs an absolute path.'); process.exit(2); }
+  const csRuntimeUrl = flagValue('--cs-runtime-url');
   const blogRemote = flagValue('--blog-remote');
   if (args.includes('--blog-remote') && (!blogRemote || blogRemote.startsWith('--'))) { console.error('--blog-remote needs a git address.'); process.exit(2); }
   const port = Number(args[args.indexOf('--port') + 1]) || 7790;
-  const r = build(dir, { port, video: !args.includes('--no-video'), blogRemote });
+  const r = build(dir, { port, video: !args.includes('--no-video'), blogRemote, productRepo, csRuntimeUrl });
   console.log(`Workspace: ${r.out}`);
   console.log(`Packs: ${r.packs.join(', ')}, lohi-blog (kèm ${r.keyMade ? 'khoá ký lượt đăng vừa tự sinh' : 'khoá ký lượt đăng đã có'}, không in ra).`);
   if (!r.env) console.log(`Runtime chưa có \`env\`: khởi động với ${Object.entries(r.hostEnv).map(([k, v]) => `${k}=${v}`).join(' ')}`);
@@ -127,6 +140,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   else console.log('Video: cài thêm `soot add 2found/soot-forge/packs/2build` khi cần làm video.');
   console.log(r.connection ? 'Kết nối 2server: đã tìm thấy và ghi vào env (LOHI_CONNECTION).' : 'Kết nối 2server: chưa thấy .2server/connection.yaml; blog-ready sẽ báo một thẻ Cần bạn.');
   console.log(blogRemote ? 'Kho đăng blog: đã ghi LOHI_BLOG_REMOTE theo --blog-remote.' : 'Kho đăng blog: chưa chọn (không có --blog-remote); Soot sẽ không đăng blog và blog-ready báo một thẻ Cần bạn.');
+  console.log(productRepo ? 'Kho sản phẩm: đã ghi PRODUCT_REPO theo --product-repo (Soot ghi yêu cầu vào docs/requirements/ và mở đội bbs:team khi bạn bấm Go).' : 'Kho sản phẩm: chưa chọn (không có --product-repo); bấm Go cho cơ hội sản phẩm sẽ báo chưa có kho và không mở đội.');
   console.log('Việc chỉ người làm được:');
   PERSON_STEPS.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
 }

@@ -50,6 +50,17 @@
       "credentials": {
         "FILE_ROOT": "workspace"
       }
+    },
+    "company-loop": {
+      "env": [
+        "SCOREBOARD_URL",
+        "PRODUCT_REPO",
+        "BBS_BIN",
+        "BBS_TEAM_AGENT",
+        "CS_RUNTIME_URL",
+        "PATH",
+        "HOME"
+      ]
     }
   },
   "schedules": [
@@ -59,29 +70,40 @@
       "soot": "lohi-writer",
       "timezone": "Asia/Ho_Chi_Minh",
       "tool": {
-        "pack": "marketing",
-        "name": "plan",
+        "pack": "company-loop",
+        "name": "topic_next",
         "input": {
-          "wake": true,
-          "channel": "blog-lohi",
-          "facts_url": "https://api.lohi2.com/novel/v1/app-config",
-          "catalog": {
-            "feed": "https://api.lohi2.com/novel/discovery/feed",
-            "genres": "https://api.lohi2.com/novel/discovery/genres",
-            "search": "https://api.lohi2.com/novel/novels/search",
-            "page": "https://lohi2.com/truyen/{slug}",
-            "links": [
-              "https://lohi2.com/ung-dung",
-              "https://lohi2.com/dich-truyen"
-            ]
-          }
+          "chain": true
         }
       },
       "wake_when": {
         "notify": true
       },
       "text": "marketing_plan found work. Follow the marketing-write skill, section \"The daily plan\": marketing_plan {} returns the brief. If it has a topic, write one article (draft_save, check, schedule). If it has social, write one short post per listed channel from the blog post (kind social, link exactly as given, brief.from = the blog post id), check, schedule. Nobody will answer a question: finish, and end with the one-line result.",
-      "cron": "7 8-21/3 * * *"
+      "cron": "7 8-21/3 * * *",
+      "then": [
+        {
+          "pack": "marketing",
+          "tool": "plan",
+          "label": "Lập kế hoạch bài",
+          "input": {
+            "wake": true,
+            "channel": "blog-lohi",
+            "facts_url": "https://api.lohi2.com/novel/v1/app-config",
+            "catalog": {
+              "feed": "https://api.lohi2.com/novel/discovery/feed",
+              "genres": "https://api.lohi2.com/novel/discovery/genres",
+              "search": "https://api.lohi2.com/novel/novels/search",
+              "page": "https://lohi2.com/truyen/{slug}",
+              "links": [
+                "https://lohi2.com/ung-dung",
+                "https://lohi2.com/dich-truyen"
+              ]
+            }
+          },
+          "input_from": "previous"
+        }
+      ]
     },
     {
       "id": "marketing-dispatch",
@@ -323,6 +345,78 @@
         "notify": true
       },
       "text": "lohi-blog_ready found a prerequisite of publishing the blog that is missing. File its ask as one Cần bạn item with report_blocker (summary, missing, options as given) and end the turn."
+    },
+    {
+      "id": "company-scoreboard",
+      "name": "Đọc bảng số sản phẩm",
+      "soot": "lohi-editor",
+      "every": "24h",
+      "at": "06:15",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "company-loop",
+        "name": "scoreboard_sync",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "company-loop_scoreboard_sync could not read the product scoreboard. If its answer has an ask, file it as one Cần bạn item with report_blocker (summary, missing, options as given) and end the turn; otherwise say its message in one line."
+    },
+    {
+      "id": "company-digest",
+      "name": "Bản tin cơ hội hằng tuần",
+      "soot": "lohi-editor",
+      "cron": "30 8 * * 1",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "company-loop",
+        "name": "scoreboard_sync",
+        "input": {
+          "for_digest": true
+        }
+      },
+      "then": [
+        {
+          "pack": "company-loop",
+          "tool": "signals",
+          "label": "Gom tín hiệu",
+          "input": {}
+        }
+      ],
+      "wake_when": {
+        "notify": true
+      },
+      "text": "Weekly digest. Follow the company-digest skill: company-loop_signals {} gives the packet, rank at most five opportunities (content or product), company-loop_digest_save them, record its outcomes, file its ask with report_blocker, end in one line. If a step failed (its output is attached), say the plain line in one sentence and stop."
+    },
+    {
+      "id": "company-watch",
+      "name": "Theo dõi đội dựng",
+      "soot": "lohi-editor",
+      "cron": "*/30 7-23 * * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "company-loop",
+        "name": "team_watch",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "company-loop_team_watch found a requirement released. Record each item of outcomes with the host outcome tool exactly as given, then end with one line. Do nothing else."
+    },
+    {
+      "id": "company-review",
+      "name": "Chấm kết quả quyết định",
+      "soot": "lohi-editor",
+      "cron": "0 8 * * 1",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "company-loop",
+        "name": "review",
+        "input": {}
+      },
+      "text": "Fills actual_delta of decisions past check_after_days from the scoreboard and keeps the hit rate for the Công ty page; nothing for a model to do."
     }
   ],
   "execution": {

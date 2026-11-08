@@ -36,6 +36,7 @@ on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_im
 | `deployment.example.json` | product `Lohi`, the three Soots, the shared Editor/Video workspace, pack grants, the seven schedules, `approvals: {"marketing_claim": "auto"}` |
 | `soots/lohi-*.json` | Writer, Editor and Video (`flash`), each with a small daily token budget |
 | `soots/*.md` | the Lohi brief (`SOUL.md`) and each role's mission |
+| `packs/company-loop` (Forge) | granted to the Editor (all tools but `decide`) and, for `topic_next`, to the Writer; four schedules `company-scoreboard`, `company-digest`, `company-watch`, `company-review` |
 | `packs/lohi-blog/` | the Lohi-only blog publisher, a local pack: it is not in the Forge catalog |
 
 The topic comes from the tool, not a Soot: `marketing_plan` reads Lohi's public
@@ -112,6 +113,42 @@ needed.
   - Reader handles are dropped after 30 days.
 - **Lean budgets.** No Soot runs on `pro`. Schedules run tools without a model
   and wake the Editor only when a post is due or a person is needed.
+
+## The company loop (insight, build, marketing, support, insight)
+
+The [company-loop pack](../../packs/company-loop/README.md) closes the circle around the
+blog. The Editor is its Lead; the pack is product-neutral and Lohi is only config here
+(`SCOREBOARD_URL`, `PRODUCT_REPO`, the Lohi brief).
+
+```text
+06:15 daily   company_scoreboard_sync  (no model) ─▶ stores the week, appends it to the bbs company baseline
+Mon 08:30     scoreboard_sync{for_digest} ─▶ signals (packet ≤ 3 KiB) ──(notify)──▶ Editor: skill company-digest ─▶ digest_save
+                 content opportunity ─▶ decided by Soot ─▶ topic queued ─▶ topic_next ─▶ marketing_plan ─▶ Writer ─▶ blog (no tap)
+                 product opportunity ─▶ one "Cần bạn" card ─▶ page "Công ty": Go / Để sau / Bỏ        (tap 1)
+Go            requirement file REQ-OP-xxxx.md in PRODUCT_REPO + `bbs team spawn` (never land, release, integrate or seal)
+every 30 min  company_team_watch (no model) ─▶ team delivered ─▶ founder reviews and gives bbs:team's release go   (tap 2)
+              released ─▶ outcome requirement_shipped + a "launch" topic ─▶ marketing writes about it
+Mon 08:00     company_review (no model) ─▶ fills the real change against the baseline; hit = actual at least half of expected
+```
+
+The founder taps twice per product change (Go on the opportunity, and bbs:team's own
+release go) and never for a content opportunity. Marketing receives topics through the
+chain `company-loop.topic_next` then `marketing.plan` (`input_from: previous`): the
+chain merges the topic into the plan call, and `marketing.plan` keeps it until a post about
+it exists, so the Writer's own plan call sees the same topic. No marketing tool was added.
+
+Set the product checkout when you set up the workspace (no default, never the real tree
+in a test):
+
+```bash
+node examples/lohi-marketing/setup.mjs ~/.soot/lohi-marketing --blog-remote <git url> --product-repo /path/to/kiem-lai
+```
+
+Credentials: `PRODUCT_ADMIN_KEY` (an `agent_mod` key, shared with marketing) is entered in
+Nest; `CS_RUNTIME_URL` and `CS_RUNTIME_TOKEN` are optional (support gaps join the digest when
+set). Without the key every loop tool answers a quiet `skipped`. If `bbs` is not on the
+machine a Go still writes the requirement and the page shows the exact command to run.
+
 
 ## Set it up
 
