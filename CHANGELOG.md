@@ -3,6 +3,26 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.11
+
+Baseline: v0.11.10 (7eab4f1). Needs Soot 0.13.13 or later for the Lohi recipe (schedule `then` chains, optional credentials and the `skipped` state).
+
+### Added
+
+- **Tool-only blog publish chain.** The `marketing-blog` schedule (every 10 minutes, 07-22) runs `due {channel}` -> `claim` -> `lohi-blog.publish` -> `record` with no model; it wakes the Editor only when a step fails (who then calls `marketing_fail`). `due` answers `{id, action}` or `{done:true}`; `claim` refusal adds `done:true`; `record` accepts the publisher's `ok` and `status`. `marketing-dispatch` skips the blog channel.
+- **Ready drafts schedule themselves.** `plan` queues a `ready` draft older than one hour; a draft open over 24 hours no longer holds the slot and is reported once.
+- **Social engine.** `plan` wakes the Writer for social drafts only when a signed-in, unpaused channel lacks a draft for a blog post published within 7 days; the brief carries per-channel links with UTM, character limits and subreddits. Nothing runs while all channels are paused or signed out.
+- **Insight ranking.** Next topic by Search Console clicks, else campaign leads, else plain rotation; a genre written twice with no effect goes last. A `report` tool and a 21:00 `marketing-report` schedule give at most six plain lines.
+- **`channels_probe`**, a tool-only sign-in probe (chain around `browser-use.control`) that unpauses a founder-confirmed channel only when it is really signed in and re-raises one that is signed out; backs off 12 h after two tries.
+- **Page `set_limits`** edits a channel's `cap_per_day`, `spacing_min` and `reply_cap_per_day`.
+- **Recipe `setup.mjs`** finds `.2server/connection.yaml` (LOHI_REPO, a parent checkout, then `~/.2server`) and writes `LOHI_CONNECTION` into the host env.
+
+### Changed
+
+- **Optional credentials.** Search Console and campaign credentials are optional: `gsc_sync` and `campaign_report {}` answer a quiet `{skipped:true, reason_code:'optional_credential', key}`; campaign operations on the page answer `needs_credential` with a link to Thiết lập, while reschedule, pull, restore, pause and `set_limits` need no key.
+- **Leaner Editor.** `marketing:tools=...` (21 tools) and `lohi-blog:tools=publish,unpublish,find,ready`: 47 tools / 31,953 B down to 29 tools / 18,792 B; the Writer's `marketing:tools` list is 4,437 B.
+- `lohi-blog_ready`, `marketing_due` with no needs and a signed-in probe answer `resolves_need:true`, so the matching Cần bạn item clears itself.
+
 ## 0.11.10
 
 Baseline: v0.11.9 (51a5b3f). Needs Soot 0.13.12 or later for the Lohi recipe (workspace `env`, the `pack:tools=` selector, schedule catch-up).
