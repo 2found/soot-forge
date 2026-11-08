@@ -50,7 +50,8 @@ async function run(/** @type {() => Promise<void>} */ work) {
 }
 /** A write keeps its request id until an answer comes, so a retry never acts twice. */
 async function act(/** @type {string} */ op, rest = {}) {
-  S.pending = S.pending?.op === op ? S.pending : { request_id: randomID('mk', 12), op, rest };
+  // A retry keeps its request id only while it is the same action on the same thing.
+  S.pending = S.pending?.op === op && JSON.stringify(S.pending.rest) === JSON.stringify(rest) ? S.pending : { request_id: randomID('mk', 12), op, rest };
   const p = S.pending;
   await run(async () => {
     const r = await bridge.call('action', M.actionBody(p.request_id, p.op, p.rest), p.request_id);
@@ -337,9 +338,13 @@ function askUnpublish(/** @type {any} */ p) {
 }
 const closeConfirm = () => { S.confirm = null; render(); };
 
+let shown = '';
 function render() {
   const t = S.t, root = /** @type {HTMLElement} */ (document.getElementById('app'));
   const d = S.data;
+  // Opening a post or a campaign (or going back) starts at its top, not where the list was scrolled.
+  const here = `${d?.page ?? ''}/${d?.post?.id ?? ''}/${d?.campaign?.id ?? d?.campaign ?? ''}`;
+  if (here !== shown) { shown = here; window.scrollTo(0, 0); }
   const out = [];
   if (S.loadError) out.push(h('div', { class: 'notice err', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load), 'btn sm')));
   else if (!d) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
@@ -353,7 +358,10 @@ function render() {
     h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': c.title, onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeConfirm(); } },
       h('b', { class: 'dialog-title' }, c.title), h('span', { class: 'muted' }, c.help ?? t.unpublishHelp(c.title)),
       h('div', { class: 'line end' }, button(c.keep ?? t.keep, c.keepRun ? () => { S.confirm = null; /** @type {() => void} */ (c.keepRun)(); render(); } : closeConfirm, c.keepRun ? 'btn primary' : 'btn out', { 'data-keep': '' }), button(c.yes, () => { S.confirm = null; c.run(); }, c.keepRun || c.help ? 'btn out' : 'btn danger'))));
+  const hadDialog = !!root.querySelector('.dialog');
   root.replaceChildren(...out);
+  // A new dialog takes focus, so Tab and Enter act on it and never on the page behind.
+  if (c && !hadDialog) /** @type {HTMLElement | null} */ (root.querySelector('[data-keep]'))?.focus();
 }
 
 // ---------- Chiến dịch (#p5-campaigns, #p5-campaign-new, #p5-campaign-detail, #p5-campaign-api-error) ----------
@@ -396,7 +404,7 @@ function campaignDetail(/** @type {any} */ d) {
   const noLinks = d.links_missing.length > 0, unread = !d.read;
   out.push(h('div', { class: `notice ${noLinks ? 'plain warn' : 'plain'}`, role: 'status' }, h('b', {}, noLinks ? 'Cần làm' : 'Soot đang theo dõi'),
     h('span', {}, noLinks ? 'Chưa đủ liên kết cho mọi kênh, nên lượt bấm và đăng ký của kênh thiếu chưa đếm được. Tạo lại liên kết.' : unread ? 'Soot đọc số lượt bấm và đăng ký mỗi sáng 07:00. Bấm Đọc số ngay nếu muốn xem liền.' : 'Soot đọc lại số mỗi sáng 07:00 và báo bạn khi dùng 80% token. Không cần làm gì.'),
-    button(noLinks ? 'Tạo lại liên kết' : '↻ Đọc số ngay', () => void (noLinks ? act('campaign_save', { campaign: { id: c.id, name: c.name, goal: { metric: c.goal.metric, target: c.goal.target }, channels: c.channel_ids, starts: M.localInput(c.starts).slice(0, 10), ends: M.localInput(c.ends).slice(0, 10), token_budget: c.token_budget } }) : act('campaign_refresh', { campaign_id: c.id })), 'btn sm primary')));
+    button(noLinks ? 'Tạo lại liên kết' : '↻ Đọc số ngay', () => void (noLinks ? act('campaign_save', { campaign: { id: c.id, name: c.name, goal: { metric: c.goal.metric, target: c.goal.target }, channels: c.channel_ids, starts: M.localInput(c.starts).slice(0, 10), ends: M.localInput(c.ends).slice(0, 10), token_budget: c.token_budget } }) : act('campaign_refresh', { campaign_id: c.id })), (noLinks || unread) ? 'btn sm primary' : 'btn sm out')));
   const goal = c.goal, of = (/** @type {string} */ m) => (goal.metric === m ? ` / ${M.num(goal.target)}` : '');
   out.push(failed
     ? h('div', { class: 'kpis four' }, kpi('Đã đăng', n(t.published), null), kpi('Tiếp cận', n(t.reach), null), kpi('Lượt bấm', '—', 'chưa rõ'), kpi('Đăng ký', '—', 'chưa rõ'))
@@ -413,7 +421,7 @@ function campaignDetail(/** @type {any} */ d) {
   if (d.links.length) out.push(h('div', { class: 'card pad stack' }, h('h3', {}, 'Liên kết của chiến dịch'), h('small', { class: 'muted' }, 'Dán đúng liên kết của kênh vào bài; Writer tự gắn khi viết bài cho chiến dịch.'),
     ...d.links.map((/** @type {any} */ l) => h('div', { class: 'line' }, h('b', {}, l.label), h('button', { class: 'link inline', type: 'button', title: l.url, onclick: () => bridge.open(l.url) }, l.url))),
     d.writer && button('Nhờ Writer viết bài cho chiến dịch', () => bridge.open(M.campaignWriteLink(d.writer, c, d.links)), 'btn sm out')));
-  out.push(h('p', { class: 'muted' }, `${M.tokenLine(c.tokens_used, c.token_budget)} Đăng ký tính theo nguồn đầu tiên (utm) khi tạo tài khoản.`));
+  out.push(h('p', { class: 'muted' }, `${M.tokenLine(c.tokens_used, c.token_budget)} Đăng ký tính theo liên kết người đó bấm đầu tiên khi tạo tài khoản.`));
   return out;
 }
 

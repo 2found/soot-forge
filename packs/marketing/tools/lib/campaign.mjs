@@ -39,9 +39,9 @@ export function targetOf(landing, id, key) {
 }
 
 const API_WHY = {
-  no_api: () => 'Soot chưa được đặt địa chỉ api (PRODUCT_API_URL)',
-  no_key: () => 'Chưa có khoá PRODUCT_ADMIN_KEY trong Nest',
-  forbidden: host => `${host} từ chối khoá PRODUCT_ADMIN_KEY (khoá cần quyền tạo liên kết và đọc báo cáo chiến dịch)`,
+  no_api: () => 'Soot chưa biết địa chỉ api của Lohi, hãy điền ở Thiết lập',
+  no_key: () => 'Chưa có khoá quản trị Lohi, hãy thêm ở Thiết lập',
+  forbidden: host => `${host} từ chối khoá quản trị Lohi: hãy thay khoá khác ở Thiết lập (khoá cần quyền tạo liên kết và đọc báo cáo chiến dịch)`,
   api_unreachable: host => `${host} không trả lời`,
   api_failed: host => `${host} trả lỗi`,
   api_bad: host => `${host} trả dữ liệu không đúng dạng`,

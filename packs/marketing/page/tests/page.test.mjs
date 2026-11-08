@@ -183,3 +183,10 @@ test('a runtime refusal in English reads as one Vietnamese sentence with the way
   assert.match(text, /^Trang gửi một yêu cầu không hợp lệ/);
   assert.doesNotMatch(text, /operation parameters/);
 });
+
+test('a dialog sits above its scrim, or every click on its buttons only closes it', async () => {
+  const css = await readFile(new URL('app.css', page), 'utf8');
+  const z = sel => Number(new RegExp(`${sel.replace('.', '\\.')} \\{[^}]*z-index: (\\d+)`).exec(css)?.[1] ?? 0);
+  assert.ok(z('.dialog') > z('.scrim'), `dialog ${z('.dialog')} vs scrim ${z('.scrim')}`);
+  assert.ok(z('.sheet') > z('.scrim'), 'the campaign sheet sits above its scrim too');
+});
