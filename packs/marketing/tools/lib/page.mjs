@@ -160,6 +160,8 @@ export async function page_action(input, deps) {
       await clearAttention(store, 'late', p.ref);
       await clearAttention(store, 'uncertain', p.ref);
       await store.update('posts', [eq('ref', p.ref)], { state: 'pulled', reason: 'Bạn đã bỏ bài.' });
+      // A dropped answer closes the reader reply it was for; nothing answers it later on its own.
+      if (p.kind === 'reply' && p.parent) await store.update('replies', [eq('ref', p.parent), eq('state', 'open')], { state: 'ignored' });
       return { id: p.ref, state: 'pulled' };
     }
     case 'confirm_posted': {

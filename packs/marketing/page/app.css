@@ -60,3 +60,4 @@ p { margin: 0; }
 .notice { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--mk-info-bg); border-radius: var(--mk-radius); padding: 10px 12px; }
 .notice.err { background: var(--mk-danger-bg); }
 .notice.success { background: transparent; color: var(--mk-success); padding: 0; }
+.input.sm { font: inherit; font-size: 12px; min-width: 0; width: 14em; max-width: 100%; padding: 3px 8px; border: 1px solid var(--mk-border); border-radius: var(--mk-radius); background: var(--mk-card); color: var(--mk-fg); }

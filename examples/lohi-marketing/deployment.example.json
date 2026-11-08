@@ -44,7 +44,7 @@
       "wake_when": {
         "notify": true
       },
-      "text": "marketing_due says something is due or needs a person. Follow the marketing-publish skill, section \"Without a hub\": claim, publish through the channel's publisher (lohi-blog for the blog, the marketing-browser-post skill for X, Facebook and Reddit), record. File one report_blocker per needs item not yet raised, then marketing_raised."
+      "text": "marketing_due says something is due or needs a person. Follow the marketing-publish skill, section \"Without a hub\": claim, publish through the channel's publisher (lohi-blog for the blog, the marketing-browser-post skill for X, Facebook and Reddit), record. For the needs items not yet raised, call marketing_raised with their keys, then end with one report_blocker naming each platform and what the person does."
     },
     {
       "id": "marketing-channels",

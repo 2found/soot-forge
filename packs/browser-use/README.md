@@ -60,8 +60,9 @@ so they never drive the profile at once; `view` from any of its conversations
 shows the same browser, so the person signs in once. The Soot ID comes only from
 the host envelope; input never selects a profile. Unlisted Soots, and every Soot
 when the variable is unset, keep one profile per conversation. `soot service`
-passes only `SOOT_HOME` and `PATH` to runtimes, so set it in the shell that
-starts Soot or with `launchctl setenv`.
+passes only the environment it starts with to runtimes, and `soot service start`
+starts from the calling shell: export it there. The start at login does not
+carry it.
 Never use global close-all. Keep `.browser/` private and out of backups/archives
 shared with others: profiles contain website credentials.
 

@@ -45,9 +45,10 @@ Use `snapshot -i`. Classify the page with these checks, in this order:
    `reason:"layout_changed"` and a short note of what you saw.
 
 `needs_person` pauses only that channel. Nothing was posted. The other
-channels go on. Then file one `report_blocker` per platform, naming it:
+channels go on. The person hears of it in the one `report_blocker` that ends
+your turn (marketing-publish step 6), one line per platform, naming it:
 "Đăng nhập X trong trình duyệt của Nest", "X đổi giao diện: không tìm thấy ô
-soạn bài", or "X hỏi captcha". Include the link to this conversation.
+soạn bài", or "X hỏi captcha".
 
 ## Platforms
 

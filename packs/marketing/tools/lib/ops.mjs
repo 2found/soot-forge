@@ -70,15 +70,15 @@ export async function draft_save(input, { store, now, soot }) {
   if (!['article', 'social', 'video', 'reply'].includes(kind)) fail('invalid_request', 'kind is article, social, video or reply.');
   if (typeof body !== 'string' || !body.trim()) fail('invalid_request', 'body is required.');
   const ch = await channel(store, chKey);
+  if (!id && request_id) {
+    const seen = await store.one('posts', [eq('request_id', request_id)]);
+    if (seen) return { id: seen.ref, revision: seen.revision, content_hash: seen.content_hash, state: seen.state, lint: briefLint(seen, ch), replayed: true };
+  }
   // A reply answers one saved reader reply; its target comes from that row, never from the model.
-  const target = kind === 'reply' ? await answerable(store, parent, ch, body) : null;
+  const target = kind === 'reply' ? await answerable(store, parent, ch, body, id) : null;
   const fields = { kind, channel: ch.key, campaign: campaign ?? null, parent: parent ?? null, brief: target ?? brief ?? null, title: brief?.title ?? null, body, link: link ?? null, asset_ids: asset_ids ?? null };
   const lint = briefLint(fields, ch);
   if (!id) {
-    if (request_id) {
-      const seen = await store.one('posts', [eq('request_id', request_id)]);
-      if (seen) return { id: seen.ref, revision: seen.revision, content_hash: seen.content_hash, state: seen.state, lint: briefLint(seen, ch), replayed: true };
-    }
     const row = { ...fields, ref: ref(), request_id: request_id ?? null, content_hash: hashOf(fields), state: 'draft', reason: null, revision: 1, author_soot: soot ?? null };
     await store.insert('posts', row);
     return { id: row.ref, revision: 1, content_hash: row.content_hash, state: 'draft', lint };
@@ -96,10 +96,13 @@ export async function draft_save(input, { store, now, soot }) {
 /** The reply row a `kind:"reply"` post answers, or a refusal: only `safe`
  * replies are answered; an `account` reply gets exactly the channel's fixed
  * pointer (`rules.support_reply`); complaint, money and flagged never. */
-export async function answerable(store, parent, ch, body) {
+export async function answerable(store, parent, ch, body, self = null) {
   if (typeof parent !== 'string' || !parent) fail('invalid_request', 'A reply names the saved reply it answers in parent (R-…).');
   const r = await store.one('replies', [eq('ref', parent)]);
   if (!r || r.channel !== ch.key) fail('not_found', `Không có phản hồi ${parent} trên kênh này.`);
+  // One answer per reader reply: an answered one, or one another live draft already answers, is refused.
+  const others = (await store.query('posts', [eq('parent', parent)], { limit: 20 })).filter(o => o.ref !== self && !['refused', 'pulled', 'removed'].includes(o.state));
+  if (r.state === 'answered' || others.length) fail('not_answerable', `Phản hồi ${parent} đã có câu trả lời${others.length ? ` (${others[0].ref})` : ''}; Soot không trả lời hai lần.`);
   const pointer = ch.rules?.support_reply;
   if (r.class === 'account') {
     if (!pointer || String(body).trim() !== pointer.trim()) fail('not_answerable', 'Câu hỏi tài khoản chỉ được trả lời bằng câu chỉ đường Hỗ trợ Lohi cố định.');
@@ -217,6 +220,8 @@ export async function due(input, { store, now }) {
     const stuck = q.intent_id && now - ms(q.intent_at) > INTENT_STALE_MS;
     if (q.intent_id && !stuck) continue;
     if (q.action === 'unpublish') { out.unpublish.push(q.post); continue; }
+    // A paused channel is one Cần bạn item, not one per held post (claim still refuses a stale one).
+    if (!q.intent_id && (settings.paused_all || ch?.paused)) continue;
     // A stale item is never posted on its own (a stuck intent is only verified, never re-posted).
     if (!q.intent_id && now - ms(q.scheduled_at) >= settings.stale_after_h * HOUR) {
       out.late.push(q.post);
@@ -276,7 +281,7 @@ export async function claim(input, { store, now, env }) {
   const p = await post(store, input.id);
   const q = await store.one('queue', [eq('post', p.ref)]);
   if (!q || (q.action ?? 'publish') !== action) return { refused: { code: 'not_queued', reason: action === 'unpublish' ? 'Bài không chờ gỡ.' : 'Bài không có trong hàng đợi.' } };
-  if ((action === 'reply') !== (p.kind === 'reply')) return { refused: { code: 'invalid_action', reason: 'Trả lời dùng action reply; bài đăng dùng publish.' } };
+  if (action !== 'unpublish' && (action === 'reply') !== (p.kind === 'reply')) return { refused: { code: 'invalid_action', reason: 'Trả lời dùng action reply; bài đăng dùng publish.' } };
   const ch = await channel(store, p.channel);
   const settings = await getSettings(store);
   const send = action !== 'unpublish';
@@ -299,7 +304,7 @@ export async function claim(input, { store, now, env }) {
     if (ms(q.scheduled_at) > now) return { refused: { code: 'not_due', reason: 'Chưa tới giờ đăng.' } };
     if (now - ms(q.scheduled_at) >= settings.stale_after_h * HOUR) return refuse(store, p, 'late', `Bài lỡ giờ: quá ${settings.stale_after_h} giờ so với lịch; Soot không tự đăng bài lỡ giờ.`);
     if (p.kind === 'reply') {
-      try { await answerable(store, p.parent, ch, p.body); } catch (e) { return refuse(store, p, e.code, e.message, { refusePost: true }); }
+      try { await answerable(store, p.parent, ch, p.body, p.ref); } catch (e) { return refuse(store, p, e.code, e.message, { refusePost: true }); }
     }
     if (p.content_hash !== hashOf(p)) return refuse(store, p, 'hash_mismatch', 'Nội dung đổi sau khi kiểm tra.', { refusePost: true });
     const gi = await guardInputs(store, p, now);
@@ -354,12 +359,14 @@ export async function failIntent(input, { store, now }) {
   const status = input.status;
   if (!['failed', 'needs_person', 'uncertain'].includes(status)) fail('invalid_request', 'status is failed, needs_person or uncertain.');
   const reason = String(input.reason ?? '').slice(0, 500) || 'Không rõ lý do.';
+  // A pause names what the person must do; an unknown reason would ask for the wrong thing.
+  const code = status === 'needs_person' ? PAUSE_REASONS.find(c => reason.startsWith(c)) : null;
+  if (status === 'needs_person' && !code) fail('invalid_request', `needs_person reason starts with ${PAUSE_REASONS.join(', ')}; anything else is failed or uncertain.`);
   if (row.status !== 'intent') return { state: (await post(store, row.post)).state, replayed: true };
   const unpub = row.action === 'unpublish';
   const q = await store.one('queue', [eq('post', row.post), eq('intent_id', row.intent_id)]);
   if (status === 'needs_person') {
     // Only that channel pauses; the reason is the platform code Cần bạn names.
-    const code = PAUSE_REASONS.find(c => reason.startsWith(c)) ?? 'signed_out';
     await store.update('channels', [eq('key', row.channel)], { paused: true, paused_reason: code });
   }
   // An earlier attempt may have gone out (verify_first) and the publisher could
@@ -543,7 +550,7 @@ export async function channels_setup(input, { store }) {
     const existed = !!(await store.one('channels', [eq('key', c.id)]));
     const row = await channel(store, c.id);
     const set = {};
-    for (const f of CHANNEL_FIELDS) if (Number.isInteger(c[f]) && c[f] >= 0 && row[f] == null) set[f] = c[f];
+    for (const f of CHANNEL_FIELDS) if (Number.isInteger(c[f]) && c[f] >= 0 && (!existed || row[f] == null) && row[f] !== c[f]) set[f] = c[f];
     if (typeof c.account === 'string' && c.account && !row.account) set.account = c.account.slice(0, 200);
     if (c.rules && typeof c.rules === 'object' && !Array.isArray(c.rules)) {
       const rules = { ...(row.rules ?? {}) };
@@ -617,7 +624,8 @@ export async function replies_sync(_input, { store, now, fetch }) {
   const errors = [];
   for (const t of await watchedThreads(store, now)) {
     const ch = channels.find(c => c.key === (t.channel ?? redditKey));
-    if (!ch) continue;
+    // Without the channel's account our own comments look like readers'; read nothing.
+    if (!ch || !ch.account) continue;
     let xml;
     try {
       const res = await fetch(t.url.replace(/\/?(\?.*)?$/, '/.rss'), { headers: { Accept: 'application/atom+xml', 'User-Agent': 'soot-marketing/1.0' } });
@@ -630,7 +638,7 @@ export async function replies_sync(_input, { store, now, fetch }) {
     }
     const own = String(ch.account ?? '').replace(/^.*\/(u|user)\//, '').replace(/\/.*$/, '').toLowerCase();
     for (const c of redditComments(xml)) {
-      if (own && c.author_handle?.toLowerCase() === own) continue;
+      if (c.author_handle?.toLowerCase() === own) continue;
       const ref = replyRef(ch.key, c.reply_url);
       if (await store.one('replies', [eq('ref', ref)])) continue;
       await store.insert('replies', { ref, channel: ch.key, thread_url: t.url, reply_url: c.reply_url, parent_post: t.parent_post, author_handle: c.author_handle, text: c.text, class: null, state: 'new', reply_post: null });

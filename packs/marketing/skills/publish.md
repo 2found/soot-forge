@@ -86,13 +86,15 @@ needed.
 4. `unpublish` ids follow the same steps with `action: "unpublish"`.
 5. `late` items are never posted on their own: they are in `needs` as "Bài lỡ
    giờ".
-6. For each item in `needs` that is not `raised`, file one `report_blocker`
-   naming the platform and what the person does: sign in in Nest's browser
+6. Items in `needs` that are not `raised` go to a person. `report_blocker`
+   stops your turn, so first call `marketing_raised {keys}` with all their
+   keys (the schedule then does not wake for them again), then, as the last
+   call, one `report_blocker` for all of them: `summary` names every platform
+   ("Đăng nhập X, Facebook trong trình duyệt của Nest"), `missing` one line per
+   item with the platform and what the person does: sign in in Nest's browser
    panel and choose resume, look at a changed page, answer "Không chắc đã
    đăng chưa" (live → paste the link; not live → post again; or drop it),
-   or post a late item now, reschedule or drop it. Then call
-   `marketing_raised {keys}` with their keys so the schedule does not wake
-   for them again. The person's answers are Hàng đợi page actions
+   or post a late item now, reschedule or drop it. The person's answers are Hàng đợi page actions
    (`resume`, `confirm_posted`, `confirm_not_posted`, `post_now`, `restore`,
    `drop`).
 

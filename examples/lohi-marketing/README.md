@@ -87,11 +87,12 @@ every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-rep
 5. Install `browser-use` (`soot add 2found/soot-forge/packs/browser-use`) and the
    browser (**Cài trình duyệt** in Nest, or `soot browser install`).
    - Start the runtime with `SOOT_BROWSER_PERSISTENT_SOOTS=lohi-editor` in its
-     environment. With `soot serve`, export the variable first. With
-     `soot service install`, run
-     `launchctl setenv SOOT_BROWSER_PERSISTENT_SOOTS lohi-editor` (macOS), then
-     restart the service: the service passes on only the environment it
-     starts with.
+     environment. With `soot serve`, export the variable first. The
+     service passes on only the environment it starts with, and
+     `soot service start` starts it from the calling shell. Restart it with
+     `soot service stop && SOOT_BROWSER_PERSISTENT_SOOTS=lohi-editor soot service start`.
+     The start at login does not carry the variable yet: after a Mac
+     restart, run that line again.
    - Without the variable, each Editor conversation has its own browser and
      sign-ins do not carry over.
 6. Check the accounts in the `marketing-channels` schedule: the X handle, the

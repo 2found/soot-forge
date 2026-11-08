@@ -267,7 +267,7 @@ test('AC6: only safe replies are answered, through check and claim under the rep
 test('AC6: the reply cap and spacing are the channel\'s own, apart from posts', async () => {
   const w = world();
   await w.call('channels_setup', { channels: [{ id: 'x-lohi', reply_cap_per_day: 1 }] });
-  w.store.data.channels[0].reply_cap_per_day = 1;
+  assert.equal(w.ch('x-lohi').reply_cap_per_day, 1, 'a channel created now takes the seeded cap, not the platform default');
   await w.page('resume', { channel: 'x-lohi' });
   const out = await w.call('reply_save', { channel: 'x-lohi', items: [1, 2].map(i => ({ reply_url: `https://x.com/r${i}/status/${i}`, author_handle: `r${i}`, text: 'Hay quá', class: 'safe' })) });
   const ids = [];
@@ -339,4 +339,81 @@ test('AC11: unpublish deletes through the browser claim and records removed', as
 test('AC11: Facebook Page rules apply to facebook-<account> channels', () => {
   assert.equal(checkPlatform({ kind: 'social', body: 'Like nếu bạn cũng mê truyện' }, { key: 'facebook-lohi', ...defaultsFor('facebook-lohi') }).code, 'engagement_bait');
   assert.equal(checkPlatform({ kind: 'social', body: 'x'.repeat(300) }, { key: 'x-lohi', ...defaultsFor('x-lohi') }).code, 'too_long');
+});
+
+// ---- p3 QA review repairs ----
+
+async function answeredReply(w) {
+  await seeded(w);
+  const [r] = (await w.call('reply_save', { channel: 'x-lohi', items: [{ reply_url: 'https://x.com/reader_vn/status/11', author_handle: 'Reader_VN', text: 'Chương 3 hay quá', class: 'safe' }] })).saved;
+  const d = await w.call('draft_save', { request_id: 'a1', kind: 'reply', channel: 'x-lohi', parent: r.id, body: 'Cảm ơn @reader_vn! Chương 4 còn hay hơn.' });
+  assert.equal((await w.call('check', { id: d.id, revision: 1, verdict: 'pass', reasons: [] })).verdict, 'pass', 'the reader\'s own handle in any case is not personal data');
+  await w.call('schedule', { id: d.id, scheduled_at: new Date(w.now - MIN).toISOString() });
+  return { r: r.id, d: d.id };
+}
+
+test('AC6: a reader reply is answered once — a second draft, before or after the first goes out, is refused', async () => {
+  const w = world();
+  const { r, d } = await answeredReply(w);
+  await assert.rejects(w.call('draft_save', { request_id: 'a2', kind: 'reply', channel: 'x-lohi', parent: r, body: 'Cảm ơn bạn nhiều nhé!' }), { code: 'not_answerable' });
+  assert.equal((await w.call('draft_save', { request_id: 'a1', kind: 'reply', channel: 'x-lohi', parent: r, body: 'x' })).replayed, true, 'a replay is still a replay');
+  const c = (await w.call('claim', { id: d, action: 'reply' })).claim;
+  await w.call('record', { intent_id: c.intent_id, url: 'https://x.com/lohi2com/status/41' });
+  await assert.rejects(w.call('draft_save', { request_id: 'a3', kind: 'reply', channel: 'x-lohi', parent: r, body: 'Cảm ơn lần nữa!' }), { code: 'not_answerable' });
+});
+
+test('AC11: a published reply can be unpublished from Nest like a post', async () => {
+  const w = world();
+  const { d } = await answeredReply(w);
+  const c = (await w.call('claim', { id: d, action: 'reply' })).claim;
+  await w.call('record', { intent_id: c.intent_id, url: 'https://x.com/lohi2com/status/42' });
+  assert.equal((await w.page('unpublish', { id: d })).unpublish, 'queued');
+  const u = (await w.call('claim', { id: d, action: 'unpublish' })).claim;
+  assert.deepEqual([u.action, u.url], ['unpublish', 'https://x.com/lohi2com/status/42']);
+  assert.deepEqual(await w.call('record', { intent_id: u.intent_id }), { state: 'removed' });
+  assert.deepEqual((await w.call('due', {})).unpublish, [], 'the removal is not asked for again');
+});
+
+test('AC6: dropping a reply draft closes its reader reply', async () => {
+  const w = world();
+  const { r, d } = await answeredReply(w);
+  await w.page('drop', { id: d });
+  assert.equal(w.store.data.replies.find(x => x.ref === r).state, 'ignored');
+});
+
+test('AC5: needs_person names a platform code; anything else is refused before the channel pauses', async () => {
+  const w = world();
+  await seeded(w);
+  const id = await post(w);
+  const c = (await w.call('claim', { id, action: 'publish' })).claim;
+  await assert.rejects(w.call('fail', { intent_id: c.intent_id, status: 'needs_person', reason: 'The layout changed' }), { code: 'invalid_request' });
+  assert.equal(w.ch('x-lohi').paused, false);
+  await w.call('fail', { intent_id: c.intent_id, status: 'needs_person', reason: 'captcha: X asked to verify' });
+  assert.deepEqual([w.ch('x-lohi').paused, w.ch('x-lohi').paused_reason], [true, 'captcha']);
+});
+
+test('AC5: a channel paused for a sign-in is one Cần bạn item, not one "Bài lỡ giờ" per held post', async () => {
+  const w = world();
+  await seeded(w);
+  await post(w); await post(w);
+  await w.page('pause', { channel: 'x-lohi' });
+  await w.store.update('channels', [{ column: 'key', op: 'eq', value: 'x-lohi' }], { paused_reason: 'signed_out' });
+  w.now += 7 * H;
+  let due = await w.call('due', {});
+  assert.deepEqual([due.late, due.needs.filter(x => x.channel === 'x-lohi').map(x => x.kind)], [[], ['channel']]);
+  await w.page('resume', { channel: 'x-lohi' });
+  due = await w.call('due', {});
+  assert.deepEqual([due.publish, due.late.length], [[], 2], 'once it can post, stale items are still never posted on their own');
+});
+
+test('AC6: replies_sync reads no Reddit thread for a channel whose account is unknown', async () => {
+  const w = world();
+  await w.call('channels_setup', { channels: [{ id: 'reddit-lohi' }] });
+  await w.page('resume', { channel: 'reddit-lohi' });
+  const r = await post(w, { channel: 'reddit-lohi', body: 'What xianxia hooked you this year? Ours is a slow-burn cultivation story.' });
+  await w.call('record', { intent_id: (await w.call('claim', { id: r, action: 'publish' })).claim.intent_id, url: 'https://www.reddit.com/r/noveltranslations/comments/abc/x/' });
+  let fetched = 0;
+  w.fetch = async () => { fetched++; return { ok: true, status: 200, text: async () => RSS }; };
+  const out = await w.call('replies_sync', {});
+  assert.deepEqual([fetched, out.saved], [0, 0]);
 });

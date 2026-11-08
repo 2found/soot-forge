@@ -55,7 +55,8 @@ check and schedule it as it is; never change its text.
 ## Raise the rest
 
 `marketing_due` lists every `complaint`, `money`, `account` and `flagged`
-reply in `needs`. For each item not yet `raised`, file one `report_blocker`
-with the platform, the reply's text in quotes, the class label and the reply
-link. Then call `marketing_raised {keys}`. Never answer these yourself and
+reply in `needs`. For the items not yet `raised`, call `marketing_raised
+{keys}` first, then, as the last call of your turn (it stops the turn), one
+`report_blocker` with one line per item: the platform, the reply's text in
+quotes, the class label and the reply link. Never answer these yourself and
 never pass a reader's details to another Soot.

@@ -108,7 +108,7 @@ export function checkPersonal(text, { replyTarget } = {}) {
   if (PHONE.test(s)) hits.push('số điện thoại');
   if (NATIONAL_ID.test(s.replace(PHONE, ''))) hits.push('số giống số giấy tờ');
   // Every handle counts: a reply may name its own reader, and no one else.
-  const other = [...s.matchAll(new RegExp(HANDLE.source, 'g'))].map(m => m[1]).find(h => h !== replyTarget);
+  const other = [...s.matchAll(new RegExp(HANDLE.source, 'g'))].map(m => m[1]).find(h => h.toLowerCase() !== String(replyTarget ?? '').toLowerCase());
   if (other) hits.push(`tên tài khoản @${other}`);
   return hits.length === 0
     ? { rule: 'personal_data', ok: true, detail: 'Không dữ liệu cá nhân' }
