@@ -6,10 +6,16 @@ share the [marketing pack](../../packs/marketing/README.md)'s own storage. The
 [Lohi blog publisher](packs/lohi-blog/README.md), a local pack that ships with
 this recipe, puts posts on `blog.lohi2.com`.
 
-**Needs Soot 0.13.13 or later.** The recipe uses schedule `then` chains, optional
+**Needs Soot 0.13.14 or later.** The recipe uses schedule `then` chains, optional
 credentials (a quiet `skipped`), the workspace `env` field, the `marketing:tools=`
 pack selector and schedule catch-up; an older runtime refuses the deployment or
-cannot run the `marketing-blog` and `marketing-probe` chains.
+cannot run the `marketing-blog` and `marketing-probe` chains. The marketing pack
+(storage version 4) also declares table `description`s, which Soot 0.13.13
+refuses in `pack.json`: update Soot first.
+
+**`setup.mjs` requires `--blog-remote <git url>` to publish.** There is no default
+blog repository (since 0.11.12); without the flag the workspace is built but the
+blog chain does not start. See [Set it up](#set-it-up) below.
 
 ```text
 08:00       marketing_plan ──(a blog slot is free, once a day)──▶ Writer: plan {} brief ─▶ draft_save ─▶ check ─▶ schedule

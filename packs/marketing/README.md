@@ -6,6 +6,8 @@ is, who it is for and how it sounds come from the team's brief (`team.brief` in
 team memory, asked by the lead Soot when it builds the team) and from a product's own
 skill, never from this pack. Installing it grants nothing.
 
+Needs Soot 0.13.14 or later (storage version 4 declares table `description`s; Soot 0.13.13 refuses them).
+
 | skill | for | tools |
 | --- | --- | --- |
 | `marketing-radar` | the Soot that watches sources (hub teams) | `radar_feeds`, `radar_scan`, `radar_items`, `radar_mark` |

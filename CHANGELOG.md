@@ -3,6 +3,28 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.12
+
+Baseline: v0.11.11 (1f480dd). **Needs Soot 0.13.14 or later**: the marketing pack's storage version 4 declares table `description`s, which Soot 0.13.13 refuses in `pack.json` (update Soot before the pack). The Lohi recipe needs 0.13.14 too.
+
+### Breaking
+
+- **`examples/lohi-marketing/setup.mjs` needs `--blog-remote <git url>`; there is no default blog repository any more.** Without it the workspace is still built, `LOHI_BLOG_REMOTE` is not written, the blog chain does not start and `lohi-blog_ready` raises one Cần bạn card ("Chưa chọn kho đăng blog"). The live workspace passes the real blog address; any test or scratch workspace passes a local bare repo, so it can never push to the real blog. `lohi-blog` also has no built-in default for `LOHI_BLOG_REMOTE`. Run setup again with the address if a workspace was built without it (setup rewrites the file).
+
+### Added
+
+- **Marketing page next steps.** Every post and channel shows what happens next in one plain sentence with the one button that matters, or "Không cần làm gì, Soot đang tự chạy". Bài viết has a Cần bạn tab (`filter` accepts `need` and `ready`), Hàng đợi opens with one headline, a signed-out channel carries "Đăng nhập <kênh>" (opens the platform sign-in page in Nest's browser pane), limits (`cap_per_day`, `spacing_min`, `reply_cap_per_day`) confirm before saving, Chiến dịch rows show their next step and "Mở Thiết lập" when the admin key is missing. `page_view` carries `next`; items carry their queue time.
+- Vietnamese table `description`s on every marketing table (storage version 3 to 4, additive; the runtime fills bare descriptions on update, a description a person wrote stays), and a Kênh đăng bài settings page.
+
+### Changed
+
+- Page fixes: dialog above its scrim with focus, scroll to top, a request id per action, plain campaign errors and wording without jargon.
+- Test only: the r2 chain test is no longer flaky.
+
+### Concern
+
+- `packs/marketing/pack.json` is 65,184 B of the 65,536 B size limit (352 B left). The next addition to it needs trimming first.
+
 ## 0.11.11
 
 Baseline: v0.11.10 (7eab4f1). Needs Soot 0.13.13 or later for the Lohi recipe (schedule `then` chains, optional credentials and the `skipped` state).
