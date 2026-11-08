@@ -327,6 +327,19 @@
       }
     },
     {
+      "id": "company-loop",
+      "name": "Company loop",
+      "description": "A product-agnostic company loop: reads the product scoreboard, makes a weekly digest of opportunities, sends content ideas to marketing, hands a founder-approved product change to bbs:team and measures what it did, on the Công ty page.",
+      "tags": [
+        "operations",
+        "collaboration"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/company-loop"
+      }
+    },
+    {
       "id": "micro-fish",
       "name": "Micro Fish",
       "description": "Run persona crowds and expert panels on a feature, product, video or campaign, with deterministic tallies.",
