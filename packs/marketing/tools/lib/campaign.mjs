@@ -39,9 +39,9 @@ export function targetOf(landing, id, key) {
 }
 
 const API_WHY = {
-  no_api: () => 'Soot chưa được đặt địa chỉ api (PRODUCT_API_URL)',
-  no_key: () => 'Chưa có khoá PRODUCT_ADMIN_KEY trong Nest',
-  forbidden: host => `${host} từ chối khoá PRODUCT_ADMIN_KEY (khoá cần quyền tạo liên kết và đọc báo cáo chiến dịch)`,
+  no_api: () => 'Soot chưa biết địa chỉ api của Lohi, hãy điền ở Thiết lập',
+  no_key: () => 'Chưa có khoá quản trị Lohi, hãy thêm ở Thiết lập',
+  forbidden: host => `${host} từ chối khoá quản trị Lohi: hãy thay khoá khác ở Thiết lập (khoá cần quyền tạo liên kết và đọc báo cáo chiến dịch)`,
   api_unreachable: host => `${host} không trả lời`,
   api_failed: host => `${host} trả lỗi`,
   api_bad: host => `${host} trả dữ liệu không đúng dạng`,
@@ -239,9 +239,9 @@ function numbers(c, posts, metrics) {
 
 const summary = (c, now) => ({ id: c.key, name: c.name, starts: c.starts, ends: c.ends, channels: [...(c.channels ?? [])].sort(byRank).map(label), ...phase(c, now) });
 
-export async function campaignView(input, { store, now, env }) {
+export async function campaignView(input, { store, now, env, soot }) {
   const settings = await getSettings(store);
-  const head = { page: 'chien-dich', product: settings.product ?? null, api_host: apiHost({ env }) === 'api' ? null : apiHost({ env }) };
+  const head = { page: 'chien-dich', product: settings.product ?? null, writer: settings.writer ?? null, editor: soot ?? null, api_host: apiHost({ env }) === 'api' ? null : apiHost({ env }) };
   const all = await store.query('campaigns', [], { order: 'starts', limit: 100 });
   const known = await store.query('channels', [], { limit: 50 });
   const choices = [...new Set(['blog-lohi', ...known.map(k => k.key)])].sort(byRank).map(key => ({ id: key, label: label(key) }));

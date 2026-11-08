@@ -829,7 +829,7 @@
         "properties": {
           "page": {"type":"string","enum":["bai-viet","hang-doi","chien-dich"]},
           "campaign": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
-          "filter": {"type":"string","enum":["all","draft","waiting","published","refused","removed"]},
+          "filter": {"type":"string","enum":["all","need","draft","ready","waiting","published","refused","removed"]},
           "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"}
         },
         "required": [],
