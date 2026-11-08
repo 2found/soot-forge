@@ -248,7 +248,7 @@ export async function campaignView(input, { store, now, env, soot }) {
   const ids = input.campaign ? [input.campaign] : all.map(c => c.key);
   const posts = ids.length ? await store.query('posts', [inList('campaign', ids), eq('state', 'published')], { limit: 500 }) : [];
   const urls = [...new Set(posts.map(p => p.url).filter(Boolean))];
-  const metrics = urls.length ? await store.query('metrics', [inList('url', urls.slice(0, 200))], { order: 'day', limit: 2000 }) : [];
+  const metrics = urls.length ? await store.query('metrics', [inList('url', urls.slice(0, 200))], { order: 'day', limit: 500 }) : [];
   if (input.campaign) {
     const c = all.find(x => x.key === input.campaign);
     if (!c) fail('not_found', `Không có chiến dịch ${input.campaign}.`);

@@ -4,7 +4,7 @@ import { fail, eq, gte } from './store.mjs';
 import { briefLint, platformOf, defaultsFor, internalLinks, HOLD_LABEL } from './guard.mjs';
 import { videoView } from './video.mjs';
 import { STATE_LABEL, ANSWERS, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
-import { localDayStart, DEFAULT_QUIET } from './time.mjs';
+import { localDayStart, DEFAULT_QUIET, inQuiet, nextSlot } from './time.mjs';
 import { campaignView, campaign_save, readReport, noKey } from './campaign.mjs';
 
 const DAY = 86_400_000;
@@ -67,6 +67,7 @@ export async function page_view(input, { store, now, page, env, soot }) {
 }
 
 const HOUR = 3_600_000;
+const DRAFT_STALL = 30 * 60_000;
 /** An item whose time has long passed with nothing sent: it is never sent on its own (Bài lỡ giờ). */
 const isLate = (q, now, staleH) => !!q && !q.intent_id && q.action !== 'unpublish' && now - Date.parse(q.scheduled_at) >= (staleH ?? 6) * HOUR;
 
@@ -81,7 +82,8 @@ export function nextStep(p, q, ch, settings, now) {
   const held = !q?.intent_id && (settings.paused_all ? 'all' : ch?.paused ? ch.paused_reason ?? 'person' : null);
   switch (p.state) {
     case 'draft': case 'checking':
-      return now - Date.parse(p.updated_at) > 24 * HOUR ? { ...base, code: 'draft_stale', do: 'ask_writer' } : { ...base, code: 'draft' };
+      // A Writer saves and Editor checks within minutes; a draft left this long has no one working on it.
+      return now - Date.parse(p.updated_at) > DRAFT_STALL ? { ...base, code: 'draft_stale', do: 'ask_writer' } : { ...base, code: 'draft' };
     case 'refused': return { ...base, code: 'refused', do: 'ask_writer' };
     case 'ready': return { ...base, code: 'ready', do: 'schedule' };
     case 'pulled': return { ...base, code: 'pulled', do: 'restore' };
@@ -102,6 +104,12 @@ export function nextStep(p, q, ch, settings, now) {
       if (held === 'person') return { ...base, code: 'person_paused', at, do: 'resume_channel' };
       if (held) return { ...base, code: 'channel_held', at, reason: PAUSED_LABEL[held] ?? held };
       if (q?.wait_reason) return { ...base, code: 'waiting', at, reason: q.wait_reason };
+      // The slot has come but it is quiet hours (an Đăng ngay at night): promise the first moment Soot may post, not the past time.
+      const quiet = settings.quiet_hours ?? DEFAULT_QUIET;
+      if (at && Date.parse(at) <= now && inQuiet(now, quiet)) {
+        const open = nextSlot({ from: now, quiet, cap: 1e9 });
+        if (open) return { ...base, code: 'waiting', at: new Date(open).toISOString(), reason: `giờ yên ${quiet.from}–${quiet.to}` };
+      }
       return { ...base, code: 'scheduled', at };
     }
   }

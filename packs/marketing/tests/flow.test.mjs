@@ -89,6 +89,16 @@ test('set_limits changes a channel and reads back; out-of-range is refused with 
   await assert.rejects(w.act('set_limits', { channel: 'x-lohi', cap_per_day: 99 }));
 });
 
+test('a draft nobody finished for half an hour stops saying Writer is on it and offers Nhờ Writer hoàn thiện', async () => {
+  const w = world();
+  await w.call('draft_save', { request_id: 'a', kind: 'article', channel: 'blog-lohi', body: BODY, brief: { title: 'Bài nháp dở', keyword: 'tiên hiệp', slug: 'bai-nhap-do', meta: 'x' } });
+  w.now += 20 * 60_000;
+  assert.equal((await w.list()).items[0].next.code, 'draft', 'still Writer\'s time at 20 minutes');
+  w.now += 11 * 60_000;
+  const next = (await w.list()).items[0].next;
+  assert.deepEqual([next.code, next.do], ['draft_stale', 'ask_writer']);
+});
+
 test('a scheduled post hours past its time is late: Cần bạn lists it with Đăng ngay; Đăng ngay schedules it for now', async () => {
   const w = world();
   const { d } = await queued(w);
@@ -125,4 +135,17 @@ test('items returns the queue time of a scheduled item (not null)', async () => 
   await store.insert('queue', { post: 'P-1', channel: 'blog-lohi', action: 'publish', scheduled_at: '2026-11-11T02:00:00.000Z' });
   const out = await run('items', { input: {} }, { store, now, env: {}, fetchImpl: async () => { throw new Error('no net'); } });
   assert.equal(out.items[0].scheduled_at, '2026-11-11T02:00:00.000Z');
+});
+
+test('Đăng ngay in quiet hours promises the first moment Soot may post, not the minute that has already passed', async () => {
+  const w = world();
+  const { d } = await queued(w);
+  await w.act('resume', { channel: 'x-lohi' });
+  w.now = Date.parse('2026-11-10T17:34:00Z'); // 00:34 next day, Asia/Ho_Chi_Minh, inside 23:00-07:00
+  const out = await w.act('post_now', { id: d.id });
+  assert.ok(!out.error, JSON.stringify(out));
+  const next = (await w.list()).items.find(i => i.id === d.id).next;
+  assert.equal(next.code, 'waiting');
+  assert.match(next.reason, /giờ yên 23:00/);
+  assert.ok(Date.parse(next.at) > w.now + 5 * H, 'the promised time is after quiet hours end (07:00)');
 });

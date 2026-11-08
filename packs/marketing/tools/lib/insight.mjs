@@ -18,7 +18,7 @@ const short = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim();
 export async function performance(store, chKey, now) {
   const posts = (await store.query('posts', [eq('channel', chKey), eq('state', 'published')], { order: 'updated_at', limit: 100 })).filter(p => p.kind === 'article' && p.url);
   const since = new Date(now - WINDOW_DAYS * DAY).toISOString().slice(0, 10);
-  const rows = await store.query('metrics', [eq('source', 'gsc'), gte('day', since), eq('query', '')], { limit: 1000 });
+  const rows = await store.query('metrics', [eq('source', 'gsc'), gte('day', since), eq('query', '')], { limit: 500 });
   const byUrl = new Map();
   for (const r of rows) {
     const a = byUrl.get(r.url) ?? { clicks: 0, impressions: 0 };

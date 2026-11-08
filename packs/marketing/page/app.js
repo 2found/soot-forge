@@ -330,7 +330,7 @@ function nextLine(n, p = {}) {
   const btn = (/** @type {string} */ d, /** @type {string} */ label) => ({ do: d, label });
   switch (n.code) {
     case 'draft': return { text: 'Writer đang soạn. Khi xong, Editor kiểm tra rồi xếp lịch. Không cần làm gì.', tone: 'plain' };
-    case 'draft_stale': return { text: 'Bản nháp này nằm hơn 24 giờ mà chưa được kiểm tra. Nhờ Writer hoàn thiện, hoặc bỏ qua: nó không chặn bài mới.', tone: 'warn', button: btn('ask_writer', 'Nhờ Writer hoàn thiện') };
+    case 'draft_stale': return { text: 'Bản nháp này nằm yên hơn 30 phút mà chưa được kiểm tra: Writer đã dừng giữa chừng. Bấm Nhờ Writer hoàn thiện, hoặc bỏ qua: nó không chặn bài mới.', tone: 'warn', button: btn('ask_writer', 'Nhờ Writer hoàn thiện') };
     case 'refused': return { text: 'Soot không đăng bài này vì chưa qua kiểm tra. Nhờ Writer sửa, Editor sẽ kiểm tra lại bản mới.', tone: 'err', button: btn('ask_writer', 'Nhờ Writer sửa') };
     case 'ready': return { text: 'Đã qua kiểm tra nhưng chưa có giờ đăng. Soot tự xếp lịch ở lượt lên bài 08:00; bấm Xếp lịch để xếp ngay.', tone: 'warn', button: btn('schedule', 'Xếp lịch') };
     case 'pulled': return { text: 'Bài đang để ngoài hàng đợi: Soot sẽ không đăng. Xếp lại nếu muốn đăng.', tone: 'plain', button: btn('restore', 'Xếp lại') };

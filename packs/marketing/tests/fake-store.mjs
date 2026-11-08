@@ -59,6 +59,8 @@ export function fakeStore({ clock = () => Date.now() } = {}) {
         return { id: full.id, affected: 1 };
       }
       case 'query': {
+        // The runtime's page cap (workspace.MaxPageRows): a larger limit is refused, so a tool that asks for more never works.
+        if ((body.limit ?? 50) > 500) throw new Error('a page has at most 500 rows');
         let rows = data[t].filter(r => match(r, conds(t, body.where)));
         const order = body.order ?? 'created_at';
         rows = rows.slice().sort((a, b) => (a[order] ?? '') < (b[order] ?? '') ? -1 : (a[order] ?? '') > (b[order] ?? '') ? 1 : 0);
