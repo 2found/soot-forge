@@ -4,7 +4,7 @@
 // (host settings in `env` once the runtime supports it), generates the claim
 // key. What is left for a person is printed at the end.
 //
-//   node examples/lohi-marketing/setup.mjs <workspace-dir> [--port 7790] [--no-video]
+//   node examples/lohi-marketing/setup.mjs <workspace-dir> [--port 7790] [--no-video] [--blog-remote <git url>]
 //
 // Safe to run again: existing files are replaced from the recipe, the claim key
 // and any credential already stored are never touched, no secret is printed.
@@ -22,8 +22,8 @@ const forge = resolve(here, '..', '..');
 export const HOST_ENV = {
   PRODUCT_API_URL: 'https://api.lohi2.com',
   SOOT_BROWSER_PERSISTENT_SOOTS: 'lohi-editor',
-  LOHI_BLOG_REMOTE: 'git@github.com:reallongnguyen/novel-reader.git',
 };
+// LOHI_BLOG_REMOTE has no default: a workspace set up without `--blog-remote` must never be able to push to the real blog repo.
 
 /**
  * The founder's 2server connection, found without asking: LOHI_REPO, else the kiem-lai checkout
@@ -60,7 +60,7 @@ function runtimeKnowsEnv(soot) {
   } catch { return false; }
 }
 
-export function build(dir, { port = 7790, video = true, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
+export function build(dir, { port = 7790, video = true, blogRemote, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
   const out = resolve(dir);
   const host = JSON.parse(readFileSync(join(here, 'deployment.example.json'), 'utf8'));
   host.listen = `127.0.0.1:${port}`;
@@ -69,7 +69,7 @@ export function build(dir, { port = 7790, video = true, soot = 'soot', home, env
     delete host.tool_hosts?.['lohi-video'];
   }
   const packs = ['marketing', 'browser-use', ...(video ? ['toolbox'] : [])];
-  const hostEnv = { ...HOST_ENV, ...(connection ? { LOHI_CONNECTION: connection } : {}) };
+  const hostEnv = { ...HOST_ENV, ...(blogRemote ? { LOHI_BLOG_REMOTE: blogRemote } : {}), ...(connection ? { LOHI_CONNECTION: connection } : {}) };
   if (env) host.env = hostEnv;
   mkdirSync(join(out, 'packs'), { recursive: true });
   mkdirSync(join(out, 'soots'), { recursive: true });
@@ -95,16 +95,20 @@ export const PERSON_STEPS = [
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
-  const dir = args.find(a => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--port');
-  if (!dir) { console.error('usage: node setup.mjs <workspace-dir> [--port 7790] [--no-video]'); process.exit(2); }
+  const flagValue = name => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+  const dir = args.find((a, i) => !a.startsWith('--') && !['--port', '--blog-remote'].includes(args[i - 1]));
+  if (!dir) { console.error('usage: node setup.mjs <workspace-dir> [--port 7790] [--no-video] [--blog-remote <git url>]'); process.exit(2); }
+  const blogRemote = flagValue('--blog-remote');
+  if (args.includes('--blog-remote') && (!blogRemote || blogRemote.startsWith('--'))) { console.error('--blog-remote needs a git address.'); process.exit(2); }
   const port = Number(args[args.indexOf('--port') + 1]) || 7790;
-  const r = build(dir, { port, video: !args.includes('--no-video') });
+  const r = build(dir, { port, video: !args.includes('--no-video'), blogRemote });
   console.log(`Workspace: ${r.out}`);
   console.log(`Packs: ${r.packs.join(', ')}, lohi-blog (kèm ${r.keyMade ? 'khoá ký lượt đăng vừa tự sinh' : 'khoá ký lượt đăng đã có'}, không in ra).`);
   if (!r.env) console.log(`Runtime chưa có \`env\`: khởi động với ${Object.entries(r.hostEnv).map(([k, v]) => `${k}=${v}`).join(' ')}`);
   if (args.includes('--no-video')) console.log('Không có Video Soot (--no-video).');
   else console.log('Video: cài thêm `soot add 2found/soot-forge/packs/2build` khi cần làm video.');
   console.log(r.connection ? 'Kết nối 2server: đã tìm thấy và ghi vào env (LOHI_CONNECTION).' : 'Kết nối 2server: chưa thấy .2server/connection.yaml; blog-ready sẽ báo một thẻ Cần bạn.');
+  console.log(blogRemote ? 'Kho đăng blog: đã ghi LOHI_BLOG_REMOTE theo --blog-remote.' : 'Kho đăng blog: chưa chọn (không có --blog-remote); Soot sẽ không đăng blog và blog-ready báo một thẻ Cần bạn.');
   console.log('Việc chỉ người làm được:');
   PERSON_STEPS.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
 }

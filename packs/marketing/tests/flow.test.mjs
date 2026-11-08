@@ -115,3 +115,14 @@ test('the Cần bạn and Chờ đăng tabs count the same posts the list shows;
     assert.equal(l.items.length, all.counts[f], f);
   }
 });
+
+test('items returns the queue time of a scheduled item (not null)', async () => {
+  const { run } = await import('../tools/marketing.mjs');
+  const { fakeStore } = await import('./fake-store.mjs');
+  const now = Date.parse('2026-11-10T01:00:00Z');
+  const store = fakeStore({ clock: () => now });
+  await store.insert('posts', { ref: 'P-1', kind: 'article', channel: 'blog-lohi', state: 'scheduled', title: 'Bài một', body: 'x', revision: 1 });
+  await store.insert('queue', { post: 'P-1', channel: 'blog-lohi', action: 'publish', scheduled_at: '2026-11-11T02:00:00.000Z' });
+  const out = await run('items', { input: {} }, { store, now, env: {}, fetchImpl: async () => { throw new Error('no net'); } });
+  assert.equal(out.items[0].scheduled_at, '2026-11-11T02:00:00.000Z');
+});

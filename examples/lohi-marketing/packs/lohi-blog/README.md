@@ -30,9 +30,10 @@ claim from `marketing_claim` and makes it live on `blog.lohi2.com`.
 
 ## Set up
 
-- No `LOHI_REPO`. The publisher clones `LOHI_BLOG_REMOTE` (default
-  `git@github.com:reallongnguyen/novel-reader.git`) into its own state directory
-  the first time; `LOHI_REPO` still works as an override. The 2server
+- No `LOHI_REPO`. The publisher clones `LOHI_BLOG_REMOTE` (no default: the
+  recipe's `setup.mjs --blog-remote <url>` sets it; with neither, nothing is
+  cloned or pushed and `blog-ready` raises one Cần bạn card) into its own state
+  directory the first time; `LOHI_REPO` still works as an override. The 2server
   connection file is `LOHI_CONNECTION` or `~/.2server/connection.yaml`.
 - Host env (`needs.env`): `LOHI_BLOG_REMOTE`, `LOHI_CONNECTION` and
   `LOHI_REPO` (all optional), plus `PATH`, `HOME` and `SSH_AUTH_SOCK` so git,

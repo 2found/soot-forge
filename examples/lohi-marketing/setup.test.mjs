@@ -18,3 +18,14 @@ test('findConnection: the checkout above the forge wins, then ~/.2server, else n
   assert.equal(findConnection({ repo: undefined, start: empty, home }), homeFile);
   assert.equal(findConnection({ repo: undefined, start: empty, home: tmp() }), null);
 });
+
+test('build: no default blog remote, --blog-remote writes only what it is given', async () => {
+  const { build, HOST_ENV } = await import('./setup.mjs');
+  const { readFileSync } = await import('node:fs');
+  assert.equal(HOST_ENV.LOHI_BLOG_REMOTE, undefined, 'the real blog repo is never a default');
+  const none = build(tmp(), { env: true, video: false, connection: null, home: tmp() });
+  assert.equal(none.hostEnv.LOHI_BLOG_REMOTE, undefined);
+  assert.equal(JSON.parse(readFileSync(join(none.out, 'deployment.json'), 'utf8')).env.LOHI_BLOG_REMOTE, undefined);
+  const set = build(tmp(), { env: true, video: false, connection: null, home: tmp(), blogRemote: '/tmp/scratch.git' });
+  assert.equal(JSON.parse(readFileSync(join(set.out, 'deployment.json'), 'utf8')).env.LOHI_BLOG_REMOTE, '/tmp/scratch.git');
+});

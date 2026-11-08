@@ -1284,14 +1284,16 @@
     {"id":"lead","label":{"vi":"Khách tiềm năng","en":"Lead"},"unit":"lead"}
   ],
   "storage": {
-    "version": 3,
+    "version": 4,
     "tables": [
       {
         "name": "settings",
+        "description": "Cài đặt chung: giờ yên tĩnh, xếp lịch, ngưỡng bài lỡ giờ.",
         "columns": [{"name":"key","type":"text","required":true,"unique":true},{"name":"value","type":"json"}]
       },
       {
         "name": "channels",
+        "description": "Các kênh đăng bài: bật hay dừng, giới hạn mỗi ngày.",
         "columns": [
           {"name":"key","type":"text","required":true,"unique":true},
           {"name":"kind","type":"text"},
@@ -1308,6 +1310,7 @@
       },
       {
         "name": "sources",
+        "description": "Nguồn Soot đọc để tìm ý viết bài.",
         "columns": [
           {"name":"key","type":"text","required":true,"unique":true},
           {"name":"kind","type":"text"},
@@ -1318,6 +1321,7 @@
       },
       {
         "name": "signals",
+        "description": "Ý tưởng Soot nhặt từ các nguồn.",
         "columns": [
           {"name":"source","type":"text","index":true},
           {"name":"title","type":"text","search":true},
@@ -1329,6 +1333,7 @@
       },
       {
         "name": "posts",
+        "description": "Mọi bài viết và bài đăng, trạng thái, liên kết.",
         "columns": [
           {"name":"ref","type":"text","required":true,"unique":true},
           {"name":"request_id","type":"text","index":true},
@@ -1352,6 +1357,7 @@
       },
       {
         "name": "assets",
+        "description": "Ảnh và video đi kèm bài.",
         "columns": [
           {"name":"ref","type":"text","required":true,"unique":true},
           {"name":"post","type":"text","index":true},
@@ -1363,6 +1369,7 @@
       },
       {
         "name": "checks",
+        "description": "Kết quả kiểm bài trước khi xếp lịch.",
         "columns": [
           {"name":"post","type":"text","required":true,"index":true},
           {"name":"revision","type":"integer"},
@@ -1376,6 +1383,7 @@
       },
       {
         "name": "queue",
+        "description": "Hàng đợi: bài nào đăng lên kênh nào, lúc nào.",
         "columns": [
           {"name":"post","type":"text","required":true,"unique":true},
           {"name":"channel","type":"text","required":true,"index":true},
@@ -1390,6 +1398,7 @@
       },
       {
         "name": "publish_log",
+        "description": "Nhật ký mỗi lần đăng hoặc thử đăng.",
         "columns": [
           {"name":"post","type":"text","required":true,"index":true},
           {"name":"channel","type":"text","required":true,"index":true},
@@ -1406,6 +1415,7 @@
       },
       {
         "name": "replies",
+        "description": "Bình luận Soot đọc và cách xử lý.",
         "columns": [
           {"name":"ref","type":"text","required":true,"unique":true},
           {"name":"channel","type":"text","index":true},
@@ -1421,6 +1431,7 @@
       },
       {
         "name": "metrics",
+        "description": "Số liệu theo ngày: lượt hiển thị, lượt bấm, lượt xem.",
         "columns": [
           {"name":"url","type":"text","required":true,"index":true},
           {"name":"source","type":"text","required":true,"index":true},
@@ -1434,6 +1445,7 @@
       },
       {
         "name": "facts",
+        "description": "Thông tin về sản phẩm (giá, tính năng) bài được phép nêu.",
         "columns": [
           {"name":"key","type":"text","required":true,"unique":true},
           {"name":"value","type":"json"},
@@ -1443,6 +1455,7 @@
       },
       {
         "name": "campaigns",
+        "description": "Các chiến dịch: mục tiêu, ngân sách token, kết quả.",
         "columns": [
           {"name":"key","type":"text","required":true,"unique":true},
           {"name":"name","type":"text"},
@@ -1461,6 +1474,7 @@
       },
       {
         "name": "links",
+        "description": "Liên kết theo dõi của chiến dịch, kênh, bài.",
         "columns": [
           {"name":"code","type":"text","required":true,"unique":true},
           {"name":"campaign","type":"text","index":true},
@@ -1472,6 +1486,7 @@
       },
       {
         "name": "attention",
+        "description": "Việc đã báo bạn, để không báo lặp.",
         "columns": [
           {"name":"key","type":"text","required":true,"unique":true},
           {"name":"kind","type":"text","index":true},
@@ -1502,6 +1517,17 @@
         "placement": "rail",
         "access": "operator",
         "provides": ["flow-marketing"],
+        "view_tool": "page_view",
+        "action_tool": "page_action",
+        "bundle": "page/"
+      },
+      {
+        "id": "kenh",
+        "label": {"vi":"Kênh đăng bài","en":"Channels"},
+        "icon": "radio",
+        "placement": "settings",
+        "settings_group": "server",
+        "access": "operator",
         "view_tool": "page_view",
         "action_tool": "page_action",
         "bundle": "page/"

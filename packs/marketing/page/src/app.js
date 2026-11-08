@@ -82,7 +82,7 @@ function doNext(b, d, p) {
   }
 }
 /** Sign in on a platform: Nest opens the Soot's browser (nest://browser/<soot>); the person signs in there, then turns the channel on. */
-function signIn(/** @type {any} */ d, /** @type {string} */ _id, /** @type {string} */ _label) { bridge.open(M.signInLink(d.editor)); }
+function signIn(/** @type {any} */ d, /** @type {string} */ id, /** @type {string} */ _label) { bridge.open(M.signInLink(d.editor, id)); }
 /** The next-step line of a post or item, and its one button. */
 function nextBlock(/** @type {any} */ d, /** @type {any} */ p, /** @type {any} */ n = p.next, skip = '') {
   const line = M.nextLine(n, p);
@@ -225,6 +225,14 @@ function queue(d) {
   return out;
 }
 
+/** Cài đặt › Kênh đăng bài: every channel's connection state and its one fix; the queue lives on Hàng đợi. @param {any} d */
+function channelsPage(d) {
+  const need = d.channels.filter((/** @type {any} */ c) => c.paused && c.paused_reason !== 'person').length;
+  const head = need ? `Cần bạn: ${need} kênh chưa sẵn sàng đăng. Bấm nút ở kênh đó.` : 'Không cần làm gì — mọi kênh bật đang tự đăng. Bài chờ đăng ở trang Hàng đợi.';
+  return [h('p', { class: need ? 'warnline' : 'muted', role: 'status' }, head),
+    h('ul', { class: 'list card' }, ...d.channels.map((/** @type {any} */ c) => channelRow(d, c)))];
+}
+
 /** One channel: its switch, what it is doing now in words, and the one button that fixes it. */
 function channelRow(/** @type {any} */ d, /** @type {any} */ c) {
   const line = M.channelLine(c, d);
@@ -233,7 +241,7 @@ function channelRow(/** @type {any} */ d, /** @type {any} */ c) {
     if (on) return void act('pause', { channel: c.id });
     // Turning on a channel nobody signed in to: it would try, fail and stop again. Say so first.
     if (c.paused_reason === 'signed_out') {
-      S.confirm = { title: `${c.label} chưa đăng nhập`, help: `Nếu bật bây giờ, Soot thử đăng rồi dừng lại vì chưa đăng nhập ${c.label}. Đăng nhập trước, rồi quay lại bật.`, yes: `Tôi đã đăng nhập, bật ${c.label}`, keep: `Đăng nhập ${c.label}`, keepRun: () => bridge.open(M.signInLink(d.editor)), run: () => void act('resume', { channel: c.id }) };
+      S.confirm = { title: `${c.label} chưa đăng nhập`, help: `Nếu bật bây giờ, Soot thử đăng rồi dừng lại vì chưa đăng nhập ${c.label}. Đăng nhập trước, rồi quay lại bật.`, yes: `Tôi đã đăng nhập, bật ${c.label}`, keep: `Đăng nhập ${c.label}`, keepRun: () => bridge.open(M.signInLink(d.editor, c.id)), run: () => void act('resume', { channel: c.id }) };
       return render();
     }
     void act('resume', { channel: c.id });
@@ -241,7 +249,7 @@ function channelRow(/** @type {any} */ d, /** @type {any} */ c) {
   return h('li', { class: 'row' },
     toggle(c.label, on, flip),
     h('div', { class: 'who' }, h('small', { class: line.tone === 'warn' ? 'warnline soft' : 'muted' }, line.text)),
-    line.button && button(line.button.label, () => (line.button.do === 'sign_in' ? bridge.open(M.signInLink(d.editor)) : void act('resume', { channel: c.id })), 'btn sm primary'));
+    line.button && button(line.button.label, () => (line.button.do === 'sign_in' ? bridge.open(M.signInLink(d.editor, c.id)) : void act('resume', { channel: c.id })), 'btn sm primary'));
 }
 
 /** Giới hạn kênh, edited in place: posts a day, hours apart, replies a day; saved after a confirmation. */
@@ -349,6 +357,7 @@ function render() {
   if (S.loadError) out.push(h('div', { class: 'notice err', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load), 'btn sm')));
   else if (!d) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
   else if (d.page === 'hang-doi') out.push(...queue(d));
+  else if (d.page === 'kenh') out.push(...channelsPage(d));
   else if (d.page === 'chien-dich') out.push(...(d.campaign ? campaignDetail(d) : campaignList(d)));
   else out.push(...(d.post ? postDetail(d) : postList(d)));
   if (S.notice) { const n = S.notice; out.push(h('div', { class: `notice ${n.kind}`, role: 'status' }, h('span', {}, n.text), n.fix && button(n.fix.label, () => bridge.open(/** @type {{link: string}} */ (n.fix).link), 'btn sm primary'))); }

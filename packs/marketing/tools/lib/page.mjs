@@ -61,8 +61,9 @@ export async function page_view(input, { store, now, page, env, soot }) {
   const id = input.page ?? page;
   if (id === 'bai-viet') return input.id ? postDetail(input.id, { store, now, soot }) : postList(input.filter, { store, now, soot });
   if (id === 'hang-doi') return queueView({ store, now, soot });
+  if (id === 'kenh') return { ...(await queueView({ store, now, soot })), page: 'kenh' };
   if (id === 'chien-dich') return campaignView(input, { store, now, env, soot });
-  fail('invalid_request', 'page is bai-viet, hang-doi or chien-dich.');
+  fail('invalid_request', 'page is bai-viet, hang-doi, kenh or chien-dich.');
 }
 
 const HOUR = 3_600_000;

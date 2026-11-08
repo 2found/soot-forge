@@ -122,7 +122,7 @@ export function output(r) {
   const o = r.output;
   if (o?.reason_code === 'needs_credential' || o?.needs_credential) {
     const key = o.key ?? o.needs_credential, why = String(o.error?.message ?? '').split(' Mở Thiết lập')[0];
-    throw { code: 'needs_credential', message: `${why || 'Thiếu một khoá để làm việc này.'} Bấm Mở Thiết lập, điền "${KEY_LABEL[key] ?? 'khoá còn thiếu'}" rồi Thử lại.`, link: o.link ?? SETUP_LINK, credential: key };
+    throw { code: 'needs_credential', message: `${why || 'Thiếu một khoá để làm việc này.'} Bấm Mở Thiết lập, điền "${KEY_LABEL[key] ?? 'khoá còn thiếu'}" rồi Thử lại.`, link: o.link ?? `${SETUP_LINK}?key=${encodeURIComponent(key)}`, credential: key };
   }
   if (o?.error) throw o.error;
   return r.output;
@@ -182,7 +182,13 @@ export const tokenLine = (used, budget) => (budget > 0 ? `Token đã dùng: ${nu
 // ---------- the next step (every post and channel says what happens and when, or what the person does) ----------
 
 /** nest:// link that opens the Soot's browser, where the person signs in. @param {string | null | undefined} editor */
-export const signInLink = editor => (editor ? `nest://browser/${encodeURIComponent(editor)}` : 'nest://settings/setup');
+export const signInLink = (editor, channel) => {
+  if (!editor) return 'nest://settings/setup';
+  const login = LOGIN_PAGE[String(channel ?? '').split('-')[0]];
+  return `nest://browser/${encodeURIComponent(editor)}${login ? `?url=${encodeURIComponent(login)}` : ''}`;
+};
+/** The page each platform signs in on, so the pane never opens blank. */
+export const LOGIN_PAGE = { x: 'https://x.com/i/flow/login', facebook: 'https://www.facebook.com/login', reddit: 'https://www.reddit.com/login' };
 /** nest://new for the writer: revise this post. @param {string | null | undefined} writer @param {any} p */
 export const reviseLink = (writer, p) => (writer ? `nest://new?soot=${encodeURIComponent(writer)}&text=${encodeURIComponent(`Sửa bài "${p.title}" (mã ${p.id}): `)}` : null);
 export const SETUP_LINK = 'nest://settings/setup';

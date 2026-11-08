@@ -229,7 +229,7 @@ function output(r) {
   const o = r.output;
   if (o?.reason_code === 'needs_credential' || o?.needs_credential) {
     const key = o.key ?? o.needs_credential, why = String(o.error?.message ?? '').split(' Mở Thiết lập')[0];
-    throw { code: 'needs_credential', message: `${why || 'Thiếu một khoá để làm việc này.'} Bấm Mở Thiết lập, điền "${KEY_LABEL[key] ?? 'khoá còn thiếu'}" rồi Thử lại.`, link: o.link ?? SETUP_LINK, credential: key };
+    throw { code: 'needs_credential', message: `${why || 'Thiếu một khoá để làm việc này.'} Bấm Mở Thiết lập, điền "${KEY_LABEL[key] ?? 'khoá còn thiếu'}" rồi Thử lại.`, link: o.link ?? `${SETUP_LINK}?key=${encodeURIComponent(key)}`, credential: key };
   }
   if (o?.error) throw o.error;
   return r.output;
@@ -289,7 +289,13 @@ const tokenLine = (used, budget) => (budget > 0 ? `Token đã dùng: ${num(used)
 // ---------- the next step (every post and channel says what happens and when, or what the person does) ----------
 
 /** nest:// link that opens the Soot's browser, where the person signs in. @param {string | null | undefined} editor */
-const signInLink = editor => (editor ? `nest://browser/${encodeURIComponent(editor)}` : 'nest://settings/setup');
+const signInLink = (editor, channel) => {
+  if (!editor) return 'nest://settings/setup';
+  const login = LOGIN_PAGE[String(channel ?? '').split('-')[0]];
+  return `nest://browser/${encodeURIComponent(editor)}${login ? `?url=${encodeURIComponent(login)}` : ''}`;
+};
+/** The page each platform signs in on, so the pane never opens blank. */
+const LOGIN_PAGE = { x: 'https://x.com/i/flow/login', facebook: 'https://www.facebook.com/login', reddit: 'https://www.reddit.com/login' };
 /** nest://new for the writer: revise this post. @param {string | null | undefined} writer @param {any} p */
 const reviseLink = (writer, p) => (writer ? `nest://new?soot=${encodeURIComponent(writer)}&text=${encodeURIComponent(`Sửa bài "${p.title}" (mã ${p.id}): `)}` : null);
 const SETUP_LINK = 'nest://settings/setup';
@@ -425,7 +431,7 @@ function campaignNextLine(c) {
   if (c.phase === 'ended') return 'Chiến dịch đã kết thúc. Mở để xem kết quả.';
   return 'Mở để xem liên kết và kết quả.';
 }
-return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output, doneNotice, GOAL_FORM, GOAL_SHORT, slugOf, digits, dayRange, goalPct, goalLine, newCampaign, campaignProblem, campaignBody, readFailLine, tokenLine, signInLink, reviseLink, SETUP_LINK, nextLine, queueHeadline, channelLine, mdBlocks, limitsBody, limitsAsk, campaignWriteLink, campaignNextLine };
+return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output, doneNotice, GOAL_FORM, GOAL_SHORT, slugOf, digits, dayRange, goalPct, goalLine, newCampaign, campaignProblem, campaignBody, readFailLine, tokenLine, signInLink, LOGIN_PAGE, reviseLink, SETUP_LINK, nextLine, queueHeadline, channelLine, mdBlocks, limitsBody, limitsAsk, campaignWriteLink, campaignNextLine };
 })();
 
 // ---- src/app.js ----
@@ -513,7 +519,7 @@ function doNext(b, d, p) {
   }
 }
 /** Sign in on a platform: Nest opens the Soot's browser (nest://browser/<soot>); the person signs in there, then turns the channel on. */
-function signIn(/** @type {any} */ d, /** @type {string} */ _id, /** @type {string} */ _label) { bridge.open(M.signInLink(d.editor)); }
+function signIn(/** @type {any} */ d, /** @type {string} */ id, /** @type {string} */ _label) { bridge.open(M.signInLink(d.editor, id)); }
 /** The next-step line of a post or item, and its one button. */
 function nextBlock(/** @type {any} */ d, /** @type {any} */ p, /** @type {any} */ n = p.next, skip = '') {
   const line = M.nextLine(n, p);
@@ -656,6 +662,14 @@ function queue(d) {
   return out;
 }
 
+/** Cài đặt › Kênh đăng bài: every channel's connection state and its one fix; the queue lives on Hàng đợi. @param {any} d */
+function channelsPage(d) {
+  const need = d.channels.filter((/** @type {any} */ c) => c.paused && c.paused_reason !== 'person').length;
+  const head = need ? `Cần bạn: ${need} kênh chưa sẵn sàng đăng. Bấm nút ở kênh đó.` : 'Không cần làm gì — mọi kênh bật đang tự đăng. Bài chờ đăng ở trang Hàng đợi.';
+  return [h('p', { class: need ? 'warnline' : 'muted', role: 'status' }, head),
+    h('ul', { class: 'list card' }, ...d.channels.map((/** @type {any} */ c) => channelRow(d, c)))];
+}
+
 /** One channel: its switch, what it is doing now in words, and the one button that fixes it. */
 function channelRow(/** @type {any} */ d, /** @type {any} */ c) {
   const line = M.channelLine(c, d);
@@ -664,7 +678,7 @@ function channelRow(/** @type {any} */ d, /** @type {any} */ c) {
     if (on) return void act('pause', { channel: c.id });
     // Turning on a channel nobody signed in to: it would try, fail and stop again. Say so first.
     if (c.paused_reason === 'signed_out') {
-      S.confirm = { title: `${c.label} chưa đăng nhập`, help: `Nếu bật bây giờ, Soot thử đăng rồi dừng lại vì chưa đăng nhập ${c.label}. Đăng nhập trước, rồi quay lại bật.`, yes: `Tôi đã đăng nhập, bật ${c.label}`, keep: `Đăng nhập ${c.label}`, keepRun: () => bridge.open(M.signInLink(d.editor)), run: () => void act('resume', { channel: c.id }) };
+      S.confirm = { title: `${c.label} chưa đăng nhập`, help: `Nếu bật bây giờ, Soot thử đăng rồi dừng lại vì chưa đăng nhập ${c.label}. Đăng nhập trước, rồi quay lại bật.`, yes: `Tôi đã đăng nhập, bật ${c.label}`, keep: `Đăng nhập ${c.label}`, keepRun: () => bridge.open(M.signInLink(d.editor, c.id)), run: () => void act('resume', { channel: c.id }) };
       return render();
     }
     void act('resume', { channel: c.id });
@@ -672,7 +686,7 @@ function channelRow(/** @type {any} */ d, /** @type {any} */ c) {
   return h('li', { class: 'row' },
     toggle(c.label, on, flip),
     h('div', { class: 'who' }, h('small', { class: line.tone === 'warn' ? 'warnline soft' : 'muted' }, line.text)),
-    line.button && button(line.button.label, () => (line.button.do === 'sign_in' ? bridge.open(M.signInLink(d.editor)) : void act('resume', { channel: c.id })), 'btn sm primary'));
+    line.button && button(line.button.label, () => (line.button.do === 'sign_in' ? bridge.open(M.signInLink(d.editor, c.id)) : void act('resume', { channel: c.id })), 'btn sm primary'));
 }
 
 /** Giới hạn kênh, edited in place: posts a day, hours apart, replies a day; saved after a confirmation. */
@@ -780,6 +794,7 @@ function render() {
   if (S.loadError) out.push(h('div', { class: 'notice err', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load), 'btn sm')));
   else if (!d) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
   else if (d.page === 'hang-doi') out.push(...queue(d));
+  else if (d.page === 'kenh') out.push(...channelsPage(d));
   else if (d.page === 'chien-dich') out.push(...(d.campaign ? campaignDetail(d) : campaignList(d)));
   else out.push(...(d.post ? postDetail(d) : postList(d)));
   if (S.notice) { const n = S.notice; out.push(h('div', { class: `notice ${n.kind}`, role: 'status' }, h('span', {}, n.text), n.fix && button(n.fix.label, () => bridge.open(/** @type {{link: string}} */ (n.fix).link), 'btn sm primary'))); }

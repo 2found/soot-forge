@@ -110,14 +110,22 @@ needed.
 ## Set it up
 
 ```bash
-node examples/lohi-marketing/setup.mjs ~/.soot/lohi-marketing   # packs, Soots, deployment, claim key
+# live workspace (the real blog repo; you choose it, there is no default):
+node examples/lohi-marketing/setup.mjs ~/.soot/lohi-marketing --blog-remote git@github.com:reallongnguyen/novel-reader.git
+# any test or scratch workspace: a local bare repo, never the real one
+git init --bare /tmp/scratch-blog.git
+node examples/lohi-marketing/setup.mjs /tmp/scratch-ws --blog-remote /tmp/scratch-blog.git
 cd ~/.soot/lohi-marketing && soot start
 ```
 
 `setup.mjs` copies the packs and Soots, writes `deployment.json` and generates
 the Editor's claim key once (never printed, never overwritten). If the runtime
-knows the workspace `env` field, the three host settings (`PRODUCT_API_URL`,
-`SOOT_BROWSER_PERSISTENT_SOOTS`, `LOHI_BLOG_REMOTE`) go into the file;
+knows the workspace `env` field, the host settings (`PRODUCT_API_URL`,
+`SOOT_BROWSER_PERSISTENT_SOOTS`, and `LOHI_BLOG_REMOTE` from `--blog-remote`)
+go into the file. **`LOHI_BLOG_REMOTE` has no default**: without `--blog-remote`
+the blog chain does not start and `blog-ready` raises one Cần bạn card
+("Chưa chọn kho đăng blog"), so a test workspace can never push to the real
+blog repo. Run setup again with the live address, since it rewrites the file;
 otherwise it prints the line to start the runtime with. Install the browser
 once (**Cài trình duyệt** in Nest, or `soot browser install`).
 

@@ -16,7 +16,6 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const DEFAULT_BASE = 'https://blog.lohi2.com';
-export const DEFAULT_REMOTE = 'git@github.com:reallongnguyen/novel-reader.git';
 export const DEFAULT_API = 'https://api.lohi2.com';
 export const SITE = 'https://lohi2.com';
 const SLUG = /^[a-z0-9-]{3,80}$/, SERIES = /^[a-z0-9-]{1,64}$/, INTENT = /^I-[0-9a-f]{16}$/;
@@ -143,7 +142,9 @@ export async function repoOf(d, env, state) {
   if (!existsSync(join(dir, '.git'))) {
     await mkdir(state, { recursive: true });
     await rm(dir, { recursive: true, force: true });
-    const remote = env.LOHI_BLOG_REMOTE || DEFAULT_REMOTE;
+    // No default: a workspace that does not say where the blog lives must never push to the real one.
+    const remote = env.LOHI_BLOG_REMOTE;
+    if (!remote) throw Object.assign(new Error('No blog repository is configured (LOHI_BLOG_REMOTE or LOHI_REPO); nothing was cloned or pushed.'), { code: 'remote_missing' });
     const r = await d.run('git', ['clone', '--quiet', '--no-checkout', remote, dir], { timeout: 10 * 60_000 });
     if (!r.ok) { await rm(dir, { recursive: true, force: true }); throw Object.assign(new Error(`cannot clone ${remote}: ${r.stderr.trim().split('\n').pop()}`), { code: 'clone_failed' }); }
   }
@@ -347,8 +348,9 @@ export async function ready(env, deps = {}) {
   for (const [name, how] of [['git', 'Cài git.'], ['go', 'Cài Go (dựng blog).'], ['2server', 'Cài 2server CLI 0.2.0 trở lên.'], ['gcloud', 'Cài gcloud và đăng nhập (`gcloud auth login`).']]) {
     if (!(await bin(d, name))) need(name, `Thiếu ${name}`, how);
   }
-  const remote = env.LOHI_REPO ? null : (env.LOHI_BLOG_REMOTE || DEFAULT_REMOTE);
-  const probe = await d.run('git', env.LOHI_REPO ? ['-C', env.LOHI_REPO, 'ls-remote', '--exit-code', 'origin', 'HEAD'] : ['ls-remote', '--exit-code', remote, 'HEAD'], { timeout: 30_000 });
+  const remote = env.LOHI_REPO ? null : env.LOHI_BLOG_REMOTE;
+  if (!env.LOHI_REPO && !remote) need('blog_remote', 'Chưa chọn kho đăng blog', 'Điền địa chỉ kho blog (LOHI_BLOG_REMOTE) trong Thiết lập; Soot không đăng blog khi chưa có.');
+  const probe = !env.LOHI_REPO && !remote ? { ok: true } : await d.run('git', env.LOHI_REPO ? ['-C', env.LOHI_REPO, 'ls-remote', '--exit-code', 'origin', 'HEAD'] : ['ls-remote', '--exit-code', remote, 'HEAD'], { timeout: 30_000 });
   if (!probe.ok) need('git_remote', 'Chưa đẩy được lên kho kiem-lai', `Thêm khoá SSH của máy này vào GitHub (ssh-add), rồi kiểm tra \`git ls-remote ${remote ?? 'origin'}\`.`);
   if (!(env.LOHI_REPO ? linkConnectionExists(env.LOHI_REPO) || connectionFile(env) : connectionFile(env))) need('connection', 'Thiếu kết nối 2server', 'Đặt tệp kết nối 2server vào ~/.2server/connection.yaml (hoặc LOHI_CONNECTION).');
   if (await bin(d, 'gcloud')) {
