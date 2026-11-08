@@ -8,6 +8,8 @@ claim from `marketing_claim` and makes it live on `blog.lohi2.com`.
 | --- | --- | --- |
 | `publish` | write | Writes `blog/posts/<series>/<slug>.vi.md` in its own worktree, builds the blog with zero warnings, commits only that file (trailer `Soot-Intent: <intent_id>`), pushes fast-forward only, runs `blog/infra/gce/deploy.sh --env prod` from the worktree and polls the URL until 200 (5 minutes). |
 | `unpublish` | write | Deletes the file in a commit, pushes, deploys and checks the URL is gone. |
+| `catalog` | read | Real novels for the Writer: Lohi's public feed, genres and search, each with its `lohi2.com/truyen/<slug>` link. |
+| `ready` | write | Names what the machine still lacks to publish (git, go, 2server, gcloud, SSH to the repo, connection file) as one Cần bạn item; quiet until the list changes. |
 | `find` | read | Crash recovery: is the intent's commit on `origin/main` with the file present and the URL live? |
 
 ## Rules it keeps
@@ -28,9 +30,14 @@ claim from `marketing_claim` and makes it live on `blog.lohi2.com`.
 
 ## Set up
 
-- Host env (`needs.env`): `LOHI_REPO` = absolute path of the kiem-lai checkout
-  on the Mac, plus `PATH`, `HOME` and `SSH_AUTH_SOCK` so git, Go, `gcloud` and
-  the `2server` login work as they do for the founder. `LOHI_BLOG_URL` is
-  optional (default `https://blog.lohi2.com`).
-- Credential `MARKETING_CLAIM_KEY`: the same value as the marketing pack's.
+- No `LOHI_REPO`. The publisher clones `LOHI_BLOG_REMOTE` (default
+  `git@github.com:reallongnguyen/novel-reader.git`) into its own state directory
+  the first time; `LOHI_REPO` still works as an override. The 2server
+  connection file is `LOHI_CONNECTION` or `~/.2server/connection.yaml`.
+- Host env (`needs.env`): `LOHI_BLOG_REMOTE`, `LOHI_CONNECTION` and
+  `LOHI_REPO` (all optional), plus `PATH`, `HOME` and `SSH_AUTH_SOCK` so git,
+  Go, `gcloud` and the `2server` login work as they do for the founder.
+  `LOHI_BLOG_URL` and `LOHI_API_URL` are optional.
+- Credential `MARKETING_CLAIM_KEY`: the same value as the marketing pack's;
+  `examples/lohi-marketing/setup.mjs` generates it once.
 - Recipe: [`examples/lohi-marketing`](../../README.md).

@@ -6,17 +6,17 @@
 export function strings(locale) {
   const vi = {
     posts: 'Bài viết', queue: 'Hàng đợi', reload: 'Tải lại', loading: 'Đang tải…', back: 'Tất cả bài',
-    tabs: { all: 'Tất cả', draft: 'Nháp', waiting: 'Đang chờ đăng', published: 'Đã đăng', refused: 'Bị từ chối' },
+    tabs: { all: 'Tất cả', draft: 'Nháp', ready: 'Đã kiểm tra', waiting: 'Chờ đăng', published: 'Đã đăng', refused: 'Bị từ chối' },
     noPosts: 'Chưa có bài nào', noPostsHelp: 'Writer lưu bản nháp vào đây.', askWrite: 'Nhờ viết bài',
-    open: 'Mở', unpublish: 'Gỡ bài', pull: 'Kéo ra', restore: 'Xếp lại', republish: 'Đăng lại', reschedule: 'Đổi giờ', why: 'Xem lý do', save: 'Lưu', cancel: 'Hủy',
+    open: 'Mở', unpublish: 'Gỡ bài', pull: 'Gỡ khỏi hàng đợi', schedule: 'Xếp lịch', bodyHead: 'Nội dung bài', restore: 'Xếp lại', republish: 'Đăng lại', reschedule: 'Đổi giờ', why: 'Xem lý do', save: 'Lưu', cancel: 'Hủy',
     noData: 'Chưa có số liệu', noDataWhy: 'Chưa có số liệu — Google thường cần 2–3 ngày sau khi đăng.', notZero: 'Không phải 0: chưa đọc được.',
     relogin: 'Cần đăng nhập Google lại', reloginHelp: 'Quyền đọc Search Console đã bị thu hồi. Một mục đã ở Cần bạn.',
     impressions: 'Hiển thị', clicks: 'Lượt bấm', position: 'Vị trí', days28: '28 ngày', topQueries: 'Truy vấn đứng đầu',
-    radarUses: 'Radar dùng các truy vấn vị trí 8–20 để chọn chủ đề tuần sau.',
+    radarUses: 'Writer dùng các truy vấn vị trí 8–20 để chọn chủ đề kế tiếp.',
     editorCheck: 'Kiểm tra của Editor', noCheck: 'Editor chưa kiểm tra bản này.', stale: 'Kiểm tra cho bản cũ',
     refused: 'Không đăng', refusedBy: 'Editor', refusedNext: 'Writer đã được báo để sửa. Bài không vào hàng đợi cho tới khi Editor kiểm tra lại bản mới.',
-    pausedAll: 'Đang tạm dừng đăng mọi kênh', pausedHelp: 'Soot vẫn viết và kiểm tra; không gì được đăng hay trả lời cho tới khi bạn bật lại.',
-    pauseAll: 'Tạm dừng đăng', switchHint: 'Bật là dừng · tắt là chạy', afterResume: 'sẽ đăng ở khung giờ trống đầu tiên sau khi bật lại',
+    pausedAll: 'Đang dừng đăng mọi kênh', pausedHelp: 'Soot vẫn viết và kiểm tra; không gì được đăng hay trả lời cho tới khi bạn bật lại.',
+    pauseAll: 'Đăng mọi kênh', switchHint: 'Bật là đang đăng · tắt là dừng', afterResume: 'sẽ đăng ở khung giờ trống đầu tiên sau khi bật lại',
     caps: 'Giới hạn kênh', capsHead: ['Kênh', 'Bài/ngày', 'Cách nhau', 'Trả lời/ngày'],
     today: 'Hôm nay', replies: 'trả lời', replyTo: 'Trả lời', pausedAs: (/** @type {string} */ why) => `đang dừng: ${why}`,
     posted: 'Đã lên', postedUrl: 'Liên kết bài đã lên', notPosted: 'Chưa lên — đăng lại', drop: 'Bỏ', postNow: 'Đăng ngay', tryNow: 'Thử ngay',
@@ -35,9 +35,9 @@ export function strings(locale) {
   };
   if (locale !== 'en') return vi;
   return { ...vi, posts: 'Posts', queue: 'Queue', reload: 'Reload', loading: 'Loading…', back: 'All posts',
-    tabs: { all: 'All', draft: 'Drafts', waiting: 'Waiting', published: 'Published', refused: 'Refused' },
+    tabs: { all: 'All', draft: 'Drafts', ready: 'Checked', waiting: 'Queued', published: 'Published', refused: 'Refused' },
     noData: 'No data yet', noDataWhy: 'No data yet — Google usually needs 2–3 days after publishing.', notZero: 'Not 0: not read yet.',
-    impressions: 'Impressions', clicks: 'Clicks', position: 'Position', emptyQueue: 'Nothing waiting to publish', unpublish: 'Unpublish', pull: 'Pull', open: 'Open' };
+    impressions: 'Impressions', clicks: 'Clicks', position: 'Position', emptyQueue: 'Nothing waiting to publish', unpublish: 'Unpublish', pull: 'Remove from queue', open: 'Open' };
 }
 
 const nf = new Intl.NumberFormat('vi-VN');

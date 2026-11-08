@@ -4,7 +4,7 @@
 // MARKETING_HUB is bound; nothing here reads it.
 import { randomBytes, createHash } from 'node:crypto';
 import { fail, eq, gte, isNull } from './store.mjs';
-import { autoChecks, briefLint, claimWindow, defaultsFor, platformOf } from './guard.mjs';
+import { autoChecks, briefLint, internalLinks, claimWindow, defaultsFor, platformOf } from './guard.mjs';
 import { nextSlot, DEFAULT_QUIET } from './time.mjs';
 import { contentHash, signClaim, CLAIM_TTL_MS, INTENT_STALE_MS } from './claim.mjs';
 import { metricsRows } from './page.mjs';
@@ -94,6 +94,9 @@ export async function draft_save(input, { store, now, soot }) {
   if (camp && !camp.link) lint.push({ field: 'link', code: 'campaign_link_missing', message: 'Chiến dịch chưa có liên kết cho kênh này; lưu lại chiến dịch để tạo.' });
   const extra = camp ? { campaign_link: camp.link } : {};
   if (!id) {
+    // The same words saved again (a repeated call) are the draft already there, not a duplicate to refuse.
+    const same = await store.one('posts', [eq('content_hash', hashOf(fields)), eq('channel', ch.key)]);
+    if (same && ['draft', 'checking', 'ready', 'scheduled'].includes(same.state)) return { id: same.ref, revision: same.revision, content_hash: same.content_hash, state: same.state, lint, replayed: true, ...extra };
     const row = { ...fields, ref: ref(), request_id: request_id ?? null, content_hash: hashOf(fields), state: 'draft', reason: null, revision: 1, author_soot: soot ?? null };
     await store.insert('posts', row);
     return { id: row.ref, revision: 1, content_hash: row.content_hash, state: 'draft', lint, ...extra };
@@ -134,12 +137,33 @@ export async function answerable(store, parent, ch, body, self = null) {
   return { reply_to: r.author_handle ?? null, reply_url: r.reply_url ?? null, thread_url: r.thread_url ?? null };
 }
 
-export async function check(input, { store, now, soot }) {
+/** HEAD (then GET) each internal link once: only a 404/410 is dead; a network error or odd status is "not verified", never a failure. */
+export async function checkLinks(post, channel, fetch) {
+  const hosts = channel?.rules?.internal_hosts ?? [];
+  const urls = [...new Set(internalLinks(post.body, hosts).map(u => u.replace(/[.,;:!?]+$/, '')))].slice(0, 12);
+  if (post.kind !== 'article' || !urls.length) return null;
+  const dead = [], unknown = [];
+  await Promise.all(urls.map(async u => {
+    let status = 0;
+    for (const method of ['HEAD', 'GET']) {
+      try { status = (await fetch(u, { method, redirect: 'follow', signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'soot-marketing/1.0' } })).status; } catch { status = 0; }
+      if (status && status !== 405 && status !== 501) break;
+    }
+    if (status === 404 || status === 410) dead.push(u); else if (!(status >= 200 && status < 400)) unknown.push(u);
+  }));
+  if (dead.length) return { rule: 'links', ok: false, code: 'dead_link', detail: `Liên kết không còn: ${dead.join(', ')}` };
+  return { rule: 'links', ok: true, detail: unknown.length ? `${urls.length - unknown.length}/${urls.length} liên kết mở được; ${unknown.length} chưa kiểm tra được` : `${urls.length} liên kết nội bộ mở được` };
+}
+
+export async function check(input, { store, now, soot, fetch }) {
   const p = await post(store, input.id);
   if (input.revision !== p.revision) fail('revision_conflict', `Bài đang ở bản ${p.revision}.`);
   if (!['draft', 'checking', 'refused', 'ready'].includes(p.state)) fail('conflict', `Bài đang ${STATE_LABEL[p.state]}; không kiểm tra lại được.`);
   if (!['pass', 'fail'].includes(input.verdict)) fail('invalid_request', 'verdict is pass or fail.');
-  const auto = autoChecks(p, await guardInputs(store, p, now));
+  const inputs = await guardInputs(store, p, now);
+  const auto = autoChecks(p, inputs);
+  const links = await checkLinks(p, inputs.channel, fetch ?? globalThis.fetch);
+  if (links) auto.push(links);
   const reasons = Array.isArray(input.reasons) ? input.reasons.map(String).slice(0, 20) : [];
   const failed = auto.filter(a => !a.ok);
   const verdict = failed.length || input.verdict === 'fail' ? 'fail' : 'pass';
@@ -152,7 +176,7 @@ export async function check(input, { store, now, soot }) {
   return { verdict, ...(held ? { state: 'draft' } : {}), auto: auto.map(({ rule, ok, detail }) => ({ rule, ok, detail })), ...(reason ? { reason } : {}) };
 }
 
-async function takenTimes(store, chKey, now, own, action = 'publish') {
+export async function takenTimes(store, chKey, now, own, action = 'publish') {
   const [queued, log] = await Promise.all([
     store.query('queue', [eq('channel', chKey)], { order: 'scheduled_at', limit: 500 }),
     store.query('publish_log', [eq('channel', chKey), gte('at', iso(now - 7 * DAY))], { order: 'at', limit: 500 }),
@@ -217,6 +241,7 @@ const needKey = n => `${n.kind}:${n.id}:${n.reason}`;
 
 export async function clearAttention(store, kind, ref) {
   await store.remove('attention', [eq('kind', kind), eq('ref', ref)]);
+  await store.remove('attention', [eq('kind', 'woke-' + kind), eq('ref', ref)]);
 }
 
 export async function due(input, { store, now, soot }) {
@@ -231,7 +256,8 @@ export async function due(input, { store, now, soot }) {
   const byKey = Object.fromEntries(channels.map(c => [c.key, c]));
   const seen = new Set(raised.map(r => r.key));
   const out = { wake: false, publish: [], unpublish: [], reply: [], late: [], needs_person: [], needs: [] };
-  const need = n => out.needs.push({ ...n, key: needKey(n), label: n.label ?? NEED_LABEL[n.reason] ?? n.reason, raised: seen.has(needKey(n)) });
+  // `woken`: the dispatch schedule already woke the Editor for this need (it may not have filed it yet); never wake twice for one.
+  const need = n => out.needs.push({ ...n, key: needKey(n), label: n.label ?? NEED_LABEL[n.reason] ?? n.reason, raised: seen.has(needKey(n)), woken: seen.has('woke:' + needKey(n)) });
   for (const c of channels) {
     if (!c.paused || !c.paused_reason || c.paused_reason === 'person' || c.paused_reason === 'signed_in') continue;
     out.needs_person.push({ id: c.key, channel: c.key, reason: c.paused_reason });
@@ -286,7 +312,14 @@ export async function due(input, { store, now, soot }) {
     if (next) out.ask = await askFor(next, { store, settings, soot, byKey, replies: open });
   }
   // The runtime's wake_when matches the boolean `notify` (or a string at a path), so both say the same.
-  out.wake = out.notify = out.publish.length + out.unpublish.length + out.reply.length > 0 || out.needs.some(n => !n.raised);
+  const fresh = out.needs.filter(n => !n.raised && !n.woken);
+  out.wake = out.notify = out.publish.length + out.unpublish.length + out.reply.length > 0 || fresh.length > 0;
+  // The schedule's own call remembers whom it woke for, so an unchanged need costs one model turn, ever.
+  if (input.schedule === true && out.notify) {
+    for (const n of fresh) {
+      try { await store.insert('attention', { key: 'woke:' + n.key, kind: 'woke-' + n.kind, ref: n.id, reason: n.reason, raised_at: iso(now) }); } catch (e) { if (e.code !== 'conflict') throw e; }
+    }
+  }
   return out;
 }
 
@@ -522,8 +555,11 @@ export function flatten(value, prefix = '', out = []) {
 }
 
 export async function facts_sync(input, { store, now, fetch }) {
-  const url = input.url;
-  if (typeof url !== 'string' || !/^https:\/\//.test(url)) fail('invalid_request', 'url is the https address of the served price/config source.');
+  // The source is remembered from the first call (the recipe's schedule), so a Soot never guesses it.
+  const known = (await store.one('settings', [eq('key', 'facts_url')]))?.value ?? (await store.one('settings', [eq('key', 'plan')]))?.value?.facts_url;
+  const url = input.url ?? known;
+  if (typeof url !== 'string' || !/^https:\/\//.test(url)) fail('invalid_request', 'Chưa có địa chỉ nguồn giá. Bỏ qua việc đọc giá: viết bài không nêu giá, phần trăm hay ưu đãi.');
+  if (input.url && input.url !== known) await setSetting(store, 'facts_url', input.url);
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) fail('source_failed', `${url} answered ${res.status}`);
   const leaves = flatten(await res.json());

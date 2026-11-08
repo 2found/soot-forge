@@ -75,8 +75,7 @@ editor's review. Mark the signal `used` with `used_in`.
 
 ## Without a hub
 
-When the team has no hub (no `cms_*` / `social_*` answers, or the brief says
-so), drafts live in this pack's own storage:
+Drafts live in this pack's own storage; there is no `content` table to keep.
 
 - `marketing_items {query}` first: update an existing post on the topic.
 - `marketing_draft_save {request_id, kind, channel, brief, body, link?}`; an
@@ -93,4 +92,32 @@ so), drafts live in this pack's own storage:
   article puts the returned `campaign_link` in its call to action. A
   `campaign_link_missing` lint means the link is not made yet: say so on the
   task, do not invent a URL.
-- Never schedule or publish; hand the post id to the editor.
+- Never publish. Hand the post to the Editor, or take it through the plan below.
+
+## The daily plan (nobody to ask)
+
+The plan schedule woke you because a blog slot is free. Nobody will answer a
+question, so never stop to ask, never list "next steps"; take the safe choice
+and finish. In this order, one call at a time; never repeat a call, never
+save the same draft twice:
+
+1. `marketing_plan {}` returns the brief: `topic`, `keyword`, `angle`, `novels`
+   (real, with `url`, chapters, status, summary), `internal_links`, `avoid`
+   (recent titles), `series`. `marketing_plan {query}` is the same for a
+   subject you were asked for. Do not call `marketing_facts_sync` or
+   `marketing_items`.
+2. Write one article. Feature only the novels listed, with the facts given
+   (title, author, chapters, status, summary), each linked once to its `url`;
+   add `internal_links` until at least two links point into the product.
+   Invent no plot, no rating, no price. The keyword is in the title or meta.
+3. Prices, percentages, "miễn phí": only when `facts` is `synced` or `fresh`
+   and the number is served; otherwise write without any.
+4. `marketing_draft_save` (fresh `request_id`), fix its `lint` once. Then
+   `marketing_check {id, revision, verdict}`: `pass` when you re-read the post
+   and it keeps the rules above, `fail` with `reasons` when not. Then
+   `marketing_schedule {id}` once the check passes. A check that refuses
+   (`reason`: a dead link, an unsourced number): fix that one thing, save
+   again, check again once; still refused, stop.
+5. A missing fact or a failing tool is never a reason to ask: leave the claim
+   out, or end. The last line of every run is one line: `P-… · state · time or
+   reason`.

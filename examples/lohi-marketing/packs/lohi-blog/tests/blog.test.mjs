@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, lstatSync, readlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { publish, unpublish, find, postFile, postURL, warnings, linkConnection } from '../tools/blog.mjs';
+import { publish, unpublish, find, postFile, postURL, warnings, linkConnection, catalog, ready } from '../tools/blog.mjs';
 import { signClaim, contentHash } from '../../../../../packs/marketing/tools/lib/claim.mjs';
 
 const KEY = 'k'.repeat(32);
@@ -186,4 +186,78 @@ test('deploy finds the founder checkout\'s 2server connection from the tool\'s o
   const bare = mkdtempSync(join(tmpdir(), 'lohi-noconn-'));
   assert.equal(await linkConnection(join(bare, 'repo'), join(bare, 'wt')), null, 'no connection: deploy.sh says so itself');
   assert.equal(await linkConnection(undefined, wt), null);
+});
+
+test('no LOHI_REPO: the publisher clones the configured remote into its own state and publishes from it', async () => {
+  const w = setup(), s = stubs();
+  const env = { ...w.env, LOHI_REPO: undefined, LOHI_BLOG_REMOTE: w.origin };
+  delete env.LOHI_REPO;
+  const out = await publish(claim(), env, s);
+  assert.equal(out.status, 'published', JSON.stringify(out));
+  assert.ok(existsSync(join(w.state, 'blog-repo', '.git')), 'cloned under the pack state');
+  g(w.seed, 'fetch', '-q', 'origin');
+  assert.equal(g(w.seed, 'rev-parse', 'origin/main'), out.platform_id);
+  // A second call reuses the clone.
+  assert.deepEqual(await publish(claim(), env, stubs({ live: s.live })), out);
+});
+
+test('no LOHI_REPO and an unreachable remote: a failed call that names the remote, nothing half-cloned', async () => {
+  const w = setup();
+  const env = { ...w.env, LOHI_BLOG_REMOTE: join(w.dir, 'nope.git') };
+  delete env.LOHI_REPO;
+  await assert.rejects(publish(claim(), env, stubs()), /cannot clone/);
+  assert.ok(!existsSync(join(w.state, 'blog-repo')));
+});
+
+test('deploy finds the operator connection in ~/.2server when the machine has no checkout', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'lohi-home-'));
+  mkdirSync(join(root, '.2server'), { recursive: true });
+  writeFileSync(join(root, '.2server', 'connection.yaml'), 'ssh: x\n');
+  const wt = join(root, 'state', 'wt');
+  mkdirSync(wt, { recursive: true });
+  assert.equal(await linkConnection(undefined, wt, { HOME: root }), join(root, '.2server', 'connection.yaml'));
+  assert.ok(lstatSync(join(wt, '.2server', 'connection.yaml')).isSymbolicLink());
+});
+
+const FEED = [
+  { slug: 'tru-tien', titleVi: 'Tru Tiên', authorNameVi: 'Tiêu Đỉnh', genres: ['Tiên Hiệp'], totalChapters: 200, completionStatus: 'completed', synopsis: 'Một câu chuyện '.repeat(30), access: 'open' },
+  { slug: 'khoa', titleVi: 'Bị khoá', genres: [], totalChapters: 9, access: 'locked' },
+  { slug: 'dang-ra', titleVi: 'Đang ra', genres: ['Ngôn Tình'], totalChapters: 12, completionStatus: 'ongoing', access: 'open' },
+];
+test('catalog: real novels with their lohi2.com link, completed-only, search and genres, public endpoints only', async () => {
+  const seen = [];
+  const fetch = async url => { seen.push(url); const u = new URL(url); return { ok: true, status: 200, json: async () => u.pathname.endsWith('/genres') ? ['Tiên Hiệp'] : u.pathname.endsWith('/search') ? { matches: [{ slug: 'vo-tien', titleVi: 'Vô Tiên', authorVi: 'Duệ Quang', genres: ['Tiên Hiệp'], hasChapters: true }, { slug: 'rong', titleVi: 'Rỗng', hasChapters: false }] } : FEED }; };
+  const list = await catalog({ completed: true }, {}, { fetch });
+  assert.deepEqual(list.novels.map(n => [n.slug, n.url]), [['tru-tien', 'https://lohi2.com/truyen/tru-tien']]);
+  assert.ok(list.novels[0].summary.length <= 150 && list.novels[0].chapters === 200);
+  assert.deepEqual((await catalog({ query: 'tiên' }, {}, { fetch })).novels.map(n => n.slug), ['vo-tien']);
+  assert.deepEqual((await catalog({ genres: true }, {}, { fetch })).genres, ['Tiên Hiệp']);
+  assert.ok(seen.every(u => u.startsWith('https://api.lohi2.com/novel/discovery/') || u.startsWith('https://api.lohi2.com/novel/novels/search')), seen.join(' '));
+  await assert.rejects(catalog({}, {}, { fetch: async () => ({ ok: false, status: 403 }) }), /403/);
+});
+
+test('ready: every missing prerequisite in one Cần bạn item, raised once and quiet while unchanged', async () => {
+  const state = mkdtempSync(join(tmpdir(), 'lohi-ready-'));
+  let present = new Set(['git']);
+  const run = async (cmd, args) => {
+    if (cmd === 'sh') return { ok: present.has(args[1].split(' ').pop()), code: 0, stdout: '', stderr: '' };
+    if (cmd === 'git') return { ok: false, code: 128, stdout: '', stderr: 'Permission denied (publickey).' };
+    return { ok: false, code: 1, stdout: '', stderr: '' };
+  };
+  const env = { SOOT_PACK_STATE: state, HOME: state, PATH: '' };
+  const first = await ready(env, { run });
+  assert.equal(first.ok, false);
+  assert.deepEqual(first.missing.map(m => m.key).sort(), ['2server', 'connection', 'gcloud', 'git_remote', 'go']);
+  assert.equal(first.notify, true);
+  assert.equal(first.ask.options[0].label, 'Đã xong, kiểm tra lại');
+  assert.match(first.ask.missing, /ssh-add/);
+  const second = await ready(env, { run });
+  assert.deepEqual([second.ok, second.notify, second.wake], [false, false, false], 'an unchanged list never wakes again');
+  present = new Set(['git', 'go', '2server', 'gcloud']);
+  mkdirSync(join(state, '.2server'), { recursive: true });
+  writeFileSync(join(state, '.2server', 'connection.yaml'), 'x');
+  const gc = async (cmd, args) => (cmd === 'gcloud' ? { ok: true, code: 0, stdout: 'a@b.c\n', stderr: '' } : cmd === 'git' ? { ok: true, code: 0, stdout: '', stderr: '' } : run(cmd, args));
+  const done = await ready(env, { run: gc });
+  assert.deepEqual([done.ok, done.notify, done.missing.length], [true, false, 0]);
+  assert.equal(done.ask, undefined);
 });

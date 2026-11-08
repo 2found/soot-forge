@@ -127,3 +127,5 @@ p { margin: 0; }
 .chip.toggle { font: inherit; font-size: 12px; border-radius: 999px; padding: 2px 10px; min-height: 28px; cursor: pointer; color: var(--mk-muted); }
 .chip.toggle[aria-pressed="true"] { color: var(--mk-fg); border-color: var(--mk-fg); }
 @media (pointer: coarse), (max-width: 700px) { .chip.toggle { min-height: 44px; } }
+
+.postbody { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow: auto; padding: 12px; border: 1px solid var(--mk-border); border-radius: var(--mk-radius); background: var(--mk-bg); color: var(--mk-fg); font-size: 14px; line-height: 1.55; }

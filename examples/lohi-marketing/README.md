@@ -1,28 +1,38 @@
 # Lohi's marketing workspace
 
 A local Soot workspace that writes, checks and publishes Lohi's blog with no
-marketing hub. Four Soots share the [marketing pack](../../packs/marketing/README.md)'s
-own storage. The [Lohi blog publisher](packs/lohi-blog/README.md), a local pack that
-ships with this recipe, puts posts on `blog.lohi2.com`.
+marketing hub and no person in the loop. Three Soots (Writer, Editor, Video)
+share the [marketing pack](../../packs/marketing/README.md)'s own storage. The
+[Lohi blog publisher](packs/lohi-blog/README.md), a local pack that ships with
+this recipe, puts posts on `blog.lohi2.com`.
 
 ```text
-Radar ─▶ angle ─▶ Writer: marketing_draft_save ─▶ Editor: marketing_check ─▶ marketing_schedule
-every 10 m  marketing_due ──(notify)──▶ Editor: marketing_claim ─▶ lohi-blog_publish ─▶ marketing_record
+08:00       marketing_plan ──(a blog slot is free, once a day)──▶ Writer: plan {} brief ─▶ draft_save ─▶ check ─▶ schedule
+            (also keeps the guard's price facts fresh; zero model calls when no slot is free)
+7-22 h      marketing_due {schedule} every 10 m ──(a new need)──▶ Editor: marketing_claim ─▶ lohi-blog_publish ─▶ marketing_record
+                                                            └──▶ marketing-browser-post (X, Facebook, Reddit) ─▶ marketing_record
 06:00       marketing_gsc_sync  (zero model calls; a revoked sign-in is one host Cần bạn item)
-every 10 m  marketing_due ──▶ Editor: marketing_claim ─▶ marketing-browser-post (X, Facebook, Reddit) ─▶ marketing_record
 every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-replies ─▶ reply_save ─▶ check ─▶ claim {reply}
 05:20       marketing_channels_setup (creates x-lohi, facebook-lohi, reddit-lohi paused; fills unset caps)
-05:30       marketing_facts_sync (prices and offers the guard checks against)
+06:30       lohi-blog_ready ──(something missing, changed)──▶ Editor: one Cần bạn item
 07:00       marketing_campaign_report ──(notify)──▶ Editor: record lead outcomes, token count, 80 % note
 on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_import ─▶ Editor: check ─▶ schedule ─▶ browser upload (X, Facebook)
 ```
 
 | file | what it is |
 | --- | --- |
-| `deployment.example.json` | product `Lohi`, the four Soots, the shared Editor/Video workspace, pack grants, the six schedules, `approvals: {"marketing_claim": "auto"}` |
-| `soots/lohi-*.json` | Radar (`lite`), Writer, Editor and Video (`flash`), each with a small daily token budget |
-| `soots/*.md` | the shared soul and each role's mission |
+| `setup.mjs` | builds the workspace from this recipe and generates the claim key |
+| `deployment.example.json` | product `Lohi`, the three Soots, the shared Editor/Video workspace, pack grants, the seven schedules, `approvals: {"marketing_claim": "auto"}` |
+| `soots/lohi-*.json` | Writer, Editor and Video (`flash`), each with a small daily token budget |
+| `soots/*.md` | the Lohi brief (`SOUL.md`) and each role's mission |
 | `packs/lohi-blog/` | the Lohi-only blog publisher, a local pack: it is not in the Forge catalog |
+
+The topic comes from the tool, not a Soot: `marketing_plan` reads Lohi's public
+catalog (`/novel/discovery/feed`, `genres`, `/novel/novels/search`) and the
+Search Console queries, picks a keyword not yet written, and hands the Writer
+real novels with their links. `marketing_check` fails a draft whose
+`lohi2.com` link answers 404 or 410. No Radar Soot and no facts schedule are
+needed.
 
 ## Decisions in this recipe
 
@@ -94,60 +104,46 @@ on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_im
 
 ## Set it up
 
-1. Install the Forge packs `marketing`, `research`, `writing`, `2build` and
-   `toolbox` into this folder's `packs/` (`soot add 2found/soot-forge/packs/<id>`). `lohi-blog`
-   is already there: it is Lohi's own publisher, kept out of the Forge
-   catalog. Grant it with `soot grant lohi-blog`.
-2. Store one random claim key for the Editor (for example the output of
-   `openssl rand -hex 32`): in Nest, Đội Soot → Editor → the tool connections,
-   `MARKETING_CLAIM_KEY`. Both packs declare it `from: operator`, so they read
-   that one stored value and claims are signed and checked with the same key;
-   an environment variable is not read.
-3. Set `LOHI_REPO` to a clone of the kiem-lai repository whose `origin` the
-   machine can push to over SSH. The publisher keeps its own clean worktree
-   under the pack's state directory and never touches yours.
-   `LOHI_BLOG_URL` is optional; it defaults to `https://blog.lohi2.com`.
-4. Sign in to Google from Nest for Search Console (`GSC_GOOGLE`). Until the
-   first read, the Bài viết page shows "Chưa có số liệu", never 0.
-5. Install `browser-use` (`soot add 2found/soot-forge/packs/browser-use`) and the
-   browser (**Cài trình duyệt** in Nest, or `soot browser install`).
-   - Start the runtime with `SOOT_BROWSER_PERSISTENT_SOOTS=lohi-editor` in its
-     environment. With `soot serve`, export the variable first. The
-     service passes on only the environment it starts with, and
-     `soot service start` starts it from the calling shell. Restart it with
-     `soot service stop && SOOT_BROWSER_PERSISTENT_SOOTS=lohi-editor soot service start`.
-     The start at login does not carry the variable yet: after a Mac
-     restart, run that line again.
-   - Without the variable, each Editor conversation has its own browser and
-     sign-ins do not carry over.
-6. Check the accounts in the `marketing-channels` schedule: the X handle, the
-   Facebook Page URL and the Reddit user. Run the schedule once from Nest to
-   create the channels. The Editor opens each login page in its own browser,
-   and Cần bạn shows one item, "Đăng nhập X, Facebook, Reddit cho Lohi". For
-   each platform:
-   1. Bấm **Mở trình duyệt**.
-   2. Đăng nhập trong khung bên phải.
-   3. Bấm **Đã đăng nhập <X|Facebook|Reddit>**.
+```bash
+node examples/lohi-marketing/setup.mjs ~/.soot/lohi-marketing   # packs, Soots, deployment, claim key
+cd ~/.soot/lohi-marketing && soot start
+```
 
-   The Editor checks that account and the channel shows "đã đăng nhập, chờ
-   Bật". Nothing posts until you choose **Bật** for the channel on the Hàng
-   đợi page (`resume`). You never give Soot a password.
-7. For campaigns, create an API key with role `agent_mod` in Lohi's admin UI
-   (Quản trị → API keys; a key can never be `admin`) and store it
-   in Nest, Đội Soot → Editor → the tool connections, `PRODUCT_ADMIN_KEY`.
-   Start the runtime with `PRODUCT_API_URL=https://api.lohi2.com` in its
-   environment, like `SOOT_BROWSER_PERSISTENT_SOOTS` above. The key goes only
-   to that address. Without either one, a campaign is saved without links and
-   the Chiến dịch page says what is missing; saving it again makes the links.
-8. For videos, run `python3 packs/2build/marketing-video/tools/mvf.py doctor`
-   until it prints READY (ffmpeg, Node, HyperFrames 0.8.153, voice and the
-   Micro Fish workspace). Grant `marketing` and `browser-use` the workspace
-   (`soot grant marketing`, `soot grant browser-use`), then ask Video
-   "Làm video từ bài <tên bài>".
+`setup.mjs` copies the packs and Soots, writes `deployment.json` and generates
+the Editor's claim key once (never printed, never overwritten). If the runtime
+knows the workspace `env` field, the three host settings (`PRODUCT_API_URL`,
+`SOOT_BROWSER_PERSISTENT_SOOTS`, `LOHI_BLOG_REMOTE`) go into the file;
+otherwise it prints the line to start the runtime with. Install the browser
+once (**Cài trình duyệt** in Nest, or `soot browser install`).
 
-To stop publishing, choose **Tạm dừng mọi kênh** on the Hàng đợi page, or call
+What only a person can do, each one Cần bạn card or one command:
+
+1. **Sign in to X, Facebook and Reddit.** The Editor opens each login page in
+   its own browser and Cần bạn shows "Đăng nhập X, Facebook, Reddit cho Lohi".
+   For each platform: bấm **Mở trình duyệt**, đăng nhập trong khung bên phải,
+   bấm **Đã đăng nhập <X|Facebook|Reddit>**. Then choose **Bật** for the
+   channel on the Hàng đợi page. You never give Soot a password. The blog
+   needs none of this.
+2. **Sign in to Google** from Nest for Search Console (`GSC_GOOGLE`). Optional:
+   without it the plan chooses topics from the catalog, and Bài viết shows
+   "Chưa có số liệu", never 0.
+3. **Let the machine reach the blog repository.** An SSH key that can push to
+   the kiem-lai repo, `git`, `go`, `2server` and a signed-in `gcloud`. The
+   publisher clones the repo itself (no `LOHI_REPO`). The `blog-ready` check
+   at 06:30 lists what is missing in one Cần bạn card and stays quiet until
+   that list changes.
+4. **Campaigns (optional):** an API key with role `agent_mod` from Lohi's
+   admin UI, stored in Nest as `PRODUCT_ADMIN_KEY`.
+5. **Videos (optional):** `soot add 2found/soot-forge/packs/2build` and
+   `python3 packs/2build/marketing-video/tools/mvf.py doctor` until READY, then
+   `soot grant marketing` and `soot grant browser-use`.
+
+Check the accounts in the `marketing-channels` schedule (the X handle, the
+Facebook Page URL, the Reddit user) before the first run.
+
+To stop publishing, turn off **Đăng mọi kênh** on the Hàng đợi page (a switch is on while it is publishing), or call
 `marketing_pause {paused: true}`. Writing and checking go on. To take a post
-down, choose **Gỡ bài** on the Bài viết page. Removal goes through the same
+down, choose **Gỡ bài** on the Bài viết page (a queued post: **Gỡ khỏi hàng đợi**). Removal goes through the same
 claim and leaves one commit on the blog's history; on X, Facebook and Reddit
 the Editor deletes the post in its browser. To stop one platform, pause its
 channel.

@@ -5,7 +5,6 @@
   "product": "Lohi",
   "default_soot": "lohi-editor",
   "soots": [
-    "soots/lohi-radar.json",
     "soots/lohi-writer.json",
     "soots/lohi-editor.json",
     "soots/lohi-video.json"
@@ -25,10 +24,13 @@
     "lohi-blog": {
       "env": [
         "LOHI_REPO",
+        "LOHI_BLOG_REMOTE",
+        "LOHI_CONNECTION",
         "PATH",
         "HOME",
         "SSH_AUTH_SOCK",
-        "LOHI_BLOG_URL"
+        "LOHI_BLOG_URL",
+        "LOHI_API_URL"
       ]
     },
     "browser-use": {
@@ -52,19 +54,53 @@
   },
   "schedules": [
     {
-      "id": "marketing-dispatch",
-      "name": "Đăng bài đến giờ",
-      "soot": "lohi-editor",
-      "every": "10m",
+      "id": "marketing-plan",
+      "name": "Lên bài blog mỗi sáng",
+      "soot": "lohi-writer",
+      "every": "24h",
+      "at": "08:00",
+      "timezone": "Asia/Ho_Chi_Minh",
       "tool": {
         "pack": "marketing",
-        "name": "due",
-        "input": {}
+        "name": "plan",
+        "input": {
+          "wake": true,
+          "channel": "blog-lohi",
+          "facts_url": "https://api.lohi2.com/novel/v1/app-config",
+          "catalog": {
+            "feed": "https://api.lohi2.com/novel/discovery/feed",
+            "genres": "https://api.lohi2.com/novel/discovery/genres",
+            "search": "https://api.lohi2.com/novel/novels/search",
+            "page": "https://lohi2.com/truyen/{slug}",
+            "links": [
+              "https://lohi2.com/ung-dung",
+              "https://lohi2.com/dich-truyen"
+            ]
+          }
+        }
       },
       "wake_when": {
         "notify": true
       },
-      "text": "marketing_due says something is due or needs a person. Follow the marketing-dispatch skill: claim, publish (lohi-blog for the blog, marketing-browser-post for X, Facebook and Reddit), record, then one report_blocker: due.ask as is."
+      "text": "A blog slot is free. Follow the marketing-write skill, section \"The daily plan\": marketing_plan, one article, marketing_draft_save, marketing_check, marketing_schedule. Nobody will answer a question: finish, and end with the one-line result."
+    },
+    {
+      "id": "marketing-dispatch",
+      "name": "Đăng bài đến giờ",
+      "soot": "lohi-editor",
+      "tool": {
+        "pack": "marketing",
+        "name": "due",
+        "input": {
+          "schedule": true
+        }
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "marketing_due says something is due or needs a person that you have not raised. Follow the marketing-dispatch skill: claim, publish (lohi-blog for the blog, marketing-browser-post for X, Facebook and Reddit), record, then one report_blocker: due.ask as is.",
+      "cron": "*/10 7-22 * * *",
+      "timezone": "Asia/Ho_Chi_Minh"
     },
     {
       "id": "marketing-channels",
@@ -161,22 +197,6 @@
       "text": "Read yesterday's Search Console numbers for the published posts. A revoked sign-in is raised by the host as one Cần bạn item; nothing for a model to do."
     },
     {
-      "id": "marketing-facts",
-      "name": "Đọc giá và ưu đãi",
-      "soot": "lohi-editor",
-      "every": "24h",
-      "at": "05:30",
-      "timezone": "Asia/Ho_Chi_Minh",
-      "tool": {
-        "pack": "marketing",
-        "name": "facts_sync",
-        "input": {
-          "url": "https://api.lohi2.com/novel/v1/app-config"
-        }
-      },
-      "text": "Refresh the product facts the guard checks prices and offers against."
-    },
-    {
       "id": "marketing-campaigns",
       "name": "Đọc số chiến dịch",
       "soot": "lohi-editor",
@@ -192,6 +212,23 @@
         "notify": true
       },
       "text": "marketing_campaign_report read the Lohi api for the running campaigns. Follow the marketing-measure skill, section Campaigns: record each outcomes item with the host outcome tool as given, update tokens_used for each tokens_due id, and tell the founder each tell item once."
+    },
+    {
+      "id": "blog-ready",
+      "name": "Kiểm tra điều kiện đăng blog",
+      "soot": "lohi-editor",
+      "every": "24h",
+      "at": "06:30",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "lohi-blog",
+        "name": "ready",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "lohi-blog_ready found a prerequisite of publishing the blog that is missing. File its ask as one Cần bạn item with report_blocker (summary, missing, options as given) and end the turn."
     }
   ],
   "execution": {

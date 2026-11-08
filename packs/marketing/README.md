@@ -8,7 +8,8 @@ skill, never from this pack. Installing it grants nothing.
 
 | skill | for | tools |
 | --- | --- | --- |
-| `marketing-radar` | the Soot that watches sources | `radar_feeds`, `radar_scan`, `radar_items`, `radar_mark` |
+| `marketing-radar` | the Soot that watches sources (hub teams) | `radar_feeds`, `radar_scan`, `radar_items`, `radar_mark` |
+| (plan) | a hubless team's topic and brief: a tool, not a Soot | `plan` (`{wake:true,…}` from a schedule wakes the Writer only when a blog slot is free; `{}` returns the brief of real novels and links) |
 | `marketing-write` | writers | `cms_list`, `cms_read`, `cms_save`, `social_channels`, `social_queue`, `social_list`, `social_update` |
 | `marketing-edit` | the editor (a skill: review, voice rules) | — |
 | `marketing-publish` | the editor, or a publisher | `cms_publish`, `social_publish`, `social_record` |

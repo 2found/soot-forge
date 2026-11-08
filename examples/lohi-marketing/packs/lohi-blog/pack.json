@@ -7,8 +7,8 @@
     "en": "Lohi blog"
   },
   "description": {
-    "vi": "Nơi đăng của kênh blog-lohi: nhận lượt đăng đã ký từ gói marketing, viết bài vào một worktree riêng của kiem-lai, dựng blog không cảnh báo, commit đúng một tệp, push, triển khai và kiểm tra địa chỉ; triển khai lỗi thì hoàn lại.",
-    "en": "The blog-lohi channel's publisher: takes a signed claim from the marketing pack, writes the post in its own kiem-lai worktree, builds the blog with zero warnings, commits only that file, pushes, deploys and checks the URL; a failed deploy is reverted."
+    "vi": "Nơi đăng của kênh blog-lohi: nhận lượt đăng đã ký từ gói marketing, viết bài vào một worktree riêng của kho kiem-lai (tự clone khi máy không có sẵn), dựng blog không cảnh báo, commit đúng một tệp, push, triển khai và kiểm tra địa chỉ; triển khai lỗi thì hoàn lại. Đọc danh mục truyện thật của Lohi và báo một lần mọi điều kiện còn thiếu.",
+    "en": "The blog-lohi channel's publisher: takes a signed claim from the marketing pack, writes the post in its own worktree of the kiem-lai repository (cloned itself when the machine has none), builds the blog with zero warnings, commits only that file, pushes, deploys and checks the URL; a failed deploy is reverted. Reads Lohi's real catalog and raises every missing prerequisite once."
   },
   "keywords": {
     "vi": [
@@ -25,10 +25,13 @@
   "needs": {
     "env": [
       "LOHI_REPO",
+      "LOHI_BLOG_REMOTE",
+      "LOHI_CONNECTION",
       "PATH",
       "HOME",
       "SSH_AUTH_SOCK",
-      "LOHI_BLOG_URL"
+      "LOHI_BLOG_URL",
+      "LOHI_API_URL"
     ],
     "credentials": {
       "MARKETING_CLAIM_KEY": {
@@ -140,6 +143,79 @@
         "secret_env": {
           "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}"
         }
+      }
+    },
+    {
+      "name": "catalog",
+      "title": "Danh mục truyện Lohi",
+      "description": "Real novels a guest can read on lohi2.com (public api only): trending or new, by genre, completed only, or a title search. Each row has slug, title, author, genres, chapters, status, a short summary and its lohi2.com/truyen/<slug> link. genres: true lists the genre labels.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "genre": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "trending",
+              "new"
+            ]
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "genres": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/blog.mjs",
+          "catalog"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "30s",
+        "max_input_bytes": 4096,
+        "max_output_bytes": 32768
+      }
+    },
+    {
+      "name": "ready",
+      "title": "Kiểm tra điều kiện đăng blog",
+      "description": "For a daily tool-only schedule: is every prerequisite of publishing in place (git, go, 2server, gcloud sign-in, the connection file, push access to the repository)? Answers ok, missing[] and ask, one ready Cần bạn item; wake/notify only when the missing list changed.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/blog.mjs",
+          "ready"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "2m",
+        "max_input_bytes": 4096,
+        "max_output_bytes": 16384
       }
     }
   ]

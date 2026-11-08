@@ -50,7 +50,7 @@ async function readyPost(w, over = {}) {
 test('AC1: draft → check → schedule → due → claim → publish → record, with no hub, and the pages show it', async () => {
   const w = world();
   const d = await readyPost(w);
-  assert.deepEqual(d.check.auto.map(a => [a.rule, a.ok]), [['facts', true], ['personal_data', true], ['platform', true], ['duplicate', true]]);
+  assert.deepEqual(d.check.auto.map(a => [a.rule, a.ok]), [['facts', true], ['personal_data', true], ['platform', true], ['duplicate', true], ['links', true]]);
   assert.equal(d.check.verdict, 'pass');
   const s = await w.call('schedule', { id: d.id });
   assert.ok(Date.parse(s.scheduled_at) >= T0);

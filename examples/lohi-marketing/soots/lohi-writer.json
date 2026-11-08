@@ -5,6 +5,6 @@
   "tier": "flash",
   "soul": "SOUL.md",
   "mission": "writer.md",
-  "packs": ["marketing", "writing"],
-  "execution": { "max_run_tokens": 80000, "daily_tokens": 150000 }
+  "packs": ["marketing"],
+  "execution": { "max_run_tokens": 200000, "daily_tokens": 250000 }
 }

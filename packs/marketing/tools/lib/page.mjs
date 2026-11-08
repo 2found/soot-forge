@@ -11,7 +11,8 @@ const DAY = 86_400_000;
 export const TABS = {
   all: null,
   draft: ['draft', 'checking'],
-  waiting: ['ready', 'scheduled', 'publishing', 'failed', 'uncertain', 'unpublishing'],
+  ready: ['ready'],
+  waiting: ['scheduled', 'publishing', 'failed', 'uncertain', 'unpublishing'],
   published: ['published'],
   refused: ['refused'],
   removed: ['pulled', 'removed'],
@@ -88,7 +89,7 @@ function linkSummary(links) {
   if (!links.length) return '0';
   const blog = links.filter(u => new URL(u).hostname.startsWith('blog.')).length;
   const other = links.map(u => new URL(u)).find(u => !u.hostname.startsWith('blog.'));
-  const parts = [other && `${other.hostname}/${other.pathname.split('/')[1] ?? ''}/…`, blog && `${blog} bài blog`].filter(Boolean);
+  const parts = [other && `${other.hostname}${other.pathname.split('/')[1] ? `/${other.pathname.split('/')[1]}` : ''}/…`, blog && `${blog} bài blog`].filter(Boolean);
   return `${links.length} (${parts.join(', ')})`;
 }
 
@@ -258,7 +259,7 @@ export async function answer(input, deps) {
   const { store } = deps;
   const option = typeof input.option === 'string' ? input.option.trim() : '';
   let key = typeof input.key === 'string' ? input.key : '';
-  if (!key) key = (await store.query('attention', [], { order: 'raised_at', limit: 50 })).find(r => r.reason !== 'signed_out')?.key ?? '';
+  if (!key) key = (await store.query('attention', [], { order: 'raised_at', limit: 50 })).find(r => r.reason !== 'signed_out' && !r.key.startsWith('woke:'))?.key ?? '';
   const m = /^(channel|uncertain|late|reply):([A-Za-z0-9-]{1,64}):([a-z_]{1,32})$/.exec(key);
   if (!m || !option) fail('invalid_request', 'key is the due.ask key and option one of its options.');
   const [, kind, ref, reason] = m;

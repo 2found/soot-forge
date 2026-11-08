@@ -26,3 +26,12 @@ and never touch the founder's own kiem-lai checkout.
 
 Same steps with `action: "unpublish"` and `lohi-blog_unpublish {claim}`;
 `status: "removed"` → `marketing_record {intent_id}`.
+
+## Real novels and setup
+
+- `lohi-blog_catalog` lists or searches the novels a guest can read (slug,
+  title, author, chapters, status, summary, `lohi2.com/truyen/<slug>` link).
+  Write about those and link those; never a title or slug it did not return.
+- When the blog-ready schedule wakes you, `lohi-blog_ready` found something
+  missing. `report_blocker` with its `ask` (`summary`, `missing`, `options`) as
+  given, once, and end the turn. It raises the same list only when it changes.

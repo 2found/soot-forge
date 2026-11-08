@@ -84,6 +84,7 @@ function postList(d) {
       p.state === 'refused' && button(t.why, () => { S.id = p.id; void run(load); }),
       p.url && !p.unpublishing && p.state === 'published' && button(`↗ ${t.open}`, () => bridge.open(p.url)),
       p.state === 'published' && !p.unpublishing && button(t.unpublish, () => askUnpublish(p), 'btn sm danger'),
+      p.state === 'ready' && button(t.schedule, () => void act('restore', { id: p.id }), 'btn sm'),
       ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })),
       ['pulled', 'removed'].includes(p.state) && button(p.state === 'removed' ? t.republish : t.restore, () => void act('restore', { id: p.id })));
   }))];
@@ -121,9 +122,12 @@ function postDetail(d) {
   const back = h('button', { class: 'btn sm ghost back', type: 'button', onclick: () => { S.id = ''; void run(load); } }, `← ${t.back}`);
   if (p.state === 'refused') return [back, refusedCard(d)];
   const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.label, p.state), h('h2', {}, p.title)),
-    h('div', { class: 'line' }, p.url && button(`↗ ${t.open}`, () => bridge.open(p.url)), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
+    h('div', { class: 'line' }, p.url && button(`↗ ${t.open}`, () => bridge.open(p.url)),
+      p.state === 'ready' && button(t.schedule, () => void act('restore', { id: p.id }), 'btn sm'),
+      ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
   const left = h('div', { class: 'card pad stack' });
   if (p.reason && ['failed', 'uncertain'].includes(p.state)) left.append(h('p', { class: 'errline', role: 'alert' }, p.reason));
+  if (p.body) left.append(h('h3', {}, t.bodyHead), h('div', { class: 'postbody' }, p.body.length > 6000 ? `${p.body.slice(0, 6000)}…` : p.body));
   if (d.brief.length) left.append(h('table', { class: 'table' }, h('tbody', {}, ...d.brief.map((/** @type {any} */ f) =>
     h('tr', {}, h('td', {}, f.label), h('td', {}, f.value), h('td', {}, f.ok ? badge(f.rule ?? 'hợp lệ', 'published') : badge(f.message, 'refused')))))));
   left.append(h('h3', {}, t.editorCheck));
@@ -143,7 +147,7 @@ function postDetail(d) {
   return [back, head, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)];
 }
 
-/** One on/off switch: on means paused ("Bật là dừng"). */
+/** One on/off switch: on means publishing ("Bật là đang đăng"). */
 const toggle = (/** @type {string} */ label, /** @type {boolean} */ on, /** @type {() => void} */ fn) =>
   h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), disabled: S.busy, onclick: fn }, h('i', { 'aria-hidden': 'true' }), label);
 
@@ -152,8 +156,8 @@ function queue(d) {
   const out = [];
   if (d.paused_all) out.push(h('div', { class: 'notice plain', role: 'status' }, h('b', {}, `⏸ ${t.pausedAll}`), h('span', {}, `${d.paused_at ? `Bạn dừng lúc ${M.hm(d.paused_at)}. ` : ''}${t.pausedHelp}`)));
   out.push(h('div', { class: 'card pad bar' },
-    h('div', { class: 'line gap' }, toggle(t.pauseAll, d.paused_all, () => void act(d.paused_all ? 'resume' : 'pause')),
-      ...d.channels.map((/** @type {any} */ c) => toggle(c.label, c.paused, () => void act(c.paused ? 'resume' : 'pause', { channel: c.id })))),
+    h('div', { class: 'line gap' }, toggle(t.pauseAll, !d.paused_all, () => void act(d.paused_all ? 'resume' : 'pause')),
+      ...d.channels.map((/** @type {any} */ c) => toggle(c.label, !c.paused, () => void act(c.paused ? 'resume' : 'pause', { channel: c.id })))),
     h('span', { class: 'muted' }, t.switchHint)));
   const social = d.channels.filter((/** @type {any} */ c) => c.id !== 'blog-lohi' && c.posts_today !== undefined);
   if (blog && !social.length && !d.paused_all && !d.empty) out.push(h('p', { class: 'muted line' }, `${blog.label}: ${t.perDay(blog.cap_per_day, Math.round(blog.spacing_min / 60))} · ${t.quiet(d.quiet_hours.from, d.quiet_hours.to)} ·`,
