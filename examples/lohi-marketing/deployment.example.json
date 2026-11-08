@@ -44,7 +44,7 @@
       "wake_when": {
         "notify": true
       },
-      "text": "marketing_due says something is due or needs a person. Follow the marketing-dispatch skill: claim, publish (lohi-blog for the blog, marketing-browser-post for X, Facebook and Reddit), record, then one report_blocker (a sign-in is due.sign_in as is)."
+      "text": "marketing_due says something is due or needs a person. Follow the marketing-dispatch skill: claim, publish (lohi-blog for the blog, marketing-browser-post for X, Facebook and Reddit), record, then one report_blocker: due.ask as is."
     },
     {
       "id": "marketing-channels",
@@ -58,6 +58,7 @@
         "name": "channels_setup",
         "input": {
           "product": "Lohi",
+          "writer": "lohi-writer",
           "channels": [
             {
               "id": "x-lohi",

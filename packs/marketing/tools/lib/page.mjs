@@ -1,8 +1,8 @@
 // Bài viết and Hàng đợi page models (page_view) and their actions
 // (page_action). Page tools are never approval-gated: pages refuse those.
 import { fail, eq, gte } from './store.mjs';
-import { briefLint, platformOf, defaultsFor } from './guard.mjs';
-import { STATE_LABEL, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
+import { briefLint, platformOf, defaultsFor, internalLinks } from './guard.mjs';
+import { STATE_LABEL, ANSWERS, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
 import { localDayStart, DEFAULT_QUIET } from './time.mjs';
 
 const DAY = 86_400_000;
@@ -18,6 +18,12 @@ const CHANNEL_LABEL = { 'blog-lohi': 'Blog', x: 'X', facebook: 'Facebook', reddi
 export const PAUSED_LABEL = { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha', person: 'bạn dừng', signed_in: 'đã đăng nhập, chờ Bật' };
 const channelLabel = key => CHANNEL_LABEL[key] ?? CHANNEL_LABEL[platformOf(key)] ?? key;
 const title = p => p.brief?.title ?? p.title ?? String(p.body ?? '').slice(0, 80);
+const URL_RE = /https?:\/\/\S+/g;
+/** A social post on a queue row: its words without the link, and whether it carries one. */
+const socialText = p => (p.kind === 'social' ? { text: String(p.body ?? '').replace(URL_RE, '').replace(/\s+/g, ' ').trim().slice(0, 100), has_link: /https?:\/\/\S/.test(String(p.body ?? '')) } : {});
+/** Blog first, then X, Facebook, Reddit: the order the founder reads the channels in. */
+const ORDER = ['blog', 'x', 'facebook', 'reddit'];
+const rank = key => { const i = ORDER.indexOf(platformOf(key) === 'blog-lohi' ? 'blog' : platformOf(key)); return i < 0 ? ORDER.length : i; };
 
 export async function metricsRows(store, now) {
   const since = [eq('source', 'gsc'), gte('day', new Date(now - 30 * DAY).toISOString().slice(0, 10))];
@@ -37,22 +43,33 @@ export async function page_view(input, { store, now, page }) {
 
 async function postList(filter = 'all', { store, now }) {
   if (!(filter in TABS)) fail('invalid_request', 'Unknown filter.');
-  const [posts, queue, metrics] = await Promise.all([
+  const [posts, queue, metrics, settings] = await Promise.all([
     store.query('posts', [], { order: 'updated_at', limit: 200 }),
     store.query('queue', [], { order: 'scheduled_at', limit: 200 }),
     metricsRows(store, now),
+    getSettings(store),
   ]);
   const counts = Object.fromEntries(Object.entries(TABS).map(([k, states]) => [k, states ? posts.filter(p => states.includes(p.state)).length : posts.length]));
   const q = Object.fromEntries(queue.map(r => [r.post, r]));
   const shown = TABS[filter] ? posts.filter(p => TABS[filter].includes(p.state)) : posts;
   return {
-    page: 'bai-viet', filter, counts,
+    page: 'bai-viet', filter, counts, writer: settings.writer, product: settings.product,
     items: shown.slice(0, 100).map(p => ({
       id: p.ref, title: title(p), channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url,
       scheduled_at: q[p.ref]?.scheduled_at ?? null, wait_reason: q[p.ref]?.wait_reason ?? null, updated_at: p.updated_at,
+      unpublishing: q[p.ref]?.action === 'unpublish',
       metrics_28: p.state === 'published' ? totals(metrics, p.url, 28, now) : null,
     })),
   };
+}
+
+/** "4 (lohi2.com/novel/…, 1 bài blog)": how many internal links, one product link and the blog count. */
+function linkSummary(links) {
+  if (!links.length) return '0';
+  const blog = links.filter(u => new URL(u).hostname.startsWith('blog.')).length;
+  const other = links.map(u => new URL(u)).find(u => !u.hostname.startsWith('blog.'));
+  const parts = [other && `${other.hostname}/${other.pathname.split('/')[1] ?? ''}/…`, blog && `${blog} bài blog`].filter(Boolean);
+  return `${links.length} (${parts.join(', ')})`;
 }
 
 async function postDetail(id, { store, now }) {
@@ -66,12 +83,13 @@ async function postDetail(id, { store, now }) {
   ]);
   const lint = briefLint(p, ch);
   const b = p.brief ?? {};
+  const series = b.series ?? ch?.rules?.series;
   const fields = p.kind === 'article' ? [
     { field: 'brief.keyword', label: 'Từ khóa', value: b.keyword ?? '' },
     { field: 'title', label: 'Tiêu đề', value: `${[...String(b.title ?? '')].length} ký tự`, rule: '30–60' },
     { field: 'meta', label: 'Mô tả (meta)', value: `${[...String(b.meta ?? '')].length} ký tự`, rule: '120–160' },
-    { field: 'slug', label: 'Đường dẫn', value: b.slug ?? '' },
-    { field: 'body', label: 'Liên kết nội bộ', value: '', rule: '≥2' },
+    { field: 'slug', label: 'Đường dẫn', value: b.slug ? (series ? `/${series}/${b.slug}/` : b.slug) : '' },
+    { field: 'body', label: 'Liên kết nội bộ', value: linkSummary(internalLinks(p.body, ch?.rules?.internal_hosts ?? [])), rule: '≥2' },
   ].map(f => ({ ...f, ok: !lint.some(l => l.field === f.field), message: lint.find(l => l.field === f.field)?.message ?? null })) : [];
   const check = checks[0] ?? null;
   const queries = p.url ? metrics.filter(r => r.url === p.url && r.query).sort((a, b) => b.impressions - a.impressions).slice(0, 5).map(r => ({ query: r.query, position: r.position, impressions: r.impressions })) : [];
@@ -99,17 +117,22 @@ async function queueView({ store, now }) {
   const refs = [...new Set([...queue.map(q => q.post), ...log.map(r => r.post)])];
   const posts = refs.length ? await store.query('posts', [{ column: 'ref', op: 'in', values: refs.slice(0, 100) }], { limit: 200 }) : [];
   const byRef = Object.fromEntries(posts.map(p => [p.ref, p]));
+  const parents = [...new Set(posts.filter(p => p.kind === 'reply' && p.parent).map(p => p.parent))];
+  const readers = parents.length ? await store.query('replies', [{ column: 'ref', op: 'in', values: parents.slice(0, 100) }], { limit: 200 }) : [];
+  const handle = Object.fromEntries(readers.map(r => [r.ref, r.author_handle]));
   return {
-    page: 'hang-doi',
+    page: 'hang-doi', writer: settings.writer, product: settings.product,
     paused_all: settings.paused_all, paused_at: settings.paused_at, quiet_hours: settings.quiet_hours,
-    channels: channels.map(c => ({ id: c.key, label: channelLabel(c.key), paused: !!c.paused, paused_reason: c.paused_reason ?? null, paused_label: c.paused ? PAUSED_LABEL[c.paused_reason] ?? null : null, cap_per_day: c.cap_per_day, spacing_min: c.spacing_min,
+    channels: [...channels].sort((a, b) => rank(a.key) - rank(b.key)).map(c => ({ id: c.key, label: channelLabel(c.key), paused: !!c.paused, paused_reason: c.paused_reason ?? null, paused_label: c.paused ? PAUSED_LABEL[c.paused_reason] ?? null : null, cap_per_day: c.cap_per_day, spacing_min: c.spacing_min,
       reply_cap_per_day: c.reply_cap_per_day ?? 0, posts_today: used(c.key, 'publish'), replies_today: used(c.key, 'reply') })),
     items: queue.map(q => {
       const p = byRef[q.post] ?? {};
       const late = !q.intent_id && q.action !== 'unpublish' && now - Date.parse(q.scheduled_at) >= (settings.stale_after_h ?? 6) * 3_600_000;
-      return { id: q.post, title: title(p), channel: channelLabel(q.channel), action: q.action, scheduled_at: q.scheduled_at, state: p.state ?? null, label: late ? 'Bài lỡ giờ' : STATE_LABEL[p.state] ?? '', reason: q.wait_reason ?? p.reason ?? null, in_flight: !!q.intent_id && p.state !== 'uncertain', late };
+      return { id: q.post, title: title(p), channel: channelLabel(q.channel), action: q.action, scheduled_at: q.scheduled_at, state: p.state ?? null, label: late ? 'Bài lỡ giờ' : STATE_LABEL[p.state] ?? '', reason: q.wait_reason ?? p.reason ?? null, in_flight: !!q.intent_id && p.state !== 'uncertain', late,
+        reply_to: p.kind === 'reply' && p.parent ? handle[p.parent] ?? null : null, ...socialText(p), retry_at: p.state === 'failed' && Date.parse(q.scheduled_at) > now ? q.scheduled_at : null };
     }),
-    recent: log.filter(r => r.status !== 'intent').slice(0, 10).map(r => ({ id: r.post, title: title(byRef[r.post] ?? {}), channel: channelLabel(r.channel), action: r.action, status: r.status, live: r.status === 'published' && byRef[r.post]?.state === 'published', url: r.url, reason: r.status === 'needs_person' ? PAUSED_LABEL[r.reason] ?? r.reason : r.reason, at: r.at })),
+    // A failed try whose post is still queued shows once, on its queue row with the retry.
+    recent: log.filter(r => r.status !== 'intent' && !(r.status === 'failed' && queue.some(q => q.post === r.post))).slice(0, 10).map(r => ({ id: r.post, title: title(byRef[r.post] ?? {}), channel: channelLabel(r.channel), action: r.action, status: r.status, live: r.status === 'published' && byRef[r.post]?.state === 'published', url: r.url, reason: r.status === 'needs_person' ? PAUSED_LABEL[r.reason] ?? r.reason : r.reason, at: r.at })),
     empty: queue.length === 0,
   };
 }
@@ -187,4 +210,42 @@ export async function page_action(input, deps) {
       return pause({ channel: input.channel, paused: op === 'pause' }, deps);
   }
   fail('invalid_request', 'op is pull, restore, unpublish, reschedule, post_now, drop, confirm_posted, confirm_not_posted, pause or resume.');
+}
+
+/** The person's pick on a Cần bạn item from `due.ask` (its key and one of its options), applied as
+ *  the Hàng đợi page would: never a post on its own beyond what the pick says. */
+export async function answer(input, deps) {
+  const { store } = deps;
+  const option = typeof input.option === 'string' ? input.option.trim() : '';
+  let key = typeof input.key === 'string' ? input.key : '';
+  if (!key) key = (await store.query('attention', [], { order: 'raised_at', limit: 50 })).find(r => r.reason !== 'signed_out')?.key ?? '';
+  const m = /^(channel|uncertain|late|reply):([A-Za-z0-9-]{1,64}):([a-z_]{1,32})$/.exec(key);
+  if (!m || !option) fail('invalid_request', 'key is the due.ask key and option one of its options.');
+  const [, kind, ref, reason] = m;
+  const act = (op, rest = {}) => page_action({ op, id: ref, ...rest }, deps);
+  const close = async out => { await clearAttention(store, kind, ref); return { key, option, ...out }; };
+  if (kind === 'channel' && ['layout_changed', 'captcha'].includes(reason)) {
+    const ch = await channel(store, ref);
+    if (!(ch.paused && ch.paused_reason === reason)) fail('conflict', `Kênh ${ref} không còn chờ việc này.`);
+    if (option.startsWith('Chạy lại')) return close({ ...(await pause({ channel: ref, paused: false }, deps)), state: 'resumed' });
+    if (/^Để .+ dừng$/.test(option)) {
+      await store.update('channels', [eq('key', ref)], { paused: true, paused_reason: 'person' });
+      return close({ state: 'paused' });
+    }
+  }
+  if (kind === 'reply' && option === ANSWERS.reply[0]) {
+    await store.update('replies', [eq('ref', ref), eq('state', 'needs_person')], { state: 'done' });
+    return close({ state: 'done' });
+  }
+  if (kind === 'uncertain') {
+    if (option === ANSWERS.uncertain[0]) return close(await act('confirm_posted', { url: input.url }));
+    if (option === ANSWERS.uncertain[1]) return close(await act('confirm_not_posted'));
+    if (option === ANSWERS.uncertain[2]) return close(await act('drop'));
+  }
+  if (kind === 'late') {
+    if (option === ANSWERS.late[0]) return close(await act('post_now'));
+    if (option === ANSWERS.late[1]) return close(await act('restore'));
+    if (option === ANSWERS.late[2]) return close(await act('drop'));
+  }
+  fail('invalid_request', `"${option}" is not an option of ${key}.`);
 }

@@ -4,13 +4,13 @@
 import { pathToFileURL } from 'node:url';
 import { storage, MarketingError } from './lib/store.mjs';
 import * as ops from './lib/ops.mjs';
-import { page_view, page_action } from './lib/page.mjs';
+import { page_view, page_action, answer } from './lib/page.mjs';
 
 export const TOOLS = {
   draft_save: ops.draft_save, items: ops.items, check: ops.check, schedule: ops.schedule, due: ops.due,
   claim: ops.claim, record: ops.record, fail: ops.failIntent, pause: ops.pause,
   page_view, page_action, facts_sync: ops.facts_sync, gsc_sync: ops.gsc_sync, seo_brief: ops.seo_brief,
-  channels_setup: ops.channels_setup, raised: ops.raised, replies_sync: ops.replies_sync, reply_save: ops.reply_save,
+  channels_setup: ops.channels_setup, raised: ops.raised, answer, replies_sync: ops.replies_sync, reply_save: ops.reply_save,
 };
 
 /** Run one tool; `deps` overrides the store, clock and fetch in tests. */

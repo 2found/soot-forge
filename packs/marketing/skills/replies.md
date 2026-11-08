@@ -55,8 +55,11 @@ check and schedule it as it is; never change its text.
 ## Raise the rest
 
 `marketing_due` lists every `complaint`, `money`, `account` and `flagged`
-reply in `needs`. For the items not yet `raised`, call `marketing_raised
-{keys}` first, then, as the last call of your turn (it stops the turn), one
-`report_blocker` with one line per item: the platform, the reply's text in
-quotes, the class label and the reply link. Never answer these yourself and
-never pass a reader's details to another Soot.
+reply in `needs`, and its `ask` is the next one as a ready Cần bạn item: the
+class label and the reply's text, the platform, why Soot does not answer, and
+"Mở bình luận: <link>". Call `marketing_raised {keys: ask.keys}`, then, as the
+last call of your turn (it stops the turn), `report_blocker` with `summary`,
+`missing` and `options` copied exactly from `ask`. One comment per item; the
+next one comes after the person's answer (`marketing_answer {key, option}`,
+then `marketing_due` again). Never answer these yourself and never pass a
+reader's details to another Soot.

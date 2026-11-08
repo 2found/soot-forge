@@ -11,7 +11,8 @@ const S = {
   /** @type {any} */ data: null, loadError: '',
   /** @type {{ request_id: string, op: string, rest: object } | null} */ pending: null,
   /** @type {{ kind: 'info' | 'success', text: string } | null} */ notice: null,
-  /** @type {{ title: string, run: () => void } | null} */ confirm: null,
+  /** @type {{ title: string, yes: string, run: () => void } | null} */ confirm: null,
+  caps: false, editing: '',
 };
 
 const bridge = createBridge({
@@ -58,46 +59,69 @@ async function act(/** @type {string} */ op, rest = {}) {
   });
 }
 
+/** "Nhờ viết bài": Nest opens a new task for the writer Soot (nest://new). */
+function askWriter(/** @type {any} */ d) {
+  if (!d.writer) return null;
+  return button(S.t.askWrite, () => bridge.open(M.writeLink(d.writer, d.product)), 'btn sm out');
+}
+
 function postList(d) {
   const t = S.t;
-  const tabs = h('div', { class: 'tabs', role: 'tablist' }, ...Object.entries(t.tabs).map(([k, label]) =>
+  const tabs = h('div', { class: 'seg', role: 'tablist' }, ...Object.entries(t.tabs).map(([k, label]) =>
     h('button', { class: 'tab', type: 'button', role: 'tab', 'aria-selected': String(S.filter === k), onclick: () => { S.filter = k; void run(load); } }, `${label} ${d.counts[k] ?? 0}`)));
-  if (!d.items.length) return [tabs, h('div', { class: 'empty' }, h('p', {}, t.noPosts))];
-  return [tabs, h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ p) => {
-    const sub = p.state === 'published' ? `${p.channel} · ${M.metricLine(p.metrics_28, t)}`
-      : p.state === 'scheduled' ? `${p.channel} · đăng ${M.when(p.scheduled_at)}${p.wait_reason ? ` · ${p.wait_reason}` : ''}`
-      : `${p.channel}${p.reason ? '' : ` · ${p.label}`}`;
+  const top = h('div', { class: 'line wrap' }, tabs, askWriter(d));
+  if (!d.items.length) return [top, h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, t.noPosts), h('span', {}, t.noPostsHelp))];
+  return [top, h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ p) => {
+    const bad = p.reason && ['refused', 'failed'].includes(p.state);
+    const state = p.unpublishing ? 'unpublishing' : p.state;
     return h('li', { class: 'row' },
       h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => { S.id = p.id; void run(load); } }, p.title),
-        h('small', { class: p.reason && ['refused', 'failed'].includes(p.state) ? 'errline' : 'muted' }, p.reason && ['refused', 'failed'].includes(p.state) ? `${t.refused}: ${p.reason}` : sub)),
-      badge(p.label, p.state),
-      p.url && button(t.open, () => bridge.open(p.url)),
-      p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger'),
+        h('small', { class: bad ? 'errline' : 'muted' }, bad ? `${t.refused}: ${p.reason.split(' · ')[0]}` : M.postLine(p, t))),
+      badge(p.unpublishing ? t.unpublishingLabel : p.label, state),
+      p.state === 'refused' && button(t.why, () => { S.id = p.id; void run(load); }),
+      p.url && !p.unpublishing && p.state === 'published' && button(`↗ ${t.open}`, () => bridge.open(p.url)),
+      p.state === 'published' && !p.unpublishing && button(t.unpublish, () => askUnpublish(p), 'btn sm danger'),
       ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })),
-      p.state === 'pulled' && button(t.restore, () => void act('restore', { id: p.id })));
+      ['pulled', 'removed'].includes(p.state) && button(p.state === 'removed' ? t.republish : t.restore, () => void act('restore', { id: p.id })));
   }))];
 }
 
 function metrics(sc) {
   const t = S.t;
-  const card = h('div', { class: 'card pad stack' }, h('h3', {}, 'Search Console ', h('small', { class: 'muted' }, `${t.days28}${sc?.read_at ? ` · đọc ${M.when(sc.read_at)}` : ''}`)));
+  const relogin = sc?.state === 'needs_person';
+  const card = h('div', { class: 'card pad stack' }, h('h3', {}, 'Search Console ', sc?.last_28 && h('small', { class: 'muted' }, `${t.days28}${sc.read_at && !relogin ? ` · đọc lúc ${M.when(sc.read_at)}` : ''}`)));
   if (!sc) return card;
-  if (sc.state === 'needs_person') card.append(h('p', { class: 'warnline' }, t.relogin), h('p', { class: 'muted' }, t.reloginHelp));
-  if (!sc.last_28) { card.append(h('p', { class: 'strong' }, t.noData), h('p', { class: 'muted' }, t.noDataHelp)); return card; }
+  if (relogin) card.append(h('p', { class: 'warnline' }, t.relogin), h('p', { class: 'muted' }, t.reloginHelp));
+  if (!sc.last_28) { if (!relogin) card.append(h('p', { class: 'muted' }, t.noDataWhy), h('p', { class: 'muted' }, t.notZero)); return card; }
   card.append(h('div', { class: 'kpis' }, ...[[t.impressions, M.num(sc.last_28.impressions)], [t.clicks, M.num(sc.last_28.clicks)], [t.position, M.pos(sc.last_28.position) ?? '—']]
     .map(([k, v]) => h('div', {}, h('small', { class: 'muted' }, k), h('div', { class: 'kpi' }, v)))));
-  if (sc.last_7) card.append(h('p', { class: 'muted' }, `${t.days7}: ${M.num(sc.last_7.impressions)} lượt hiển thị · ${M.num(sc.last_7.clicks)} lượt bấm`));
   if (sc.queries.length) card.append(h('p', { class: 'muted' }, `${t.topQueries}: ${sc.queries.map((/** @type {any} */ q) => `"${q.query}" (vị trí ${M.pos(q.position)})`).join(', ')}`));
+  card.append(h('p', { class: 'muted' }, t.radarUses));
   return card;
+}
+
+/** A refused post: every failed check on its own line, with its kind, and what happens next. */
+function refusedCard(d) {
+  const t = S.t, p = d.post;
+  const failed = (d.check?.auto ?? []).filter((/** @type {any} */ a) => !a.ok);
+  const lines = failed.length ? failed.map((/** @type {any} */ a) => [M.ruleLabel(a.rule), a.detail, a.source])
+    : [[t.refusedBy, (d.check?.reasons ?? []).join('; ') || p.reason || '']];
+  if (failed.length && d.check?.verdict === 'fail' && d.check.reasons?.length) lines.push([t.refusedBy, d.check.reasons.join('; ')]);
+  return h('div', { class: 'card pad stack', role: 'alert' },
+    h('div', { class: 'line' }, badge(p.label, p.state), h('b', {}, p.title)),
+    h('ul', { class: 'list' }, ...lines.map(([k, v, note]) => h('li', { class: 'row tight' }, badge(k, 'refused'), h('div', { class: 'who' }, h('b', {}, v), note && h('small', { class: 'muted' }, note))))),
+    h('p', { class: 'muted' }, t.refusedNext));
 }
 
 function postDetail(d) {
   const t = S.t, p = d.post;
+  const back = h('button', { class: 'btn sm ghost back', type: 'button', onclick: () => { S.id = ''; void run(load); } }, `← ${t.back}`);
+  if (p.state === 'refused') return [back, refusedCard(d)];
   const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.label, p.state), h('h2', {}, p.title)),
-    h('div', { class: 'line' }, p.url && button(t.open, () => bridge.open(p.url)), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
+    h('div', { class: 'line' }, p.url && button(`↗ ${t.open}`, () => bridge.open(p.url)), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
   const left = h('div', { class: 'card pad stack' });
-  if (p.reason && ['refused', 'failed', 'uncertain'].includes(p.state)) left.append(h('div', { class: 'notice err', role: 'alert' }, h('b', {}, `${t.refused}:`), ' ', p.reason));
-  if (d.brief.length) left.append(h('h3', {}, t.brief), h('table', { class: 'table' }, h('tbody', {}, ...d.brief.map((/** @type {any} */ f) =>
+  if (p.reason && ['failed', 'uncertain'].includes(p.state)) left.append(h('p', { class: 'errline', role: 'alert' }, p.reason));
+  if (d.brief.length) left.append(h('table', { class: 'table' }, h('tbody', {}, ...d.brief.map((/** @type {any} */ f) =>
     h('tr', {}, h('td', {}, f.label), h('td', {}, f.value), h('td', {}, f.ok ? badge(f.rule ?? 'hợp lệ', 'published') : badge(f.message, 'refused')))))));
   left.append(h('h3', {}, t.editorCheck));
   if (!d.check) left.append(h('p', { class: 'muted' }, t.noCheck));
@@ -105,46 +129,74 @@ function postDetail(d) {
     left.append(h('div', { class: 'flow' }, ...d.check.auto.map((/** @type {any} */ a) => h('span', { class: a.ok ? 'chip' : 'chip err' }, a.detail))));
     left.append(h('p', { class: 'muted' }, `Editor · ${M.when(d.check.at)} · bản ${d.check.revision}${d.check.current ? '' : ` · ${t.stale}`}`));
   }
-  return [h('button', { class: 'btn sm ghost', type: 'button', onclick: () => { S.id = ''; void run(load); } }, `← ${t.back}`), head, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)];
+  return [back, head, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)];
 }
+
+/** One on/off switch: on means paused ("Bật là dừng"). */
+const toggle = (/** @type {string} */ label, /** @type {boolean} */ on, /** @type {() => void} */ fn) =>
+  h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), disabled: S.busy, onclick: fn }, h('i', { 'aria-hidden': 'true' }), label);
 
 function queue(d) {
   const t = S.t, blog = d.channels.find((/** @type {any} */ c) => c.id === 'blog-lohi') ?? d.channels[0];
   const out = [];
-  if (d.paused_all) out.push(h('div', { class: 'notice', role: 'status' }, h('b', {}, t.pausedAll), h('span', {}, `${d.paused_at ? `Bạn dừng lúc ${M.when(d.paused_at)}. ` : ''}${t.pausedHelp}`)));
-  out.push(h('div', { class: 'line wrap card pad' },
-    h('div', { class: 'line' }, ...d.channels.map((/** @type {any} */ c) => h('span', { class: 'line' }, badge(c.label, c.paused ? 'uncertain' : 'published'),
-      button(c.paused ? t.resumeOne : t.pauseOne, () => void act(c.paused ? 'resume' : 'pause', { channel: c.id }))))),
-    d.paused_all ? button(t.resumeAll, () => void act('resume'), 'btn sm primary') : button(t.pauseAll, () => void act('pause'), 'btn sm')));
-  if (blog) out.push(h('p', { class: 'muted' }, `${blog.label}: ${t.perDay(blog.cap_per_day, Math.round(blog.spacing_min / 60))} · ${t.quiet(d.quiet_hours.from, d.quiet_hours.to)}`));
-  // Today's use of each cap: "X 2/4 · Facebook 0/2 (đang dừng: chưa đăng nhập) · trả lời X 3/10".
+  if (d.paused_all) out.push(h('div', { class: 'notice plain', role: 'status' }, h('b', {}, `⏸ ${t.pausedAll}`), h('span', {}, `${d.paused_at ? `Bạn dừng lúc ${M.hm(d.paused_at)}. ` : ''}${t.pausedHelp}`)));
+  out.push(h('div', { class: 'card pad bar' },
+    h('div', { class: 'line gap' }, toggle(t.pauseAll, d.paused_all, () => void act(d.paused_all ? 'resume' : 'pause')),
+      ...d.channels.map((/** @type {any} */ c) => toggle(c.label, c.paused, () => void act(c.paused ? 'resume' : 'pause', { channel: c.id })))),
+    h('span', { class: 'muted' }, t.switchHint)));
   const social = d.channels.filter((/** @type {any} */ c) => c.id !== 'blog-lohi' && c.posts_today !== undefined);
-  if (social.length) out.push(h('p', { class: 'muted' }, `${t.today}: ${[
+  if (blog && !social.length && !d.paused_all && !d.empty) out.push(h('p', { class: 'muted line' }, `${blog.label}: ${t.perDay(blog.cap_per_day, Math.round(blog.spacing_min / 60))} · ${t.quiet(d.quiet_hours.from, d.quiet_hours.to)} ·`,
+    h('button', { class: 'link small', type: 'button', 'aria-expanded': String(S.caps), onclick: () => { S.caps = !S.caps; render(); } }, t.caps)));
+  // Today's use of each cap: "X 2/4 · Facebook 0/2 (đang dừng: chưa đăng nhập) · trả lời X 3/10".
+  if (social.length && !d.paused_all) out.push(h('p', { class: 'muted line' }, `${t.today}: ${[
     ...social.map((/** @type {any} */ c) => `${c.label} ${c.posts_today}/${c.cap_per_day}${c.paused_label ? ` (${t.pausedAs(c.paused_label)})` : ''}`),
-    ...social.filter((/** @type {any} */ c) => c.reply_cap_per_day).map((/** @type {any} */ c) => `${t.replies} ${c.label} ${c.replies_today}/${c.reply_cap_per_day}`),
-  ].join(' · ')}`));
-  if (d.empty) out.push(h('div', { class: 'empty card pad' }, h('b', {}, t.emptyQueue), h('span', { class: 'muted' }, t.emptyHelp)));
-  else out.push(h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ q) => {
-    const err = ['failed', 'uncertain'].includes(q.state);
-    // A channel the person or a sign-in paused holds its items: say so instead of "Chờ đăng".
-    const ch = d.channels.find((/** @type {any} */ c) => c.label === q.channel);
-    const held = !q.in_flight && (d.paused_all || ch?.paused);
-    const state = held ? (!d.paused_all && ch?.paused_reason === 'signed_out' ? t.waitSignIn : 'Đang dừng') : q.in_flight ? t.inFlight : q.action === 'unpublish' ? 'Chờ gỡ' : q.label;
-    return h('li', { class: 'row' },
-      h('div', { class: 'who' }, h('b', {}, `${M.when(q.scheduled_at)} · ${q.channel} · ${q.title}`), q.reason && h('small', { class: err ? 'errline' : 'muted' }, q.reason)),
-      badge(state, held ? 'uncertain' : q.state),
-      // The person's answers: a late item and an uncertain one are never sent on their own.
-      ...(q.state === 'uncertain' ? uncertainActions(t, q)
-        : q.late ? [button(t.postNow, () => void act('post_now', { id: q.id })), button(t.restore, () => void act('restore', { id: q.id })), button(t.drop, () => void act('drop', { id: q.id }))]
-        : [!q.in_flight && q.action === 'publish' && button(t.pull, () => void act('pull', { id: q.id }))]));
-  })));
-  if (d.recent.length) out.push(h('h3', {}, t.recent), h('ul', { class: 'list card' }, ...d.recent.map((/** @type {any} */ r) =>
-    h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.url ?? r.title}`), r.reason && h('small', { class: 'errline' }, r.reason)),
+    ...social.filter((/** @type {any} */ c) => c.reply_cap_per_day && c.replies_today).map((/** @type {any} */ c) => `${t.replies} ${c.label} ${c.replies_today}/${c.reply_cap_per_day}`),
+  ].join(' · ')} ·`, h('button', { class: 'link small', type: 'button', 'aria-expanded': String(S.caps), onclick: () => { S.caps = !S.caps; render(); } }, t.caps)));
+  if (S.caps) out.push(h('table', { class: 'table card' }, h('thead', {}, h('tr', {}, ...t.capsHead.map((/** @type {string} */ x) => h('th', {}, x)))),
+    h('tbody', {}, ...d.channels.map((/** @type {any} */ c) => h('tr', {}, h('td', {}, c.label), h('td', {}, String(c.cap_per_day)), h('td', {}, M.spacing(c.spacing_min)), h('td', {}, c.reply_cap_per_day ? String(c.reply_cap_per_day) : '—'))))));
+  if (d.empty) out.push(h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, t.emptyQueue), h('span', {}, t.emptyHelp), askWriter(d)));
+  else out.push(h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ q) => queueRow(d, q))));
+  if (d.recent.length) out.push(h('h3', {}, t.recent), h('ul', { class: 'list' }, ...d.recent.map((/** @type {any} */ r) =>
+    h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.url ? M.shortUrl(r.url) : r.title}`),
+      h('small', { class: r.status === 'published' || r.status === 'removed' ? 'muted' : 'errline' }, r.status === 'published' ? (r.action === 'unpublish' ? t.removedDone : t.recorded) : r.status === 'removed' ? t.removedDone : r.reason ?? '')),
       badge(r.status === 'published' ? 'Đã đăng' : r.status === 'removed' ? 'Đã gỡ' : r.status === 'needs_person' ? 'Cần bạn' : 'Lỗi',
         r.status === 'published' ? 'published' : r.status === 'removed' ? '' : r.status === 'needs_person' ? 'uncertain' : 'failed'),
-      r.status === 'published' && r.url && button(t.open, () => bridge.open(r.url)),
+      r.status === 'published' && r.url && button(`↗ ${t.open}`, () => bridge.open(r.url)),
       r.live && r.action === 'publish' && button(t.unpublish, () => askUnpublish(r), 'btn sm danger')))));
   return out;
+}
+
+function queueRow(d, q) {
+  const t = S.t;
+  // A channel the person or a sign-in paused holds its items: say so instead of "Chờ đăng".
+  const ch = d.channels.find((/** @type {any} */ c) => c.label === q.channel);
+  const held = !q.in_flight && (d.paused_all || ch?.paused);
+  const failed = q.state === 'failed';
+  const state = held ? (!d.paused_all && ch?.paused_reason === 'signed_out' ? t.waitSignIn : 'Đang dừng')
+    : q.in_flight ? t.inFlight : q.action === 'unpublish' ? 'Chờ gỡ' : failed && !q.retry_at ? 'Lỗi' : q.label;
+  const head = q.action === 'reply' ? `${t.replyTo} · ${q.channel}${q.reply_to ? ` · @${q.reply_to}` : ''}` : `${M.when(q.scheduled_at)} · ${q.channel}`;
+  const sub = q.action === 'reply' ? `"${q.title}"` : q.text ? `"${q.text}"${q.has_link ? ` · ${t.hasLink}` : ''}` : q.title;
+  const line = failed ? `${t.notYet}: ${q.reason ?? ''}${q.retry_at ? ` ${t.retryAt(M.hm(q.retry_at))}` : ''}`
+    : q.state === 'uncertain' ? q.reason ?? '' : d.paused_all && held ? `${sub} — ${t.afterResume}` : sub;
+  return h('li', { class: 'row' },
+    h('div', { class: 'who' }, h('b', {}, failed || q.state === 'uncertain' ? `${head} · ${q.title}` : head), line && h('small', { class: q.state === 'uncertain' || (failed && !q.retry_at) ? 'errline' : 'muted' }, line),
+      !failed && q.state !== 'uncertain' && q.reason && !held && h('small', { class: 'muted' }, q.reason)),
+    badge(state, held ? 'uncertain' : q.state),
+    // The person's answers: a late item and an uncertain one are never sent on their own.
+    ...(q.state === 'uncertain' ? uncertainActions(t, q)
+      : q.late ? [button(t.postNow, () => void act('post_now', { id: q.id })), button(t.restore, () => void act('restore', { id: q.id })), button(t.drop, () => void act('drop', { id: q.id }))]
+      : [failed && q.retry_at && button(t.tryNow, () => void act('post_now', { id: q.id })),
+        !q.in_flight && !held && q.action === 'publish' && !failed && rescheduleButton(q),
+        !q.in_flight && !d.paused_all && q.action === 'publish' && button(t.pull, () => void act('pull', { id: q.id }))]));
+}
+
+/** "Đổi giờ": an inline time field, saved with reschedule. */
+function rescheduleButton(/** @type {any} */ q) {
+  const t = S.t;
+  if (S.editing !== q.id) return button(t.reschedule, () => { S.editing = q.id; render(); });
+  const input = h('input', { type: 'datetime-local', class: 'input sm', 'aria-label': t.reschedule, value: M.localInput(q.scheduled_at) });
+  return h('span', { class: 'line' }, input, button(t.save, () => { const v = /** @type {HTMLInputElement} */ (input).value; S.editing = ''; if (v) void act('reschedule', { id: q.id, scheduled_at: M.fromLocalInput(v) }); }, 'btn sm'),
+    button(t.cancel, () => { S.editing = ''; render(); }));
 }
 
 /** "Không chắc đã đăng chưa": the person looked. Live → paste its link; not live → it may go out again. */
@@ -156,25 +208,26 @@ function uncertainActions(/** @type {any} */ t, /** @type {any} */ q) {
 
 /** "Gỡ bài trên X?": removing a live post loses its likes and replies, so it asks first; Giữ lại is focused. */
 function askUnpublish(/** @type {any} */ p) {
-  S.confirm = { title: S.t.unpublishAsk(p.channel), run: () => void act('unpublish', { id: p.id }) };
+  S.confirm = { title: S.t.unpublishAsk(p.channel), yes: S.t.unpublishYes(p.channel), run: () => void act('unpublish', { id: p.id }) };
   render();
   /** @type {HTMLElement | null} */ (document.querySelector('[data-keep]'))?.focus();
 }
+const closeConfirm = () => { S.confirm = null; render(); };
 
 function render() {
   const t = S.t, root = /** @type {HTMLElement} */ (document.getElementById('app'));
   const d = S.data;
-  const title = d?.page === 'hang-doi' ? t.queue : t.posts;
-  const out = [h('header', { class: 'line wrap' }, h('h2', { class: 'page-title' }, title), button(t.reload, () => void run(load), 'btn sm'))];
-  if (S.loadError) out.push(h('div', { class: 'notice err', role: 'alert' }, h('p', {}, S.loadError)));
+  const out = [];
+  if (S.loadError) out.push(h('div', { class: 'notice err', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load), 'btn sm')));
   else if (!d) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
   else if (d.page === 'hang-doi') out.push(...queue(d));
   else out.push(...(d.post ? postDetail(d) : postList(d)));
-  const c = S.confirm;
-  if (c) out.push(h('div', { class: 'notice confirm', role: 'alertdialog', 'aria-label': c.title }, h('b', {}, c.title), h('span', { class: 'muted' }, S.t.unpublishHelp),
-    h('span', { class: 'line' }, button(S.t.keep, () => { S.confirm = null; render(); }, 'btn sm', { 'data-keep': '' }),
-      button(c.title.replace(/\?$/, ''), () => { S.confirm = null; c.run(); }, 'btn sm danger'))));
   if (S.notice) out.push(h('p', { class: `notice ${S.notice.kind}`, role: 'status' }, S.notice.text));
+  const c = S.confirm;
+  if (c) out.push(h('div', { class: 'scrim', onclick: closeConfirm }),
+    h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': c.title, onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeConfirm(); } },
+      h('b', { class: 'dialog-title' }, c.title), h('span', { class: 'muted' }, t.unpublishHelp(c.title)),
+      h('div', { class: 'line end' }, button(t.keep, closeConfirm, 'btn out', { 'data-keep': '' }), button(c.yes, () => { S.confirm = null; c.run(); }, 'btn danger'))));
   root.replaceChildren(...out);
 }
 

@@ -708,8 +708,8 @@
     {
       "name": "due",
       "title": "Việc đến hạn",
-      "description": "For the dispatch schedule: what is due (publish, reply, unpublish; late items never post on their own) and needs (Cần bạn items, each with raised). sign_in is the ready sign-in item for every platform still signed out. wake/notify: work or an item not yet raised.",
-      "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
+      "description": "For the dispatch schedule: what is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items, each with raised) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only when there is something to do.",
+      "parameters": {"type":"object","properties":{"refile":{"type":"boolean"}},"required":[],"additionalProperties":false},
       "run": {
         "program": "node",
         "args": ["tools/marketing.mjs","due"],
@@ -933,7 +933,7 @@
     {
       "name": "channels_setup",
       "title": "Thiết lập kênh",
-      "description": "For a tool-only schedule: create missing channels (social ones paused until signed in) and fill only unset caps, account, rules, quiet hours, stale_after_h and the product name. Never unpauses or overwrites an edit.",
+      "description": "For a tool-only schedule: create missing channels (social ones paused until signed in) and fill only unset caps, account, rules, quiet hours, stale_after_h, the product name and the writer Soot. Never unpauses or overwrites an edit.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -965,7 +965,8 @@
             "additionalProperties": false
           },
           "stale_after_h": {"type":"integer","minimum":1,"maximum":72},
-          "product": {"type":"string","maxLength":64}
+          "product": {"type":"string","maxLength":64},
+          "writer": {"type":"string","maxLength":63}
         },
         "required": ["channels"],
         "additionalProperties": false
@@ -994,6 +995,29 @@
       "run": {
         "program": "node",
         "args": ["tools/marketing.mjs","raised"],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 262144
+      }
+    },
+    {
+      "name": "answer",
+      "title": "Áp dụng câu trả lời Cần bạn",
+      "description": "The person picked an option on a due.ask item: pass its key and the option label exactly (with url when they sent the live link). It applies the pick; then file the next due.ask.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {"type":"string","maxLength":120},
+          "option": {"type":"string","maxLength":200},
+          "url": {"type":"string","maxLength":2000}
+        },
+        "required": ["option"],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": ["tools/marketing.mjs","answer"],
         "stdin": "context",
         "mode": "write",
         "timeout": "20s",

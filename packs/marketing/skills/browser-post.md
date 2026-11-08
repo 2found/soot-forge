@@ -45,11 +45,12 @@ Use `snapshot -i -c` (interactive, compact). Classify the page with these checks
    `reason:"layout_changed"` and a short note of what you saw.
 
 `needs_person` pauses only that channel. Nothing was posted. The other
-channels go on. The person hears of it in the one `report_blocker` that ends
-your turn (marketing-dispatch step 4). For a sign-in you open the platform's
-login page in your own browser and the item links to it; the person signs in
-there and picks "Đã đăng nhập <platform>". Other lines name the platform:
-"X đổi giao diện: không tìm thấy ô soạn bài", or "X hỏi captcha".
+channels go on. The person hears of it through `due.ask`, the one
+`report_blocker` that ends your turn (marketing-dispatch step 4). For a
+sign-in you open the platform's login page in your own browser and the item
+links to it; the person signs in there and picks "Đã đăng nhập <platform>".
+A changed page or a captcha links to your browser, where the page stays open,
+and offers "Chạy lại <platform>" / "Để <platform> dừng".
 
 ## Platforms
 

@@ -91,7 +91,18 @@ export function checkFacts(text, facts, now) {
   }
   return bad.length === 0
     ? { rule: 'facts', ok: true, detail: 'Giá và số liệu: khớp nguồn' }
-    : { rule: 'facts', ok: false, code: 'fact_unsourced', detail: bad.map(c => `"${c.text}" không có trong giá và số liệu đang bán (nguồn đọc trong 24 giờ)`).join('; ') };
+    : { rule: 'facts', ok: false, code: 'fact_unsourced', detail: [...new Set(bad.map(c => c.text))].map(text => `"${text}" không có trong giá và số liệu đang bán (nguồn đọc trong 24 giờ)`).join('; '), source: factSource(fresh) };
+}
+
+/** "Nguồn: app-config đọc lúc 05:30 — pricing.audio_monthly 49.000": where the served numbers came from. */
+function factSource(fresh) {
+  if (!fresh.length) return 'Chưa có nguồn giá đọc trong 24 giờ.';
+  const at = Math.max(...fresh.map(f => Date.parse(f.fetched_at)));
+  let name = 'nguồn giá';
+  try { name = new URL(fresh[0].source_url).pathname.split('/').filter(Boolean).pop() || name; } catch {}
+  const hm = new Date(at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+  const nums = fresh.filter(f => typeof f.value === 'number').slice(0, 3).map(f => `${f.key} ${f.value.toLocaleString('vi-VN')}`);
+  return `Nguồn: ${name} đọc lúc ${hm}${nums.length ? ` — ${nums.join(', ')}` : ''}`;
 }
 
 // ---------- rule 2: no reader personal data ----------

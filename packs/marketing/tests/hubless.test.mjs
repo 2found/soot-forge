@@ -110,6 +110,9 @@ test('rule 1 facts: amounts, percentages and "miễn phí" must match a fact rea
   assert.equal(checkFacts('Nghe miễn phí 7 ngày', facts, now).ok, true);
   const r = checkFacts('Gói Audio giảm 50% cho bạn mới', facts, now);
   assert.equal(r.ok, false); assert.equal(r.code, 'fact_unsourced'); assert.match(r.detail, /"50%" không có/);
+  const twice = checkFacts('Giảm 50% hôm nay. Nhớ: giảm 50% chỉ tuần này, 50% thật.', facts.map(f => ({ ...f, source_url: 'https://api.example/novel/v1/app-config' })), now);
+  assert.equal(twice.detail.match(/"50%"/g).length, 1, 'one line per unsourced claim');
+  assert.equal(twice.source, `Nguồn: app-config đọc lúc ${new Date(now - H).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })} — pricing.audio_monthly 49.000, trial.free_days 7`);
   assert.equal(checkFacts('Chỉ 39.000đ', facts, now).ok, false);
   const stale = facts.map(f => ({ ...f, fetched_at: new Date(now - 25 * H).toISOString() }));
   assert.equal(checkFacts('Gói Audio 49.000đ', stale, now).ok, false, 'facts older than 24 h do not count');

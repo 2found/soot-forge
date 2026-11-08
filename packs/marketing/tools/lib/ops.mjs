@@ -27,7 +27,7 @@ export const STATE_LABEL = {
 export async function getSettings(store) {
   const rows = await store.query('settings', [], { limit: 100 });
   const s = Object.fromEntries(rows.map(r => [r.key, r.value]));
-  return { paused_all: s.paused_all === true, quiet_hours: s.quiet_hours ?? DEFAULT_QUIET, stale_after_h: s.stale_after_h ?? 6, paused_at: s.paused_at ?? null, gsc: s.gsc ?? null, product: s.product ?? null };
+  return { paused_all: s.paused_all === true, quiet_hours: s.quiet_hours ?? DEFAULT_QUIET, stale_after_h: s.stale_after_h ?? 6, paused_at: s.paused_at ?? null, gsc: s.gsc ?? null, product: s.product ?? null, writer: s.writer ?? null };
 }
 
 export async function setSetting(store, key, value) {
@@ -221,7 +221,9 @@ export async function due(input, { store, now, soot }) {
   const uncertain = new Set(held.map(p => p.ref));
   for (const p of held) need({ kind: 'uncertain', id: p.ref, channel: p.channel, reason: 'uncertain', url: p.url ?? null });
   // An account question is a handoff to the product's support, under the channel's own label.
-  for (const r of open) need({ kind: 'reply', id: r.ref, channel: r.channel, reason: r.class, thread_url: r.thread_url, reply_url: r.reply_url ?? null,
+  // Money first, then support handoffs, then complaints: the order a person should answer them.
+  const URGENT = { money: 0, account: 1, complaint: 2 };
+  for (const r of [...open].sort((a, b) => (URGENT[a.class] ?? 3) - (URGENT[b.class] ?? 3))) need({ kind: 'reply', id: r.ref, channel: r.channel, reason: r.class, thread_url: r.thread_url, reply_url: r.reply_url ?? null,
     ...(r.class === 'account' && byKey[r.channel]?.rules?.support_label ? { label: byKey[r.channel].rules.support_label } : {}) });
   for (const q of rows) {
     if (uncertain.has(q.post)) continue;
@@ -251,9 +253,51 @@ export async function due(input, { store, now, soot }) {
       options: labels.slice(0, 4).map(l => ({ label: `Đã đăng nhập ${l}` })),
     };
   }
+  // The one Cần bạn item to file now, ready for report_blocker as is: the sign-in first, then
+  // each other need on its own (a conversation holds one item; the next comes after an answer).
+  if (out.sign_in && (input.refile === true || signIns.some(n => !n.raised))) out.ask = { keys: signIns.map(n => n.key), ...out.sign_in };
+  else {
+    const next = out.needs.find(n => !n.raised && !n.login_url);
+    if (next) out.ask = await askFor(next, { store, settings, soot, byKey, replies: open });
+  }
   // The runtime's wake_when matches the boolean `notify` (or a string at a path), so both say the same.
   out.wake = out.notify = out.publish.length + out.unpublish.length + out.reply.length > 0 || out.needs.some(n => !n.raised);
   return out;
+}
+
+const TZ = 'Asia/Ho_Chi_Minh';
+const hm = at => new Date(at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+const dayHm = at => `${hm(at)} ${new Date(at).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', timeZone: TZ })}`;
+const REPLY_WHY = { money: 'Soot không trả lời câu hỏi về tiền', complaint: 'Soot không trả lời phàn nàn', flagged: 'Soot không chắc nên chưa trả lời' };
+export const ANSWERS = { uncertain: ['Đã lên — dán liên kết', 'Chưa lên — đăng lại', 'Bỏ bài'], late: ['Đăng ngay', 'Xếp lại', 'Bỏ'], reply: ['Xong'] };
+
+/** One need as a ready Cần bạn item {keys, summary, missing, options}; marketing_answer applies the pick. */
+async function askFor(n, { store, settings, soot, byKey, replies }) {
+  const ch = byKey[n.channel] ?? {};
+  const L = PLATFORM_LABEL[ch.platform ?? platformOf(n.channel)] ?? (n.channel === 'blog-lohi' ? 'Blog' : n.channel);
+  const browser = soot ? `nest://browser/${soot}` : null;
+  const item = (summary, missing, options) => ({ keys: [n.key], summary, missing: missing.filter(Boolean).join('\n'), options: options.map(label => ({ label })) });
+  if (n.kind === 'channel') {
+    const held = `Chưa đăng gì. Đăng ${L} đã dừng; bài vẫn ở hàng đợi.`;
+    const opts = [`Chạy lại ${L}`, `Để ${L} dừng`];
+    if (n.reason === 'captcha') return item(`${L} hỏi captcha`, [browser && `Giải captcha trong trình duyệt của Editor: ${browser}`, held], opts);
+    return item(`${L} đổi giao diện: Editor không tìm thấy chỗ đăng bài`, [held, browser && `Xem trang Editor gặp: ${browser}`, `Bấm Chạy lại ${L} khi trang đã bình thường.`], opts);
+  }
+  if (n.kind === 'reply') {
+    const r = replies.find(x => x.ref === n.id) ?? {};
+    const why = n.reason === 'account'
+      ? (ch.rules?.support_reply ? `Soot đã trả lời mẫu: "${ch.rules.support_reply}" · không gửi thông tin cá nhân` : 'Chuyển cho Hỗ trợ')
+      : REPLY_WHY[n.reason] ?? 'Soot không trả lời';
+    const link = r.reply_url ?? r.thread_url;
+    return item(`${n.label}: "${String(r.text ?? '').replace(/\s+/g, ' ').slice(0, 140)}"`, [`${L} · ${why}`, link && `Mở bình luận: ${link}`], ANSWERS.reply);
+  }
+  const p = (await store.one('posts', [eq('ref', n.id)])) ?? {};
+  const title = `"${String(p.brief?.title ?? p.title ?? p.body ?? '').replace(/\s+/g, ' ').slice(0, 100)}"`;
+  if (n.kind === 'uncertain') {
+    const at = (await store.query('publish_log', [eq('post', n.id)], { order: 'at', limit: 1 }))[0]?.at ?? p.updated_at;
+    return item(`Không chắc bài ${L}${at ? ` lúc ${hm(at)}` : ''} đã lên chưa`, [title, `Để tránh đăng hai lần, Soot không tự đăng lại. Xem trang ${L}${ch.account ? ` của ${ch.account}` : ''} rồi chọn; đã lên thì gửi kèm liên kết bài.`], ANSWERS.uncertain);
+  }
+  return item(`Bài lỡ giờ: ${L} · ${dayHm(n.scheduled_at)}`, [title, `Quá ${settings.stale_after_h} giờ so với giờ hẹn. Soot không tự đăng bài lỡ giờ.`], ANSWERS.late);
 }
 
 /** The Publisher filed these Cần bạn items (`due.needs[].key`). */
@@ -593,6 +637,8 @@ export async function channels_setup(input, { store }) {
   if (Number.isInteger(input.stale_after_h) && !(await store.one('settings', [eq('key', 'stale_after_h')]))) await setSetting(store, 'stale_after_h', input.stale_after_h);
   // The product's name, for Cần bạn wording ("Đăng nhập X cho Lohi"); the recipe owns it.
   if (typeof input.product === 'string' && input.product.trim()) await setSetting(store, 'product', input.product.trim().slice(0, 64));
+  // The Soot that writes, for the pages' "Nhờ viết bài" (nest://new?soot=…).
+  if (typeof input.writer === 'string' && /^[a-z0-9][a-z0-9-]{0,62}$/.test(input.writer)) await setSetting(store, 'writer', input.writer);
   return { channels: out, quiet_hours: (await getSettings(store)).quiet_hours ?? settings.quiet_hours };
 }
 

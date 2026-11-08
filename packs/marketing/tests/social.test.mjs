@@ -440,6 +440,7 @@ test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest b
     missing: `X: ${steps}\nFacebook: ${steps}\nReddit: ${steps}\nnest://browser/lohi-editor`,
     options: [{ label: 'Đã đăng nhập X' }, { label: 'Đã đăng nhập Facebook' }, { label: 'Đã đăng nhập Reddit' }],
   }, 'one ready Cần bạn item, in channel order');
+  assert.deepEqual({ ...due.ask, keys: due.ask.keys.sort() }, { keys: due.needs.map(n => n.key).sort(), ...due.sign_in }, 'the sign-in is the item to file first');
   const x = due.needs.find(n => n.channel === 'x-lohi');
   assert.deepEqual([x.platform_label, x.title, x.login_url, x.browser, x.account], ['X', 'Đăng nhập X', 'https://x.com/i/flow/login', 'nest://browser/lohi-editor', 'lohi2com']);
   assert.equal(x.steps, 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập');
@@ -454,6 +455,8 @@ test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest b
   assert.deepEqual(after.needs.map(n => n.channel).sort(), ['facebook-lohi', 'reddit-lohi']);
   assert.equal(after.sign_in.summary, 'Đăng nhập Facebook, Reddit cho Lohi', 'filed again for the platforms left, raised or not');
   assert.equal(after.notify, false, 'the platforms left stay raised');
+  assert.equal(after.ask, undefined, 'a raised sign-in is not filed again on its own');
+  assert.equal((await w.call('due', { refile: true })).ask.summary, 'Đăng nhập Facebook, Reddit cho Lohi', 'after a pick it is filed again');
   const view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
   assert.equal(view.channels.find(c => c.id === 'x-lohi').paused_label, 'đã đăng nhập, chờ Bật');
   // Never resumes a channel the person paused, or one already checked.
@@ -462,4 +465,64 @@ test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest b
   assert.deepEqual([w.ch('x-lohi').paused, w.ch('x-lohi').paused_reason], [false, null]);
   await w.page('pause', { channel: 'reddit-lohi' });
   await assert.rejects(w.call('pause', { channel: 'reddit-lohi', paused: true, signed_in: true }), { code: 'conflict' });
+});
+
+test('Cần bạn one item at a time: due.ask is each comment on its own with its link, then a changed page, an uncertain and a late post; marketing_answer applies the pick', async () => {
+  const w = world();
+  await seeded(w, { signIn: ['x-lohi', 'facebook-lohi', 'reddit-lohi'] });
+  await savedReplies(w);
+  const asks = [];
+  for (let i = 0; i < 4; i++) {
+    const { ask } = await w.call('due', {});
+    asks.push([ask.summary, ask.missing, ask.options.map(o => o.label)]);
+    await w.call('raised', { keys: ask.keys });
+  }
+  assert.deepEqual(asks.map(a => a[0]), ['Tiền: "Mình nạp xu mà không thấy, hoàn tiền giúp?"', 'Chuyển Hỗ trợ Lohi: "Không đăng nhập được app từ hôm qua"',
+    'Phàn nàn: "Dịch chương 300 tệ quá"', 'Cần xem: "Báo chí muốn hỏi"'], 'money first, then support, then complaints');
+  const money = asks.find(a => a[0].startsWith('Tiền'));
+  assert.deepEqual(money.slice(1), ['X · Soot không trả lời câu hỏi về tiền\nMở bình luận: https://x.com/a/status/12', ['Xong']]);
+  assert.match(asks.find(a => a[0].startsWith('Chuyển')).at(1), /^X · Soot đã trả lời mẫu: "Bạn nhắn Hỗ trợ trong app nhé" · không gửi thông tin cá nhân\nMở bình luận: https:\/\/x\.com\/b\/status\/13$/);
+  assert.equal((await w.call('due', {})).ask, undefined, 'every item is filed');
+  const moneyRef = w.store.data.replies.find(r => r.class === 'money').ref;
+  assert.deepEqual(await w.call('answer', { key: `reply:${moneyRef}:money`, option: 'Xong' }), { key: `reply:${moneyRef}:money`, option: 'Xong', state: 'done' });
+  assert.equal(w.store.data.replies.find(r => r.ref === moneyRef).state, 'done');
+  await assert.rejects(w.call('answer', { key: `reply:${moneyRef}:money`, option: 'Trả lời' }), { code: 'invalid_request' });
+
+  // A changed page: "Chạy lại X" resumes only X; "Để X dừng" keeps it paused by the person.
+  const id = await post(w);
+  const { claim } = await w.call('claim', { id, action: 'publish' });
+  await w.call('fail', { intent_id: claim.intent_id, status: 'needs_person', reason: 'layout_changed', platform: 'x' });
+  const { ask } = await w.call('due', { }, { soot: 'lohi-editor' });
+  assert.deepEqual([ask.summary, ask.missing, ask.options.map(o => o.label)], ['X đổi giao diện: Editor không tìm thấy chỗ đăng bài',
+    'Chưa đăng gì. Đăng X đã dừng; bài vẫn ở hàng đợi.\nXem trang Editor gặp: nest://browser/lohi-editor\nBấm Chạy lại X khi trang đã bình thường.', ['Chạy lại X', 'Để X dừng']]);
+  await w.call('raised', { keys: ask.keys });
+  assert.equal((await w.call('answer', { key: ask.keys[0], option: 'Chạy lại X' })).state, 'resumed');
+  assert.deepEqual([w.ch('x-lohi').paused, w.store.data.attention.some(a => a.key === ask.keys[0])], [false, false]);
+  await assert.rejects(w.call('answer', { key: ask.keys[0], option: 'Chạy lại X' }), { code: 'conflict' }, 'a second pick changes nothing');
+
+  // Late: "Xếp lại" puts it back in the next slot, never posted on its own.
+  const late = await post(w, { channel: 'reddit-lohi', body: 'What xianxia hooked you in 2026? Kể bộ bạn đọc một mạch nhé.' });
+  w.now += 7 * H;
+  const due = await w.call('due', {});
+  assert.deepEqual([due.ask.summary.startsWith('Bài lỡ giờ: Reddit · '), due.ask.options.map(o => o.label)], [true, ['Đăng ngay', 'Xếp lại', 'Bỏ']]);
+  assert.match(due.ask.missing, /Quá 6 giờ so với giờ hẹn\. Soot không tự đăng bài lỡ giờ\./);
+  await w.call('raised', { keys: due.ask.keys });
+  assert.equal((await w.call('answer', { key: due.ask.keys[0], option: 'Xếp lại' })).state, 'scheduled');
+  assert.ok(!(await w.call('due', {})).late.includes(late));
+});
+
+test('Hàng đợi rows read like the prototype: Blog, X, Facebook, Reddit; a social post is its words plus "có liên kết"; a failed try shows once, on its retry row', async () => {
+  const w = world();
+  await seeded(w, { signIn: ['x-lohi', 'facebook-lohi', 'reddit-lohi'] });
+  const id = await post(w, { body: '9 bộ tiên hiệp đáng đọc năm nay 👇 https://lohi2.com/novel/tien-hiep', at: w.now + 2 * H });
+  let view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  assert.deepEqual(view.channels.map(c => c.id), ['blog-lohi', 'x-lohi', 'facebook-lohi', 'reddit-lohi']);
+  assert.deepEqual([view.items[0].text, view.items[0].has_link], ['9 bộ tiên hiệp đáng đọc năm nay 👇', true]);
+  w.now += 2 * H + MIN;
+  const { claim } = await w.call('claim', { id, action: 'publish' });
+  await w.call('fail', { intent_id: claim.intent_id, status: 'failed', reason: 'X không phản hồi' });
+  view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  assert.equal(view.items.filter(q => q.id === id).length, 1);
+  assert.ok(view.items.find(q => q.id === id).retry_at, 'the failed post waits for its retry');
+  assert.equal(view.recent.filter(r => r.id === id).length, 0, 'not repeated under Vừa xong');
 });
