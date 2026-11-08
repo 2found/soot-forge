@@ -119,16 +119,18 @@ test('upload takes only a clean workspace media path, checked against the real d
     mkdirSync(join(root,'mv','08-delivery'),{recursive:true});
     writeFileSync(join(root,'mv','08-delivery','v.mp4'),'video-bytes');
     writeFileSync(join(root,'secret.txt'),'x');
-    const ok={action:'upload',selector:'@e3',path:'mv/08-delivery/v.mp4'};
+    const digest=sha('sha256').update('video-bytes').digest('hex');
+    const ok={action:'upload',selector:'@e3',path:'mv/08-delivery/v.mp4',sha256:'sha256:'+digest};
     assert.equal(validateInput(ok),ok);
+    const {sha256:_, ...nohash}=ok;
+    assert.throws(()=>uploadSpec(nohash),/sha256/,'the claim hash is required');
     for (const path of ['/etc/passwd','../x.mp4','mv/../v.mp4','.hidden/v.mp4','mv/.v.mp4','secret.txt','mv//v.mp4','mv\\v.mp4'])
       assert.throws(()=>uploadSpec({...ok,path}),undefined,path);
     assert.throws(()=>uploadSpec({...ok,selector:'--profile'}));
     assert.throws(()=>uploadSpec({...ok,sha256:'nothex'}));
     const up=await uploadFile(ok,root);
     assert.equal(up.selector,'@e3'); assert.equal(up.bytes,11); assert.ok(up.file.endsWith('/mv/08-delivery/v.mp4'));
-    const digest=sha('sha256').update('video-bytes').digest('hex');
-    assert.equal((await uploadFile({...ok,sha256:'sha256:'+digest},root)).bytes,11);
+    assert.equal((await uploadFile({...ok,sha256:digest},root)).bytes,11);
     await assert.rejects(uploadFile({...ok,sha256:'0'.repeat(64)},root),/sha256 does not match/);
     await assert.rejects(uploadFile({...ok,path:'mv/none.mp4'},root),/not found/);
     await assert.rejects(uploadFile(ok,undefined),/FILE_ROOT/);

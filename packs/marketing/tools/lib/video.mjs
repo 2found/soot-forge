@@ -7,9 +7,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { lstat, readFile, readdir, realpath, open } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
-import { fail, eq } from './store.mjs';
+import { fail, eq, isNull } from './store.mjs';
 import { platformOf } from './guard.mjs';
-import { channel, getSettings, hashOf, STATE_LABEL } from './ops.mjs';
+import { channel, getSettings, hashOf, postAssets, STATE_LABEL } from './ops.mjs';
 
 export const VIDEO_PLATFORMS = ['x', 'facebook'];
 export const POSTER_MAX = 200 * 1024; // the data URI, not the file
@@ -151,7 +151,8 @@ export function srtCues(text, max = 40) {
 export async function video_import(input, deps) {
   const { store, env, soot } = deps;
   const { request_id, campaign, channels, parent, error } = input;
-  if (typeof request_id !== 'string' || !request_id) fail('invalid_request', 'request_id is required.');
+  // Each channel's draft is keyed `<request_id>:<channel>`, which must fit 64 characters.
+  if (typeof request_id !== 'string' || !request_id || request_id.length > 31) fail('invalid_request', 'request_id is 1–31 characters.');
   clean(campaign, 'campaign');
   if (!Array.isArray(channels) || !channels.length || channels.length > 4) fail('invalid_request', 'channels lists 1–4 channels.');
   const chans = [];
@@ -216,7 +217,7 @@ export async function video_import(input, deps) {
     ] : [{ kind: 'video', path: null, meta: { platform, canvas, error: reason }, pretest }];
     if (mine) {
       if (['publishing', 'published', 'unpublishing', 'uncertain'].includes(mine.state)) { out.push({ id: mine.ref, channel: ch.key, state: mine.state, label: STATE_LABEL[mine.state], unchanged: true }); continue; }
-      const old = await store.query('assets', [eq('post', mine.ref)], { limit: 20 });
+      const old = await postAssets(store, mine);
       const same = mine.content_hash === hash && (mine.reason ?? null) === reason && JSON.stringify(old.map(a => [a.kind, a.path, a.meta?.sha256 ?? null]).sort()) === JSON.stringify(assetsNow.map(a => [a.kind, a.path, a.meta?.sha256 ?? null]).sort())
         && JSON.stringify(old.find(a => a.kind === 'video')?.pretest ?? null) === JSON.stringify(pretest);
       if (same) { out.push({ id: mine.ref, channel: ch.key, revision: mine.revision, state: mine.state, hold, reason, unchanged: true }); continue; }
@@ -225,11 +226,11 @@ export async function video_import(input, deps) {
       for (const a of assetsNow) { const ref = assetRef(); await store.insert('assets', { ref, post: mine.ref, ...a, pretest: a.pretest ?? null }); ids.push(ref); }
       const revision = mine.revision + 1;
       await store.update('posts', [eq('ref', mine.ref)], { ...fields, asset_ids: ids, content_hash: hash, state: 'draft', reason, revision });
-      await store.remove('queue', [eq('post', mine.ref), { column: 'intent_id', op: 'is_null' }]);
+      await store.remove('queue', [eq('post', mine.ref), isNull('intent_id')]);
       out.push({ id: mine.ref, channel: ch.key, revision, state: 'draft', hold, reason, assets: ids });
       continue;
     }
-    const rid = `${request_id}:${ch.key}`.slice(0, 64);
+    const rid = `${request_id}:${ch.key}`;
     const seen = await store.one('posts', [eq('request_id', rid)]);
     if (seen) { out.push({ id: seen.ref, channel: ch.key, revision: seen.revision, state: seen.state, replayed: true }); continue; }
     const ref = 'P-' + randomBytes(5).toString('hex').toUpperCase();

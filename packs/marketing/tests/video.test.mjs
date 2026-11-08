@@ -190,6 +190,33 @@ test('#p4-video-failed: a hook under the pretest bar, or no Micro Fish round, st
   }
 });
 
+test('a held video that also breaks a hard rule is refused, a claim-time video failure stays a draft, and a long request_id is refused', async () => {
+  const root = campaign({ h1: 20, h2: 30 });
+  try {
+    const w = await seeded(root);
+    await assert.rejects(w.import({ request_id: 'r'.repeat(32) }), /request_id/, 'the per-channel key must fit');
+    const [p] = (await w.import({ channels: ['x-lohi'] })).posts;
+    assert.equal(p.hold, 'weak_hook');
+    const d = await w.call('draft_save', { id: p.id, expected_revision: p.revision, kind: 'video', channel: 'x-lohi', body: 'Gọi 0912 345 678 để nhận truyện.' });
+    const c = await w.call('check', { id: p.id, revision: d.revision, verdict: 'pass', reasons: [] });
+    assert.equal(c.state, undefined, 'not just held');
+    assert.equal(w.store.data.posts.find(x => x.ref === p.id).state, 'refused', 'personal data refuses it, the hold does not hide that');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+  const ok = campaign();
+  try {
+    const w = await seeded(ok);
+    const [p] = (await w.import({ channels: ['x-lohi'] })).posts;
+    await w.call('check', { id: p.id, revision: p.revision, verdict: 'pass', reasons: [] });
+    await w.call('schedule', { id: p.id, scheduled_at: new Date(w.now - MIN).toISOString() });
+    const v = w.store.data.assets.find(a => a.post === p.id && a.kind === 'video');
+    v.pretest = { ...v.pretest, passed: false, reason: 'Câu mở đầu dưới mức; vẫn là nháp.' };
+    const r = await w.call('claim', { id: p.id, action: 'publish' });
+    assert.equal(r.refused.code, 'weak_hook');
+    assert.equal(w.store.data.posts.find(x => x.ref === p.id).state, 'draft', 'the same hold as at check');
+    assert.equal(w.store.data.queue.filter(q => q.post === p.id).length, 0);
+  } finally { rmSync(ok, { recursive: true, force: true }); }
+});
+
 test('re-importing is idempotent, and a fixed campaign updates the same drafts', async () => {
   const root = campaign({ h1: 20, h2: 30 });
   try {

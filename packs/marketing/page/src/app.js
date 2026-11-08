@@ -177,15 +177,28 @@ function queue(d) {
   return out;
 }
 
-function queueRow(d, q) {
+/** A queue item's state label and the person's buttons, shared by every row kind (posts, replies, videos). */
+function queueStatus(/** @type {any} */ d, /** @type {any} */ q, /** @type {any} */ pullLabel) {
   const t = S.t;
-  if (q.kind === 'video') return videoRow(t, q, d);
   // A channel the person or a sign-in paused holds its items: say so instead of "Chờ đăng".
   const ch = d.channels.find((/** @type {any} */ c) => c.label === q.channel);
   const held = !q.in_flight && (d.paused_all || ch?.paused);
   const failed = q.state === 'failed';
   const state = held ? (!d.paused_all && ch?.paused_reason === 'signed_out' ? t.waitSignIn : 'Đang dừng')
     : q.in_flight ? t.inFlight : q.action === 'unpublish' ? 'Chờ gỡ' : failed && !q.retry_at ? 'Lỗi' : q.label;
+  // The person's answers: a late item and an uncertain one are never sent on their own.
+  const actions = q.state === 'uncertain' ? uncertainActions(t, q)
+    : q.late ? [button(t.postNow, () => void act('post_now', { id: q.id })), button(t.restore, () => void act('restore', { id: q.id })), button(t.drop, () => void act('drop', { id: q.id }))]
+    : [failed && q.retry_at && button(t.tryNow, () => void act('post_now', { id: q.id })),
+      !q.in_flight && !held && q.action === 'publish' && !failed && rescheduleButton(q),
+      !q.in_flight && !d.paused_all && q.action === 'publish' && button(pullLabel, () => void act('pull', { id: q.id }))];
+  return { held, failed, state, badge: badge(state, held ? 'uncertain' : q.state), actions };
+}
+
+function queueRow(d, q) {
+  const t = S.t;
+  if (q.kind === 'video') return videoRow(t, q, d);
+  const { held, failed, badge: stateBadge, actions } = queueStatus(d, q, t.pull);
   const head = q.action === 'reply' ? `${t.replyTo} · ${q.channel}${q.reply_to ? ` · @${q.reply_to}` : ''}` : `${M.when(q.scheduled_at)} · ${q.channel}`;
   const sub = q.action === 'reply' ? `"${q.title}"` : q.text ? `"${q.text}"${q.has_link ? ` · ${t.hasLink}` : ''}` : q.title;
   const line = failed ? `${t.notYet}: ${q.reason ?? ''}${q.retry_at ? ` ${t.retryAt(M.hm(q.retry_at))}` : ''}`
@@ -193,13 +206,7 @@ function queueRow(d, q) {
   return h('li', { class: 'row' },
     h('div', { class: 'who' }, h('b', {}, failed || q.state === 'uncertain' ? `${head} · ${q.title}` : head), line && h('small', { class: q.state === 'uncertain' || (failed && !q.retry_at) ? 'errline' : 'muted' }, line),
       !failed && q.state !== 'uncertain' && q.reason && !held && h('small', { class: 'muted' }, q.reason)),
-    badge(state, held ? 'uncertain' : q.state),
-    // The person's answers: a late item and an uncertain one are never sent on their own.
-    ...(q.state === 'uncertain' ? uncertainActions(t, q)
-      : q.late ? [button(t.postNow, () => void act('post_now', { id: q.id })), button(t.restore, () => void act('restore', { id: q.id })), button(t.drop, () => void act('drop', { id: q.id }))]
-      : [failed && q.retry_at && button(t.tryNow, () => void act('post_now', { id: q.id })),
-        !q.in_flight && !held && q.action === 'publish' && !failed && rescheduleButton(q),
-        !q.in_flight && !d.paused_all && q.action === 'publish' && button(t.pull, () => void act('pull', { id: q.id }))]));
+    stateBadge, ...actions);
 }
 
 /** "Đổi giờ": an inline time field, saved with reschedule. */
@@ -214,21 +221,19 @@ function rescheduleButton(/** @type {any} */ q) {
 /** A queued video (#p4-video-queue): poster, what it is, the hook scores, Xem video and Kéo khỏi hàng đợi. */
 function videoRow(/** @type {any} */ t, /** @type {any} */ q, /** @type {any} */ d) {
   const v = q.video ?? {};
-  const state = d.paused_all && !q.in_flight ? 'Đang dừng' : q.in_flight ? t.inFlight : q.label;
+  const { failed, badge: stateBadge, actions } = queueStatus(d, q, t.pullQueue);
   const hooks = M.hookRows(v.pretest);
   return h('li', { class: 'row top' },
     v.poster ? h('img', { class: 'poster', src: v.poster, alt: '' }) : h('div', { class: 'poster' }),
     h('div', { class: 'who stack' },
       h('b', {}, `${M.when(q.scheduled_at)} · ${q.channel} · ${t.videoLine(v.duration_s ?? null, !!v.captions?.length)}`),
       h('small', { class: 'muted' }, q.source_title ? t.fromPost(q.source_title) : q.title),
-      q.reason && h('small', { class: ['failed', 'uncertain'].includes(q.state) ? 'errline' : 'muted' }, q.reason),
+      q.reason && h('small', { class: q.state === 'uncertain' || (failed && !q.retry_at) ? 'errline' : 'muted' }, failed ? `${t.notYet}: ${q.reason}${q.retry_at ? ` ${t.retryAt(M.hm(q.retry_at))}` : ''}` : q.reason),
       hooks.length ? h('table', { class: 'table hooks' },
         h('thead', {}, h('tr', {}, h('th', {}, `${t.hooks} (${t.panel(v.pretest?.n ?? null)})`), h('th', { class: 'num' }, t.keepWatching))),
         h('tbody', {}, ...hooks.map(r => h('tr', {}, h('td', {}, r.chosen ? h('b', {}, r.text) : r.text, r.chosen ? ' ' : null, r.chosen ? h('span', { class: 'badge ok' }, t.chosen) : null), h('td', { class: 'num' }, r.score))))) : null,
-      h('span', { class: 'line' },
-        v.open_link && button(t.watch, () => bridge.open(v.open_link), 'btn sm'),
-        !q.in_flight && q.action === 'publish' && q.state !== 'uncertain' && button(t.pullQueue, () => void act('pull', { id: q.id })))),
-    badge(state, d.paused_all ? 'uncertain' : q.state));
+      h('span', { class: 'line' }, v.open_link && button(t.watch, () => bridge.open(v.open_link), 'btn sm'), ...actions)),
+    stateBadge);
 }
 
 /** "Không chắc đã đăng chưa": the person looked. Live → paste its link; not live → it may go out again. */

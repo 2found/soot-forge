@@ -35,8 +35,11 @@ Hash frozen inputs before handing them to another producer.
   correct `data-start`/`data-duration`; seek-safe timelines only (no Date.now,
   random live state, setTimeout); frame 0, reverse seeks and last-frame tails
   agree; screen-space captions stay outside camera transforms. `passed:false`
-  from `check`/`lint` is a finding to fix, not a pass. Rendering runs authored
-  JS: only operator-authorized projects on an isolated host.
+  from `check`/`lint` is a finding to fix, not a pass, and zero sampled
+  layout/contrast checks are not a visual audit; missing Chromium is a real
+  blocker. Nested scenes match mount IDs, composition IDs and timeline keys.
+  No `npx` install, publishing, cloud render or secret lookup. Rendering runs
+  authored JS: only operator-authorized projects on an isolated host.
 - Narration is measured first (`tts_synthesize` WAV adopted as a file; never an
   invented HyperFrames TTS provider). TikTok default is 9:16 with header/footer
   room; the margins are assumptions, not TikTok's real UI.

@@ -64,8 +64,9 @@ export function uploadSpec(input) {
   const parts=path.split('/');
   if (parts.some(p=>!p||p==='.'||p==='..'||p.startsWith('.'))) throw new Error('Upload path must be a clean workspace path without hidden parts');
   if (!UPLOAD_EXT.has(extname(path).toLowerCase())) throw new Error('Upload accepts mp4, mov, m4v, jpg, jpeg, png or webp');
-  if (sha256!==undefined && (typeof sha256!=='string'||!/^(sha256:)?[0-9a-f]{64}$/.test(sha256))) throw new Error('Invalid sha256');
-  return {selector, parts, sha256: sha256?.replace(/^sha256:/,'')};
+  // The claim's hash is required: the file uploaded is the one the Editor checked.
+  if (typeof sha256!=='string'||!/^(sha256:)?[0-9a-f]{64}$/.test(sha256)) throw new Error('Upload needs the sha256 from the claim');
+  return {selector, parts, sha256: sha256.replace(/^sha256:/,'')};
 }
 /** The absolute file to upload, after the same checks against the real disk. */
 export async function uploadFile(input, fileRoot = process.env.FILE_ROOT) {
@@ -83,11 +84,9 @@ export async function uploadFile(input, fileRoot = process.env.FILE_ROOT) {
   if (!st.isFile()) throw new Error('Upload path is not a file');
   if (st.size>UPLOAD_MAX) throw new Error('Upload file is larger than 512 MiB');
   if (!resolve(at).startsWith(root+sep)) throw new Error('Upload path leaves the workspace');
-  if (spec.sha256) {
-    const hash=createHash('sha256'), fh=await open(at,'r');
-    try { for await (const chunk of fh.createReadStream()) hash.update(chunk); } finally { await fh.close().catch(()=>{}); }
-    if (hash.digest('hex')!==spec.sha256) throw new Error('Upload file changed: sha256 does not match the claim');
-  }
+  const hash=createHash('sha256'), fh=await open(at,'r');
+  try { for await (const chunk of fh.createReadStream()) hash.update(chunk); } finally { await fh.close().catch(()=>{}); }
+  if (hash.digest('hex')!==spec.sha256) throw new Error('Upload file changed: sha256 does not match the claim');
   return {selector: spec.selector, file: at, bytes: st.size};
 }
 export function validateInput(input) {

@@ -25,18 +25,18 @@ const socialText = p => (p.kind === 'social' ? { text: String(p.body ?? '').repl
 /** Blog first, then X, Facebook, Reddit: the order the founder reads the channels in. */
 const ORDER = ['blog', 'x', 'facebook', 'reddit'];
 const rank = key => { const i = ORDER.indexOf(platformOf(key) === 'blog-lohi' ? 'blog' : platformOf(key)); return i < 0 ? ORDER.length : i; };
-// At most this many posters per view: each is a data URI of up to 200 KB.
-const POSTERS = 6;
+// Posters share one budget per view (each data URI is up to 200 KB), so page_view stays under its 1 MiB cap.
+const POSTER_BUDGET = 600 * 1024;
 async function videoBlocks(store, posts) {
   const refs = posts.filter(p => p.kind === 'video').map(p => p.ref).slice(0, 50);
   if (!refs.length) return {};
   const rows = await store.query('assets', [{ column: 'post', op: 'in', values: refs }], { limit: 300 });
   const out = {};
-  let posters = 0;
+  let budget = POSTER_BUDGET;
   for (const ref of refs) {
     const v = videoView(rows.filter(a => a.post === ref));
     if (!v) continue;
-    if (v.poster && ++posters > POSTERS) v.poster = null;
+    if (v.poster && (budget -= v.poster.length) < 0) v.poster = null;
     out[ref] = v;
   }
   return out;

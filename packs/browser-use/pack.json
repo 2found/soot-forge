@@ -123,7 +123,7 @@
           "sha256": {
             "type": "string",
             "maxLength": 71,
-            "description": "upload: the file's sha256 from the claim; a changed file is refused."
+            "description": "upload (required): the file's sha256 from the claim; a changed file is refused."
           }
         },
         "required": [

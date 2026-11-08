@@ -55,12 +55,15 @@ async function post(store, id) {
 }
 export const hashOf = p => contentHash({ title: p.brief?.title ?? '', meta: p.brief?.meta ?? '', slug: p.brief?.slug ?? '', body: p.body ?? '', link: p.link ?? '' });
 
+/** A video post's asset rows (its file, captions, poster); none for other kinds. */
+export const postAssets = (store, p) => (p.kind === 'video' ? store.query('assets', [eq('post', p.ref)], { limit: 20 }) : Promise.resolve([]));
+
 async function guardInputs(store, p, now) {
   const [ch, facts, log, assets] = await Promise.all([
     channel(store, p.channel),
     store.query('facts', [], { limit: 500 }),
     store.query('publish_log', [gte('at', iso(now - 90 * DAY))], { order: 'at', limit: 500 }),
-    p.kind === 'video' ? store.query('assets', [eq('post', p.ref)], { limit: 20 }) : [],
+    postAssets(store, p),
   ]);
   return { channel: ch, facts, log: log.filter(r => r.post !== p.ref), now, assets };
 }
@@ -133,7 +136,8 @@ export async function check(input, { store, now, soot }) {
   await store.insert('checks', { post: p.ref, revision: p.revision, content_hash: p.content_hash, checker_soot: soot ?? null, verdict, auto, reasons, at: iso(now) });
   const reason = verdict === 'pass' ? null : [...failed.map(a => a.detail), ...(input.verdict === 'fail' ? reasons : [])].join(' · ') || 'Editor không duyệt.';
   // A video that is not rendered or whose hook is under the bar stays a draft with its reason (#p4-video-failed).
-  const held = failed.some(a => a.rule === 'video');
+  // Any other failed rule (facts, personal data, duplicate…) still refuses it.
+  const held = failed.length > 0 && failed.every(a => a.rule === 'video');
   await store.update('posts', [eq('ref', p.ref)], { state: verdict === 'pass' ? 'ready' : held ? 'draft' : 'refused', reason });
   return { verdict, ...(held ? { state: 'draft' } : {}), auto: auto.map(({ rule, ok, detail }) => ({ rule, ok, detail })), ...(reason ? { reason } : {}) };
 }
@@ -336,13 +340,13 @@ function claimBody(p, ch, action, intent, now, assets = []) {
     ...(ch.publisher === 'browser' ? { platform: ch.platform ?? platformOf(ch.key), account: ch.account ?? null, subreddit: b.subreddit ?? null } : {}),
     ...(action === 'reply' ? { reply_url: b.reply_url ?? null, thread_url: b.thread_url ?? null } : {}),
     // A video post: the file the browser uploads, with the hash it must still have.
-    ...(p.kind === 'video' ? { kind: 'video', assets: claimAssets(assets) } : {}),
+    ...(p.kind === 'video' ? { kind: 'video', ...(action === 'publish' ? { assets: claimAssets(assets) } : {}) } : {}),
   };
 }
 
-async function refuse(store, p, code, reason, { refusePost = false } = {}) {
+async function refuse(store, p, code, reason, { refusePost = false, state = 'refused' } = {}) {
   if (refusePost) {
-    await store.update('posts', [eq('ref', p.ref)], { state: 'refused', reason });
+    await store.update('posts', [eq('ref', p.ref)], { state, reason });
     await store.remove('queue', [eq('post', p.ref), isNull('intent_id')]);
   } else {
     await store.update('queue', [eq('post', p.ref)], { wait_reason: reason });
@@ -373,7 +377,7 @@ export async function claim(input, { store, now, env }) {
     if (!(await store.one('publish_log', [eq('intent_id', q.intent_id)]))) {
       await store.insert('publish_log', { post: p.ref, channel: ch.key, action, intent_id: q.intent_id, status: 'intent', body: p.body, link: p.link ?? null, url: p.url ?? null, platform_id: null, reason: null, at: iso(q.intent_at ?? now) });
     }
-    const media = p.kind === 'video' ? await store.query('assets', [eq('post', p.ref)], { limit: 20 }) : [];
+    const media = action === 'publish' ? await postAssets(store, p) : [];
     return { claim: signClaim(claimBody(p, ch, action, q.intent_id, now, media), key), verify_first: true };
   }
 
@@ -387,7 +391,7 @@ export async function claim(input, { store, now, env }) {
     if (p.content_hash !== hashOf(p)) return refuse(store, p, 'hash_mismatch', 'Nội dung đổi sau khi kiểm tra.', { refusePost: true });
     const gi = await guardInputs(store, p, now);
     const failed = autoChecks(p, gi).filter(a => !a.ok);
-    if (failed.length) return refuse(store, p, failed[0].code, failed.map(a => a.detail).join(' · '), { refusePost: true });
+    if (failed.length) return refuse(store, p, failed[0].code, failed.map(a => a.detail).join(' · '), { refusePost: true, state: failed.every(a => a.rule === 'video') ? 'draft' : 'refused' });
     const last = await latestCheck(store, p);
     if (!last || last.verdict !== 'pass' || last.content_hash !== p.content_hash) return refuse(store, p, 'not_checked', 'Editor chưa duyệt đúng bản này.', { refusePost: true });
     const wait = claimWindow({ settings, channel: ch, log: gi.log.filter(r => r.channel === ch.key), now, action });
@@ -403,7 +407,7 @@ export async function claim(input, { store, now, env }) {
   // The intent row is written before anything goes out.
   await store.insert('publish_log', { post: p.ref, channel: ch.key, action, intent_id: intent, status: 'intent', body: p.body, link: p.link ?? null, url: p.url ?? null, platform_id: null, reason: null, at: iso(now) });
   await store.update('posts', [eq('ref', p.ref)], { state: send ? 'publishing' : 'unpublishing', reason: null });
-  const media = p.kind === 'video' ? await store.query('assets', [eq('post', p.ref)], { limit: 20 }) : [];
+  const media = action === 'publish' ? await postAssets(store, p) : [];
   return { claim: signClaim(claimBody(p, ch, action, intent, now, media), key) };
 }
 
