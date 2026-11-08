@@ -3,6 +3,24 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.15
+
+Baseline: v0.11.14 (c63356e). **Needs Soot 0.13.14 or later** for the new pack and the recipe (marketing storage version 4); Soot 0.13.16 or later is still what counts blog posts (see 0.11.14). Commits since v0.11.14: a2b79ee, 21d2fa3 and 99c94da (merge 6fbec46, branch loop-l1-pack) and this release commit.
+
+### Added
+
+- **New pack `company-loop`.** A product-neutral weekly loop: `scoreboard_sync` reads the product scoreboard (last 7 full days, `X-API-Key`) and stores a weekly row; `signals` builds a packet of at most 3 KiB that wakes the Lead; `digest_save` validates 1-5 opportunities (all or none), where a content opportunity goes by itself and queues a topic and a product one files one "Cần bạn" card; `decide` (Go, Để sau, Bỏ) writes `docs/requirements/REQ-<id>.md` in `PRODUCT_REPO` and runs `bbs team spawn`, never land, release, integrate or seal; `team_watch` (every 30 minutes) finds the bbs:team parent ticket from the team id, files one ask when a handover waits for the release go and, once released, records `requirement_shipped` and queues a launch topic; `topic_next` hands the next queued topic to marketing; `review` fills `actual_delta` after `check_after_days` (a hit is actual at least half of expected). The operator page "Công ty" (480 px, Vietnamese) shows one next-step bar, opportunities, handoffs, the decision log and the hit rate. Outcomes `opportunity_found` and `requirement_shipped`; settings `PRODUCT_ADMIN_KEY` (optional credential), `SCOREBOARD_URL`, `CS_RUNTIME_URL`/`CS_RUNTIME_TOKEN` (optional), `PRODUCT_REPO` (no default), `BBS_BIN`. Every optional input answers the quiet `skipped` shape; a refused key is one plain line. The pack is in the catalog (tags operations, collaboration).
+- **Lohi recipe wires the loop.** The Editor gets `company-loop` (all tools but `decide`) and the Writer gets `topic_next`; four schedules `company-scoreboard` (daily 06:15, no model), `company-digest` (Monday 08:30), `company-watch` (every 30 minutes, 07:00-23:30) and `company-review` (Monday 08:00). `setup.mjs` installs the pack, writes `SCOREBOARD_URL` (`https://api.lohi2.com/admin/analysis/scoreboard`) and takes `--product-repo <absolute path>` and `--cs-runtime-url <url>`; without `--product-repo` a Go on a product opportunity reports there is no repository and opens no team. The Editor brief and the person steps in the recipe README say what the Lead does and what only the founder can tap.
+
+### Changed
+
+- **Marketing: a handed topic is kept.** `marketing.plan` keeps a topic handed to the wake call (`query` with `wake`) until a post about it exists or 48 hours pass, so the Writer's own plan call sees the same topic. No marketing tool was added; `packs/marketing/pack.json` is unchanged at 65,136 B.
+- **AGENTS.md: the 32-pack limit** is stated for a runtime `packs_dir` and for a Soot's selection; the Forge `packs/` directory is a catalog source and is not bound by it.
+
+### Concern
+
+- `packs/marketing/pack.json` is still 65,136 B of the 65,536 B size limit (400 B left). The next addition to it needs trimming first.
+
 ## 0.11.14
 
 Baseline: v0.11.13 (d934140). **Needs Soot 0.13.16 or later for the blog chain to count posts**: the chain's `lohi-blog_publish` step answers an `outcome`, which Soot 0.13.16 records (0.13.15 and earlier run the chain but leave `post_published` at zero); the Lohi recipe also needs 0.13.14 or later, as before (marketing storage version 4). Commits since v0.11.13: 71e6477 and 0e2f5b2 (Nest flows N6, merge c147437), f6d5223, 2af4860 and this release commit.
