@@ -9,6 +9,7 @@ import { startHandoff } from './handoff.mjs';
 import { bbsReady } from './handoff.mjs';
 import { scoreboard_sync } from './scoreboard.mjs';
 import { safeUrl } from './base.mjs';
+import { healthView } from './health.mjs';
 
 const pct = (v, p) => (Number.isFinite(v) && Number.isFinite(p) && p > 0 ? Math.round(((v - p) / p) * 100) : null);
 
@@ -26,7 +27,7 @@ export function nextStep({ setup, sync, proposals, handoffs, topics }) {
   return { code: 'idle' };
 }
 
-export async function page_view(input, { store, env }) {
+export async function page_view(input, { store, env, now }) {
   const [board, opps, handoffs, decisions, queued, sync] = await Promise.all([
     latestBoard(store),
     store.query('opportunities', [], { order: 'updated_at', limit: 100 }),
@@ -45,6 +46,7 @@ export async function page_view(input, { store, env }) {
     scoreboard: board ? {
       product: board.product, from: board.period_from, to: board.period_to, comparison: board.comparison,
       tiles: Object.entries(board.metrics).map(([key, m]) => ({ key, label: labelOf(key, m), unit: m.unit ?? (key === 'revenue_vnd' ? 'vnd' : 'count'), value: m.value, previous: m.previous ?? null, pct: pct(m.value, m.previous), good: METRICS[key]?.[1] ?? 'up' })),
+      cohorts: board.cohorts ?? null, plans: board.plans ?? null,
       sources: (board.sources ?? []).slice(0, 8), reasons: (board.support?.handoff_reasons ?? []).slice(0, 6),
     } : null,
     opportunities: opps.map(o => ({ ref: o.ref, title: o.title, kind: o.kind, state: o.state, summary: o.summary, query: o.query, evidence_refs: o.evidence_refs, signal_count: o.signal_count, est_effort: o.est_effort, est_value: o.est_value, confidence: o.confidence, target_outcome: o.target_outcome, expected_delta: o.expected_delta, check_after_days: o.check_after_days })),
@@ -52,6 +54,7 @@ export async function page_view(input, { store, env }) {
     decisions: decisions.slice(0, 40).map(d => ({ at: d.at, stage: d.stage, ref: d.opportunity_ref, title: titleOf[d.opportunity_ref] ?? d.opportunity_ref, decision: d.decision, by: d.by, note: d.note, target_outcome: d.target_outcome, expected_delta: d.expected_delta, check_after_days: d.check_after_days, baseline_value: d.baseline_value, actual_delta: d.actual_delta })),
     hit_rate: hitRate(decisions),
     topics_queued: queued.length,
+    health: await healthView(store, now),
   };
 }
 

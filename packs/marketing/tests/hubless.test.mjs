@@ -376,7 +376,7 @@ test('AC3: gsc_sync fills metrics for published URLs; the post shows numbers; se
     'page,query': [{ keys: [url, 'truyện tiên hiệp hay'], impressions: 150, clicks: 1, position: 11.2 }, { keys: [url, 'tiên hiệp'], impressions: 10, clicks: 0, position: 15 }, { keys: [url, 'top tiên hiệp'], impressions: 40, clicks: 3, position: 3 }],
   } });
   const out = await w.call('gsc_sync', { site: 'sc-domain:lohi2.com', days: 3 });
-  assert.deepEqual(out, { status: 'ok', rows: 5, urls: 1 });
+  assert.deepEqual(out, { status: 'ok', rows: 5, urls: 1, listed: 3, matched: 2 });
   assert.ok(!w.store.data.metrics.some(r => r.url.endsWith('/other/')), 'only published post URLs are kept');
   await w.call('gsc_sync', { site: 'sc-domain:lohi2.com', days: 3 });
   assert.equal(w.store.data.metrics.length, 5, 'a second read replaces, never doubles');
@@ -396,7 +396,9 @@ test('AC3 non-happy: no sign-in or a revoked token answers needs_person and stor
   assert.deepEqual([skipped.skipped, skipped.reason_code, skipped.key, skipped.needs_person], [true, 'optional_credential', 'GSC_GOOGLE', undefined]);
   assert.equal(none.store.data.metrics.length, 0);
   // ... but a sign-in that worked once and then vanished is a person's job again.
-  await none.store.insert('settings', { key: 'gsc', value: { state: 'ok', at: new Date(T0).toISOString() } });
+  assert.equal(none.store.data.settings.find(s => s.key === 'gsc').value.state, 'not_connected', 'the reason for 0 rows is kept for the report');
+  assert.match(skipped.message, /Đăng nhập Google/);
+  none.store.data.settings.find(s => s.key === 'gsc').value = { state: 'ok', at: new Date(T0).toISOString() };
   assert.equal((await none.call('gsc_sync', { site: 'sc-domain:lohi2.com' })).status, 'needs_person');
   const w = world({ env: { GSC_GOOGLE: GSC } });
   w.fetch = google({ grant: 'revoked', rows: {} });
@@ -405,6 +407,35 @@ test('AC3 non-happy: no sign-in or a revoked token answers needs_person and stor
   assert.deepEqual(out.needs_person, { credential: 'GSC_GOOGLE', reason: 'oauth_revoked' }, 'the host sign-in signal');
   assert.equal(w.store.data.metrics.length, 0);
   assert.equal(w.store.data.settings.find(s => s.key === 'gsc').value.state, 'needs_person');
+});
+
+test('gsc_sync: a trailing slash does not drop the rows, and an empty read says why instead of a bare 0', async () => {
+  const w = world({ env: { GSC_GOOGLE: GSC } });
+  const d = await scheduledNow(w);
+  const url = 'https://blog.lohi2.com/truyen-hay/x/vi/';
+  const { claim } = await w.call('claim', { id: d.id, action: 'publish' });
+  await w.call('record', { intent_id: claim.intent_id, url });
+  w.fetch = google({ rows: { 'page,date': [{ keys: ['https://BLOG.lohi2.com/truyen-hay/x/vi', '2026-11-08'], impressions: 10, clicks: 1, position: 5 }], 'page,query': [] } });
+  const ok = await w.call('gsc_sync', { site: 'sc-domain:lohi2.com' });
+  assert.deepEqual([ok.rows, ok.matched, ok.why], [1, 1, undefined]);
+  assert.equal(w.store.data.metrics[0].url, url, 'stored under the post\'s own url');
+  // Google lists pages, none of them ours.
+  w.fetch = google({ rows: { 'page,date': [{ keys: ['https://blog.lohi2.com/other/', '2026-11-08'], impressions: 9, clicks: 0, position: 5 }], 'page,query': [] } });
+  const other = await w.call('gsc_sync', { site: 'sc-domain:lohi2.com' });
+  assert.deepEqual([other.listed, other.matched, other.why], [1, 0, 'no_page_matches_a_post']);
+  // Google lists nothing.
+  w.fetch = google({ rows: { 'page,date': [], 'page,query': [] } });
+  assert.equal((await w.call('gsc_sync', { site: 'sc-domain:lohi2.com' })).why, 'search_console_listed_nothing');
+  assert.equal(w.store.data.settings.find(s => s.key === 'gsc').value.why, 'search_console_listed_nothing');
+});
+
+test('gsc_sync: a signed-in account without access to the property is named, not a generic sign-in item', async () => {
+  const w = world({ env: { GSC_GOOGLE: GSC } });
+  w.fetch = async (u, init) => (String(u).includes('searchAnalytics') ? { ok: false, status: 403, json: async () => ({}) } : google({ rows: {} })(u, init));
+  const out = await w.call('gsc_sync', { site: 'sc-domain:lohi2.com' });
+  assert.deepEqual([out.status, out.needs_person, out.notify], ['no_access', undefined, false]);
+  assert.match(out.message, /không có quyền đọc sc-domain:lohi2\.com/);
+  assert.equal(w.store.data.settings.find(s => s.key === 'gsc').value.state, 'no_access');
 });
 
 // ---------- the real entry over HTTP ----------

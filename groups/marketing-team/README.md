@@ -25,7 +25,7 @@ the daily and monthly totals; it says when the cost cannot be estimated and
 never invents a price. Raising a budget later asks you again.
 
 **Work you can follow.** Every piece of work is a task (Việc), drafts and
-signals are rows in the team tables `content` and `signals`, and the brief,
+drafts are the marketing pack's `posts` (no second `content` table) and signals its `signals` table, and the brief,
 voice rules and lessons are team memory (Dữ liệu › Trí nhớ). Posts, the queue
 and campaigns live in the marketing pack's own storage, on its **Bài viết**,
 **Hàng đợi** and **Chiến dịch** pages; there is no marketing hub. Nothing goes
@@ -57,6 +57,8 @@ soot group inspect groups.d/marketing-team
 
 Source templates use zero placeholder digests; only the release build pins the
 real pack archives. Never install the source JSON as a verified release.
+
+**Why it stays three roles.** A group schedule is a text task for Kamaji and cannot carry tool-only chains, so this template keeps the classic radar / writer / editor flow and only leans its budgets (Radar on lite, Writer on flash). The job-split team (Ops, Writer, Analyst, Radar) is the [company team](../company-team/README.md).
 
 For a team that lives in your own repository (git-reviewed, with product packs),
 start from [examples/marketing-team](../../examples/marketing-team/README.md).

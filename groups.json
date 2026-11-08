@@ -9,6 +9,30 @@
       "source": "groups/marketing-team/group.source.json"
     },
     {
+      "id": "team-insight",
+      "name": "Insight team",
+      "description": "The company's eyes and thin lead: an Analyst reads the numbers and writes the weekly digest, a Radar watches the market read-only. It also sets goals, runs the weekly review and splits the token budget between teams; the founder decides.",
+      "source": "groups/team-insight/group.source.json"
+    },
+    {
+      "id": "team-marketing",
+      "name": "Marketing team (company)",
+      "description": "The company's voice: a Writer that only writes, and a Publisher that posts what passed the checks. Publishing, Search Console, sign-in probes and video stats are tool-chain schedules of this team, not separate teams.",
+      "source": "groups/team-marketing/group.source.json"
+    },
+    {
+      "id": "team-financial",
+      "name": "Financial team",
+      "description": "Read-only finance: revenue, cohorts, plans, unit economics and what each team's Soots cost. It reports and warns; it never acts on money.",
+      "source": "groups/team-financial/group.source.json"
+    },
+    {
+      "id": "team-op",
+      "name": "Operations team (one job)",
+      "description": "A team for one operational job of the company (a catalog, an inventory, a content import). Use it once per job: the job's pack comes from the product, so the template carries none.",
+      "source": "groups/team-op/group.source.json"
+    },
+    {
       "id": "support-team",
       "name": "Support team",
       "description": "Kamaji leads a website answerer and a feedback desk: visitors get answers from your product facts, and what they ask, report or want lands as voice-of-customer rows for you.",

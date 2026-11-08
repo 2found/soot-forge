@@ -8,8 +8,8 @@ const source = id => JSON.parse(readFileSync(new URL(`../groups/${id}/group.sour
 
 test('the catalog lists the Kamaji-led templates first and every template validates', async () => {
   const catalog = await readGroups(root);
-  assert.deepEqual(catalog.groups.map(g => g.id), ['marketing-team', 'support-team', 'society-sim', 'server-watch']);
-  for (const id of ['marketing-team', 'support-team', 'server-watch']) {
+  assert.deepEqual(catalog.groups.map(g => g.id), ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team', 'society-sim', 'server-watch']);
+  for (const id of ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team', 'server-watch']) {
     const t = source(id);
     assert.equal(t.api_version, 'soot/group-template/v2');
     assert.equal(t.root, '', `${id} is led by the host's lead`);
@@ -19,7 +19,7 @@ test('the catalog lists the Kamaji-led templates first and every template valida
 });
 
 test('templates carry no credentials, grants or approvals', () => {
-  for (const id of ['marketing-team', 'support-team']) {
+  for (const id of ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team']) {
     const raw = readFileSync(new URL(`../groups/${id}/group.source.json`, import.meta.url), 'utf8');
     assert.doesNotMatch(raw, /service_token|"token"|approvals|host_use|host_packs|access"/, id);
   }
@@ -76,4 +76,24 @@ test('marketing-team is hubless and asks for publish approval, required by defau
   assert.equal(pack.tools.find(x => x.name === 'claim').run.approval, 'operator', 'approval on unless the host says auto');
   const lohi = JSON.parse(readFileSync(new URL('../examples/lohi-marketing/deployment.example.json', import.meta.url), 'utf8'));
   assert.equal(lohi.approvals.marketing_claim, 'auto', 'the Lohi recipe is publish_approval none');
+});
+
+test('company team groups: one group per team, roles by job, no private content table, support is not a member, lean budgets below the old ceiling', () => {
+  const g = Object.fromEntries(['team-insight', 'team-marketing', 'team-financial', 'team-op'].map(id => [id, validateGroup(source(id))]));
+  assert.deepEqual(g['team-insight'].members.map(m => m.id), ['analyst', 'radar']);
+  assert.deepEqual(g['team-marketing'].members.map(m => m.id), ['writer', 'publisher']);
+  assert.deepEqual(g['team-financial'].members.map(m => m.id), ['finance']);
+  assert.deepEqual(g['team-financial'].members[0].packs, ['company-loop:read', 'marketing:read'], 'finance is read-only');
+  assert.match(g['team-financial'].members[0].mission, /never change a price|never change a price, a budget/i);
+  assert.match(g['team-marketing'].members[0].mission, /no `content` table/);
+  assert.match(g['team-marketing'].members[0].mission, /Never check, schedule or publish/);
+  assert.deepEqual(g['team-insight'].members[1].packs, ['marketing']);
+  assert.match(g['team-insight'].members[1].mission, /Never post, reply, sign in/);
+  assert.doesNotMatch(JSON.stringify(g), /team table `content`/);
+  const lean = Object.values(g).flatMap(x => Object.values(x.profiles.find(p => p.id === 'lean').members));
+  assert.ok(lean.reduce((n, m) => n + m.daily_tokens, 0) < 550000, 'below the old Writer 250k + Editor 300k');
+  assert.ok(lean.every(m => m.tier === 'lite' || m.tier === 'flash'));
+  const bad = fn => assert.throws(() => validateGroup(fn(structuredClone(g['team-insight']))));
+  bad(x => { x.members[1].packs = ['marketing', 'nope']; return x; });
+  bad(x => { x.profiles[0].members.radar.tier = 'huge'; return x; });
 });

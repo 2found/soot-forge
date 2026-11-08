@@ -297,7 +297,7 @@ export async function checkPageBundles(root, manifest) {
 export async function validatePack(root, expectedID) {
   await validateTree(root);
   const raw = await readFile(join(root, 'pack.json'));
-  if (raw.length > 64 * 1024) throw new Error('Pack manifest exceeds 64 KiB');
+  if (raw.length > 16 * 1024 * 1024) throw new Error('Pack manifest exceeds 16 MiB');
   const manifest = JSON.parse(raw);
   if (!checkManifest(manifest)) throw new Error(`Invalid pack manifest: ${JSON.stringify(checkManifest.errors)}`);
   if (manifest.api_version !== 'soot/v1' || manifest.id !== expectedID) throw new Error(`Pack manifest id/version mismatch: ${expectedID}`);

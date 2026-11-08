@@ -1,0 +1,140 @@
+{
+  "api_version": "soot/group-template/v2",
+  "id": "team-marketing",
+  "name": "Marketing team (company)",
+  "description": "The company's voice: a Writer that only writes, and a Publisher that posts what passed the checks. Publishing, Search Console, sign-in probes and video stats are tool-chain schedules of this team, not separate teams.",
+  "root": "",
+  "members": [
+    {
+      "id": "writer",
+      "name": "Writer",
+      "role": "Only writes: one article or post per task from the plan's brief, saved in the marketing pack; never checks, schedules or publishes.",
+      "soul": "You are Writer on the marketing team of a small company, led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
+      "mission": "Read the marketing-write skill and the team brief. Write from the brief marketing_plan returns and save each piece with marketing_draft_save. The marketing pack's posts table is the one record of what you wrote: never create a table of your own (no `content` table). Never check, schedule or publish.",
+      "packs": [
+        "marketing",
+        "writing"
+      ]
+    },
+    {
+      "id": "publisher",
+      "name": "Publisher",
+      "role": "Checks drafts, schedules what passes, publishes through marketing_claim; woken only when a post is due or a person is needed.",
+      "soul": "You are Publisher on the marketing team of a small company, led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
+      "mission": "Read the marketing-dispatch and marketing-publish skills. Claim, publish and record what is due; when a tool answers with an ask, file it as one Cần bạn item with report_blocker exactly as given. Publish only through marketing_claim, which waits for the person's approval unless the brief says publish_approval is none. Never write articles or decide for the founder.",
+      "packs": [
+        "marketing",
+        "browser-use"
+      ]
+    }
+  ],
+  "default": [
+    "writer",
+    "publisher"
+  ],
+  "packs": [
+    {
+      "id": "marketing",
+      "archive": "dependencies/marketing.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "writing",
+      "archive": "dependencies/writing.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "browser-use",
+      "archive": "dependencies/browser-use.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "bindings": [
+    {
+      "member": "publisher",
+      "name": "MARKETING_CLAIM_KEY",
+      "purpose": "The key that signs each publish claim; publishers refuse unsigned posts. Set in Nest (Cài đặt → Kết nối); never in chat."
+    }
+  ],
+  "inputs": [
+    {
+      "id": "product",
+      "label": "Sản phẩm",
+      "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
+      "confirm": true
+    },
+    {
+      "id": "site",
+      "label": "Blog",
+      "ask": "Blog ở địa chỉ nào, và đăng lên đó bằng gì (để trống nếu chưa có)?"
+    },
+    {
+      "id": "channels",
+      "label": "Kênh",
+      "ask": "Đội đăng ở những kênh nào: blog, X, Facebook, TikTok?"
+    },
+    {
+      "id": "voice",
+      "label": "Giọng văn",
+      "ask": "Giọng văn và những điều không bao giờ nói (giá, so sánh đối thủ, lời hứa)?"
+    },
+    {
+      "id": "publish_approval",
+      "label": "Duyệt trước khi đăng",
+      "ask": "Mỗi lượt đăng có chờ bạn duyệt không? Mặc định là required: có, bạn bấm duyệt từng lượt. none: đăng không chờ, host đặt marketing_claim là auto; mọi kiểm tra vẫn chạy.",
+      "confirm": true
+    }
+  ],
+  "profiles": [
+    {
+      "id": "lean",
+      "label": "Tiết kiệm",
+      "cadence": "Một bài mỗi ngày; chuỗi công cụ lo đăng, Publisher chỉ dậy khi có bài đến giờ.",
+      "members": {
+        "writer": {
+          "tier": "flash",
+          "daily_tokens": 100000
+        },
+        "publisher": {
+          "tier": "flash",
+          "daily_tokens": 150000
+        }
+      },
+      "schedules": [
+        "write",
+        "ops"
+      ]
+    },
+    {
+      "id": "steady",
+      "label": "Đều đặn",
+      "cadence": "Như Tiết kiệm với ngân sách rộng hơn.",
+      "members": {
+        "writer": {
+          "tier": "flash",
+          "daily_tokens": 300000
+        },
+        "publisher": {
+          "tier": "flash",
+          "daily_tokens": 250000
+        }
+      }
+    }
+  ],
+  "schedules": [
+    {
+      "id": "write",
+      "name": "Viết bài hằng ngày",
+      "every": "24h",
+      "at": "08:00",
+      "text": "Daily writing. Read the team brief and the topics the insight team queued. Create one task for the writer: one article from marketing_plan's brief. Do not start more than one."
+    },
+    {
+      "id": "ops",
+      "name": "Vận hành hằng ngày",
+      "every": "24h",
+      "at": "16:00",
+      "text": "Daily operations. For every writing task in review, give the publisher a task to check, schedule and publish what passes; ask for missing sign-ins. Put what needs the person in one report."
+    }
+  ]
+}

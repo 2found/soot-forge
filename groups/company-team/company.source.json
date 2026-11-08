@@ -1,0 +1,435 @@
+{
+  "api_version": "soot-forge/company-template/v1",
+  "id": "company-team",
+  "name": "Company",
+  "description": "A company made of teams, each an interface: what it takes in, what it gives out, what it decides alone or with the founder, its daily token budget and when it escalates. Add, remove or rename a team, or change a contract, in an overlay file; no code changes.",
+  "daily_token_ceiling": 550000,
+  "teams": [
+    {
+      "id": "insight",
+      "kind": "group",
+      "group": "team-insight",
+      "soots": [
+        {
+          "id": "analyst",
+          "role": "analyst"
+        },
+        {
+          "id": "radar",
+          "role": "radar"
+        }
+      ],
+      "takes_in": [
+        {
+          "from": "marketing",
+          "what": "published posts and their numbers (metrics, posts)",
+          "contract": "marketing-numbers"
+        },
+        {
+          "from": "cs",
+          "what": "voice-of-customer rows (voc)",
+          "contract": "cs-voc",
+          "optional": true
+        },
+        {
+          "from": "build",
+          "what": "release state of an approved opportunity",
+          "contract": "build-state"
+        }
+      ],
+      "gives_out": [
+        {
+          "table": "opportunities",
+          "pack": "company-loop",
+          "fields": [
+            "ref",
+            "title",
+            "kind",
+            "query",
+            "state",
+            "target_outcome",
+            "expected_delta"
+          ],
+          "note": "ranked weekly; the founder decides product ones"
+        },
+        {
+          "table": "topics",
+          "pack": "company-loop",
+          "fields": [
+            "query",
+            "reason",
+            "opportunity_ref",
+            "kind",
+            "state"
+          ],
+          "note": "content topics marketing writes next"
+        },
+        {
+          "table": "scoreboard",
+          "pack": "company-loop",
+          "fields": [
+            "key",
+            "period_from",
+            "period_to",
+            "metrics",
+            "cohorts",
+            "plans"
+          ],
+          "note": "the product's numbers, one row a week"
+        },
+        {
+          "table": "handoffs",
+          "pack": "company-loop",
+          "fields": [
+            "opportunity",
+            "requirement_path",
+            "state",
+            "ticket",
+            "released_at"
+          ],
+          "note": "requests to build and their state"
+        }
+      ],
+      "decides": {
+        "alone": [
+          "rank and queue content topics",
+          "which sources the radar reads",
+          "propose a budget split"
+        ],
+        "with_founder": [
+          "a product opportunity (Go, Để sau, Bỏ)",
+          "goals",
+          "any change of a team's daily budget"
+        ]
+      },
+      "daily_tokens": 130000,
+      "escalates_when": [
+        "a scoreboard key is refused or the product serves no numbers",
+        "readers wait for a person",
+        "an opportunity has waited a week for the founder"
+      ],
+      "lead": true
+    },
+    {
+      "id": "marketing",
+      "kind": "group",
+      "group": "team-marketing",
+      "soots": [
+        {
+          "id": "writer",
+          "role": "writer"
+        },
+        {
+          "id": "publisher",
+          "role": "publisher"
+        }
+      ],
+      "takes_in": [
+        {
+          "from": "insight",
+          "what": "content topics to write",
+          "contract": "topics"
+        }
+      ],
+      "gives_out": [
+        {
+          "table": "posts",
+          "pack": "marketing",
+          "fields": [
+            "ref",
+            "kind",
+            "channel",
+            "title",
+            "link",
+            "state",
+            "url"
+          ],
+          "note": "the one record of what was written and published"
+        },
+        {
+          "table": "metrics",
+          "pack": "marketing",
+          "fields": [
+            "url",
+            "source",
+            "day",
+            "views",
+            "likes",
+            "comments",
+            "impressions",
+            "clicks"
+          ],
+          "note": "Search Console, TikTok and YouTube numbers"
+        },
+        {
+          "table": "signals",
+          "pack": "marketing",
+          "fields": [
+            "source",
+            "title",
+            "url",
+            "state",
+            "note",
+            "ref"
+          ],
+          "note": "market signals the radar kept"
+        }
+      ],
+      "decides": {
+        "alone": [
+          "write and schedule within the checks and caps",
+          "pause a channel"
+        ],
+        "with_founder": [
+          "publishing while publish_approval is required",
+          "a new channel or a sign-in",
+          "anything about money or accounts"
+        ]
+      },
+      "daily_tokens": 250000,
+      "escalates_when": [
+        "a channel is signed out",
+        "a post is late past stale_after_h",
+        "a reply is about money, an account or a complaint"
+      ]
+    },
+    {
+      "id": "cs",
+      "kind": "external",
+      "group": "",
+      "soots": [
+        {
+          "id": "support",
+          "role": "answers readers"
+        },
+        {
+          "id": "desk",
+          "role": "sorts feedback"
+        }
+      ],
+      "takes_in": [
+        {
+          "from": "insight",
+          "what": "knowledge gaps the digest found",
+          "optional": true
+        }
+      ],
+      "gives_out": [
+        {
+          "table": "voc",
+          "pack": "lohi-cs",
+          "fields": [
+            "kind",
+            "summary",
+            "created"
+          ],
+          "note": "what readers asked, reported or wanted"
+        }
+      ],
+      "decides": {
+        "alone": [
+          "answer from the facts",
+          "record feedback"
+        ],
+        "with_founder": [
+          "refunds, accounts and complaints go to a person"
+        ]
+      },
+      "daily_tokens": 0,
+      "escalates_when": [
+        "a reader waits for a person"
+      ],
+      "external": {
+        "runtime": "cs-server",
+        "note": "declared, not deployed by setup; see the support team"
+      },
+      "optional": true
+    },
+    {
+      "id": "financial",
+      "kind": "group",
+      "group": "team-financial",
+      "soots": [
+        {
+          "id": "finance",
+          "role": "finance"
+        }
+      ],
+      "takes_in": [
+        {
+          "from": "insight",
+          "what": "scoreboard rows with revenue, cohorts and plans",
+          "contract": "scoreboard"
+        }
+      ],
+      "gives_out": [
+        {
+          "table": "report",
+          "pack": "company-loop",
+          "fields": [
+            "week",
+            "revenue",
+            "cost_per_team"
+          ],
+          "note": "a weekly read-only report in the team thread"
+        }
+      ],
+      "decides": {
+        "alone": [
+          "write the weekly report"
+        ],
+        "with_founder": [
+          "it never acts on money: any change is the founder's"
+        ]
+      },
+      "daily_tokens": 30000,
+      "escalates_when": [
+        "revenue falls two weeks running",
+        "Soot cost per team grows faster than its output"
+      ],
+      "optional": true
+    },
+    {
+      "id": "build",
+      "kind": "external",
+      "group": "",
+      "soots": [
+        {
+          "id": "claude-code",
+          "role": "builds a requirement"
+        }
+      ],
+      "takes_in": [
+        {
+          "from": "insight",
+          "what": "a REQUIREMENT file plus an approved product opportunity",
+          "contract": "build-request"
+        }
+      ],
+      "gives_out": [
+        {
+          "table": "handoffs",
+          "pack": "company-loop",
+          "fields": [
+            "opportunity",
+            "state",
+            "ticket",
+            "released_at"
+          ],
+          "note": "shipped or release state"
+        }
+      ],
+      "decides": {
+        "alone": [
+          "build and verify inside the requirement"
+        ],
+        "with_founder": [
+          "the release go"
+        ]
+      },
+      "daily_tokens": 0,
+      "escalates_when": [
+        "a handover waits for the release go",
+        "the build is blocked"
+      ],
+      "external": {
+        "runtime": "claude-code",
+        "via": "bbs team",
+        "note": "for now a contract: company-loop writes the requirement and reads the state; nothing here deploys Claude Code"
+      }
+    }
+  ],
+  "contracts": [
+    {
+      "id": "topics",
+      "owner": "insight",
+      "reader": "marketing",
+      "table": "topics",
+      "pack": "company-loop",
+      "mode": "read",
+      "fields": [
+        "query",
+        "reason",
+        "opportunity_ref",
+        "state"
+      ]
+    },
+    {
+      "id": "marketing-numbers",
+      "owner": "marketing",
+      "reader": "insight",
+      "table": "metrics",
+      "pack": "marketing",
+      "mode": "read",
+      "fields": [
+        "url",
+        "source",
+        "day",
+        "views",
+        "likes",
+        "comments",
+        "impressions",
+        "clicks"
+      ]
+    },
+    {
+      "id": "scoreboard",
+      "owner": "insight",
+      "reader": "financial",
+      "table": "scoreboard",
+      "pack": "company-loop",
+      "mode": "read",
+      "fields": [
+        "period_from",
+        "period_to",
+        "metrics",
+        "cohorts",
+        "plans"
+      ],
+      "optional": true
+    },
+    {
+      "id": "build-request",
+      "owner": "insight",
+      "reader": "build",
+      "table": "handoffs",
+      "pack": "company-loop",
+      "mode": "write",
+      "fields": [
+        "opportunity",
+        "requirement_path",
+        "state"
+      ],
+      "optional": true
+    },
+    {
+      "id": "build-state",
+      "owner": "build",
+      "reader": "insight",
+      "table": "handoffs",
+      "pack": "company-loop",
+      "mode": "read",
+      "fields": [
+        "opportunity",
+        "state",
+        "ticket",
+        "released_at"
+      ],
+      "optional": true
+    },
+    {
+      "id": "cs-voc",
+      "owner": "cs",
+      "reader": "insight",
+      "table": "voc",
+      "pack": "lohi-cs",
+      "mode": "read",
+      "fields": [
+        "kind",
+        "summary",
+        "created"
+      ],
+      "optional": true
+    }
+  ]
+}

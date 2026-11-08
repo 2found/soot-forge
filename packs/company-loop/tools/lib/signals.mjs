@@ -72,7 +72,7 @@ const pct = (v, p) => (Number.isFinite(v) && Number.isFinite(p) && p > 0 ? Math.
 /** Shrink the lists, least important first, until the packet fits. */
 function fit(packet) {
   const size = () => Buffer.byteLength(JSON.stringify(packet));
-  const trims = [['decisions', 3], ['decisions', 1], ['sources', 3], ['reasons', 3], ['cs_gaps', 3], ['launched', 1], ['decisions', 0], ['sources', 1], ['reasons', 1], ['cs_gaps', 1], ['waiting', 3]];
+  const trims = [['cohorts', 2], ['plans', 3], ['decisions', 3], ['decisions', 1], ['sources', 3], ['reasons', 3], ['cs_gaps', 3], ['launched', 1], ['decisions', 0], ['sources', 1], ['reasons', 1], ['cs_gaps', 1], ['waiting', 3]];
   for (const [k, n] of trims) {
     if (size() <= MAX_BYTES) break;
     if (Array.isArray(packet[k])) packet[k] = packet[k].slice(0, n);
@@ -102,6 +102,9 @@ export async function packetFor(deps) {
     sources: (board.sources ?? []).slice(0, 5).map(s => ({ s: short(s.source, 30), su: s.signups, fp: s.first_payers })),
     reasons: (board.support?.handoff_reasons ?? []).slice(0, 5).map(r => ({ r: short(r.reason, 40), n: r.count })),
     support: board.support?.by_state ?? null,
+    // Anonymous cohorts and plans (additive fields of the scoreboard); null when the product does not serve them yet: "chưa có".
+    cohorts: board.cohorts ? board.cohorts.slice(0, 4).map(c => ({ c: c.cohort, su: c.signups, w1: c.active_w1, w2: c.active_w2, w4: c.active_w4, fp: c.first_payers })) : null,
+    plans: board.plans ? board.plans.slice(0, 6).map(p => ({ t: p.tier, st: p.started, ac: p.active, rev: p.revenue_vnd })) : null,
     ...(gaps && !gaps.error ? { cs_gaps: gaps } : {}),
     ...(gaps?.error ? { cs_error: gaps.error } : {}),
     ...(feedback && !feedback.error ? { cs_feedback: feedback } : {}),

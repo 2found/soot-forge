@@ -12,6 +12,7 @@ import { getSettings, setSetting, takenTimes, facts_sync, seo_brief, channel, sc
 import { fold, platformOf, defaultsFor } from './guard.mjs';
 import { performance, rank, topPosts } from './insight.mjs';
 import { targetOf } from './campaign.mjs';
+import { keptSignals } from './radar.mjs';
 
 const HOUR = 3_600_000, DAY = 24 * HOUR;
 const iso = ms => new Date(ms).toISOString();
@@ -280,6 +281,8 @@ export async function plan(input, deps) {
     avoid: posts.slice(0, 8).map(p => short(p.brief?.title ?? p.title, 70)).filter(Boolean),
     ...f, ...brief,
     ...(social.length ? { social } : {}),
+    // Market signals the Radar kept (an angle readers ask about); the Writer may lean on one, never quotes it.
+    ...await (async () => { const sig = await keptSignals(store); return sig.length ? { signals: sig } : {}; })(),
     note: novels.length ? undefined : 'Không có truyện cụ thể: viết bài tổng quan, không nêu tên truyện nào ngoài danh sách, và chỉ dùng internal_links.',
   };
 }

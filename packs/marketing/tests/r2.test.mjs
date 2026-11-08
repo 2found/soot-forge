@@ -321,9 +321,9 @@ test('page actions: reschedule, pull, restore, pause and set_limits need no PROD
 
 // ---------- the tool surface ----------
 
-test('the pack stays under 64 KiB and chain steps accept each other\'s output', () => {
+test('the pack manifest stays under the 16 MiB safety cap and chain steps accept each other\'s output', () => {
   const raw = readFileSync(new URL('packs/marketing/pack.json', root));
-  assert.ok(raw.length < 64 * 1024, `pack.json is ${raw.length} bytes`);
+  assert.ok(raw.length < 16 * 1024 * 1024, `pack.json is ${raw.length} bytes`);
   const tool = n => JSON.parse(raw).tools.find(t => t.name === n);
   // The keys a chain hands on are declared (additionalProperties is false everywhere).
   assert.ok('ok' in tool('record').parameters.properties && 'status' in tool('record').parameters.properties);

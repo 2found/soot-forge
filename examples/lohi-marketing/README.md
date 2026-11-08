@@ -1,8 +1,9 @@
 # Lohi's marketing workspace
 
 A local Soot workspace that writes, checks and publishes Lohi's blog with no
-marketing hub and no person in the loop. Three Soots (Writer, Editor, Video)
-share the [marketing pack](../../packs/marketing/README.md)'s own storage. The
+marketing hub and no person in the loop. The team is split by **job**, not by
+pack: Ops (the `lohi-editor` id, which owns the browser profile and claim key),
+Writer, Analyst, Radar and an optional Video Soot share the [marketing pack](../../packs/marketing/README.md)'s own storage. The
 [Lohi blog publisher](packs/lohi-blog/README.md), a local pack that ships with
 this recipe, puts posts on `blog.lohi2.com`.
 
@@ -10,12 +11,53 @@ this recipe, puts posts on `blog.lohi2.com`.
 credentials (a quiet `skipped`), the workspace `env` field, the `marketing:tools=`
 pack selector and schedule catch-up; an older runtime refuses the deployment or
 cannot run the `marketing-blog` and `marketing-probe` chains. The marketing pack
-(storage version 4) also declares table `description`s, which Soot 0.13.13
+(storage version 5) also declares table `description`s, which Soot 0.13.13
 refuses in `pack.json`: update Soot first.
 
 **`setup.mjs` requires `--blog-remote <git url>` to publish.** There is no default
 blog repository (since 0.11.12); without the flag the workspace is built but the
 blog chain does not start. See [Set it up](#set-it-up) below.
+
+## The lean team (by job)
+
+The Soots are grouped into **teams** in [company.lohi.json](company.lohi.json), an overlay on the Forge's [company template](../../groups/company-team/README.md): insight (analyst, radar), marketing (writer, Ops as publisher), financial (finance), cs (support and desk on the CS server, declared and not deployed by setup), build (Claude Code through `bbs team`, a contract) and `op-catalog`, a slot for the `lohi-ops` pack. Chains such as publish, probe and GSC are schedules of marketing, not teams.
+
+| Soot | tier, daily tokens | does | wakes on |
+| --- | --- | --- | --- |
+| Ops (`lohi-editor`) | flash, 150k | publishes blog by chain, X/Facebook/Reddit by browser, probes sign-ins, reads GSC, TikTok/YouTube numbers, scoreboard and the daily report; files Cần bạn cards | a due post, a failed step, a card to raise |
+| Writer (`lohi-writer`) | flash, 100k | only writes: `plan` brief, `draft_save`, `check`, `schedule`; the one record is `posts` (no `content` table) | a free blog slot |
+| Analyst (`lohi-analyst`) | lite, 80k | Monday digest from `company-loop_signals` (scoreboard, `cohorts`, `plans`, support, signals), campaigns | Monday 08:30, campaigns 07:00 |
+| Radar (`lohi-radar`) | lite, 50k | `radar-read` reads Vietnamese and English web-novel feeds with a tool; the model only triages kept signals; read-only | enough new signals |
+
+| Finance (`lohi-finance`) | lite, 30k | Monday `finance-report`: read-only report of revenue, plans and cohorts from `company-loop_signals`; never acts on money. A separate lite Soot was kept over making the Analyst carry it: it only wakes weekly, so it costs one run a week and keeps the Analyst's mission short | Monday 09:00 |
+
+The five add up to 410k a day against the old Writer 250k + Editor 300k = 550k, and
+most days nothing wakes a model at all. Schedules that never wake one:
+`marketing-report`, `marketing-gsc`, `marketing-video-stats`, `company-review`,
+`company-health`, the blog chain and the probe.
+
+`radar-read` seeds `sources` once (an edit made on the table is never overwritten):
+r/noveltranslations, r/ProgressionFantasy, r/webnovels, r/LightNovels, a r/Vietnam
+search for "truyện chữ", and Google News feeds for web novels, audio reading apps
+and Lohi's competitors. Vietnamese competitor sites publish no public feed (not
+reachable when this was built), so they are followed through news search; add a feed
+by editing the `sources` table in Nest.
+
+`company-health` (06:45) runs `marketing_inputs_health` into `company-loop_health_sync`,
+which fills the **Vòng lặp** section of the Công ty page: each stage's last run,
+tokens in 7 days, which inputs starve ("GSC 0 dòng", "chưa có tín hiệu thị trường",
+"chưa có số TikTok") and the founder's effort. It reads the runtime through the `soot`
+CLI (`LOOP_SOOT_CONFIG` is this workspace's `deployment.json`, written by `setup.mjs`).
+
+TikTok and YouTube numbers (`marketing-video-stats`, 07:30) come from `yt-dlp` into
+`metrics`, without a login. Install it once (`brew install yt-dlp`); until then the
+Vòng lặp says "chưa có số TikTok" and nothing fails. Tests use a stub binary.
+
+**Slot for `lohi-ops`.** If `examples/lohi-marketing/packs/lohi-ops/` exists when
+`setup.mjs` runs, it is copied like `lohi-blog` (without tests) and its optional
+`deployment.fragment.json` is merged: `pack_grants`, `soot_packs` (`{"lohi-editor": ["lohi-ops:tools=..."]}`
+replacing that pack's ref on the Soot), `schedules` (an existing id is kept unless it is listed in
+`replace_schedules`). Absent, nothing changes.
 
 ```text
 08:00       marketing_plan ──(a blog slot is free, once a day)──▶ Writer: plan {} brief ─▶ draft_save ─▶ check ─▶ schedule
@@ -26,25 +68,24 @@ blog chain does not start. See [Set it up](#set-it-up) below.
 every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-replies ─▶ reply_save ─▶ check ─▶ claim {reply}
 05:20       marketing_channels_setup (creates x-lohi, facebook-lohi, reddit-lohi paused; fills unset caps)
 06:30       lohi-blog_ready ──(something missing, changed)──▶ Editor: one Cần bạn item
-07:00       marketing_campaign_report ──(notify)──▶ Editor: record lead outcomes, token count, 80 % note
+07:00       marketing_campaign_report ──(notify)──▶ Analyst: record lead outcomes, token count, 80 % note
 on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_import ─▶ Editor: check ─▶ schedule ─▶ browser upload (X, Facebook)
 ```
 
 | file | what it is |
 | --- | --- |
 | `setup.mjs` | builds the workspace from this recipe and generates the claim key |
-| `deployment.example.json` | product `Lohi`, the three Soots, the shared Editor/Video workspace, pack grants, the seven schedules, `approvals: {"marketing_claim": "auto"}` |
-| `soots/lohi-*.json` | Writer, Editor and Video (`flash`), each with a small daily token budget |
+| `deployment.example.json` | product `Lohi`, the Soots, the shared Editor/Video workspace, pack grants, the seven schedules, `approvals: {"marketing_claim": "auto"}` |
+| `soots/lohi-*.json` | Ops, Writer, Analyst, Radar and Video, each with a small daily token budget |
 | `soots/*.md` | the Lohi brief (`SOUL.md`) and each role's mission |
-| `packs/company-loop` (Forge) | granted to the Editor (all tools but `decide`) and, for `topic_next`, to the Writer; four schedules `company-scoreboard`, `company-digest`, `company-watch`, `company-review` |
+| `packs/company-loop` (Forge) | scoreboard, watch and review to Ops, digest and health to the Analyst (never `decide`), `topic_next` to the Writer; five schedules `company-scoreboard`, `company-digest`, `company-watch`, `company-review`, `company-health` |
 | `packs/lohi-blog/` | the Lohi-only blog publisher, a local pack: it is not in the Forge catalog |
 
 The topic comes from the tool, not a Soot: `marketing_plan` reads Lohi's public
 catalog (`/novel/discovery/feed`, `genres`, `/novel/novels/search`) and the
 Search Console queries, picks a keyword not yet written, and hands the Writer
 real novels with their links. `marketing_check` fails a draft whose
-`lohi2.com` link answers 404 or 410. No Radar Soot and no facts schedule are
-needed.
+`lohi2.com` link answers 404 or 410. No facts schedule is needed.
 
 ## Decisions in this recipe
 
@@ -165,7 +206,7 @@ cd ~/.soot/lohi-marketing && soot start
 the Editor's claim key once (never printed, never overwritten). If the runtime
 knows the workspace `env` field, the host settings (`PRODUCT_API_URL`,
 `SOOT_BROWSER_PERSISTENT_SOOTS`, and `LOHI_BLOG_REMOTE` from `--blog-remote`)
-go into the file. **`LOHI_BLOG_REMOTE` has no default**: without `--blog-remote`
+go into the file (plus `LOOP_SOOT_CONFIG`, the workspace's own `deployment.json`; set `YT_DLP_BIN` only when `yt-dlp` is not on PATH). **`LOHI_BLOG_REMOTE` has no default**: without `--blog-remote`
 the blog chain does not start and `blog-ready` raises one Cần bạn card
 ("Chưa chọn kho đăng blog"), so a test workspace can never push to the real
 blog repo. Run setup again with the live address, since it rewrites the file;

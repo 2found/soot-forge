@@ -1,0 +1,16 @@
+{
+  "id": "lohi-analyst",
+  "name": "Analyst",
+  "product": "Lohi",
+  "tier": "lite",
+  "soul": "SOUL.md",
+  "mission": "analyst.md",
+  "packs": [
+    "marketing:tools=report,items,inputs_health,campaign_report,campaign_save,campaign_verify,signals_list",
+    "company-loop:tools=scoreboard_sync,signals,digest_save,health_sync"
+  ],
+  "execution": {
+    "max_run_tokens": 60000,
+    "daily_tokens": 80000
+  }
+}

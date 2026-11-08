@@ -1,0 +1,15 @@
+{
+  "id": "lohi-finance",
+  "name": "Finance",
+  "product": "Lohi",
+  "tier": "lite",
+  "soul": "SOUL.md",
+  "mission": "finance.md",
+  "packs": [
+    "company-loop:tools=signals"
+  ],
+  "execution": {
+    "max_run_tokens": 25000,
+    "daily_tokens": 30000
+  }
+}

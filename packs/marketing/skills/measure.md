@@ -13,7 +13,7 @@ next cycle uses.
 - Reader numbers come only from a tool the team was given for its product (for
   example a product data pack). Without one, say that reader numbers are not
   connected.
-- The `content` and `signals` tables count the pipeline: `query` with
+- With a hub, the `content` and `signals` tables count the pipeline (without one, `marketing_items` and `marketing_report` do): `query` with
   `group_by status` for drafts in review, held items, signals unused.
 
 ## A review

@@ -7,6 +7,9 @@
   "soots": [
     "soots/lohi-writer.json",
     "soots/lohi-editor.json",
+    "soots/lohi-analyst.json",
+    "soots/lohi-finance.json",
+    "soots/lohi-radar.json",
     "soots/lohi-video.json"
   ],
   "approvals": {
@@ -17,6 +20,12 @@
       "workspace": "workspace"
     },
     "lohi-editor": {
+      "workspace": "workspace"
+    },
+    "lohi-analyst": {
+      "workspace": "workspace"
+    },
+    "lohi-finance": {
       "workspace": "workspace"
     }
   },
@@ -45,7 +54,10 @@
     },
     "marketing": {
       "env": [
-        "PRODUCT_API_URL"
+        "PRODUCT_API_URL",
+        "YT_DLP_BIN",
+        "PATH",
+        "HOME"
       ],
       "credentials": {
         "FILE_ROOT": "workspace"
@@ -60,6 +72,8 @@
         "CS_RUNTIME_URL",
         "SUPPORT_QUEUE_URL",
         "RELEASE_TAGS",
+        "LOOP_SOOT_BIN",
+        "LOOP_SOOT_CONFIG",
         "PATH",
         "HOME"
       ]
@@ -215,10 +229,7 @@
         "name": "report",
         "input": {}
       },
-      "wake_when": {
-        "notify": true
-      },
-      "text": "marketing_report gave the daily report lines. Answer with those lines as they are, in plain Vietnamese, nothing added; no tool calls."
+      "text": "The daily report is read by a tool and kept for the Công ty page; no model is ever woken for it."
     },
     {
       "id": "marketing-channels",
@@ -317,7 +328,7 @@
     {
       "id": "marketing-campaigns",
       "name": "Đọc số chiến dịch",
-      "soot": "lohi-editor",
+      "soot": "lohi-analyst",
       "every": "24h",
       "at": "07:00",
       "timezone": "Asia/Ho_Chi_Minh",
@@ -368,7 +379,7 @@
     {
       "id": "company-digest",
       "name": "Bản tin cơ hội hằng tuần",
-      "soot": "lohi-editor",
+      "soot": "lohi-analyst",
       "cron": "30 8 * * 1",
       "timezone": "Asia/Ho_Chi_Minh",
       "tool": {
@@ -389,7 +400,7 @@
       "wake_when": {
         "notify": true
       },
-      "text": "Weekly digest. Follow the company-digest skill: company-loop_signals {} gives the packet, rank at most five opportunities (content or product), company-loop_digest_save them, record its outcomes, file its ask with report_blocker, end in one line. If a step failed (its output is attached), say the plain line in one sentence and stop."
+      "text": "Weekly digest. Follow the company-digest skill: company-loop_signals {} gives the packet (scoreboard, cohorts, plans, support, feedback), rank at most five opportunities (content or product), company-loop_digest_save them, record its outcomes, file its ask with report_blocker, end in one line. If a step failed (its output is attached), say the plain line in one sentence and stop."
     },
     {
       "id": "company-watch",
@@ -419,6 +430,126 @@
         "input": {}
       },
       "text": "Fills actual_delta of decisions past check_after_days from the scoreboard and keeps the hit rate for the Công ty page; nothing for a model to do."
+    },
+    {
+      "id": "radar-read",
+      "name": "Đọc tín hiệu thị trường",
+      "soot": "lohi-radar",
+      "cron": "20 */3 * * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "marketing",
+        "name": "radar_read",
+        "input": {
+          "schedule": true,
+          "per_call": 2,
+          "min_hours": 6,
+          "wake_at": 6,
+          "sources": [
+            {
+              "key": "reddit-webnovels",
+              "kind": "reddit",
+              "url": "https://www.reddit.com/r/noveltranslations/.rss"
+            },
+            {
+              "key": "reddit-progfantasy",
+              "kind": "reddit",
+              "url": "https://www.reddit.com/r/ProgressionFantasy/.rss"
+            },
+            {
+              "key": "reddit-webnovel",
+              "kind": "reddit",
+              "url": "https://www.reddit.com/r/webnovels/.rss"
+            },
+            {
+              "key": "reddit-lightnovels",
+              "kind": "reddit",
+              "url": "https://www.reddit.com/r/LightNovels/.rss"
+            },
+            {
+              "key": "reddit-vietnam-truyen",
+              "kind": "reddit",
+              "url": "https://www.reddit.com/r/Vietnam/search.rss?q=truy%E1%BB%87n+ch%E1%BB%AF&restrict_sr=1&sort=new"
+            },
+            {
+              "key": "news-truyen-chu",
+              "kind": "news",
+              "url": "https://news.google.com/rss/search?q=truy%E1%BB%87n+ch%E1%BB%AF+online&hl=vi&gl=VN&ceid=VN:vi"
+            },
+            {
+              "key": "news-truyen-dich",
+              "kind": "news",
+              "url": "https://news.google.com/rss/search?q=truy%E1%BB%87n+d%E1%BB%8Bch+web+novel&hl=vi&gl=VN&ceid=VN:vi"
+            },
+            {
+              "key": "news-doc-truyen-app",
+              "kind": "news",
+              "url": "https://news.google.com/rss/search?q=%E1%BB%A9ng+d%E1%BB%A5ng+%C4%91%E1%BB%8Dc+truy%E1%BB%87n+audio&hl=vi&gl=VN&ceid=VN:vi"
+            },
+            {
+              "key": "news-doi-thu",
+              "kind": "news",
+              "url": "https://news.google.com/rss/search?q=tangthuvien+OR+metruyenchu+OR+truyenfull+OR+wattpad&hl=vi&gl=VN&ceid=VN:vi"
+            }
+          ]
+        }
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "marketing_radar_read kept new market signals (its answer says how many). Follow your mission: marketing_signals_list {state:\"new\"}, mark each kept, dismissed or used with marketing_signals_mark, end with one line naming the strongest angle. Read-only: never post or reply anywhere."
+    },
+    {
+      "id": "marketing-video-stats",
+      "name": "Đọc số TikTok và YouTube",
+      "soot": "lohi-editor",
+      "every": "24h",
+      "at": "07:30",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "marketing",
+        "name": "video_stats",
+        "input": {}
+      },
+      "text": "Reads public view, like and comment counts of the published videos with yt-dlp into the metrics table. No login, no model; without yt-dlp it keeps one plain need in the inputs view."
+    },
+    {
+      "id": "company-health",
+      "name": "Sức khoẻ vòng lặp",
+      "soot": "lohi-analyst",
+      "every": "24h",
+      "at": "06:45",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "marketing",
+        "name": "inputs_health",
+        "input": {}
+      },
+      "then": [
+        {
+          "pack": "company-loop",
+          "tool": "health_sync",
+          "label": "Ghi sức khoẻ vòng lặp",
+          "input_from": "previous"
+        }
+      ],
+      "text": "Keeps the Vòng lặp section of the Công ty page (last run, tokens, starving inputs, founder effort). Tools only; nothing for a model to do."
+    },
+    {
+      "id": "finance-report",
+      "name": "Báo cáo tài chính tuần",
+      "soot": "lohi-finance",
+      "cron": "0 9 * * 1",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "company-loop",
+        "name": "signals",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "company-loop_signals gave the week's numbers. Follow your mission: a short read-only Vietnamese report of revenue, plans and cohorts, 'chưa có' for a missing field, one warning at most. Never act on money."
     }
   ],
   "execution": {

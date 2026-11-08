@@ -1,0 +1,112 @@
+// Hubless radar: the audience's own places (feeds) read by a tool chain with no model, new items kept once per
+// url in `signals`; a small model is woken only to triage a batch. Read-only: it never posts, replies or signs in.
+import { createHash } from 'node:crypto';
+import { fail, eq } from './store.mjs';
+import { setSetting } from './ops.mjs';
+
+const HOUR = 3_600_000;
+const iso = ms => new Date(ms).toISOString();
+const text = s => String(s ?? '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+const short = (s, n) => { const t = text(s); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
+/** A feed address is https and a public name: a radar source never reaches this machine or a private network. */
+export function publicHttps(u) {
+  try {
+    const x = new URL(String(u));
+    if (x.protocol !== 'https:' || x.username || x.password) return null;
+    const h = x.hostname.toLowerCase();
+    if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || /^[\d.]+$/.test(h) || h.includes(':')) return null;
+    return x.href;
+  } catch { return null; }
+}
+
+/** RSS 2.0 items and Atom entries as {title, url, summary}. */
+export function parseFeed(xml) {
+  const out = [];
+  const body = String(xml ?? '');
+  for (const m of body.matchAll(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1>/g)) {
+    const block = m[2];
+    const title = text(block.match(/<title\b[^>]*>([\s\S]*?)<\/title>/)?.[1]);
+    const atom = block.match(/<link\b[^>]*\bhref="([^"]+)"/)?.[1];
+    const url = text(atom ?? block.match(/<link\b[^>]*>([\s\S]*?)<\/link>/)?.[1] ?? block.match(/<guid\b[^>]*>([\s\S]*?)<\/guid>/)?.[1]).replace(/&amp;/g, '&');
+    const summary = text(block.match(/<(?:description|summary|content)\b[^>]*>([\s\S]*?)<\/(?:description|summary|content)>/)?.[1]);
+    if (title && publicHttps(url)) out.push({ title: short(title, 200), url, summary: short(summary, 400) });
+  }
+  return out;
+}
+
+const keyOf = u => createHash('sha1').update(u).digest('hex').slice(0, 8).toUpperCase();
+export const SIGNAL_STATES = ['new', 'kept', 'dismissed', 'used'];
+
+/**
+ * radar_read {sources?, per_call?, min_hours?, wake_at?}: seeds the `sources` table (new keys only; an edit made on the
+ * table is never overwritten), reads the sources that are due (oldest first, at most `per_call`, one Reddit at a time
+ * is polite), keeps each new item once. Wakes the triage Soot only when enough new signals arrived since the last wake.
+ */
+export async function radar_read(input, { store, now, fetch }) {
+  const seeds = Array.isArray(input.sources) ? input.sources : [];
+  if (seeds.length > 40) fail('invalid_request', 'At most 40 sources.');
+  const known = new Set((await store.query('sources', [], { limit: 200 })).map(r => r.key));
+  for (const s of seeds) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(s?.key)) || !publicHttps(s.url)) fail('invalid_request', 'A source needs a lowercase key and a public https url.');
+    if (!known.has(s.key)) await store.insert('sources', { key: s.key, kind: s.kind ?? 'feed', url: s.url });
+  }
+  const perCall = Math.min(Math.max(Number(input.per_call) || 2, 1), 5);
+  const minMs = (Number(input.min_hours) || 6) * HOUR;
+  const sources = (await store.query('sources', [], { limit: 200 }))
+    .filter(r => !r.last_read_at || now - Date.parse(r.last_read_at) >= minMs)
+    .sort((a, b) => Date.parse(a.last_read_at ?? 0) - Date.parse(b.last_read_at ?? 0)).slice(0, perCall);
+  const read = [];
+  for (const src of sources) {
+    let items = [], error = null;
+    try {
+      const res = await fetch(src.url, { redirect: 'follow', signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; soot-radar/1.0)', Accept: 'application/atom+xml, application/rss+xml, application/xml, text/xml' } });
+      if (!res.ok) error = `HTTP ${res.status}`;
+      else items = parseFeed((await res.text()).slice(0, 1_500_000));
+    } catch (e) { error = e?.name === 'TimeoutError' ? 'timeout' : 'unreachable'; }
+    let fresh = 0;
+    for (const it of items.slice(0, 40)) {
+      if (await store.one('signals', [eq('url', it.url)])) continue;
+      await store.insert('signals', { ref: 'RS-' + keyOf(it.url), source: src.key, title: it.title, url: it.url, summary: it.summary, state: 'new', found_at: iso(now) });
+      fresh++;
+    }
+    await store.update('sources', [eq('key', src.key)], { last_read_at: iso(now), last_error: error });
+    read.push({ source: src.key, new: fresh, ...(error ? { error } : {}) });
+  }
+  const waiting = (await store.query('signals', [eq('state', 'new')], { limit: 500 }));
+  const woke = (await store.one('settings', [eq('key', 'radar_woke')]))?.value ?? { at: null };
+  const sinceWake = waiting.filter(s => !woke.at || (s.found_at ?? '') > woke.at).length;
+  const threshold = Math.min(Math.max(Number(input.wake_at) || 8, 1), 60);
+  const wake = input.schedule === true && sinceWake >= threshold;
+  if (wake) await setSetting(store, 'radar_woke', { at: iso(now) });
+  return { read, new_total: read.reduce((n, r) => n + r.new, 0), waiting: waiting.length, ...(wake ? { notify: true, wake: true } : { notify: false, wake: false }) };
+}
+
+export async function signals_list(input, { store }) {
+  const state = SIGNAL_STATES.includes(input.state) ? input.state : 'new';
+  const rows = await store.query('signals', [eq('state', state)], { order: 'found_at', desc: true, limit: Math.min(Number(input.limit) || 20, 40) });
+  return { state, signals: rows.map(r => ({ ref: r.ref, source: r.source, title: r.title, url: r.url, summary: short(r.summary, 220), ...(r.note ? { note: r.note } : {}) })), more: Math.max(0, (await store.query('signals', [eq('state', state)], { limit: 500 })).length - rows.length) };
+}
+
+/** signals_mark {items:[{ref, state, note?}]}: all or nothing, so one wrong ref changes none. */
+export async function signals_mark(input, { store }) {
+  const items = Array.isArray(input.items) ? input.items : [];
+  if (!items.length || items.length > 40) fail('invalid_request', 'items is 1–40 {ref, state, note}.');
+  const seen = new Set();
+  const rows = [];
+  for (const it of items) {
+    if (!['kept', 'dismissed', 'used'].includes(it?.state) || seen.has(it.ref)) fail('invalid_request', 'Each ref once, with state kept, dismissed or used.');
+    if (it.state === 'kept' && !String(it.note ?? '').trim()) fail('invalid_request', 'A kept signal needs a one-line note: the angle and why now.');
+    seen.add(it.ref);
+    const row = await store.one('signals', [eq('ref', it.ref)]);
+    if (!row) fail('not_found', `No signal ${it.ref}.`);
+    rows.push([row, it]);
+  }
+  for (const [row, it] of rows) await store.update('signals', [eq('ref', row.ref)], { state: it.state, note: short(it.note, 300) || row.note || null });
+  return { marked: rows.length };
+}
+
+/** The kept signals a writer may use: newest first, unused. */
+export async function keptSignals(store, n = 3) {
+  const rows = await store.query('signals', [eq('state', 'kept')], { order: 'found_at', desc: true, limit: n });
+  return rows.map(r => ({ ref: r.ref, title: short(r.title, 100), angle: short(r.note, 160), url: r.url }));
+}

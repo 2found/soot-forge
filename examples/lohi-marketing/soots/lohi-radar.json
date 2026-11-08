@@ -1,0 +1,15 @@
+{
+  "id": "lohi-radar",
+  "name": "Radar",
+  "product": "Lohi",
+  "tier": "lite",
+  "soul": "SOUL.md",
+  "mission": "radar.md",
+  "packs": [
+    "marketing:tools=radar_read,signals_list,signals_mark"
+  ],
+  "execution": {
+    "max_run_tokens": 40000,
+    "daily_tokens": 50000
+  }
+}

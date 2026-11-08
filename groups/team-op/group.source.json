@@ -1,0 +1,61 @@
+{
+  "api_version": "soot/group-template/v2",
+  "id": "team-op",
+  "name": "Operations team (one job)",
+  "description": "A team for one operational job of the company (a catalog, an inventory, a content import). Use it once per job: the job's pack comes from the product, so the template carries none.",
+  "root": "",
+  "members": [
+    {
+      "id": "operator",
+      "name": "Operator",
+      "role": "Runs one operational job through the product's own pack; tool chains first.",
+      "soul": "You are Operator on the operations team of a small company, led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
+      "mission": "Read the team brief for the job. Run the job through the pack the product gave you; when a tool answers with an ask, file it as one Cần bạn item with report_blocker exactly as given. You change nothing the brief does not name, and you never touch money or accounts.",
+      "packs": []
+    }
+  ],
+  "default": [
+    "operator"
+  ],
+  "packs": [],
+  "bindings": [],
+  "inputs": [
+    {
+      "id": "product",
+      "label": "Sản phẩm",
+      "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
+      "confirm": true
+    },
+    {
+      "id": "job",
+      "label": "Việc vận hành",
+      "ask": "Đội này lo việc vận hành nào (ví dụ danh mục truyện), và pack nào của sản phẩm làm việc đó?",
+      "confirm": true
+    }
+  ],
+  "profiles": [
+    {
+      "id": "lean",
+      "label": "Tiết kiệm",
+      "cadence": "Chuỗi công cụ theo lịch; model chỉ dậy khi cần người.",
+      "members": {
+        "operator": {
+          "tier": "flash",
+          "daily_tokens": 80000
+        }
+      }
+    },
+    {
+      "id": "steady",
+      "label": "Đều đặn",
+      "cadence": "Như Tiết kiệm với ngân sách rộng hơn.",
+      "members": {
+        "operator": {
+          "tier": "flash",
+          "daily_tokens": 200000
+        }
+      }
+    }
+  ],
+  "schedules": []
+}

@@ -59,7 +59,9 @@ posts for. Each channel gets its own angle; never paste the summary everywhere.
   the other.
 - A revision conflict means someone else saved: read, merge, save again.
 
-## The content table and the task
+## With a hub: the content table and the task
+
+Only when the team has a hub (`cms_*` / `social_*` tools). Without one, skip this section: the pack's own `posts` are the record and **you never create a `content` table**.
 
 Record each draft in the team table `content` (`data`, team level), one row per
 article or post, so the lead counts the pipeline from rows, not from memory:

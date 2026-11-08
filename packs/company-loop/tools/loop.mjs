@@ -9,9 +9,10 @@ import { digest_save, decide, topic_next } from './lib/opportunities.mjs';
 import { team_watch } from './lib/watch.mjs';
 import { review } from './lib/review.mjs';
 import { page_view, page_action } from './lib/page.mjs';
+import { health_sync } from './lib/health.mjs';
 
 export const TOOLS = {
-  scoreboard_sync, signals, digest_save, topic_next, team_watch, review, page_view, page_action,
+  scoreboard_sync, signals, digest_save, topic_next, team_watch, review, page_view, page_action, health_sync,
   // Through MCP or an approval card: the operator who approves is the decider.
   decide: (input, deps) => decide(input, deps, { by: 'operator' }),
 };
