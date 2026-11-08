@@ -59,7 +59,10 @@ test('the Lohi recipe: product Lohi, marketing_claim auto, five tool-only schedu
   for (const file of host.soots) {
     const soot = await json(`examples/lohi-marketing/${file}`);
     assert.notEqual(soot.tier ?? 'pro', 'pro', `${soot.id}: lean budgets stay off the pro tier`);
-    assert.ok(soot.execution.daily_tokens <= 150000, soot.id);
+    // The Editor drives the browser on the cheap model: one dispatch is ~84k tokens, so its cap fits a whole dispatch and the founder's flow never stalls.
+    const cap = soot.id === 'lohi-editor' ? 400000 : 150000;
+    assert.ok(soot.execution.daily_tokens <= cap, soot.id);
+    assert.ok(soot.execution.max_run_tokens <= soot.execution.daily_tokens, soot.id);
     for (const ref of soot.packs) assert.ok(known(ref.split(':')[0]), `${soot.id}: ${ref}`);
     for (const f of [soot.soul, soot.mission]) assert.ok((await readFile(new URL(`examples/lohi-marketing/soots/${f}`, root), 'utf8')).trim(), f);
   }
