@@ -3,6 +3,23 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.17
+
+Baseline: v0.11.16 (ba4d1a3). **Needs Soot 0.13.14 or later**, as 0.11.15; Soot 0.13.18 or later pairs with it (Nest opens `nest://page/...` links from 0.13.18; an older Nest shows them as an unknown link). Commits since v0.11.16: 2299d02, 1879ffb, 6ab1248 (merge 1861b18) and this release commit. Packs changed: `company-loop`, `soot-nest` (skill text only) and the `lohi-marketing` recipe; no new pack and no catalog change.
+
+### Changed
+
+- **company-loop: the proposals ask opens Công ty.** The Cần bạn card "N cơ hội chờ bạn chọn" now ends its text with `nest://page/cong-ty`, so one click opens the Công ty page where Go, Để sau and Bỏ are.
+- **company-loop: the weekly baseline counts releases.** `scoreboard_sync` counts the tags of `PRODUCT_REPO` created inside the finished week (ICT) and passes the number to `bbs company scoreboard record` as `--releases`. New optional env `RELEASE_TAGS` (comma separated git tag patterns, default `v*,*-v*`; each pattern must be 1 to 64 characters of letters, digits and `*._/-`); it is added to the pack's allowed env and README. With no `PRODUCT_REPO`, a relative path or a repo git cannot read, the count is left out and the rest of the baseline is recorded as before.
+- **company-loop: a missing `PRODUCT_REPO` no longer breaks the bbs record.** When the path no longer exists, `bbs` runs from where the tool runs instead of failing the whole baseline.
+- **company-loop: `CS_RUNTIME_TOKEN` description** now also says it reads the feedback desk (text only).
+- **soot-nest: the `nest-links` skill documents page links** (`nest://page/<page>` and `nest://page/<soot>/<page>`; Nest 0.13.18+).
+- **lohi-marketing recipe: the Video Soot only with the 2build pack.** The Video Soot selects the `2build` pack, which comes from `2found/2build`; without it the whole workspace failed to load. `setup.mjs` now adds the Video Soot only when `packs/2build` is installed in the workspace; `--video` insists and is refused with a message telling to run `soot add 2found/soot-forge/packs/2build` first, `--no-video` leaves it out, and `--video` with `--no-video` is refused. Run setup again after installing the pack to get the Video Soot. The person steps no longer repeat the `--product-repo` hint once it was given.
+
+### Compatibility
+
+- Additive. A live workspace keeps working; update `company-loop` with `setup.mjs` to get the new env and ask text. A workspace made by an earlier setup that has the Video Soot but no `packs/2build` is unchanged until setup runs again (which then drops the Video Soot, as it would have failed to load).
+
 ## 0.11.16
 
 Baseline: v0.11.15 (34462c8). **Needs Soot 0.13.14 or later**, as 0.11.15; Soot 0.13.17 or later pairs with it (the chain wake carries the last step's output, and `soot update` can add the `desk` Soot of the Lohi CS deploy). Commits since v0.11.15: d725811 (merge 427acf2) and this release commit. One pack changed, `company-loop`; no new pack and no catalog change.
