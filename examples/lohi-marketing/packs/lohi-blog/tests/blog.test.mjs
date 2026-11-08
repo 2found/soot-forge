@@ -7,6 +7,8 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, lstatS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { publish, unpublish, find, postFile, postURL, warnings, linkConnection, catalog, ready, asChainStep } from '../tools/blog.mjs';
+import { run as marketing } from '../../../../../packs/marketing/tools/marketing.mjs';
+import { fakeStore } from '../../../../../packs/marketing/tests/fake-store.mjs';
 import { signClaim, contentHash } from '../../../../../packs/marketing/tools/lib/claim.mjs';
 
 const KEY = 'k'.repeat(32);
@@ -291,4 +293,51 @@ test('ready: no blog remote is one named card, never a probe of a default reposi
   const out = await ready({ SOOT_PACK_STATE: state, HOME: state, PATH: '' }, { run });
   assert.ok(out.missing.some(m => m.key === 'blog_remote' && /kho đăng blog/.test(m.title)));
   assert.ok(!calls.some(c => c[0] === 'git' && c.includes('ls-remote')), 'no ls-remote of an invented remote');
+});
+
+// The live chain: marketing.due → claim → lohi-blog.publish → marketing.record. Each step reads the previous
+// answer as its input (JSON round trip, then the host's parameter check: record is additionalProperties:false).
+test('chain: claim → publish → record publishes the post with its URL; unpublish → record removes it', async () => {
+  const T0 = Date.parse('2026-11-10T03:00:00Z');
+  const store = fakeStore({ clock: () => T0 });
+  const menv = { MARKETING_CLAIM_KEY: KEY };
+  const call = (name, input, extra = {}) => marketing(name, { input, ...extra }, { store, now: T0, env: menv, fetchImpl: async () => { throw new Error('no network'); } });
+  const params = name => JSON.parse(readFileSync(new URL('../../../../../packs/marketing/pack.json', import.meta.url), 'utf8')).tools.find(t => t.name === name).parameters;
+  const step = (name, previous) => {
+    const input = JSON.parse(JSON.stringify(previous));
+    const p = params(name);
+    if (p.additionalProperties === false) for (const k of Object.keys(input)) assert.ok(k in p.properties, `${name} does not take ${k}`);
+    for (const k of p.required ?? []) assert.ok(k in input, `${name} needs ${k}`);
+    return input;
+  };
+  await call('channels_setup', { channels: [{ id: 'blog-lohi', account: 'blog' }], quiet_hours: { from: '03:00', to: '04:00', tz: 'Asia/Ho_Chi_Minh' } });
+  const meta = 'Danh sách chín bộ tiên hiệp đáng đọc nhất năm nay, mỗi bộ có một lý do riêng để bạn chọn đọc tiếp ngay hôm nay, xem ngay nhé bạn ơi.';
+  const d = await call('draft_save', { request_id: 'chain-1', kind: 'article', channel: 'blog-lohi', body: 'Nếu bạn mê tiên hiệp, đây là chín bộ đáng đọc. Xem thêm [kho truyện](https://lohi2.com/novel/tien-hiep) và [thể loại](https://lohi2.com/novel/ngon-tinh).', brief: { title: 'Chín bộ tiên hiệp đáng đọc nhất năm nay', keyword: 'tiên hiệp', slug: 'tien-hiep-hay', meta, internal_links: ['https://lohi2.com/novel/tien-hiep', 'https://lohi2.com/novel/ngon-tinh'] } });
+  assert.deepEqual(d.lint, []);
+  await call('check', { id: d.id, revision: d.revision, verdict: 'pass', reasons: [] });
+  await call('schedule', { id: d.id, scheduled_at: new Date(T0 - 60_000).toISOString() });
+
+  const w = setup(), s = stubs();
+  const due = await call('due', { schedule: true, channel: 'blog-lohi' });
+  assert.deepEqual([due.id, due.action], [d.id, 'publish']);
+  const claimed = await call('claim', step('claim', due));
+  const out = JSON.parse(JSON.stringify(asChainStep(await publish(claimed.claim, w.env, s), claimed.claim)));
+  assert.equal(out.status, 'published', JSON.stringify(out));
+  const recorded = await call('record', step('record', out));
+  assert.equal(recorded.state, 'published');
+  assert.deepEqual(recorded.outcome, { id: 'post_published', ref: `${BASE}/truyen-hay/tien-hiep-hay/vi/` });
+  const post = store.data.posts.find(p => p.ref === d.id);
+  assert.deepEqual([post.state, post.url], ['published', `${BASE}/truyen-hay/tien-hiep-hay/vi/`]);
+  assert.equal(store.data.publish_log.find(r => r.intent_id === out.intent_id).status, 'published');
+  assert.equal(store.data.queue.length, 0);
+
+  // Gỡ bài: the same chain shape ends in `removed`, and main gains exactly one more commit.
+  await marketing('page_action', { input: { op: 'unpublish', id: d.id, request_id: 'r-unpub-0001' }, page: { soot: 'lohi-editor', page: 'hang-doi' } }, { store, now: T0, env: menv, fetchImpl: async () => { throw new Error('no network'); } });
+  const claim2 = await call('claim', { action: 'unpublish', id: d.id });
+  const out2 = JSON.parse(JSON.stringify(asChainStep(await unpublish(claim2.claim, w.env, s), claim2.claim)));
+  assert.equal(out2.ok, true, JSON.stringify(out2));
+  assert.equal((await call('record', step('record', out2))).state, 'removed');
+  assert.equal(store.data.posts.find(p => p.ref === d.id).state, 'removed');
+  g(w.seed, 'fetch', '-q', 'origin');
+  assert.equal(g(w.seed, 'rev-list', '--count', 'origin/main'), '3', 'seed + publish + unpublish');
 });

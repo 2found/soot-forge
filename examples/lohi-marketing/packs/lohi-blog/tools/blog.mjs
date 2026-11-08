@@ -383,7 +383,7 @@ const linkConnectionExists = repo => { for (let dir = resolve(repo); ; dir = dir
  * `ok` tells the chain to go on (record) or to stop and wake the Editor, and the record input
  * (`intent_id`, `url`, `platform_id`) is in the same object. The publisher contract's own fields stay.
  */
-export const asChainStep = (out, claim) => ({ ...out, ok: out.status === 'published', intent_id: typeof claim?.intent_id === 'string' ? claim.intent_id : undefined });
+export const asChainStep = (out, claim) => ({ ...out, ok: out.status === 'published' || out.status === 'removed', intent_id: typeof claim?.intent_id === 'string' ? claim.intent_id : undefined });
 
 export async function main(mode, env = process.env) {
   let out, ctxClaim;
@@ -392,7 +392,7 @@ export async function main(mode, env = process.env) {
     for await (const chunk of process.stdin) chunks.push(chunk);
     const ctx = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
     const claim = ctxClaim = ctx.input?.claim;
-    out = mode === 'publish' ? asChainStep(await publish(claim, env), claim) : mode === 'unpublish' ? await unpublish(claim, env) : mode === 'find' ? await find(claim, env)
+    out = mode === 'publish' ? asChainStep(await publish(claim, env), claim) : mode === 'unpublish' ? asChainStep(await unpublish(claim, env), claim) : mode === 'find' ? await find(claim, env)
       : mode === 'catalog' ? await catalog(ctx.input ?? {}, env) : mode === 'ready' ? await ready(env)
       : { error: { code: 'invalid_request', message: 'mode is publish, unpublish, find, catalog or ready' } };
   } catch (e) {
