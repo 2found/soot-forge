@@ -3,6 +3,27 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.14
+
+Baseline: v0.11.13 (d934140). **Needs Soot 0.13.16 or later for the blog chain to count posts**: the chain's `lohi-blog_publish` step answers an `outcome`, which Soot 0.13.16 records (0.13.15 and earlier run the chain but leave `post_published` at zero); the Lohi recipe also needs 0.13.14 or later, as before (marketing storage version 4). Commits since v0.11.13: 71e6477 and 0e2f5b2 (Nest flows N6, merge c147437), f6d5223, 2af4860 and this release commit.
+
+### Added
+
+- **Marketing: `campaign_verify`.** One read-only request that says whether the saved Lohi admin key works (`ok`, `wrong_key`, `no_role`, `no_key`, `no_api`, `unreachable`) with a Vietnamese message; Nest shows it on the Thiết lập row. It never writes and never returns the key. The Lohi Editor is granted it.
+
+### Changed
+
+- **Lohi blog: an unpublish answers as a chain step.** `lohi-blog_unpublish` now answers `ok` and `intent_id` like publish (`ok` is true for `removed`), so `record` closes a removal in a tool chain. Tests cover claim to publish to record and unpublish to record.
+- **Lohi recipe `setup.mjs` keeps a Forge-installed pack.** A pack with its install receipt (`.soot-source.json`) is left alone unless the recipe's copy is newer, and the receipt survives a copy, so `soot updates` no longer says a Forge pack was edited on this host.
+- **Marketing page: a stalled draft shows after 30 minutes**, not 24 hours: Writer has stopped midway, and the row says to press Nhờ Writer hoàn thiện.
+- **Marketing page: Đăng ngay in quiet hours promises the real time.** The row names the first moment Soot may post (`giờ yên 23:00–07:00`) instead of a minute that has passed.
+- **Marketing page: 500-row reads and a narrow table.** Metrics reads in the campaign view and the performance insight are capped at 500 rows (the page cap), and the campaign table fits a 480 px screen.
+- Tool descriptions of `cms_save`, `social_queue`, `social_list` and `due` are shorter; behaviour is unchanged.
+
+### Concern
+
+- `packs/marketing/pack.json` is 65,136 B of the 65,536 B size limit (400 B left; the 65,184 B guard held). The next addition to it needs trimming first.
+
 ## 0.11.13
 
 Baseline: v0.11.12 (4a629bc). Needs Soot 0.13.14 or later, as 0.11.12 did (marketing storage version 4); nothing in this release needs Soot 0.13.15. Friction round 4: a failed post says why in plain words. Commits since v0.11.12: 74b3a41 (Nest flows N5, merge a3862dd) and this release commit.
