@@ -32,6 +32,7 @@
       "BBS_BIN",
       "BBS_TEAM_AGENT",
       "CS_RUNTIME_URL",
+      "SUPPORT_QUEUE_URL",
       "PATH",
       "HOME"
     ],
@@ -378,7 +379,7 @@
     {
       "name": "scoreboard_sync",
       "title": "Đọc bảng số sản phẩm",
-      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. Answers {done: true}, or with for_digest the sync result for the digest chain.",
+      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.by_state.waiting_human) it answers one Cần bạn ask per change of the count bucket (5, 10, 20, 50), naming SUPPORT_QUEUE_URL, and resolves_need: true once fewer than 5 wait. Answers {done: true}, or with for_digest the sync result for the digest chain.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -407,7 +408,7 @@
     {
       "name": "signals",
       "title": "Gói tín hiệu cho bản tin",
-      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps (optional), opportunities and decisions with actual_delta, last launches. Wakes the Lead in a chain.",
+      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps and what readers asked for or lacked (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, from the feedback desk; both optional), opportunities and decisions with actual_delta, last launches. Wakes the Lead in a chain.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -422,7 +423,7 @@
         ],
         "stdin": "context",
         "mode": "read",
-        "timeout": "30s",
+        "timeout": "45s",
         "max_output_bytes": 65536,
         "secret_env": {
           "CS_RUNTIME_TOKEN": "{{cred:CS_RUNTIME_TOKEN}}"

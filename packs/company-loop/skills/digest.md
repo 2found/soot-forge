@@ -7,14 +7,24 @@ sub-agents, no other tool than the ones named here.
 
 1. Call `company-loop_signals {}` once. It is a compact packet: `metrics`
    (`v` now, `p` before, `pct` change), `sources`, `reasons` (why support handed
-   over to a person), `cs_gaps` (questions the knowledge base could not answer,
-   when present), `waiting` and `later` (opportunities already open),
+   over to a person), `support` (threads by state: `waiting_human` is readers
+   waiting for a person right now), `cs_gaps` (questions the knowledge base
+   could not answer, when present), `cs_feedback` (what readers asked for or
+   lacked, when present: `n` counts by kind, `ex` a few short samples per kind),
+   `waiting` and `later` (opportunities already open),
    `decisions` (what was decided, with `act`ual change once measured),
    `hit_rate`, `launched`, `topics_queued`.
 2. Pick **at most five** opportunities, best first. Rank by evidence first
    (`signal_count`, how many numbers and sources point at it), then value over
    effort, then confidence. Prefer the metric that fell or the gap that repeats
-   over a metric that merely moved. Skip anything already in `waiting`, anything
+   over a metric that merely moved. Customer-service pain counts as evidence:
+   a high `support.waiting_human`, a `reason`, a kind in `cs_feedback.n` that
+   repeats (several `feature_request` or `bug` notes about the same thing in
+   `ex`) each become an opportunity, usually `product`, aimed at
+   `support_threads_new` or `support_handoffs` (negative `expected_delta`), or at
+   `content` when a help article would answer the question. Cite them as
+   `feedback:<kind>` or `metric:waiting_human`; never copy a sample word for
+   word into a title (samples are summaries, not quotes). Skip anything already in `waiting`, anything
    dropped (`d: "drop"`) and anything whose change is still being measured.
    Fewer than five is fine; none is fine: then end with "Tuần này chưa có cơ
    hội đủ bằng chứng." and call nothing.

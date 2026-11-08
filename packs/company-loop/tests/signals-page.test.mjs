@@ -3,7 +3,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { world, ITEM } from './world.mjs';
-import { startBoardApi, startCsApi, fakeBbs, scratchRepo, KEY } from './fixtures.mjs';
+import { startBoardApi, startCsApi, addNotes, fakeBbs, scratchRepo, KEY } from './fixtures.mjs';
 import { MAX_BYTES } from '../tools/lib/signals.mjs';
 
 const api = await startBoardApi();
@@ -41,6 +41,39 @@ test('with a CS runtime the open knowledge gaps join, by count; a refused token 
   const out = await bad.call('signals');
   assert.ok(out.packet.cs_error);
   assert.equal(out.notify, true);
+});
+
+test('CS feedback: counts by kind and up to five scrubbed samples, within 1 KiB; old notes and other Soots are left out', async () => {
+  cs.sessions = []; cs.messages = {};
+  addNotes(cs, [
+    ['feature_request', 'Muốn đọc offline cả bộ, liên hệ an@example.com hoặc 0912 345 678'],
+    ['feature_request', 'Muốn chế độ tối cho web https://lohi2.com/x?token=abc'],
+    ['feature_request', 'Muốn đọc offline cả bộ, liên hệ an@example.com hoặc 0912 345 678'],
+    ['bug', 'Audio Pro ngắt giữa chương, đơn LOHI7F3A9 chưa vào'],
+    ['complaint', 'Giá gói quá cao ' + 'x'.repeat(200)],
+    ['question', 'Hỏi cách chuyển tài khoản'],
+    ['bug', 'cũ', { created: '2026-09-01T00:00:00Z' }],
+    ['bug', 'của Soot khác', { soot: 'support' }],
+  ]);
+  for (let i = 0; i < 12; i++) addNotes(cs, [['feedback', `Góp ý số ${i} ` + 'y'.repeat(50)]]);
+  const w = mk({ CS_RUNTIME_URL: cs.url, CS_RUNTIME_TOKEN: 'cs-token' });
+  await w.call('scoreboard_sync');
+  const out = await w.call('signals');
+  const fb = out.packet.cs_feedback;
+  assert.deepEqual([fb.n.feature_request, fb.n.bug, fb.n.complaint, fb.n.question, fb.n.feedback], [3, 1, 1, 1, 12]);
+  assert.ok(Buffer.byteLength(JSON.stringify(fb)) <= 1024);
+  assert.ok(Buffer.byteLength(JSON.stringify(out.packet)) <= MAX_BYTES);
+  const text = JSON.stringify(fb);
+  for (const leak of ['example.com', '0912', 'https', 'LOHI7F3A9', 'token=']) assert.ok(!text.includes(leak), leak);
+  for (const list of Object.values(fb.ex)) assert.ok(list.length <= 5 && list.every(t => t.length <= 70));
+  assert.equal(fb.ex.feature_request.length, 2, 'the same sample is kept once');
+  assert.ok(!text.includes('Soot khác'));
+  const none = mk({ CS_RUNTIME_URL: cs.url, CS_RUNTIME_TOKEN: 'cs-token' });
+  cs.sessions = []; await none.call('scoreboard_sync');
+  assert.deepEqual((await none.call('signals')).packet.cs_feedback, { n: {}, ex: {} });
+  const bad = mk({ CS_RUNTIME_URL: cs.url, CS_RUNTIME_TOKEN: 'wrong' });
+  await bad.call('scoreboard_sync');
+  assert.equal((await bad.call('signals')).packet.cs_feedback, undefined);
 });
 
 test('the packet stays under 3 KiB however long the history and the titles are', async () => {

@@ -58,6 +58,7 @@
         "BBS_BIN",
         "BBS_TEAM_AGENT",
         "CS_RUNTIME_URL",
+        "SUPPORT_QUEUE_URL",
         "PATH",
         "HOME"
       ]
@@ -361,7 +362,7 @@
       "wake_when": {
         "notify": true
       },
-      "text": "company-loop_scoreboard_sync could not read the product scoreboard. If its answer has an ask, file it as one Cần bạn item with report_blocker (summary, missing, options as given) and end the turn; otherwise say its message in one line."
+      "text": "company-loop_scoreboard_sync has news: it could not read the product scoreboard, or readers are waiting for a person. If its answer has an ask, file it as one Cần bạn item with report_blocker (summary, missing, options as given) and end the turn; otherwise say its message in one line."
     },
     {
       "id": "company-digest",
