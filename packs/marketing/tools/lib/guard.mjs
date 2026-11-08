@@ -177,10 +177,22 @@ export function checkDuplicate(post, log, now) {
   return { rule: 'duplicate', ok: true, detail: 'Không trùng bài cũ' };
 }
 
-/** The automatic rules 1, 2, 3 and 5. */
-export function autoChecks(post, { channel, facts, log, now }) {
+export const HOLD_LABEL = { render_failed: 'Lỗi dựng', weak_hook: 'Câu mở đầu yếu' };
+/** `video_ready` (autoChecks for kind video): a rendered file, and a hook over the bar. */
+export function checkVideo(post, assets) {
+  const v = (assets ?? []).find(a => a.kind === 'video');
+  if (post.brief?.hold) return { rule: 'video', ok: false, code: post.brief.hold, detail: post.reason || HOLD_LABEL[post.brief.hold] };
+  if (!v?.path || !v.meta?.sha256) return { rule: 'video', ok: false, code: 'render_failed', detail: 'Chưa có tệp video đã dựng; vẫn là nháp.' };
+  if (!v.pretest?.passed) return { rule: 'video', ok: false, code: 'weak_hook', detail: v.pretest?.reason || 'Câu mở đầu chưa qua thử nghiệm; vẫn là nháp.' };
+  return { rule: 'video', ok: true, detail: `Video ${v.meta.duration_s ?? '?'} giây · câu mở đầu ${v.pretest.hooks?.find(h => h.chosen)?.score ?? '?'}% (cần ≥ ${v.pretest.bar}%)` };
+}
+
+/** The automatic rules 1, 2, 3 and 5, and for a video `video_ready`. */
+export function autoChecks(post, { channel, facts, log, now, assets }) {
   const text = [post.brief?.title, post.brief?.meta, post.body].filter(Boolean).join('\n');
-  return [checkFacts(text, facts, now), checkPersonal(text, { replyTarget: post.kind === 'reply' ? post.brief?.reply_to ?? undefined : undefined }), checkPlatform(post, channel), checkDuplicate(post, log, now)];
+  const out = [checkFacts(text, facts, now), checkPersonal(text, { replyTarget: post.kind === 'reply' ? post.brief?.reply_to ?? undefined : undefined }), checkPlatform(post, channel), checkDuplicate(post, log, now)];
+  if (post.kind === 'video') out.push(checkVideo(post, assets));
+  return out;
 }
 
 // ---------- rule 6: at claim time ----------

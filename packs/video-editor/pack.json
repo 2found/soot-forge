@@ -26,9 +26,9 @@
   },
   "skills": [
     {
-      "name": "video_editor_plan",
-      "file": "skills/plan.md",
-      "description": "Plan sourced hooks, beats, exact speech, production intent and verifiable acceptance checks."
+      "name": "video_editor_video",
+      "file": "skills/video.md",
+      "description": "The one video flow: plan, route to FFmpeg or HyperFrames, render, decode frames and deliver. Marketing videos for your own product go through 2build marketing-video, which renders with the same HyperFrames pin."
     },
     {
       "name": "video_editor_inspect",
@@ -36,19 +36,9 @@
       "description": "Inspect measured media and validate timeline/caption bounds."
     },
     {
-      "name": "video_editor_edit",
-      "file": "skills/edit.md",
-      "description": "Render FFmpeg cuts, still camera moves, fades, audio tracks and timed captions."
-    },
-    {
       "name": "video_editor_spec",
       "file": "SPEC.md",
       "description": "Exact JSON schemas, examples, limits and failure semantics for the pack tools."
-    },
-    {
-      "name": "video_editor_hyperframes",
-      "file": "skills/hyperframes.md",
-      "description": "Build seekable HyperFrames HTML motion and run local checks, snapshots and renders."
     }
   ],
   "tools": [

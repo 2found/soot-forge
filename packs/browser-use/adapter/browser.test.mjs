@@ -109,3 +109,32 @@ test('view maps a persistent Soot to its kept session from any conversation',()=
   assert.equal(view('helper','conversation-7').resource.state,'unavailable');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+import {uploadSpec,uploadFile} from './browser.mjs';
+import {symlinkSync} from 'node:fs';
+import {createHash as sha} from 'node:crypto';
+test('upload takes only a clean workspace media path, checked against the real disk',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'soot-upload-'));
+  try {
+    mkdirSync(join(root,'mv','08-delivery'),{recursive:true});
+    writeFileSync(join(root,'mv','08-delivery','v.mp4'),'video-bytes');
+    writeFileSync(join(root,'secret.txt'),'x');
+    const ok={action:'upload',selector:'@e3',path:'mv/08-delivery/v.mp4'};
+    assert.equal(validateInput(ok),ok);
+    for (const path of ['/etc/passwd','../x.mp4','mv/../v.mp4','.hidden/v.mp4','mv/.v.mp4','secret.txt','mv//v.mp4','mv\\v.mp4'])
+      assert.throws(()=>uploadSpec({...ok,path}),undefined,path);
+    assert.throws(()=>uploadSpec({...ok,selector:'--profile'}));
+    assert.throws(()=>uploadSpec({...ok,sha256:'nothex'}));
+    const up=await uploadFile(ok,root);
+    assert.equal(up.selector,'@e3'); assert.equal(up.bytes,11); assert.ok(up.file.endsWith('/mv/08-delivery/v.mp4'));
+    const digest=sha('sha256').update('video-bytes').digest('hex');
+    assert.equal((await uploadFile({...ok,sha256:'sha256:'+digest},root)).bytes,11);
+    await assert.rejects(uploadFile({...ok,sha256:'0'.repeat(64)},root),/sha256 does not match/);
+    await assert.rejects(uploadFile({...ok,path:'mv/none.mp4'},root),/not found/);
+    await assert.rejects(uploadFile(ok,undefined),/FILE_ROOT/);
+    symlinkSync('/etc/hosts',join(root,'mv','link.png'));
+    await assert.rejects(uploadFile({...ok,path:'mv/link.png'},root),/symlink/);
+    symlinkSync(join(root,'mv'),join(root,'alias'));
+    await assert.rejects(uploadFile({...ok,path:'alias/08-delivery/v.mp4'},root),/symlink/);
+  } finally { rmSync(root,{recursive:true,force:true}); }
+});

@@ -93,3 +93,6 @@ p { margin: 0; }
 .dialog-title { font-size: 15px; }
 .back { align-self: flex-start; }
 .empty .btn { color: var(--mk-fg); font-weight: 500; }
+.row.top, .line.top { align-items: flex-start; }
+.poster { width: 90px; height: 160px; border-radius: 8px; background: var(--mk-subtle); object-fit: cover; flex: 0 0 auto; }
+.table.hooks { max-width: 420px; } .table th { text-align: left; font-weight: 500; padding: 4px; } .table .num { text-align: right; white-space: nowrap; }

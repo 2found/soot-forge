@@ -81,10 +81,19 @@ of speech intelligibility, loudness normalization or side-chain ducking.
 
 [HyperFrames](https://github.com/heygen-com/hyperframes), reviewed source
 `6ae1af7470133db72de6d9bbceeaf80e85695c68`, is optional for authored HTML motion.
-The operator npm lock pins CLI 0.8.143. The CLI alone is about 33 MiB unpacked
+The operator npm lock pins CLI 0.8.153, the version the 2build
+`marketing-video` flow (`mvf`) renders with, so a host runs one HyperFrames. The CLI alone is about 33 MiB unpacked
 before its dependencies/browser. The tool exposes fixed check/lint/snapshot/
 render actions, with no arbitrary argv, installing, cloud rendering or posting.
 Its upstream skills remain authoritative for the current composition contract.
+
+**One video path.** The pack has one skill, `video_editor_video`: plan, route
+(FFmpeg or HyperFrames), verify. A marketing video for your own product goes
+through the 2build `marketing-video` skill. A Soot reaches it through the
+marketing pack's `marketing-video` skill. `marketing_video_import` turns mvf's
+delivery files into `assets` and `kind:"video"` drafts behind the publish
+guard. `browser-use_control {action:"upload"}` puts the signed file into the
+X or Facebook composer; TikTok stays a handoff.
 
 ## Preparation and repeatable tests
 

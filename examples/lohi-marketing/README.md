@@ -1,7 +1,7 @@
 # Lohi's marketing workspace
 
 A local Soot workspace that writes, checks and publishes Lohi's blog with no
-marketing hub. Three Soots share the [marketing pack](../../packs/marketing/README.md)'s
+marketing hub. Four Soots share the [marketing pack](../../packs/marketing/README.md)'s
 own storage. The [Lohi blog publisher](packs/lohi-blog/README.md), a local pack that
 ships with this recipe, puts posts on `blog.lohi2.com`.
 
@@ -13,12 +13,13 @@ every 10 m  marketing_due ──▶ Editor: marketing_claim ─▶ marketing-bro
 every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-replies ─▶ reply_save ─▶ check ─▶ claim {reply}
 05:20       marketing_channels_setup (creates x-lohi, facebook-lohi, reddit-lohi paused; fills unset caps)
 05:30       marketing_facts_sync (prices and offers the guard checks against)
+on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_import ─▶ Editor: check ─▶ schedule ─▶ browser upload (X, Facebook)
 ```
 
 | file | what it is |
 | --- | --- |
-| `deployment.example.json` | product `Lohi`, the three Soots, pack grants, the five schedules, `approvals: {"marketing_claim": "auto"}` |
-| `soots/lohi-*.json` | Radar (`lite`), Writer and Editor (`flash`), each with a small daily token budget |
+| `deployment.example.json` | product `Lohi`, the four Soots, the shared Editor/Video workspace, pack grants, the five schedules, `approvals: {"marketing_claim": "auto"}` |
+| `soots/lohi-*.json` | Radar (`lite`), Writer, Editor and Video (`flash`), each with a small daily token budget |
 | `soots/*.md` | the shared soul and each role's mission |
 | `packs/lohi-blog/` | the Lohi-only blog publisher, a local pack: it is not in the Forge catalog |
 
@@ -56,6 +57,19 @@ every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-rep
   - A crash between posting and recording is looked up before anything
     else. If the post cannot be found, it becomes "Không chắc đã đăng chưa"
     and waits for the founder.
+- **One video path.** The Video Soot turns a published post into one short
+  video with the 2build `marketing-video` skill (`mvf`, HyperFrames 0.8.153)
+  and `marketing_video_import`. The mvf owner steps are not waits:
+  - The Soot answers the brief itself.
+  - The Micro Fish pretest and the publish guard stand in for script approval.
+  - The founder previews the poster, captions and hook scores in Hàng đợi and
+    can pull the video.
+
+  A render failure or a hook under the pretest bar stays a draft with the
+  reason. The Editor uploads X and Facebook videos through `browser-use`;
+  TikTok files stay for the founder to post. Video and Editor share one
+  workspace folder (`tool_hosts`), so the Editor uploads the file the Video
+  Soot rendered, checked against its signed sha256.
 - **Replies.** Every 2 hours Soot reads Reddit threads it watches (RSS) and,
   in the browser, X and Facebook notifications. It answers only friendly,
   safe replies, through the same check, claim and reply caps.
@@ -69,8 +83,8 @@ every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-rep
 
 ## Set it up
 
-1. Install the Forge packs `marketing`, `research` and `writing` into this
-   folder's `packs/` (`soot add 2found/soot-forge/packs/<id>`). `lohi-blog`
+1. Install the Forge packs `marketing`, `research`, `writing`, `2build` and
+   `toolbox` into this folder's `packs/` (`soot add 2found/soot-forge/packs/<id>`). `lohi-blog`
    is already there: it is Lohi's own publisher, kept out of the Forge
    catalog. Grant it with `soot grant lohi-blog`.
 2. Store one random claim key for the Editor (for example the output of
@@ -107,6 +121,11 @@ every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-rep
    The Editor checks that account and the channel shows "đã đăng nhập, chờ
    Bật". Nothing posts until you choose **Bật** for the channel on the Hàng
    đợi page (`resume`). You never give Soot a password.
+7. For videos, run `python3 packs/2build/marketing-video/tools/mvf.py doctor`
+   until it prints READY (ffmpeg, Node, HyperFrames 0.8.153, voice and the
+   Micro Fish workspace). Grant `marketing` and `browser-use` the workspace
+   (`soot grant marketing`, `soot grant browser-use`), then ask Video
+   "Làm video từ bài <tên bài>".
 
 To stop publishing, choose **Tạm dừng mọi kênh** on the Hàng đợi page, or call
 `marketing_pause {paused: true}`. Writing and checking go on. To take a post

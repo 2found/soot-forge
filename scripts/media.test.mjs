@@ -53,11 +53,11 @@ test('Google Workspace covers three services with no automatic grants', async ()
   assert.equal(host.pack_grants['google-workspace'].credentials.GOOGLE_WORKSPACE_BINDING, undefined, 'the operator enters it in Nest');
 });
 
-test('optional HyperFrames host dependency is pinned and locked', async () => {
+test('optional HyperFrames host dependency is pinned and locked to the version 2build marketing-video renders with', async () => {
   const folder = new URL('packs/video-editor/operator/hyperframes/', root);
   const manifest = JSON.parse(await readFile(new URL('package.json', folder), 'utf8'));
   const lock = JSON.parse(await readFile(new URL('package-lock.json', folder), 'utf8'));
-  assert.equal(manifest.dependencies.hyperframes, '0.8.143');
-  assert.equal(lock.packages['node_modules/hyperframes'].version, '0.8.143');
+  assert.equal(manifest.dependencies.hyperframes, '0.8.153');
+  assert.equal(lock.packages['node_modules/hyperframes'].version, '0.8.153');
   assert.ok(lock.packages['node_modules/hyperframes'].integrity.startsWith('sha512-'));
 });

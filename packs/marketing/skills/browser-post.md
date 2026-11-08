@@ -8,8 +8,9 @@ browser panel, on the login page you opened. You never sign in, type a password 
 captcha or switch accounts.
 
 Every action starts from a signed claim from `marketing_claim`. The claim
-carries `platform`, `account`, `body`, `title`, `link`, `subreddit` and, for
-a reply, `reply_url`. Type its text exactly: never reword it, add tags or
+carries `platform`, `account`, `body`, `title`, `link`, `subreddit`, for
+a reply `reply_url`, and for a video `assets` (the file to upload).
+Type its text exactly: never reword it, add tags or
 mention anyone. Act at human pace: one claim at a time, with no rapid
 retries. Never like, follow, vote or message.
 
@@ -74,12 +75,36 @@ post of the week; a rule against the post is `fail failed` with the rule.
 2. Navigate to the compose URL, then snapshot and classify.
 3. Click into the text box and type the claim text exactly (`fill` or
    `keyboard inserttext`). Snapshot and check that the box holds that text.
-4. Press the post button once.
+   **A video claim** (`kind:"video"`, `assets[0]` = `{path, sha256}`): upload
+   it before typing (below), then type the text.
+4. Press the post button once. For a video, only after the upload shows its
+   preview and the post button is enabled.
 5. Open the find page and look for a post that begins with the claim's first
    60 characters (Reddit: the title). Read its URL.
 6. `marketing_record {intent_id, url, platform_id}`, then report the
    `post_published` outcome it returns. If the post is not found, follow the
    one-post rule above.
+
+## Upload a video (X, Facebook)
+
+1. In the composer, snapshot and find the media file input (X: the
+   "Add photos or video" / `input[type=file]` in the toolbar; Facebook: the
+   "Photo/video" / "Ảnh/video" button, then the dialog's file input).
+2. `browser-use_control {action:"upload", selector, path: assets[0].path,
+   sha256: assets[0].sha256}`. The tool refuses a changed file or a path
+   outside the workspace: that is `marketing_fail {status:"failed",
+   reason:"upload: <the tool's message>"}`, nothing was posted.
+3. Wait for the upload: snapshot every ~5 s, up to 2 minutes, until the video
+   preview shows and the post button is enabled. A platform error (too long,
+   too large, unsupported) is `fail failed` with its words. No preview after
+   2 minutes is `fail needs_person` with `reason:"layout_changed"`.
+   `assets[0].ai_label` true: on Facebook switch on the AI-content label in the
+   upload dialog before posting; no switch found is `fail needs_person`.
+4. Never upload twice for one claim: a second file input after an upload is
+   the same claim's composer, not a new post.
+
+TikTok is never posted by the Soot: its files stay in Hàng đợi for the person
+to upload (TikTok is a handoff).
 
 ## Find (crash recovery)
 

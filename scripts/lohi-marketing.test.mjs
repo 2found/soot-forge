@@ -70,3 +70,24 @@ test('the Lohi recipe: product Lohi, marketing_claim auto, five tool-only schedu
   assert.deepEqual(editor.packs, ['marketing', 'lohi-blog', 'browser-use'], 'the editor claims and publishes, blog and browser');
   assert.match(await readFile(new URL('examples/lohi-marketing/soots/writer.md', root), 'utf8'), /blog-lohi/);
 });
+
+test('the Lohi recipe: one video path, the Video Soot runs 2build mvf and the Editor uploads from one shared workspace', async () => {
+  const host = await json('examples/lohi-marketing/deployment.example.json');
+  const catalog = await json('catalog.json');
+  const video = await json('examples/lohi-marketing/soots/lohi-video.json');
+  assert.deepEqual(video.packs, ['marketing', '2build', 'toolbox'], 'mvf runs through run_shell; no second video pack');
+  assert.ok(catalog.packs.some(p => p.id === '2build' && p.source.kind === 'github' && /^[0-9a-f]{40}$/.test(p.source.ref)), '2build is the pinned external pack');
+  assert.ok(host.soots.includes('soots/lohi-video.json'));
+  // FILE_ROOT is the workspace; both Soots must see the same folder, or the Editor uploads nothing.
+  assert.deepEqual(host.tool_hosts['lohi-video'], host.tool_hosts['lohi-editor']);
+  assert.ok(host.tool_hosts['lohi-video'].workspace);
+  for (const id of ['marketing', 'browser-use']) {
+    const pack = await json(`packs/${id}/pack.json`);
+    assert.equal(pack.needs.credentials.FILE_ROOT.from, 'workspace', id);
+    assert.equal(host.pack_grants[id].credentials.FILE_ROOT, 'workspace', id);
+  }
+  const mission = await readFile(new URL('examples/lohi-marketing/soots/video.md', root), 'utf8');
+  assert.match(mission, /marketing-video/);
+  assert.match(mission, /marketing_video_import/);
+  assert.match(mission, /never post/);
+});

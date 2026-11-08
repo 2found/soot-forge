@@ -7,10 +7,19 @@
   "soots": [
     "soots/lohi-radar.json",
     "soots/lohi-writer.json",
-    "soots/lohi-editor.json"
+    "soots/lohi-editor.json",
+    "soots/lohi-video.json"
   ],
   "approvals": {
     "marketing_claim": "auto"
+  },
+  "tool_hosts": {
+    "lohi-video": {
+      "workspace": "workspace"
+    },
+    "lohi-editor": {
+      "workspace": "workspace"
+    }
   },
   "pack_grants": {
     "lohi-blog": {
@@ -27,7 +36,15 @@
         "PATH",
         "HOME",
         "SOOT_BROWSER_PERSISTENT_SOOTS"
-      ]
+      ],
+      "credentials": {
+        "FILE_ROOT": "workspace"
+      }
+    },
+    "marketing": {
+      "credentials": {
+        "FILE_ROOT": "workspace"
+      }
     }
   },
   "schedules": [

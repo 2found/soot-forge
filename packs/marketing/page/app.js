@@ -134,6 +134,11 @@ function strings(locale) {
     unpublishHelp: (/** @type {string} */ title) => `Bài và lượt thích, trả lời của nó sẽ mất trên ${title.replace(/^Gỡ bài trên |\?$/g, '')}. Bài vẫn còn trong Bài viết để đăng lại.`,
     perDay: (/** @type {number} */ n, /** @type {number} */ h) => `${n} bài/ngày, cách nhau ít nhất ${h} giờ`, quiet: (/** @type {string} */ f, /** @type {string} */ t) => `giờ yên ${f}–${t}`,
     unknown: 'Chưa rõ kết quả — tải lại để xem bài đã đổi chưa.', done: 'Đã lưu.', failed: 'Không làm được: ',
+    watch: 'Xem video', pullQueue: 'Kéo khỏi hàng đợi', hooks: 'Câu mở đầu', keepWatching: 'Muốn xem tiếp', chosen: 'chọn',
+    videoNote: 'Không có gì chờ bạn xem: video tự đăng đúng giờ sau kiểm tra. Bạn có thể xem và kéo ra bất cứ lúc nào.',
+    panel: (/** @type {number | null} */ n) => `Micro Fish${n ? `, ${n} người đọc mô phỏng` : ''}`,
+    videoLine: (/** @type {number | null} */ s, /** @type {boolean} */ captions) => `Video${s ? ` ${Math.round(s)} giây` : ''}${captions ? ' · phụ đề tiếng Việt' : ''}`,
+    fromPost: (/** @type {string} */ t) => `Từ bài "${t}"`, stillDraft: 'Vẫn là nháp',
   };
   if (locale !== 'en') return vi;
   return { ...vi, posts: 'Posts', queue: 'Queue', reload: 'Reload', loading: 'Loading…', back: 'All posts',
@@ -198,6 +203,11 @@ function metricLine(m, t) {
 
 /** Badge tone by state. @param {string} state */
 const tone = state => ({ published: 'ok', refused: 'err', failed: 'err', uncertain: 'warn', publishing: 'warn', unpublishing: 'warn' })[state] ?? '';
+/** Badge tone of a held video draft. @param {string} hold */
+const holdTone = hold => (hold === 'render_failed' ? 'err' : 'warn');
+/** The pretest rows, best first, as the page shows them. @param {any} pretest */
+const hookRows = pretest => [...(pretest?.hooks ?? [])].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
+  .map(h => ({ text: h.text ? `"${h.text}"` : h.id, score: h.score == null ? '—' : `${h.score}%`, chosen: !!h.chosen }));
 
 const viewBody = (/** @type {string} */ filter = 'all', /** @type {string} */ id = '') => (id ? { id } : { filter });
 /** @param {string} request_id @param {string} op @param {Record<string, unknown>} [rest] */
@@ -215,7 +225,7 @@ function output(r) {
   if (r.output?.error) throw r.output.error;
   return r.output;
 }
-return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, viewBody, actionBody, errorText, output };
+return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output };
 })();
 
 // ---- src/app.js ----
@@ -296,9 +306,11 @@ function postList(d) {
     const bad = p.reason && ['refused', 'failed'].includes(p.state);
     const state = p.unpublishing ? 'unpublishing' : p.state;
     return h('li', { class: 'row' },
-      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => { S.id = p.id; void run(load); } }, p.title),
+      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => { S.id = p.id; void run(load); } }, p.kind === 'video' ? `Video "${p.title}"` : p.title),
+        // A held video draft (#p4-video-failed): the reason, and it stays a draft.
+        p.hold ? h('small', { class: p.hold === 'render_failed' ? 'errline' : 'muted' }, p.reason ?? t.stillDraft) :
         h('small', { class: bad ? 'errline' : 'muted' }, bad ? `${t.refused}: ${p.reason.split(' · ')[0]}` : M.postLine(p, t))),
-      badge(p.unpublishing ? t.unpublishingLabel : p.label, state),
+      p.hold ? h('span', { class: `badge ${M.holdTone(p.hold)}` }, p.hold_label) : badge(p.unpublishing ? t.unpublishingLabel : p.label, state),
       p.state === 'refused' && button(t.why, () => { S.id = p.id; void run(load); }),
       p.url && !p.unpublishing && p.state === 'published' && button(`↗ ${t.open}`, () => bridge.open(p.url)),
       p.state === 'published' && !p.unpublishing && button(t.unpublish, () => askUnpublish(p), 'btn sm danger'),
@@ -350,6 +362,14 @@ function postDetail(d) {
     left.append(h('div', { class: 'flow' }, ...d.check.auto.map((/** @type {any} */ a) => h('span', { class: a.ok ? 'chip' : 'chip err' }, a.detail))));
     left.append(h('p', { class: 'muted' }, `Editor · ${M.when(d.check.at)} · bản ${d.check.revision}${d.check.current ? '' : ` · ${t.stale}`}`));
   }
+  if (p.hold) left.prepend(h('div', { class: 'notice err', role: 'alert' }, h('b', {}, `${p.hold_label}:`), ' ', p.reason ?? t.stillDraft));
+  if (d.video) {
+    const v = d.video, hooks = M.hookRows(v.pretest);
+    left.append(h('h3', {}, t.videoLine(v.duration_s ?? null, !!v.captions?.length)), h('div', { class: 'line top' },
+      v.poster ? h('img', { class: 'poster', src: v.poster, alt: '' }) : null,
+      h('div', { class: 'stack' }, ...hooks.map(r => h('span', {}, `${r.score} · ${r.text}${r.chosen ? ` (${t.chosen})` : ''}`)),
+        v.open_link ? button(t.watch, () => bridge.open(v.open_link), 'btn sm') : null)));
+  }
   return [back, head, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)];
 }
 
@@ -377,6 +397,7 @@ function queue(d) {
     h('tbody', {}, ...d.channels.map((/** @type {any} */ c) => h('tr', {}, h('td', {}, c.label), h('td', {}, String(c.cap_per_day)), h('td', {}, M.spacing(c.spacing_min)), h('td', {}, c.reply_cap_per_day ? String(c.reply_cap_per_day) : '—'))))));
   if (d.empty) out.push(h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, t.emptyQueue), h('span', {}, t.emptyHelp), askWriter(d)));
   else out.push(h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ q) => queueRow(d, q))));
+  if (d.items.some((/** @type {any} */ q) => q.kind === 'video')) out.push(h('p', { class: 'muted' }, t.videoNote));
   if (d.recent.length) out.push(h('h3', {}, t.recent), h('ul', { class: 'list' }, ...d.recent.map((/** @type {any} */ r) =>
     h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.url ? M.shortUrl(r.url) : r.title}`),
       h('small', { class: r.status === 'published' || r.status === 'removed' ? 'muted' : 'errline' }, r.status === 'published' ? (r.action === 'unpublish' ? t.removedDone : t.recorded) : r.status === 'removed' ? t.removedDone : r.reason ?? '')),
@@ -389,6 +410,7 @@ function queue(d) {
 
 function queueRow(d, q) {
   const t = S.t;
+  if (q.kind === 'video') return videoRow(t, q, d);
   // A channel the person or a sign-in paused holds its items: say so instead of "Chờ đăng".
   const ch = d.channels.find((/** @type {any} */ c) => c.label === q.channel);
   const held = !q.in_flight && (d.paused_all || ch?.paused);
@@ -418,6 +440,26 @@ function rescheduleButton(/** @type {any} */ q) {
   const input = h('input', { type: 'datetime-local', class: 'input sm', 'aria-label': t.reschedule, value: M.localInput(q.scheduled_at) });
   return h('span', { class: 'line' }, input, button(t.save, () => { const v = /** @type {HTMLInputElement} */ (input).value; S.editing = ''; if (v) void act('reschedule', { id: q.id, scheduled_at: M.fromLocalInput(v) }); }, 'btn sm'),
     button(t.cancel, () => { S.editing = ''; render(); }));
+}
+
+/** A queued video (#p4-video-queue): poster, what it is, the hook scores, Xem video and Kéo khỏi hàng đợi. */
+function videoRow(/** @type {any} */ t, /** @type {any} */ q, /** @type {any} */ d) {
+  const v = q.video ?? {};
+  const state = d.paused_all && !q.in_flight ? 'Đang dừng' : q.in_flight ? t.inFlight : q.label;
+  const hooks = M.hookRows(v.pretest);
+  return h('li', { class: 'row top' },
+    v.poster ? h('img', { class: 'poster', src: v.poster, alt: '' }) : h('div', { class: 'poster' }),
+    h('div', { class: 'who stack' },
+      h('b', {}, `${M.when(q.scheduled_at)} · ${q.channel} · ${t.videoLine(v.duration_s ?? null, !!v.captions?.length)}`),
+      h('small', { class: 'muted' }, q.source_title ? t.fromPost(q.source_title) : q.title),
+      q.reason && h('small', { class: ['failed', 'uncertain'].includes(q.state) ? 'errline' : 'muted' }, q.reason),
+      hooks.length ? h('table', { class: 'table hooks' },
+        h('thead', {}, h('tr', {}, h('th', {}, `${t.hooks} (${t.panel(v.pretest?.n ?? null)})`), h('th', { class: 'num' }, t.keepWatching))),
+        h('tbody', {}, ...hooks.map(r => h('tr', {}, h('td', {}, r.chosen ? h('b', {}, r.text) : r.text, r.chosen ? ' ' : null, r.chosen ? h('span', { class: 'badge ok' }, t.chosen) : null), h('td', { class: 'num' }, r.score))))) : null,
+      h('span', { class: 'line' },
+        v.open_link && button(t.watch, () => bridge.open(v.open_link), 'btn sm'),
+        !q.in_flight && q.action === 'publish' && q.state !== 'uncertain' && button(t.pullQueue, () => void act('pull', { id: q.id })))),
+    badge(state, d.paused_all ? 'uncertain' : q.state));
 }
 
 /** "Không chắc đã đăng chưa": the person looked. Live → paste its link; not live → it may go out again. */

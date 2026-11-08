@@ -1,8 +1,8 @@
 import { agent } from './agent.mjs';
 import { sendInput, textEvents } from './input.mjs';
 import { launchSettings, boundedJSON, lock, resolveBrowser } from './launch.mjs';
-import { readFile, writeFile, rm, access } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, writeFile, rm, access, lstat, realpath, open } from 'node:fs/promises';
+import { join, resolve, sep, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
@@ -52,6 +52,44 @@ export function navigationUrl(value='about:blank') {
   if(!['http:','https:','about:'].includes(url.protocol)||url.protocol==='about:'&&url.href!=='about:blank'||url.username||url.password)throw new Error('Use an http or https URL without credentials');
   return url.href;
 }
+// Upload (marketing video posts): only a clean workspace-relative file under
+// the host-bound FILE_ROOT, never a model-chosen absolute path, hidden file or
+// symlink, of a media type a post can carry, at most 512 MiB.
+export const UPLOAD_EXT = new Set(['.mp4','.mov','.m4v','.jpg','.jpeg','.png','.webp']);
+export const UPLOAD_MAX = 512 * 1024 * 1024;
+export function uploadSpec(input) {
+  const {selector, path, sha256} = input;
+  if (typeof selector!=='string'||!selector||selector.length>500||selector.startsWith('-')) throw new Error('Invalid upload selector');
+  if (typeof path!=='string'||!path||path.length>512||path.startsWith('/')||path.includes('\\')||path.includes('\0')) throw new Error('Upload path must be relative to the workspace');
+  const parts=path.split('/');
+  if (parts.some(p=>!p||p==='.'||p==='..'||p.startsWith('.'))) throw new Error('Upload path must be a clean workspace path without hidden parts');
+  if (!UPLOAD_EXT.has(extname(path).toLowerCase())) throw new Error('Upload accepts mp4, mov, m4v, jpg, jpeg, png or webp');
+  if (sha256!==undefined && (typeof sha256!=='string'||!/^(sha256:)?[0-9a-f]{64}$/.test(sha256))) throw new Error('Invalid sha256');
+  return {selector, parts, sha256: sha256?.replace(/^sha256:/,'')};
+}
+/** The absolute file to upload, after the same checks against the real disk. */
+export async function uploadFile(input, fileRoot = process.env.FILE_ROOT) {
+  const spec=uploadSpec(input);
+  if (typeof fileRoot!=='string'||!fileRoot.startsWith('/')) throw new Error('The host gave this Soot no workspace for uploads (FILE_ROOT)');
+  const root=await realpath(fileRoot);
+  let at=root;
+  for (const part of spec.parts) {
+    at=join(at,part);
+    const st=await lstat(at).catch(()=>null);
+    if (!st) throw new Error('Upload file not found');
+    if (st.isSymbolicLink()) throw new Error('Upload path must not contain a symlink');
+  }
+  const st=await lstat(at);
+  if (!st.isFile()) throw new Error('Upload path is not a file');
+  if (st.size>UPLOAD_MAX) throw new Error('Upload file is larger than 512 MiB');
+  if (!resolve(at).startsWith(root+sep)) throw new Error('Upload path leaves the workspace');
+  if (spec.sha256) {
+    const hash=createHash('sha256'), fh=await open(at,'r');
+    try { for await (const chunk of fh.createReadStream()) hash.update(chunk); } finally { await fh.close().catch(()=>{}); }
+    if (hash.digest('hex')!==spec.sha256) throw new Error('Upload file changed: sha256 does not match the claim');
+  }
+  return {selector: spec.selector, file: at, bytes: st.size};
+}
 export function validateInput(input) {
   if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Invalid browser input');
   if(input.tab!==undefined && (typeof input.tab!=='string'||!/^t[0-9]+$/.test(input.tab)))throw new Error('Invalid tab');
@@ -64,6 +102,7 @@ export function validateInput(input) {
     case 'click':number('x',0,2400);number('y',0,2400);break;
     case 'key':case 'text':if(typeof input.text!=='string'||input.text.length>8000)throw new Error('Invalid text');break;
     case 'scroll':if(!['up','down'].includes(input.direction))throw new Error('Invalid direction');for(const key of ['x','y'])if(key in input)number(key,0,2400);for(const key of ['delta_x','delta_y'])if(key in input)number(key,-2400,2400);break;
+    case 'upload':uploadSpec(input);break;
     case 'close':break;
     default:throw new Error('Unknown browser action');
   }
@@ -217,6 +256,10 @@ export async function main() {
       case 'scroll':
         if(input.x!==undefined&&input.y!==undefined)await run(['mouse','move',String(input.x),String(input.y)]);
         result=('delta_x' in input||'delta_y' in input)?await run(['mouse','wheel',String(input.delta_y??(input.direction==='up'?-400:400)),String(input.delta_x??0)]):await run(['scroll',input.direction,'400']);break;
+      case 'upload': {
+        const up=await uploadFile(input);
+        result={...(await run(['upload',up.selector,up.file])),uploaded:{path:input.path,bytes:up.bytes}};break;
+      }
       case 'close':result=running?await run(['close']):{closed:true};await writeFile(closedFile,'closed',{mode:0o600});break;
       default:throw new Error('Unknown browser action');
     }

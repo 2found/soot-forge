@@ -18,10 +18,10 @@ const READS = ['cms_list', 'cms_read', 'social_channels', 'social_list', 'radar_
 
 // Hubless mode adds the pack's own tools (tests/hubless.test.mjs); the hub
 // tools stay exactly as they were.
-const OWN = ['draft_save', 'check', 'schedule', 'due', 'claim', 'record', 'fail', 'pause', 'items', 'facts_sync', 'gsc_sync', 'seo_brief', 'page_view', 'page_action', 'channels_setup', 'raised', 'answer', 'replies_sync', 'reply_save'];
+const OWN = ['draft_save', 'check', 'schedule', 'due', 'claim', 'record', 'fail', 'pause', 'items', 'facts_sync', 'gsc_sync', 'seo_brief', 'page_view', 'page_action', 'channels_setup', 'raised', 'answer', 'replies_sync', 'reply_save', 'video_import'];
 
-test('the pack is one flat set: five role skills, two social skills, every hub tool once and the hubless tools', () => {
-  assert.deepEqual(pack.skills.map(s => s.name), ['marketing-radar', 'marketing-write', 'marketing-edit', 'marketing-publish', 'marketing-measure', 'marketing-browser-post', 'marketing-dispatch', 'marketing-replies']);
+test('the pack is one flat set: five role skills, three social skills, the video glue, every hub tool once and the hubless tools', () => {
+  assert.deepEqual(pack.skills.map(s => s.name), ['marketing-radar', 'marketing-write', 'marketing-edit', 'marketing-publish', 'marketing-measure', 'marketing-browser-post', 'marketing-dispatch', 'marketing-replies', 'marketing-video']);
   assert.deepEqual(pack.tools.map(t => t.name).sort(), [...HUB, ...OWN].sort());
   assert.equal(new Set(pack.tools.map(t => t.name)).size, HUB.length + OWN.length);
   assert.equal(pack.capabilities, undefined);

@@ -2,6 +2,11 @@
 
 Plan and produce short videos with FFmpeg, measured audio, safe captions and optional HyperFrames motion.
 
+One skill, `video_editor_video`, carries the whole flow. A marketing video for your own
+product (hooks, Micro Fish pretest, per-platform files) is the 2build `marketing-video`
+skill; a Soot drives it through the marketing pack's `marketing-video` skill, which queues
+the result in Hàng đợi. Both render with the same pinned HyperFrames.
+
 ```sh
 soot add https://github.com/2found/soot-forge/tree/main/packs/video-editor
 # From the installed pack directory, explicitly prepare the selected tools:
@@ -56,7 +61,8 @@ for the supplied caption pipeline. Fonts/assets are user-provided local files.
 Read [SPEC.md](SPEC.md) before authoring timelines. Do not install MoviePy,
 PyTorch or Chromium for the basic editor.
 
-For optional HTML motion, explicitly install reviewed HyperFrames 0.8.143 and
+For optional HTML motion, explicitly install reviewed HyperFrames 0.8.153 (the version 2build
+`marketing-video` renders with, so the Mac runs one HyperFrames) and
 its lockfile outside the pack's distributed tree:
 
 ```sh

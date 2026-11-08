@@ -1,7 +1,8 @@
 // Bài viết and Hàng đợi page models (page_view) and their actions
 // (page_action). Page tools are never approval-gated: pages refuse those.
 import { fail, eq, gte } from './store.mjs';
-import { briefLint, platformOf, defaultsFor, internalLinks } from './guard.mjs';
+import { briefLint, platformOf, defaultsFor, internalLinks, HOLD_LABEL } from './guard.mjs';
+import { videoView } from './video.mjs';
 import { STATE_LABEL, ANSWERS, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
 import { localDayStart, DEFAULT_QUIET } from './time.mjs';
 
@@ -24,6 +25,23 @@ const socialText = p => (p.kind === 'social' ? { text: String(p.body ?? '').repl
 /** Blog first, then X, Facebook, Reddit: the order the founder reads the channels in. */
 const ORDER = ['blog', 'x', 'facebook', 'reddit'];
 const rank = key => { const i = ORDER.indexOf(platformOf(key) === 'blog-lohi' ? 'blog' : platformOf(key)); return i < 0 ? ORDER.length : i; };
+// At most this many posters per view: each is a data URI of up to 200 KB.
+const POSTERS = 6;
+async function videoBlocks(store, posts) {
+  const refs = posts.filter(p => p.kind === 'video').map(p => p.ref).slice(0, 50);
+  if (!refs.length) return {};
+  const rows = await store.query('assets', [{ column: 'post', op: 'in', values: refs }], { limit: 300 });
+  const out = {};
+  let posters = 0;
+  for (const ref of refs) {
+    const v = videoView(rows.filter(a => a.post === ref));
+    if (!v) continue;
+    if (v.poster && ++posters > POSTERS) v.poster = null;
+    out[ref] = v;
+  }
+  return out;
+}
+const hold = p => (p.kind === 'video' && p.brief?.hold ? { hold: p.brief.hold, hold_label: HOLD_LABEL[p.brief.hold] ?? null } : {});
 
 export async function metricsRows(store, now) {
   const since = [eq('source', 'gsc'), gte('day', new Date(now - 30 * DAY).toISOString().slice(0, 10))];
@@ -55,7 +73,7 @@ async function postList(filter = 'all', { store, now }) {
   return {
     page: 'bai-viet', filter, counts, writer: settings.writer, product: settings.product,
     items: shown.slice(0, 100).map(p => ({
-      id: p.ref, title: title(p), channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url,
+      id: p.ref, kind: p.kind, title: title(p), channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url, ...hold(p),
       scheduled_at: q[p.ref]?.scheduled_at ?? null, wait_reason: q[p.ref]?.wait_reason ?? null, updated_at: p.updated_at,
       unpublishing: q[p.ref]?.action === 'unpublish',
       metrics_28: p.state === 'published' ? totals(metrics, p.url, 28, now) : null,
@@ -94,7 +112,8 @@ async function postDetail(id, { store, now }) {
   const check = checks[0] ?? null;
   const queries = p.url ? metrics.filter(r => r.url === p.url && r.query).sort((a, b) => b.impressions - a.impressions).slice(0, 5).map(r => ({ query: r.query, position: r.position, impressions: r.impressions })) : [];
   return {
-    page: 'bai-viet', id: p.ref, post: { id: p.ref, title: title(p), kind: p.kind, channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url, revision: p.revision, body: p.body },
+    page: 'bai-viet', id: p.ref, post: { id: p.ref, title: title(p), kind: p.kind, channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url, revision: p.revision, body: p.body, ...hold(p) },
+    video: p.kind === 'video' ? (await videoBlocks(store, [p]))[p.ref] ?? null : null,
     brief: fields,
     check: check && { verdict: check.verdict, revision: check.revision, at: check.at, current: check.content_hash === p.content_hash, auto: check.auto ?? [], reasons: check.reasons ?? [] },
     search_console: p.state === 'published' ? { last_7: totals(metrics, p.url, 7, now), last_28: totals(metrics, p.url, 28, now), queries, state: settings.gsc?.state ?? null, read_at: settings.gsc?.at ?? null } : null,
@@ -120,6 +139,9 @@ async function queueView({ store, now }) {
   const parents = [...new Set(posts.filter(p => p.kind === 'reply' && p.parent).map(p => p.parent))];
   const readers = parents.length ? await store.query('replies', [{ column: 'ref', op: 'in', values: parents.slice(0, 100) }], { limit: 200 }) : [];
   const handle = Object.fromEntries(readers.map(r => [r.ref, r.author_handle]));
+  const videos = await videoBlocks(store, queue.map(q => byRef[q.post]).filter(Boolean));
+  const vparents = [...new Set(Object.keys(videos).map(r => byRef[r]?.parent).filter(Boolean))];
+  const source = vparents.length ? Object.fromEntries((await store.query('posts', [{ column: 'ref', op: 'in', values: vparents }], { limit: 50 })).map(p => [p.ref, title(p)])) : {};
   return {
     page: 'hang-doi', writer: settings.writer, product: settings.product,
     paused_all: settings.paused_all, paused_at: settings.paused_at, quiet_hours: settings.quiet_hours,
@@ -129,7 +151,7 @@ async function queueView({ store, now }) {
       const p = byRef[q.post] ?? {};
       const late = !q.intent_id && q.action !== 'unpublish' && now - Date.parse(q.scheduled_at) >= (settings.stale_after_h ?? 6) * 3_600_000;
       return { id: q.post, title: title(p), channel: channelLabel(q.channel), action: q.action, scheduled_at: q.scheduled_at, state: p.state ?? null, label: late ? 'Bài lỡ giờ' : STATE_LABEL[p.state] ?? '', reason: q.wait_reason ?? p.reason ?? null, in_flight: !!q.intent_id && p.state !== 'uncertain', late,
-        reply_to: p.kind === 'reply' && p.parent ? handle[p.parent] ?? null : null, ...socialText(p), retry_at: p.state === 'failed' && Date.parse(q.scheduled_at) > now ? q.scheduled_at : null };
+        reply_to: p.kind === 'reply' && p.parent ? handle[p.parent] ?? null : null, ...socialText(p), retry_at: p.state === 'failed' && Date.parse(q.scheduled_at) > now ? q.scheduled_at : null, ...(p.kind === 'video' ? { kind: 'video', video: videos[p.ref] ?? null, source_title: source[p.parent] ?? null } : {}) };
     }),
     // A failed try whose post is still queued shows once, on its queue row with the retry.
     recent: log.filter(r => r.status !== 'intent' && !(r.status === 'failed' && queue.some(q => q.post === r.post))).slice(0, 10).map(r => ({ id: r.post, title: title(byRef[r.post] ?? {}), channel: channelLabel(r.channel), action: r.action, status: r.status, live: r.status === 'published' && byRef[r.post]?.state === 'published', url: r.url, reason: r.status === 'needs_person' ? PAUSED_LABEL[r.reason] ?? r.reason : r.reason, at: r.at })),

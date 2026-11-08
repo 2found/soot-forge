@@ -50,6 +50,11 @@
       "name": "marketing-replies",
       "description": "Read replies and comments on social channels, classify each (safe, complaint, money, account, flagged, spam), answer only safe ones through check and claim, and raise the rest as Cần bạn items.",
       "file": "skills/replies.md"
+    },
+    {
+      "name": "marketing-video",
+      "description": "Turn a published post or a chapter highlight into a short video with the 2build marketing-video (mvf) flow, then import its files as video drafts per channel for the Editor's check and the queue. Render failures and weak hooks stay drafts with the reason.",
+      "file": "skills/video.md"
     }
   ],
   "tools": [
@@ -833,7 +838,7 @@
         "stdin": "context",
         "mode": "read",
         "timeout": "20s",
-        "max_output_bytes": 262144
+        "max_output_bytes": 1048576
       }
     },
     {
@@ -1076,6 +1081,36 @@
         "timeout": "20s",
         "max_output_bytes": 262144
       }
+    },
+    {
+      "name": "video_import",
+      "title": "Nhận video từ mvf",
+      "description": "Read a finished 2build marketing-video (mvf) campaign folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook) with its assets. A render failure (pass error) or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {"type":"string","maxLength":64},
+          "campaign": {"type":"string","maxLength":512,"description":"Workspace-relative mvf campaign folder (holds campaign.json)."},
+          "script": {"type":"string","maxLength":80,"pattern":"^[A-Za-z0-9_-]{1,80}$","description":"Script id; default the pretest winner."},
+          "hook": {"type":"string","pattern":"^H[0-9]{1,2}$","description":"Default the pretest winner's hook."},
+          "canvas": {"type":"string","pattern":"^[0-9]{1,2}x[0-9]{1,2}$"},
+          "channels": {"type":"array","minItems":1,"maxItems":4,"items":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"}},
+          "parent": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$","description":"The source post (blog article) the video was cut from."},
+          "title": {"type":"string","maxLength":200},
+          "error": {"type":"string","maxLength":1000,"description":"mvf's FAIL line when the render or export failed."}
+        },
+        "required": ["request_id","campaign","channels"],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": ["tools/marketing.mjs","video_import"],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "2m",
+        "max_output_bytes": 65536,
+        "secret_env": {"FILE_ROOT":"{{cred:FILE_ROOT}}"}
+      }
     }
   ],
   "needs": {
@@ -1089,6 +1124,12 @@
         "title": "Khoá ký lượt đăng",
         "description": "Một chuỗi bí mật dài (ví dụ 32 byte ngẫu nhiên) dùng để ký mỗi lượt đăng. Nhập cùng giá trị cho gói đăng bài (publisher) của kênh; nhập trong Nest, không nhập trong chat.",
         "from": "operator",
+        "optional": true
+      },
+      "FILE_ROOT": {
+        "title": "Thư mục làm việc",
+        "description": "Thư mục làm việc của cuộc trò chuyện, nơi mvf để video đã dựng. Nest cấp tự động; công cụ video_import chỉ đọc tệp trong thư mục này.",
+        "from": "workspace",
         "optional": true
       },
       "GSC_GOOGLE": {
