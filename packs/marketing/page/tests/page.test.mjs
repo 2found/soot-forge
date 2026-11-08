@@ -190,3 +190,10 @@ test('a dialog sits above its scrim, or every click on its buttons only closes i
   assert.ok(z('.dialog') > z('.scrim'), `dialog ${z('.dialog')} vs scrim ${z('.scrim')}`);
   assert.ok(z('.sheet') > z('.scrim'), 'the campaign sheet sits above its scrim too');
 });
+
+test('every campaign row says what Soot does next', () => {
+  assert.match(M.campaignNextLine({ phase: 'planned', starts: '2026-11-30T17:00:00.000000Z' }), /^Soot bắt đầu theo dõi từ .* Không cần làm gì\.$/);
+  assert.match(M.campaignNextLine({ phase: 'running' }), /07:00/);
+  assert.match(M.campaignNextLine({ phase: 'ended' }), /kết thúc/);
+  assert.ok(M.campaignNextLine({}).length > 10);
+});

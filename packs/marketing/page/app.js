@@ -417,7 +417,15 @@ function limitsAsk(c, body) {
 
 /** nest://new for the writer: write posts for this campaign, using its links. @param {string} writer @param {any} c @param {{label: string, url: string}[]} links */
 const campaignWriteLink = (writer, c, links) => `nest://new?soot=${encodeURIComponent(writer)}&text=${encodeURIComponent(`Viết bài cho chiến dịch "${c.name}" (mã ${c.id}). Dùng liên kết của từng kênh: ${links.map(l => `${l.label} ${l.url}`).join('; ')}.`)}`;
-return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output, doneNotice, GOAL_FORM, GOAL_SHORT, slugOf, digits, dayRange, goalPct, goalLine, newCampaign, campaignProblem, campaignBody, readFailLine, tokenLine, signInLink, reviseLink, SETUP_LINK, nextLine, queueHeadline, channelLine, mdBlocks, limitsBody, limitsAsk, campaignWriteLink };
+
+/** One line for a campaign row: what Soot does next, or what to look at. @param {{phase?: string, starts?: string}} c */
+function campaignNextLine(c) {
+  if (c.phase === 'planned') return `Soot bắt đầu theo dõi từ ${day(c.starts)}. Không cần làm gì.`;
+  if (c.phase === 'running') return 'Soot đọc lại số mỗi sáng 07:00. Không cần làm gì.';
+  if (c.phase === 'ended') return 'Chiến dịch đã kết thúc. Mở để xem kết quả.';
+  return 'Mở để xem liên kết và kết quả.';
+}
+return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output, doneNotice, GOAL_FORM, GOAL_SHORT, slugOf, digits, dayRange, goalPct, goalLine, newCampaign, campaignProblem, campaignBody, readFailLine, tokenLine, signInLink, reviseLink, SETUP_LINK, nextLine, queueHeadline, channelLine, mdBlocks, limitsBody, limitsAsk, campaignWriteLink, campaignNextLine };
 })();
 
 // ---- src/app.js ----
@@ -803,7 +811,7 @@ function campaignList(/** @type {any} */ d) {
     const pct = M.goalPct(c.goal);
     const line = [M.dayRange(c.starts, c.ends), c.channels.join(', '), c.published ? `${c.published} bài đã đăng` : null].filter(Boolean).join(' · ');
     return h('li', { class: 'row' },
-      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => openCampaign(c.id) }, c.name), h('small', { class: 'muted' }, line),
+      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => openCampaign(c.id) }, c.name), h('small', { class: 'muted' }, line), h('small', { class: 'muted' }, M.campaignNextLine(c)),
         c.phase === 'running' && h('div', { class: 'bar2', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': pct == null ? null : String(pct), 'aria-label': M.goalLine(c.goal) }, fill(pct ?? 0)),
         c.phase === 'running' && h('small', { class: 'muted' }, M.goalLine(c.goal))),
       h('span', { class: `badge ${c.phase === 'running' ? 'ok' : ''}` }, c.phase_label));

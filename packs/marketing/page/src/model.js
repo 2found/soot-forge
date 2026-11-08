@@ -310,3 +310,11 @@ export function limitsAsk(c, body) {
 
 /** nest://new for the writer: write posts for this campaign, using its links. @param {string} writer @param {any} c @param {{label: string, url: string}[]} links */
 export const campaignWriteLink = (writer, c, links) => `nest://new?soot=${encodeURIComponent(writer)}&text=${encodeURIComponent(`Viết bài cho chiến dịch "${c.name}" (mã ${c.id}). Dùng liên kết của từng kênh: ${links.map(l => `${l.label} ${l.url}`).join('; ')}.`)}`;
+
+/** One line for a campaign row: what Soot does next, or what to look at. @param {{phase?: string, starts?: string}} c */
+export function campaignNextLine(c) {
+  if (c.phase === 'planned') return `Soot bắt đầu theo dõi từ ${day(c.starts)}. Không cần làm gì.`;
+  if (c.phase === 'running') return 'Soot đọc lại số mỗi sáng 07:00. Không cần làm gì.';
+  if (c.phase === 'ended') return 'Chiến dịch đã kết thúc. Mở để xem kết quả.';
+  return 'Mở để xem liên kết và kết quả.';
+}

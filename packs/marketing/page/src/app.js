@@ -380,7 +380,7 @@ function campaignList(/** @type {any} */ d) {
     const pct = M.goalPct(c.goal);
     const line = [M.dayRange(c.starts, c.ends), c.channels.join(', '), c.published ? `${c.published} bài đã đăng` : null].filter(Boolean).join(' · ');
     return h('li', { class: 'row' },
-      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => openCampaign(c.id) }, c.name), h('small', { class: 'muted' }, line),
+      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => openCampaign(c.id) }, c.name), h('small', { class: 'muted' }, line), h('small', { class: 'muted' }, M.campaignNextLine(c)),
         c.phase === 'running' && h('div', { class: 'bar2', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': pct == null ? null : String(pct), 'aria-label': M.goalLine(c.goal) }, fill(pct ?? 0)),
         c.phase === 'running' && h('small', { class: 'muted' }, M.goalLine(c.goal))),
       h('span', { class: `badge ${c.phase === 'running' ? 'ok' : ''}` }, c.phase_label));
