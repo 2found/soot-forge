@@ -25,6 +25,21 @@ export const HOST_ENV = {
   LOHI_BLOG_REMOTE: 'git@github.com:reallongnguyen/novel-reader.git',
 };
 
+/**
+ * The founder's 2server connection, found without asking: LOHI_REPO, else the kiem-lai checkout
+ * that holds this forge (a parent directory with .2server/connection.yaml or .json), else
+ * ~/.2server. Returns the file or null. Never read or printed.
+ */
+export function findConnection({ repo = process.env.LOHI_REPO, start = forge, home = homedir() } = {}) {
+  const names = ['connection.yaml', 'connection.json'];
+  const roots = [];
+  if (repo) roots.push(resolve(repo));
+  for (let dir = resolve(start); ; dir = dirname(dir)) { roots.push(dir); if (dirname(dir) === dir) break; }
+  for (const dir of roots) for (const n of names) if (existsSync(join(dir, '.2server', n))) return join(dir, '.2server', n);
+  for (const n of names) if (existsSync(join(home, '.2server', n))) return join(home, '.2server', n);
+  return null;
+}
+
 export function claimKeyFile(soot = 'lohi-editor', { home = process.env.SOOT_HOME || join(homedir(), '.soot'), credentialsDir } = {}) {
   return join(credentialsDir || home, 'tool-credentials', soot, 'MARKETING_CLAIM_KEY');
 }
@@ -45,7 +60,7 @@ function runtimeKnowsEnv(soot) {
   } catch { return false; }
 }
 
-export function build(dir, { port = 7790, video = true, soot = 'soot', home, env = runtimeKnowsEnv(soot) } = {}) {
+export function build(dir, { port = 7790, video = true, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
   const out = resolve(dir);
   const host = JSON.parse(readFileSync(join(here, 'deployment.example.json'), 'utf8'));
   host.listen = `127.0.0.1:${port}`;
@@ -54,7 +69,8 @@ export function build(dir, { port = 7790, video = true, soot = 'soot', home, env
     delete host.tool_hosts?.['lohi-video'];
   }
   const packs = ['marketing', 'browser-use', ...(video ? ['toolbox'] : [])];
-  if (env) host.env = HOST_ENV;
+  const hostEnv = { ...HOST_ENV, ...(connection ? { LOHI_CONNECTION: connection } : {}) };
+  if (env) host.env = hostEnv;
   mkdirSync(join(out, 'packs'), { recursive: true });
   mkdirSync(join(out, 'soots'), { recursive: true });
   for (const id of packs) {
@@ -67,7 +83,7 @@ export function build(dir, { port = 7790, video = true, soot = 'soot', home, env
   for (const f of ['SOUL.md', 'writer.md', 'editor.md', ...(video ? ['video.md'] : [])]) cpSync(join(here, 'soots', f), join(out, 'soots', f));
   writeFileSync(join(out, 'deployment.json'), JSON.stringify(host, null, 2) + '\n');
   const key = claimKeyFile('lohi-editor', { home, credentialsDir: host.credentials_dir });
-  return { out, packs, env, keyMade: ensureClaimKey(key), key };
+  return { out, packs, env, hostEnv, connection: Boolean(connection), keyMade: ensureClaimKey(key), key };
 }
 
 export const PERSON_STEPS = [
@@ -85,9 +101,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const r = build(dir, { port, video: !args.includes('--no-video') });
   console.log(`Workspace: ${r.out}`);
   console.log(`Packs: ${r.packs.join(', ')}, lohi-blog (kèm ${r.keyMade ? 'khoá ký lượt đăng vừa tự sinh' : 'khoá ký lượt đăng đã có'}, không in ra).`);
-  if (!r.env) console.log(`Runtime chưa có \`env\`: khởi động với ${Object.entries(HOST_ENV).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+  if (!r.env) console.log(`Runtime chưa có \`env\`: khởi động với ${Object.entries(r.hostEnv).map(([k, v]) => `${k}=${v}`).join(' ')}`);
   if (args.includes('--no-video')) console.log('Không có Video Soot (--no-video).');
   else console.log('Video: cài thêm `soot add 2found/soot-forge/packs/2build` khi cần làm video.');
+  console.log(r.connection ? 'Kết nối 2server: đã tìm thấy và ghi vào env (LOHI_CONNECTION).' : 'Kết nối 2server: chưa thấy .2server/connection.yaml; blog-ready sẽ báo một thẻ Cần bạn.');
   console.log('Việc chỉ người làm được:');
   PERSON_STEPS.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
 }

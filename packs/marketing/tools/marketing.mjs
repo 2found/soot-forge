@@ -8,13 +8,15 @@ import { page_view, page_action, answer } from './lib/page.mjs';
 import { video_import } from './lib/video.mjs';
 import { campaign_save, campaign_report } from './lib/campaign.mjs';
 import { plan } from './lib/plan.mjs';
+import { channels_probe } from './lib/probe.mjs';
+import { report } from './lib/report.mjs';
 
 export const TOOLS = {
   draft_save: ops.draft_save, items: ops.items, check: ops.check, schedule: ops.schedule, due: ops.due,
   claim: ops.claim, record: ops.record, fail: ops.failIntent, pause: ops.pause,
   page_view, page_action, facts_sync: ops.facts_sync, gsc_sync: ops.gsc_sync, seo_brief: ops.seo_brief,
   channels_setup: ops.channels_setup, raised: ops.raised, answer, replies_sync: ops.replies_sync, reply_save: ops.reply_save,
-  video_import, campaign_save, campaign_report, plan,
+  video_import, campaign_save, campaign_report, plan, channels_probe, report,
 };
 
 /** Run one tool; `deps` overrides the store, clock and fetch in tests. */

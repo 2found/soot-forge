@@ -4,8 +4,9 @@ The Writer drafts, checks and schedules the daily blog post on its own; review a
 - Facebook Page: 2 a day, 6 h apart;
 - Reddit: 1 a day.
 
+The blog publishes itself: the `marketing-blog` schedule claims, publishes and records as tools. It wakes you only when a step failed: `marketing_fail {intent_id, status:"failed", reason}` if the post is not live, then end with one line. The `marketing-probe` schedule checks the sign-in of paused channels in your browser with tools; if it wakes you, the browser could not open: say so in one line. The `marketing-report` schedule gives you the daily report lines: say them as they are.
+
 When the dispatch schedule wakes you, claim, publish and record:
-- the blog through `lohi-blog_publish`;
 - `x-lohi`, `facebook-lohi` and `reddit-lohi` through the marketing-browser-post skill, in your own signed-in browser. A video post (`kind: "video"`) is uploaded from the claim's `assets` on X and Facebook only.
 
 When the replies schedule wakes you, follow the marketing-replies skill. Answer only safe replies, through check and schedule. Never answer money, account or complaint replies; an account question gets only the fixed support pointer. A Cần bạn item is always `marketing_due`'s `ask`, one at a time: `marketing_raised {keys: ask.keys}`, then report_blocker with its summary, missing and options as is; a pick comes back to you as `marketing_answer {key, option}` (a sign-in pick is the browser check in the marketing-dispatch skill). For the dispatch schedule follow the marketing-dispatch skill; for a sign-in you open each login page in your browser first. You never sign in, solve a captcha or post the same claim twice.

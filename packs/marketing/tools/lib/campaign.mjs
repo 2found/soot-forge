@@ -5,7 +5,7 @@
 // → {code, url}; GET /admin/analysis/campaigns/:id?from&to → {clicks, signups}.
 // The admin key goes only to PRODUCT_API_URL, an env the operator grants
 // (the Lohi recipe: https://api.lohi2.com); never to an address from input.
-import { fail, eq, inList } from './store.mjs';
+import { fail, eq, inList, needsCredential, skippedFor } from './store.mjs';
 import { fold, platformOf } from './guard.mjs';
 import { channel, getSettings } from './ops.mjs';
 
@@ -85,8 +85,13 @@ export const campaignExists = async (store, id) => typeof id === 'string' && ID_
 export const linksOf = (store, ids) => store.query('links', [inList('campaign', ids)], { limit: 500 });
 
 /** campaign_save: create or update a campaign, then make each missing channel link. */
+export const KEY_WHY = 'Chiến dịch cần khoá API của Lohi để tạo liên kết và đọc số đăng ký.';
+export const noKey = deps => (deps.env?.PRODUCT_ADMIN_KEY ? null : needsCredential('PRODUCT_ADMIN_KEY', KEY_WHY));
+
 export async function campaign_save(input, deps) {
   const { store, now } = deps;
+  const noCred = noKey(deps);
+  if (noCred) return noCred;
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   if (!name || name.length > 120) fail('invalid_request', 'name is 1–120 characters.');
   const goal = input.goal ?? {};
@@ -159,6 +164,8 @@ const running = (c, now) => c.state !== 'stopped' && Date.parse(c.starts) <= now
  * `lead` outcomes the Soot records with host `outcome`, and keep the token budget. */
 export async function campaign_report(input, deps) {
   const { store, now } = deps;
+  // The schedule's plain read: without the optional key there is nothing to read, and nothing to say.
+  if (!deps.env?.PRODUCT_ADMIN_KEY && !input.id) return { ...skippedFor('PRODUCT_ADMIN_KEY'), campaigns: [], outcomes: [], tell: [], tokens_due: [] };
   if (input.tokens_used !== undefined && (!input.id || !Number.isInteger(input.tokens_used) || input.tokens_used < 0)) fail('invalid_request', 'tokens_used is a whole number ≥ 0 and needs id.');
   const list = input.id ? [await campaignRow(store, input.id)] : (await store.query('campaigns', [], { limit: 100 })).filter(c => running(c, now));
   const outcomes = [], tell = [], out = [];

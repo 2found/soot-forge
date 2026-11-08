@@ -5,7 +5,7 @@ import { briefLint, platformOf, defaultsFor, internalLinks, HOLD_LABEL } from '.
 import { videoView } from './video.mjs';
 import { STATE_LABEL, ANSWERS, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
 import { localDayStart, DEFAULT_QUIET } from './time.mjs';
-import { campaignView, campaign_save, readReport } from './campaign.mjs';
+import { campaignView, campaign_save, readReport, noKey } from './campaign.mjs';
 
 const DAY = 86_400_000;
 export const TABS = {
@@ -231,11 +231,27 @@ export async function page_action(input, deps) {
       await clearAttention(store, 'uncertain', p.ref);
       return { id: p.ref, state: 'scheduled' };
     }
+    // Hàng đợi: the channel's own limits, edited in place (the page asks the person to confirm first).
+    case 'set_limits': {
+      const ch = await channel(store, input.channel);
+      const set = {};
+      for (const [f, max] of [['cap_per_day', 50], ['spacing_min', 10080], ['reply_cap_per_day', 50]]) {
+        if (input[f] === undefined) continue;
+        if (!Number.isInteger(input[f]) || input[f] < 0 || input[f] > max) fail('invalid_request', `${f} là số nguyên từ 0 đến ${max}.`);
+        set[f] = input[f];
+      }
+      if (!Object.keys(set).length) fail('invalid_request', 'Nêu ít nhất một giới hạn: cap_per_day, spacing_min hoặc reply_cap_per_day.');
+      await store.update('channels', [eq('key', ch.key)], set);
+      return { id: ch.key, ...set };
+    }
     case 'pause': case 'resume':
       return pause({ channel: input.channel, paused: op === 'pause' }, deps);
     // Chiến dịch: save (and make missing links), then one read so the detail has numbers.
     // A page read never turns signups into lead outcomes: those stay the Soot's (campaign_report).
     case 'campaign_save': {
+      // No key: say so before anything is saved (the founder cannot use a campaign without its links).
+      const missing = noKey(deps);
+      if (missing) return missing;
       if (!input.campaign || typeof input.campaign !== 'object' || Array.isArray(input.campaign)) fail('invalid_request', 'campaign is the campaign object.');
       const { name, goal, channels, starts, ends, token_budget, landing, state, id } = input.campaign;
       const saved = await campaign_save({ name, goal, channels, starts, ends, token_budget, landing, state, id }, deps);
@@ -244,13 +260,15 @@ export async function page_action(input, deps) {
       return { ...saved, read: { ok: report.ok, error: report.error ?? null } };
     }
     case 'campaign_refresh': {
+      const missing = noKey(deps);
+      if (missing) return missing;
       const c = await store.one('campaigns', [eq('key', input.campaign_id ?? '')]);
       if (!c) fail('not_found', `Không có chiến dịch ${input.campaign_id ?? ''}.`);
       const report = await readReport(c, deps);
       return { id: c.key, read: { ok: report.ok, error: report.error ?? null } };
     }
   }
-  fail('invalid_request', 'op is pull, restore, unpublish, reschedule, post_now, drop, confirm_posted, confirm_not_posted, pause, resume, campaign_save or campaign_refresh.');
+  fail('invalid_request', 'op is pull, restore, unpublish, set_limits, reschedule, post_now, drop, confirm_posted, confirm_not_posted, pause, resume, campaign_save or campaign_refresh.');
 }
 
 /** The person's pick on a Cần bạn item from `due.ask` (its key and one of its options), applied as

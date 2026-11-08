@@ -361,7 +361,8 @@ export async function ready(env, deps = {}) {
   try { last = file ? JSON.parse(await readFile(file, 'utf8')).sig : null; } catch { /* first run */ }
   const changed = sig !== (last ?? '');
   if (file && changed) { await mkdir(env.SOOT_PACK_STATE, { recursive: true }); await writeFile(file, JSON.stringify({ sig, at: new Date(d.now()).toISOString() })); }
-  const out = { ok: missing.length === 0, missing, wake: missing.length > 0 && changed, notify: missing.length > 0 && changed };
+  // Nothing missing any more: the runtime closes the Cần bạn card this schedule raised (resolves_need).
+  const out = { ok: missing.length === 0, missing, wake: missing.length > 0 && changed, notify: missing.length > 0 && changed, ...(missing.length === 0 ? { resolves_need: true } : {}) };
   if (missing.length) {
     out.ask = {
       summary: 'Hoàn tất thiết lập đăng blog Lohi',
@@ -375,19 +376,26 @@ const linkConnectionExists = repo => { for (let dir = resolve(repo); ; dir = dir
 
 // ---------- entry ----------
 
+/**
+ * The publisher's answer as the next step of a schedule tool chain (claim → publish → record) reads it:
+ * `ok` tells the chain to go on (record) or to stop and wake the Editor, and the record input
+ * (`intent_id`, `url`, `platform_id`) is in the same object. The publisher contract's own fields stay.
+ */
+export const asChainStep = (out, claim) => ({ ...out, ok: out.status === 'published', intent_id: typeof claim?.intent_id === 'string' ? claim.intent_id : undefined });
+
 export async function main(mode, env = process.env) {
-  let out;
+  let out, ctxClaim;
   try {
     const chunks = [];
     for await (const chunk of process.stdin) chunks.push(chunk);
     const ctx = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-    const claim = ctx.input?.claim;
-    out = mode === 'publish' ? await publish(claim, env) : mode === 'unpublish' ? await unpublish(claim, env) : mode === 'find' ? await find(claim, env)
+    const claim = ctxClaim = ctx.input?.claim;
+    out = mode === 'publish' ? asChainStep(await publish(claim, env), claim) : mode === 'unpublish' ? await unpublish(claim, env) : mode === 'find' ? await find(claim, env)
       : mode === 'catalog' ? await catalog(ctx.input ?? {}, env) : mode === 'ready' ? await ready(env)
       : { error: { code: 'invalid_request', message: 'mode is publish, unpublish, find, catalog or ready' } };
   } catch (e) {
     out = mode === 'catalog' || mode === 'ready' ? { error: { code: e.code ?? 'failed', message: String(e.message).slice(0, 200) } }
-      : { status: 'failed', reason: `${e.code ?? 'failed'}: ${String(e.message).slice(0, 200)}`, retry: true };
+      : asChainStep({ status: 'failed', reason: `${e.code ?? 'failed'}: ${String(e.message).slice(0, 200)}`, retry: true }, ctxClaim);
   }
   process.stdout.write(JSON.stringify(out) + '\n');
 }

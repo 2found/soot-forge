@@ -7,6 +7,16 @@ export class MarketingError extends Error {
 }
 export const fail = (code, message) => { throw new MarketingError(code, message); };
 
+/** Where a person enters a key; Nest opens it from this link. */
+export const SETUP_LINK = 'nest://settings/setup';
+/** An optional credential a sub-op needs and the host did not give: a decided answer, never a crash. */
+export const needsCredential = (key, why) => {
+  const message = `${why} Mở Thiết lập để nhập ${key} (${SETUP_LINK}).`;
+  return { ok: false, reason_code: 'needs_credential', key, message, link: SETUP_LINK, error: { code: 'needs_credential', message } };
+};
+/** An optional credential that is not set: the tool has nothing to do and says so quietly. */
+export const skippedFor = key => ({ ok: true, skipped: true, reason_code: 'optional_credential', key, notify: false, wake: false });
+
 export function storage(env, fetchImpl = fetch) {
   const url = env.SOOT_STORAGE_URL, token = env.SOOT_STORAGE_TOKEN;
   const call = async (table, op, body) => {

@@ -3,9 +3,9 @@
 // The hub-mode tools in pack.json are untouched and still forward when
 // MARKETING_HUB is bound; nothing here reads it.
 import { randomBytes, createHash } from 'node:crypto';
-import { fail, eq, gte, isNull } from './store.mjs';
+import { fail, eq, gte, isNull, skippedFor } from './store.mjs';
 import { autoChecks, briefLint, internalLinks, claimWindow, defaultsFor, platformOf } from './guard.mjs';
-import { nextSlot, DEFAULT_QUIET } from './time.mjs';
+import { nextSlot, inQuiet, DEFAULT_QUIET } from './time.mjs';
 import { contentHash, signClaim, CLAIM_TTL_MS, INTENT_STALE_MS } from './claim.mjs';
 import { metricsRows } from './page.mjs';
 import { claimAssets } from './video.mjs';
@@ -255,6 +255,8 @@ export async function due(input, { store, now, soot }) {
   ]);
   const byKey = Object.fromEntries(channels.map(c => [c.key, c]));
   const seen = new Set(raised.map(r => r.key));
+  const skip = Array.isArray(input.skip) ? input.skip : [];
+  if (typeof input.channel === 'string') return dueChain(input.channel, { rows, channels, held, settings, now });
   const out = { wake: false, publish: [], unpublish: [], reply: [], late: [], needs_person: [], needs: [] };
   // `woken`: the dispatch schedule already woke the Editor for this need (it may not have filed it yet); never wake twice for one.
   const need = n => out.needs.push({ ...n, key: needKey(n), label: n.label ?? NEED_LABEL[n.reason] ?? n.reason, raised: seen.has(needKey(n)), woken: seen.has('woke:' + needKey(n)) });
@@ -291,6 +293,8 @@ export async function due(input, { store, now, soot }) {
       continue;
     }
     if (settings.paused_all || ch?.paused) continue;
+    // A channel the schedule's tool chain publishes is not the Editor's to claim.
+    if (q.action !== 'reply' && skip.includes(q.channel)) continue;
     (q.action === 'reply' ? out.reply : out.publish).push(q.post);
   }
   // Every platform still signed out, as one ready Cần bạn item (report_blocker takes it as is).
@@ -313,6 +317,8 @@ export async function due(input, { store, now, soot }) {
   }
   // The runtime's wake_when matches the boolean `notify` (or a string at a path), so both say the same.
   const fresh = out.needs.filter(n => !n.raised && !n.woken);
+  // Nothing outstanding any more: the runtime closes the Cần bạn card this schedule raised (resolves_need).
+  out.resolves_need = out.needs.length === 0;
   out.wake = out.notify = out.publish.length + out.unpublish.length + out.reply.length > 0 || fresh.length > 0;
   // The schedule's own call remembers whom it woke for, so an unchanged need costs one model turn, ever.
   if (input.schedule === true && out.notify) {
@@ -321,6 +327,26 @@ export async function due(input, { store, now, soot }) {
     }
   }
   return out;
+}
+
+/**
+ * Tool-chain mode (`due {schedule:true, channel}`): the claim input for the one due publish on that
+ * channel, `{id, action}`, or `{done:true}` (the chain stops quietly). Late, uncertain, paused and
+ * in-flight items are not its business: they are Cần bạn items the Editor's own dispatch raises.
+ */
+function dueChain(chKey, { rows, channels, held, settings, now }) {
+  const ch = channels.find(c => c.key === chKey);
+  if (settings.paused_all || ch?.paused) return { done: true, reason: 'paused' };
+  if (inQuiet(now, settings.quiet_hours ?? DEFAULT_QUIET)) return { done: true, reason: 'quiet_hours' };
+  const uncertain = new Set(held.map(p => p.ref));
+  for (const q of rows) {
+    if (q.channel !== chKey || (q.action ?? 'publish') !== 'publish' || uncertain.has(q.post)) continue;
+    const stuck = q.intent_id && now - ms(q.intent_at) > INTENT_STALE_MS;
+    if (q.intent_id && !stuck) continue;
+    if (!q.intent_id && now - ms(q.scheduled_at) >= settings.stale_after_h * HOUR) continue;
+    return { id: q.post, action: 'publish' };
+  }
+  return { done: true };
 }
 
 const TZ = 'Asia/Ho_Chi_Minh';
@@ -397,7 +423,7 @@ async function refuse(store, p, code, reason, { refusePost = false, state = 'ref
   return { refused: { code, reason } };
 }
 
-export async function claim(input, { store, now, env }) {
+async function claimOnce(input, { store, now, env }) {
   const action = input.action ?? 'publish';
   if (!['publish', 'unpublish', 'reply'].includes(action)) fail('invalid_request', 'action is publish, unpublish or reply.');
   const key = env.MARKETING_CLAIM_KEY;
@@ -452,6 +478,12 @@ export async function claim(input, { store, now, env }) {
   await store.update('posts', [eq('ref', p.ref)], { state: send ? 'publishing' : 'unpublishing', reason: null });
   const media = action === 'publish' ? await postAssets(store, p) : [];
   return { claim: signClaim(claimBody(p, ch, action, intent, now, media), key) };
+}
+
+/** A refusal is a normal answer: `done: true` ends a tool chain quietly (the reason is already on the post). */
+export async function claim(input, deps) {
+  const out = await claimOnce(input, deps);
+  return out.refused ? { ...out, done: true } : out;
 }
 
 async function intentRow(store, intent_id) {
@@ -608,7 +640,12 @@ export async function gsc_sync(input, { store, now, env, fetch }) {
     return { status: 'needs_person', reason, message: reason === 'revoked' ? 'Quyền đọc Search Console đã bị thu hồi: cần đăng nhập Google lại.' : 'Cần đăng nhập Google cho Search Console.',
       needs_person: { credential: 'GSC_GOOGLE', reason: `oauth_${reason}` } };
   };
-  const auth = await googleToken(env.GSC_GOOGLE ?? '', fetch);
+  // Never signed in to Google: Search Console is optional, so this is a quiet skip, not a sign-in item.
+  if (!env.GSC_GOOGLE) {
+    if ((await getSettings(store)).gsc?.state !== 'ok') return skippedFor('GSC_GOOGLE');
+    return needsPerson('signed_out');
+  }
+  const auth = await googleToken(env.GSC_GOOGLE, fetch);
   if (auth.error) return needsPerson(auth.error);
   const published = await store.query('posts', [eq('state', 'published')], { limit: 500 });
   const urls = new Set(published.map(p => p.url).filter(Boolean));

@@ -149,7 +149,6 @@ for (const [name, setup, code] of [
   ['api 5xx', w => { api.mode = 'error'; }, 'api_unreachable'],
   ['api timeout', w => { api.mode = 'hang'; }, 'api_unreachable'],
   ['a 403 key', w => { w.env.PRODUCT_ADMIN_KEY = 'wrong-key'; }, 'forbidden'],
-  ['no key', w => { delete w.env.PRODUCT_ADMIN_KEY; }, 'no_key'],
 ]) {
   test(`${name}: the campaign is saved without links, the page keeps Soot-side numbers and says so; no lead is made`, async () => {
     api.reset();
@@ -179,6 +178,24 @@ for (const [name, setup, code] of [
     assert.equal((await view(w, { campaign: out.id })).read.ok, true);
   });
 }
+
+test('no key: every campaign op answers needs_credential with a Vietnamese line that links Thiết lập, and saves nothing', async () => {
+  api.reset();
+  const w = world();
+  delete w.env.PRODUCT_ADMIN_KEY;
+  for (const [tool, input] of [['page_action', { op: 'campaign_save', request_id: 'rq', campaign: CAMPAIGN }], ['page_action', { op: 'campaign_refresh', request_id: 'rq3', campaign_id: 'x-y' }], ['campaign_save', CAMPAIGN]]) {
+    const out = await w.call(tool, input, { page: { page: 'chien-dich' } });
+    assert.deepEqual([out.ok, out.reason_code, out.key], [false, 'needs_credential', 'PRODUCT_ADMIN_KEY'], tool);
+    assert.match(out.message, /Thiết lập.*PRODUCT_ADMIN_KEY|PRODUCT_ADMIN_KEY.*Thiết lập/, tool);
+    assert.equal(out.link, 'nest://settings/setup');
+    assert.equal(out.error.code, 'needs_credential', 'the page prints this line');
+  }
+  assert.equal(w.store.data.campaigns.length, 0, 'nothing half-saved');
+  assert.equal(api.calls.length, 0);
+  // The schedule's plain read is a quiet skip, not a failure; an explicit {id, tokens_used} still updates the count.
+  const r = await w.call('campaign_report', {});
+  assert.deepEqual([r.skipped, r.reason_code, r.notify, r.wake], [true, 'optional_credential', false, false]);
+});
 
 test('the key goes only to PRODUCT_API_URL: no tool takes an api address from its input', () => {
   const pack = JSON.parse(readFileSync(new URL('../pack.json', import.meta.url), 'utf8'));
