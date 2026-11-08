@@ -164,3 +164,27 @@ test('the digest chain sync never raises or closes the waiting ask', async () =>
   assert.deepEqual([out.synced, out.ask, out.resolves_need], [true, undefined, undefined]);
   api.over = {};
 });
+
+test('the baseline counts the week\'s release tags of the product repo; none readable leaves the cell empty', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { scratchRepo } = await import('./fixtures.mjs');
+  const repo = scratchRepo();
+  const git = (args, date) => execFileSync('git', ['-C', repo, ...args], { env: { ...process.env, GIT_COMMITTER_DATE: date, GIT_AUTHOR_DATE: date } });
+  git(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'init'], '2026-11-01T12:00:00+07:00');
+  // Two in the week 2-8 Nov (ICT), one the Sunday before, one the Monday after, one that is not a release.
+  for (const [tag, date] of [['api-v1.26.0', '2026-11-02T00:30:00+07:00'], ['web-v0.25.0', '2026-11-08T23:30:00+07:00'], ['api-v1.25.0', '2026-11-01T23:59:00+07:00'], ['api-v1.31.0', '2026-11-09T00:01:00+07:00'], ['backup', '2026-11-04T10:00:00+07:00']]) {
+    git(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'tag', '-a', tag, '-m', tag], date);
+  }
+  reset();
+  const bbs = fakeBbs();
+  const out = await live({ BBS_BIN: bbs.bin, PRODUCT_REPO: repo }).call('scoreboard_sync', { for_digest: true });
+  assert.equal(out.baseline, 'recorded');
+  const argv = bbs.calls().find(c => c.argv[0] === 'company').argv;
+  assert.equal(argv[argv.indexOf('--releases') + 1], '2');
+  // A repo git cannot read: no --releases, the week is still recorded.
+  reset();
+  const bbs2 = fakeBbs();
+  const none = await live({ BBS_BIN: bbs2.bin, PRODUCT_REPO: '/nonexistent/repo' }).call('scoreboard_sync', { for_digest: true });
+  assert.equal(none.baseline, 'recorded');
+  assert.equal(bbs2.calls().find(c => c.argv[0] === 'company').argv.includes('--releases'), false);
+});

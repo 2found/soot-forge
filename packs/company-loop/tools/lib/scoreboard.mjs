@@ -5,6 +5,11 @@
 // to SCOREBOARD_URL and nowhere else.
 import { eq, getState, setState, getJson, safeUrl, skippedFor, iso, lastSevenDays, lastFullWeek, short } from './base.mjs';
 import { runBbs } from './bbs.mjs';
+import { execFile } from 'node:child_process';
+import { isAbsolute } from 'node:path';
+import { statSync } from 'node:fs';
+
+const isDir = p => { try { return !!p && statSync(p).isDirectory(); } catch { return false; } };
 
 /** Metric keys of the contract with their Vietnamese label and which way is better. */
 export const METRICS = {
@@ -50,6 +55,27 @@ export async function latestBoard(store) {
   return (await store.query('scoreboard', [], { order: 'period_to', limit: 1 }))[0] ?? null;
 }
 
+/** Releases shipped in an ICT week: tags of PRODUCT_REPO matching RELEASE_TAGS
+ * (git patterns, comma separated; default `v*,*-v*`) created inside it. Null when
+ * there is no repo or git cannot read it, so the baseline leaves the cell empty. */
+export function releasesIn(env, { from, to }) {
+  const repo = env.PRODUCT_REPO;
+  if (!repo || !isAbsolute(repo)) return Promise.resolve(null);
+  const patterns = String(env.RELEASE_TAGS || 'v*,*-v*').split(',').map(x => x.trim()).filter(x => /^[A-Za-z0-9*._/-]{1,64}$/.test(x)).map(x => `refs/tags/${x}`);
+  if (!patterns.length) return Promise.resolve(null);
+  const start = Date.parse(`${from}T00:00:00+07:00`) / 1000, end = Date.parse(`${to}T00:00:00+07:00`) / 1000 + 86_400;
+  return new Promise(resolve => execFile('git', ['-C', repo, 'for-each-ref', '--format=%(refname) %(creatordate:unix)', ...patterns],
+    { timeout: 10_000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+      if (err) return resolve(null);
+      const seen = new Set();
+      for (const line of String(stdout).split('\n')) {
+        const [ref, at] = line.trim().split(' ');
+        if (ref && Number(at) >= start && Number(at) < end) seen.add(ref);
+      }
+      resolve(seen.size);
+    }));
+}
+
 /** Append one finished week to `bbs company scoreboard record`; returns a short status code. */
 async function baseline(store, deps, board) {
   const week = board.range.from;
@@ -59,8 +85,11 @@ async function baseline(store, deps, board) {
   const v = k => (Number.isFinite(board.metrics[k]?.value) && board.metrics[k].value >= 0 ? board.metrics[k].value : null);
   const flags = [['--revenue', v('revenue_vnd')], ['--active-users', v('active_readers')], ['--support-cases', v('support_threads_new')]].filter(([, n]) => n !== null);
   if (!flags.length) return 'no_numbers';
+  const releases = await releasesIn(deps.env, board.range);
+  if (releases !== null) flags.push(['--releases', releases]);
   const args = ['company', 'scoreboard', 'record', '--product', product, '--week', week, ...flags.flatMap(([f, n]) => [f, String(n)]), '--note', 'company-loop scoreboard_sync'];
-  const r = await runBbs(deps.env, args, { cwd: deps.env.PRODUCT_REPO || undefined, timeoutMs: 20_000 });
+  // A repo path that is gone must not cost the week: bbs then runs from where the tool runs.
+  const r = await runBbs(deps.env, args, { cwd: isDir(deps.env.PRODUCT_REPO) ? deps.env.PRODUCT_REPO : undefined, timeoutMs: 20_000 });
   if (r.missing) return 'bbs_missing';
   if (!r.ok) return `bbs_failed: ${short(r.stderr, 120)}`;
   await setState(store, `baseline:${week}`, { at: iso(deps.now), product });
