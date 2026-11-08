@@ -326,7 +326,7 @@ function queue(d) {
       badge(r.status === 'published' ? 'Đã đăng' : r.status === 'removed' ? 'Đã gỡ' : r.status === 'needs_person' ? 'Cần bạn' : 'Lỗi',
         r.status === 'published' ? 'published' : r.status === 'removed' ? '' : r.status === 'needs_person' ? 'uncertain' : 'failed'),
       r.status === 'published' && r.url && button(t.open, () => bridge.open(r.url)),
-      r.status === 'published' && r.action === 'publish' && button(t.unpublish, () => askUnpublish(r), 'btn sm danger')))));
+      r.live && r.action === 'publish' && button(t.unpublish, () => askUnpublish(r), 'btn sm danger')))));
   return out;
 }
 

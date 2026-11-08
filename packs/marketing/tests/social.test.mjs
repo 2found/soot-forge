@@ -87,7 +87,7 @@ test('AC5: an X post goes claim → browser → record with its URL and the post
   const q = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
   const x = q.channels.find(c => c.id === 'x-lohi');
   assert.deepEqual([x.label, x.posts_today, x.cap_per_day, x.replies_today, x.reply_cap_per_day], ['X', 1, 4, 0, 10]);
-  assert.equal(q.recent[0].url, url);
+  assert.deepEqual([q.recent[0].url, q.recent[0].live], [url, true], 'a live post offers Gỡ bài');
 });
 
 for (const reason of ['signed_out', 'layout_changed', 'captcha']) {

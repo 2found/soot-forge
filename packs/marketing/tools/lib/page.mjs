@@ -109,7 +109,7 @@ async function queueView({ store, now }) {
       const late = !q.intent_id && q.action !== 'unpublish' && now - Date.parse(q.scheduled_at) >= (settings.stale_after_h ?? 6) * 3_600_000;
       return { id: q.post, title: title(p), channel: channelLabel(q.channel), action: q.action, scheduled_at: q.scheduled_at, state: p.state ?? null, label: late ? 'Bài lỡ giờ' : STATE_LABEL[p.state] ?? '', reason: q.wait_reason ?? p.reason ?? null, in_flight: !!q.intent_id && p.state !== 'uncertain', late };
     }),
-    recent: log.filter(r => r.status !== 'intent').slice(0, 10).map(r => ({ id: r.post, title: title(byRef[r.post] ?? {}), channel: channelLabel(r.channel), action: r.action, status: r.status, url: r.url, reason: r.status === 'needs_person' ? PAUSED_LABEL[r.reason] ?? r.reason : r.reason, at: r.at })),
+    recent: log.filter(r => r.status !== 'intent').slice(0, 10).map(r => ({ id: r.post, title: title(byRef[r.post] ?? {}), channel: channelLabel(r.channel), action: r.action, status: r.status, live: r.status === 'published' && byRef[r.post]?.state === 'published', url: r.url, reason: r.status === 'needs_person' ? PAUSED_LABEL[r.reason] ?? r.reason : r.reason, at: r.at })),
     empty: queue.length === 0,
   };
 }
