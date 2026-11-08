@@ -113,7 +113,7 @@ const __model = (() => {
 function strings(locale) {
   const vi = {
     posts: 'Bài viết', queue: 'Hàng đợi', reload: 'Tải lại', loading: 'Đang tải…', back: 'Tất cả bài',
-    tabs: { all: 'Tất cả', draft: 'Nháp', ready: 'Đã kiểm tra', waiting: 'Chờ đăng', published: 'Đã đăng', refused: 'Bị từ chối' },
+    tabs: { all: 'Tất cả', need: 'Cần bạn', draft: 'Nháp', ready: 'Đã kiểm tra', waiting: 'Sắp đăng', published: 'Đã đăng', refused: 'Bị từ chối' },
     noPosts: 'Chưa có bài nào', noPostsHelp: 'Writer lưu bản nháp vào đây.', askWrite: 'Nhờ viết bài',
     open: 'Mở', unpublish: 'Gỡ bài', pull: 'Gỡ khỏi hàng đợi', schedule: 'Xếp lịch', bodyHead: 'Nội dung bài', restore: 'Xếp lại', republish: 'Đăng lại', reschedule: 'Đổi giờ', why: 'Xem lý do', save: 'Lưu', cancel: 'Hủy',
     noData: 'Chưa có số liệu', noDataWhy: 'Chưa có số liệu — Google thường cần 2–3 ngày sau khi đăng.', notZero: 'Không phải 0: chưa đọc được.',
@@ -142,7 +142,7 @@ function strings(locale) {
   };
   if (locale !== 'en') return vi;
   return { ...vi, posts: 'Posts', queue: 'Queue', reload: 'Reload', loading: 'Loading…', back: 'All posts',
-    tabs: { all: 'All', draft: 'Drafts', ready: 'Checked', waiting: 'Queued', published: 'Published', refused: 'Refused' },
+    tabs: { all: 'All', need: 'Needs you', draft: 'Drafts', ready: 'Checked', waiting: 'Scheduled', published: 'Published', refused: 'Refused' },
     noData: 'No data yet', noDataWhy: 'No data yet — Google usually needs 2–3 days after publishing.', notZero: 'Not 0: not read yet.',
     impressions: 'Impressions', clicks: 'Clicks', position: 'Position', emptyQueue: 'Nothing waiting to publish', unpublish: 'Unpublish', pull: 'Remove from queue', open: 'Open' };
 }
@@ -216,20 +216,40 @@ const actionBody = (request_id, op, rest = {}) => ({ op, request_id, ...rest });
 /** A failed bridge call or tool error as plain text. @param {ReturnType<typeof strings>} t @param {any} err */
 function errorText(t, err) {
   if (err?.code === 'no_response') return t.unknown;
+  if (err?.link) return err.message || t.failed;
+  // The runtime's own refusal of a malformed request is English: say it in words and keep the way out.
+  if (/does not match|operation parameters|tool_refused|\(refused\)/i.test(`${err?.message ?? ''} ${err?.code ?? ''}`)) return 'Trang gửi một yêu cầu không hợp lệ nên Soot từ chối. Bấm Thử lại; nếu vẫn vậy, nhờ Editor kiểm tra giúp.';
   return t.failed + (err?.message || err?.code || '');
 }
 
 /** Unwrap a bridge result: tool errors come back as {error} in the output. @param {any} r */
 function output(r) {
   if (!r.ok) throw r.error;
-  if (r.output?.error) throw r.output.error;
+  // A missing credential answers with its fix: a Vietnamese cause, the field's Vietnamese name, and the link that opens it.
+  const o = r.output;
+  if (o?.reason_code === 'needs_credential' || o?.needs_credential) {
+    const key = o.key ?? o.needs_credential, why = String(o.error?.message ?? '').split(' Mở Thiết lập')[0];
+    throw { code: 'needs_credential', message: `${why || 'Thiếu một khoá để làm việc này.'} Bấm Mở Thiết lập, điền "${KEY_LABEL[key] ?? 'khoá còn thiếu'}" rồi Thử lại.`, link: o.link ?? `${SETUP_LINK}?key=${encodeURIComponent(key)}`, credential: key };
+  }
+  if (o?.error) throw o.error;
   return r.output;
 }
 
 /** The notice after an action. A campaign re-read that failed shows its own notice on the page, not "Đã lưu.". */
 function doneNotice(/** @type {any} */ t, /** @type {string} */ op, /** @type {any} */ out) {
-  if (op !== 'campaign_refresh') return { kind: 'success', text: t.done };
-  return out?.read?.ok ? { kind: 'success', text: t.reread } : null;
+  if (op === 'campaign_refresh') return out?.read?.ok ? { kind: 'success', text: t.reread } : null;
+  const text = {
+    post_now: 'Đã xếp đăng ngay. Soot đăng ở lần chạy tới (mỗi 10 phút, ngoài giờ yên 23:00–07:00); liên kết sẽ hiện ở đây.',
+    restore: out?.scheduled_at ? `Đã xếp lịch: Soot đăng ${when(out.scheduled_at).toLowerCase()}.` : t.done,
+    reschedule: out?.scheduled_at ? `Đã đổi giờ: Soot đăng ${when(out.scheduled_at).toLowerCase()}.` : t.done,
+    pull: 'Đã gỡ khỏi hàng đợi. Soot sẽ không đăng bài này; bấm Xếp lại khi muốn đăng.',
+    drop: 'Đã bỏ bài. Soot sẽ không đăng bài này.',
+    unpublish: 'Đã xếp việc gỡ bài. Editor gỡ ở lần chạy tới, vài phút nữa.',
+    set_limits: 'Đã lưu giới hạn. Áp dụng cho các bài xếp lịch từ giờ trở đi.',
+    resume: 'Đã bật. Soot đăng theo giờ đã xếp.', pause: 'Đã dừng. Bài chờ ở hàng đợi, không đi cho tới khi bạn bật lại.',
+    confirm_posted: 'Đã ghi bài đã lên, kèm liên kết.', confirm_not_posted: 'Đã xếp đăng lại: Soot đăng ở lần chạy tới.',
+  }[op];
+  return { kind: 'success', text: text ?? t.done };
 }
 
 // ---------- Chiến dịch ----------
@@ -265,7 +285,153 @@ const campaignBody = f => ({ name: f.name.trim(), goal: { metric: f.metric, targ
 const readFailLine = read => `${String(read?.error?.message ?? 'Không đọc được').replace(/\.$/, '')} lúc ${read?.at ? hm(read.at) : '—'}. Số bài, tiếp cận dưới đây là của Soot; đăng ký và lượt bấm sẽ cập nhật ở lần đọc tới.`;
 /** "Token đã dùng: 820.000 / 2.000.000 (41%)." @param {number} used @param {number} budget */
 const tokenLine = (used, budget) => (budget > 0 ? `Token đã dùng: ${num(used)} / ${num(budget)} (${Math.round((used / budget) * 100)}%).` : `Token đã dùng: ${num(used)} (chưa đặt ngân sách).`);
-return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output, doneNotice, GOAL_FORM, GOAL_SHORT, slugOf, digits, dayRange, goalPct, goalLine, newCampaign, campaignProblem, campaignBody, readFailLine, tokenLine };
+
+// ---------- the next step (every post and channel says what happens and when, or what the person does) ----------
+
+/** nest:// link that opens the Soot's browser, where the person signs in. @param {string | null | undefined} editor */
+const signInLink = (editor, channel) => {
+  if (!editor) return 'nest://settings/setup';
+  const login = LOGIN_PAGE[String(channel ?? '').split('-')[0]];
+  return `nest://browser/${encodeURIComponent(editor)}${login ? `?url=${encodeURIComponent(login)}` : ''}`;
+};
+/** The page each platform signs in on, so the pane never opens blank. */
+const LOGIN_PAGE = { x: 'https://x.com/i/flow/login', facebook: 'https://www.facebook.com/login', reddit: 'https://www.reddit.com/login' };
+/** nest://new for the writer: revise this post. @param {string | null | undefined} writer @param {any} p */
+const reviseLink = (writer, p) => (writer ? `nest://new?soot=${encodeURIComponent(writer)}&text=${encodeURIComponent(`Sửa bài "${p.title}" (mã ${p.id}): `)}` : null);
+const SETUP_LINK = 'nest://settings/setup';
+/** Vietnamese names for the keys a page action may ask for. */
+const KEY_LABEL = { PRODUCT_ADMIN_KEY: 'Khoá quản trị Lohi' };
+
+/**
+ * The line a post shows for its next step: {text, tone, button?}. `button` is {do, label}: the one thing
+ * the person can do now, or none when Soot is running it ("Không cần làm gì").
+ * @param {any} n the server's `next` @param {any} [p] the post row/detail
+ */
+function nextLine(n, p = {}) {
+  if (!n) return null;
+  const ch = n.channel ?? '', at = n.at ? when(n.at) : '';
+  const lc = at ? at.charAt(0).toLowerCase() + at.slice(1) : '';
+  const quiet = (/** @type {string} */ s) => s;
+  const btn = (/** @type {string} */ d, /** @type {string} */ label) => ({ do: d, label });
+  switch (n.code) {
+    case 'draft': return { text: 'Writer đang soạn. Khi xong, Editor kiểm tra rồi xếp lịch. Không cần làm gì.', tone: 'plain' };
+    case 'draft_stale': return { text: 'Bản nháp này nằm hơn 24 giờ mà chưa được kiểm tra. Nhờ Writer hoàn thiện, hoặc bỏ qua: nó không chặn bài mới.', tone: 'warn', button: btn('ask_writer', 'Nhờ Writer hoàn thiện') };
+    case 'refused': return { text: 'Soot không đăng bài này vì chưa qua kiểm tra. Nhờ Writer sửa, Editor sẽ kiểm tra lại bản mới.', tone: 'err', button: btn('ask_writer', 'Nhờ Writer sửa') };
+    case 'ready': return { text: 'Đã qua kiểm tra nhưng chưa có giờ đăng. Soot tự xếp lịch ở lượt lên bài 08:00; bấm Xếp lịch để xếp ngay.', tone: 'warn', button: btn('schedule', 'Xếp lịch') };
+    case 'pulled': return { text: 'Bài đang để ngoài hàng đợi: Soot sẽ không đăng. Xếp lại nếu muốn đăng.', tone: 'plain', button: btn('restore', 'Xếp lại') };
+    case 'removed': return { text: 'Bài đã gỡ khỏi kênh. Đăng lại nếu muốn.', tone: 'plain', button: btn('restore', 'Đăng lại') };
+    case 'unpublishing': return { text: 'Đang gỡ bài. Editor xóa bài ở lần chạy tới, vài phút nữa. Không cần làm gì.', tone: 'plain' };
+    case 'published': return { text: `Đã đăng ${lc}${p.url ? `: ${shortUrl(p.url)}` : '. Chưa có liên kết, Soot sẽ ghi khi nền tảng trả về.'}`, tone: 'ok', button: p.url ? btn('open', 'Mở bài') : undefined };
+    case 'uncertain': return { text: `Soot bấm đăng nhưng chưa chắc bài đã lên ${ch}. Mở ${ch} xem: nếu đã lên, dán liên kết; nếu chưa, chọn đăng lại. Soot không tự đăng lại.`, tone: 'err', button: btn('confirm', 'Kiểm tra và chọn') };
+    case 'in_flight': return { text: 'Đang đăng. Vài phút nữa sẽ có liên kết. Không cần làm gì.', tone: 'plain' };
+    case 'failed_retry': return { text: `Lần đăng vừa rồi lỗi${n.reason ? ` (${n.reason})` : ''}. Soot tự thử lại ${lc}. Bấm Thử ngay nếu muốn sớm hơn.`, tone: 'warn', button: btn('retry', 'Thử ngay') };
+    case 'failed': return { text: `Đăng lỗi${n.reason ? `: ${n.reason}` : ''}. Soot không tự thử nữa: bấm Thử ngay, hoặc gỡ bài khỏi hàng đợi.`, tone: 'err', button: btn('retry', 'Thử ngay') };
+    case 'late': return { text: `Bài lỡ giờ (hẹn ${lc}). Soot không tự đăng bài đã quá hạn: chọn Đăng ngay, xếp lại giờ khác hoặc bỏ.`, tone: 'warn', button: btn('post_now', 'Đăng ngay') };
+    case 'paused_all': return { text: `Bạn đang dừng đăng mọi kênh nên bài chưa đi. Bật lại để bài đăng ${lc || 'ở khung giờ trống đầu tiên'}.`, tone: 'warn', button: btn('resume_all', 'Bật lại mọi kênh') };
+    case 'signed_out': return { text: `${ch} chưa đăng nhập nên bài chưa đi được. Đăng nhập ${ch}, rồi bài đăng ${lc}.`, tone: 'warn', button: btn('sign_in', `Đăng nhập ${ch}`) };
+    case 'signed_in': return { text: `Đã đăng nhập ${ch} nhưng kênh còn dừng. Bật kênh để bài đăng ${lc}.`, tone: 'warn', button: btn('resume_channel', `Bật ${ch}`) };
+    case 'person_paused': return { text: `Bạn đã dừng ${ch}. Bật lại để bài đăng ${lc}.`, tone: 'warn', button: btn('resume_channel', `Bật ${ch}`) };
+    case 'channel_held': return { text: `${ch} đang dừng (${n.reason}). Xem thẻ Cần bạn của kênh này để xử lý; bài chờ ở đây.`, tone: 'warn' };
+    case 'waiting': return { text: `Soot sẽ đăng ${lc}. Đang chờ: ${n.reason}. Không cần làm gì.`, tone: 'plain' };
+    case 'scheduled': return { text: quiet(`Soot sẽ đăng ${lc} lên ${ch}. Không cần làm gì.`), tone: 'plain' };
+  }
+  return { text: '', tone: 'plain' };
+}
+
+/** The headline of Hàng đợi: what goes out next, or the one thing that blocks it. @param {any} d */
+function queueHeadline(d) {
+  const items = d.items ?? [];
+  const late = items.filter((/** @type {any} */ q) => q.late), unsure = items.filter((/** @type {any} */ q) => q.state === 'uncertain');
+  const out = (/** @type {string} */ tone, /** @type {string} */ text, button) => ({ tone, text, button });
+  if (d.paused_all) return out('warn', `Đang dừng đăng mọi kênh. ${items.length ? `${items.length} bài chờ ở đây và sẽ không đi cho tới khi bạn bật lại.` : 'Soot vẫn viết và kiểm tra.'}`, { do: 'resume_all', label: 'Bật lại mọi kênh' });
+  if (unsure.length) return out('err', `${unsure.length} bài chưa rõ đã lên chưa. Mở kênh xem rồi chọn Đã lên hoặc Chưa lên: Soot không tự đăng lại.`, null);
+  if (late.length) return out('warn', `${late.length} bài lỡ giờ. Soot không tự đăng bài quá hạn: chọn Đăng ngay, Đổi giờ hoặc Bỏ cho từng bài.`, null);
+  const out2 = (d.channels ?? []).find((/** @type {any} */ c) => c.paused_reason === 'signed_out' && c.waiting > 0);
+  if (out2) return out('warn', `${out2.label} chưa đăng nhập nên ${out2.waiting} bài của kênh này chưa đi được. Đăng nhập ${out2.label} rồi Soot đăng tiếp.`, { do: 'sign_in', label: `Đăng nhập ${out2.label}`, channel: out2.id });
+  const live = items.filter((/** @type {any} */ q) => q.action === 'publish' && !['failed'].includes(q.state) && !q.in_flight && q.scheduled_at).sort((/** @type {any} */ a, /** @type {any} */ b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at));
+  const failed = items.find((/** @type {any} */ q) => q.state === 'failed');
+  if (failed) return out('warn', `Một bài đăng lỗi${failed.retry_at ? `, Soot thử lại ${when(failed.retry_at).toLowerCase()}` : '. Bấm Thử ngay hoặc gỡ khỏi hàng đợi'}.`, null);
+  if (live.length) return out('plain', `Không cần làm gì, Soot đang tự chạy. Bài kế tiếp: ${live[0].channel} ${when(live[0].scheduled_at).toLowerCase()}.`, null);
+  if (items.some((/** @type {any} */ q) => q.in_flight)) return out('plain', 'Đang đăng. Vài phút nữa sẽ có liên kết bên dưới. Không cần làm gì.', null);
+  return out('plain', 'Hàng đợi trống. Soot lên bài mới mỗi sáng 08:00; hoặc bạn nhờ Writer viết ngay.', d.writer ? { do: 'ask_writer', label: 'Nhờ viết bài' } : null);
+}
+
+/** The state of one channel on Hàng đợi: its words and its button. @param {any} c @param {any} d */
+function channelLine(c, d) {
+  const used = `Hôm nay ${c.posts_today}/${c.cap_per_day} bài${c.reply_cap_per_day ? ` · trả lời ${c.replies_today}/${c.reply_cap_per_day}` : ''}`;
+  if (d.paused_all) return { text: `Đang dừng (bạn dừng mọi kênh). ${used}`, tone: 'warn' };
+  if (!c.paused) return { text: `Đang đăng. ${used}${c.waiting ? ` · ${c.waiting} bài chờ` : ''}`, tone: 'ok' };
+  switch (c.paused_reason) {
+    case 'signed_out': return { text: `Chưa đăng nhập ${c.label}${c.waiting ? `, ${c.waiting} bài đang chờ` : ''}. Đăng nhập xong Soot mới đăng.`, tone: 'warn', button: { do: 'sign_in', label: `Đăng nhập ${c.label}` } };
+    case 'signed_in': return { text: `Đã đăng nhập ${c.label}, kênh còn dừng. Bật để Soot đăng.`, tone: 'warn', button: { do: 'resume_channel', label: `Bật ${c.label}` } };
+    case 'person': return { text: `Bạn đã dừng ${c.label}. Bật lại khi muốn đăng.`, tone: 'plain', button: { do: 'resume_channel', label: `Bật ${c.label}` } };
+    case 'captcha': return { text: `${c.label} đòi xác minh captcha. Mở trình duyệt, xác minh xong rồi bật lại.`, tone: 'warn', button: { do: 'sign_in', label: 'Mở trình duyệt' } };
+    case 'layout_changed': return { text: `Giao diện ${c.label} đã đổi nên Soot không bấm đăng được. Soot đã báo ở Cần bạn.`, tone: 'warn' };
+  }
+  return { text: `${c.label} đang dừng.`, tone: 'plain' };
+}
+
+/** A tiny safe markdown reader: blocks of {t:'h'|'p'|'li', parts:[{text, href?, b?}]}. No HTML. @param {string} md */
+function mdBlocks(md) {
+  const inline = (/** @type {string} */ s) => {
+    /** @type {{ text: string, href?: string, b?: boolean }[]} */ const out = [];
+    const re = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*/g;
+    let i = 0, m;
+    while ((m = re.exec(s))) {
+      if (m.index > i) out.push({ text: s.slice(i, m.index) });
+      out.push(m[1] ? { text: m[1], href: m[2] } : { text: m[3], b: true });
+      i = m.index + m[0].length;
+    }
+    if (i < s.length) out.push({ text: s.slice(i) });
+    return out;
+  };
+  /** @type {{ t: string, level?: number, parts: any[] }[]} */ const blocks = [];
+  let para = [];
+  const flush = () => { if (para.length) blocks.push({ t: 'p', parts: inline(para.join(' ')) }); para = []; };
+  for (const line of String(md ?? '').split('\n')) {
+    const h = /^(#{1,4})\s+(.*)$/.exec(line), li = /^\s*[-*]\s+(.*)$/.exec(line);
+    if (h) { flush(); blocks.push({ t: 'h', level: h[1].length, parts: inline(h[2]) }); }
+    else if (li) { flush(); blocks.push({ t: 'li', parts: inline(li[1]) }); }
+    else if (!line.trim()) flush();
+    else para.push(line.trim());
+  }
+  flush();
+  return blocks;
+}
+
+/** The set_limits body for a channel row (only what changed), or a Vietnamese problem. @param {any} c @param {{cap: string, gap: string, rep: string}} f */
+function limitsBody(c, f) {
+  const cap = digits(f.cap), rep = digits(f.rep), gapH = Number(String(f.gap).replace(',', '.'));
+  if (cap == null || cap > 50) return `${c.label}: số bài mỗi ngày là số từ 0 đến 50.`;
+  if (!Number.isFinite(gapH) || gapH < 0 || gapH * 60 > 10080) return `${c.label}: khoảng cách giữa hai bài là số giờ từ 0 đến 168.`;
+  if (rep == null || rep > 50) return `${c.label}: số trả lời mỗi ngày là số từ 0 đến 50.`;
+  const gap = Math.round(gapH * 60);
+  /** @type {Record<string, number>} */ const out = {};
+  if (cap !== c.cap_per_day) out.cap_per_day = cap;
+  if (gap !== c.spacing_min) out.spacing_min = gap;
+  if (rep !== (c.reply_cap_per_day ?? 0)) out.reply_cap_per_day = rep;
+  return out;
+}
+/** The confirmation line: what changes, from what, to what. @param {any} c @param {Record<string, number>} body */
+function limitsAsk(c, body) {
+  const parts = [];
+  if (body.cap_per_day !== undefined) parts.push(`bài mỗi ngày ${c.cap_per_day} → ${body.cap_per_day}`);
+  if (body.spacing_min !== undefined) parts.push(`khoảng cách ${spacing(c.spacing_min)} → ${spacing(body.spacing_min)}`);
+  if (body.reply_cap_per_day !== undefined) parts.push(`trả lời mỗi ngày ${c.reply_cap_per_day ?? 0} → ${body.reply_cap_per_day}`);
+  return `${c.label}: ${parts.join(', ')}. Bài đã xếp lịch giữ nguyên giờ; số mới áp dụng cho các bài xếp từ giờ trở đi.`;
+}
+
+/** nest://new for the writer: write posts for this campaign, using its links. @param {string} writer @param {any} c @param {{label: string, url: string}[]} links */
+const campaignWriteLink = (writer, c, links) => `nest://new?soot=${encodeURIComponent(writer)}&text=${encodeURIComponent(`Viết bài cho chiến dịch "${c.name}" (mã ${c.id}). Dùng liên kết của từng kênh: ${links.map(l => `${l.label} ${l.url}`).join('; ')}.`)}`;
+
+/** One line for a campaign row: what Soot does next, or what to look at. @param {{phase?: string, starts?: string}} c */
+function campaignNextLine(c) {
+  if (c.phase === 'planned') return `Soot bắt đầu theo dõi từ ${day(c.starts)}. Không cần làm gì.`;
+  if (c.phase === 'running') return 'Soot đọc lại số mỗi sáng 07:00. Không cần làm gì.';
+  if (c.phase === 'ended') return 'Chiến dịch đã kết thúc. Mở để xem kết quả.';
+  return 'Mở để xem liên kết và kết quả.';
+}
+return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output, doneNotice, GOAL_FORM, GOAL_SHORT, slugOf, digits, dayRange, goalPct, goalLine, newCampaign, campaignProblem, campaignBody, readFailLine, tokenLine, signInLink, LOGIN_PAGE, reviseLink, SETUP_LINK, nextLine, queueHeadline, channelLine, mdBlocks, limitsBody, limitsAsk, campaignWriteLink, campaignNextLine };
 })();
 
 // ---- src/app.js ----
@@ -281,9 +447,10 @@ const S = {
   t: M.strings('vi'), started: false, busy: false, filter: 'all', id: '',
   /** @type {any} */ data: null, loadError: '',
   /** @type {{ request_id: string, op: string, rest: object } | null} */ pending: null,
-  /** @type {{ kind: 'info' | 'success', text: string } | null} */ notice: null,
-  /** @type {{ title: string, yes: string, run: () => void } | null} */ confirm: null,
-  caps: false, editing: '',
+  /** @type {{ kind: 'info' | 'success', text: string, fix?: { label: string, link: string } } | null} */ notice: null,
+  /** @type {{ label: string, link: string } | null} */ sheetFix: null,
+  /** @type {{ title: string, yes: string, run: () => void, help?: string, keep?: string, keepRun?: () => void } | null} */ confirm: null,
+  caps: false, editing: '', /** @type {Record<string, any>} */ limits: {},
   campaign: '', /** @type {any} */ sheet: null, sheetError: '',
 };
 
@@ -320,13 +487,14 @@ async function run(/** @type {() => Promise<void>} */ work) {
 }
 /** A write keeps its request id until an answer comes, so a retry never acts twice. */
 async function act(/** @type {string} */ op, rest = {}) {
-  S.pending = S.pending?.op === op ? S.pending : { request_id: randomID('mk', 12), op, rest };
+  // A retry keeps its request id only while it is the same action on the same thing.
+  S.pending = S.pending?.op === op && JSON.stringify(S.pending.rest) === JSON.stringify(rest) ? S.pending : { request_id: randomID('mk', 12), op, rest };
   const p = S.pending;
   await run(async () => {
     const r = await bridge.call('action', M.actionBody(p.request_id, p.op, p.rest), p.request_id);
     if (!r.ok && r.error.code === 'no_response') { S.notice = { kind: 'info', text: S.t.unknown }; return; }
     S.pending = null;
-    try { S.notice = M.doneNotice(S.t, op, M.output(r)); } catch (e) { S.notice = { kind: 'info', text: M.errorText(S.t, e) }; }
+    try { S.notice = M.doneNotice(S.t, op, M.output(r)); } catch (e) { S.notice = { kind: 'info', text: M.errorText(S.t, e), ...(e?.link ? { fix: { label: 'Mở Thiết lập', link: e.link } } : {}) }; }
     await load();
   });
 }
@@ -337,6 +505,29 @@ function askWriter(/** @type {any} */ d) {
   return button(S.t.askWrite, () => bridge.open(M.writeLink(d.writer, d.product)), 'btn sm out');
 }
 
+/** The one button of a next step (do: schedule, post_now, sign_in, …). @param {any} b @param {any} d @param {any} p */
+function doNext(b, d, p) {
+  switch (b.do) {
+    case 'schedule': case 'restore': return void act('restore', { id: p.id });
+    case 'post_now': case 'retry': return void act('post_now', { id: p.id });
+    case 'sign_in': return signIn(d, b.channel ?? p?.next?.channel_id, p?.next?.channel);
+    case 'resume_channel': return void act('resume', { channel: b.channel ?? p.next.channel_id });
+    case 'resume_all': return void act('resume');
+    case 'ask_writer': { const link = p?.id ? M.reviseLink(d.writer, p) : null; return bridge.open(link ?? M.writeLink(d.writer, d.product)); }
+    case 'open': return bridge.open(p.url);
+    case 'confirm': S.id = p.id; return void run(load);
+  }
+}
+/** Sign in on a platform: Nest opens the Soot's browser (nest://browser/<soot>); the person signs in there, then turns the channel on. */
+function signIn(/** @type {any} */ d, /** @type {string} */ id, /** @type {string} */ _label) { bridge.open(M.signInLink(d.editor, id)); }
+/** The next-step line of a post or item, and its one button. */
+function nextBlock(/** @type {any} */ d, /** @type {any} */ p, /** @type {any} */ n = p.next, skip = '') {
+  const line = M.nextLine(n, p);
+  if (!line?.text) return { line: null, button: null };
+  const b = line.button && line.button.do !== skip ? line.button : null;
+  return { line, button: b ? button(b.label, () => doNext(b, d, p), 'btn sm primary') : null };
+}
+
 function postList(d) {
   const t = S.t;
   const tabs = h('div', { class: 'seg', role: 'tablist' }, ...Object.entries(t.tabs).map(([k, label]) =>
@@ -344,20 +535,21 @@ function postList(d) {
   const top = h('div', { class: 'line wrap' }, tabs, askWriter(d));
   if (!d.items.length) return [top, h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, t.noPosts), h('span', {}, t.noPostsHelp))];
   return [top, h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ p) => {
-    const bad = p.reason && ['refused', 'failed'].includes(p.state);
     const state = p.unpublishing ? 'unpublishing' : p.state;
+    const { line, button: primary } = nextBlock(d, p);
     return h('li', { class: 'row' },
       h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => { S.id = p.id; void run(load); } }, p.kind === 'video' ? `Video "${p.title}"` : p.title),
+        h('small', { class: 'muted' }, `${p.channel}${p.kind === 'social' ? ' · bài mạng xã hội' : p.kind === 'reply' ? ' · trả lời' : ''}`),
         // A held video draft (#p4-video-failed): the reason, and it stays a draft.
         p.hold ? h('small', { class: p.hold === 'render_failed' ? 'errline' : 'muted' }, p.reason ?? t.stillDraft) :
-        h('small', { class: bad ? 'errline' : 'muted' }, bad ? `${t.refused}: ${p.reason.split(' · ')[0]}` : M.postLine(p, t))),
-      p.hold ? h('span', { class: `badge ${M.holdTone(p.hold)}` }, p.hold_label) : badge(p.unpublishing ? t.unpublishingLabel : p.label, state),
+        line && h('small', { class: line.tone === 'err' ? 'errline' : line.tone === 'warn' ? 'warnline soft' : 'muted' }, line.text),
+        p.state === 'published' && !p.unpublishing && h('small', { class: 'muted' }, M.metricLine(p.metrics_28, t)),
+        p.state === 'refused' && p.reason && h('small', { class: 'errline' }, `${t.refused}: ${p.reason.split(' · ')[0]}`)),
+      p.hold ? h('span', { class: `badge ${M.holdTone(p.hold)}` }, p.hold_label) : badge(p.late ? 'Bài lỡ giờ' : p.unpublishing ? t.unpublishingLabel : p.label, p.late ? 'uncertain' : state),
+      primary,
       p.state === 'refused' && button(t.why, () => { S.id = p.id; void run(load); }),
-      p.url && !p.unpublishing && p.state === 'published' && button(`↗ ${t.open}`, () => bridge.open(p.url)),
       p.state === 'published' && !p.unpublishing && button(t.unpublish, () => askUnpublish(p), 'btn sm danger'),
-      p.state === 'ready' && button(t.schedule, () => void act('restore', { id: p.id }), 'btn sm'),
-      ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })),
-      ['pulled', 'removed'].includes(p.state) && button(p.state === 'removed' ? t.republish : t.restore, () => void act('restore', { id: p.id })));
+      ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })));
   }))];
 }
 
@@ -388,17 +580,36 @@ function refusedCard(d) {
     h('p', { class: 'muted' }, t.refusedNext));
 }
 
+/** The post's words, read as markdown (headings, lists, bold, links); never HTML. */
+function bodyView(/** @type {string} */ text) {
+  const inline = (/** @type {any[]} */ parts) => parts.map(x => x.href ? h('button', { class: 'link inline', type: 'button', title: x.href, onclick: () => bridge.open(x.href) }, x.text) : x.b ? h('b', {}, x.text) : x.text);
+  const out = [];
+  let list = null;
+  for (const b of M.mdBlocks(text.length > 6000 ? `${text.slice(0, 6000)}…` : text)) {
+    if (b.t === 'li') { if (!list) { list = h('ul', { class: 'md' }); out.push(list); } list.append(h('li', {}, ...inline(b.parts))); continue; }
+    list = null;
+    out.push(b.t === 'h' ? h('h4', {}, ...inline(b.parts)) : h('p', {}, ...inline(b.parts)));
+  }
+  return h('div', { class: 'postbody' }, ...out);
+}
+
 function postDetail(d) {
   const t = S.t, p = d.post;
   const back = h('button', { class: 'btn sm ghost back', type: 'button', onclick: () => { S.id = ''; void run(load); } }, `← ${t.back}`);
-  if (p.state === 'refused') return [back, refusedCard(d)];
-  const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.label, p.state), h('h2', {}, p.title)),
-    h('div', { class: 'line' }, p.url && button(`↗ ${t.open}`, () => bridge.open(p.url)),
-      p.state === 'ready' && button(t.schedule, () => void act('restore', { id: p.id }), 'btn sm'),
+  const { line, button: primary } = nextBlock(d, p, p.next, 'confirm');
+  const nextCard = line && h('div', { class: `notice ${line.tone === 'err' ? 'err' : line.tone === 'warn' ? 'plain warn' : line.tone === 'ok' ? 'success' : 'plain'}`, role: 'status' },
+    h('b', {}, p.state === 'published' ? 'Đã đăng' : 'Bước tiếp theo'), h('span', {}, line.text), primary);
+  if (p.state === 'refused') return [back, nextCard, refusedCard(d)].filter(Boolean);
+  const live = p.state === 'published' && p.url;
+  const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.late ? 'Bài lỡ giờ' : p.label, p.late ? 'uncertain' : p.state), h('h2', {}, p.title)),
+    h('div', { class: 'line' },
+      ['ready', 'scheduled', 'failed'].includes(p.state) && p.next?.code !== 'late' && p.next?.code !== 'in_flight' && button(t.postNow, () => void act('post_now', { id: p.id })),
+      d.writer && ['article', 'social'].includes(p.kind) && !['published', 'unpublishing'].includes(p.state) && button('Nhờ Writer sửa', () => bridge.open(/** @type {string} */ (M.reviseLink(d.writer, p)))),
       ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
   const left = h('div', { class: 'card pad stack' });
   if (p.reason && ['failed', 'uncertain'].includes(p.state)) left.append(h('p', { class: 'errline', role: 'alert' }, p.reason));
-  if (p.body) left.append(h('h3', {}, t.bodyHead), h('div', { class: 'postbody' }, p.body.length > 6000 ? `${p.body.slice(0, 6000)}…` : p.body));
+  if (p.state === 'uncertain') left.append(h('div', { class: 'line' }, ...uncertainActions(t, { id: p.id })));
+  if (p.body) left.append(h('h3', {}, t.bodyHead), bodyView(p.body));
   if (d.brief.length) left.append(h('table', { class: 'table' }, h('tbody', {}, ...d.brief.map((/** @type {any} */ f) =>
     h('tr', {}, h('td', {}, f.label), h('td', {}, f.value), h('td', {}, f.ok ? badge(f.rule ?? 'hợp lệ', 'published') : badge(f.message, 'refused')))))));
   left.append(h('h3', {}, t.editorCheck));
@@ -415,7 +626,10 @@ function postDetail(d) {
       h('div', { class: 'stack' }, ...hooks.map(r => h('span', {}, `${r.score} · ${r.text}${r.chosen ? ` (${t.chosen})` : ''}`)),
         v.open_link ? button(t.watch, () => bridge.open(v.open_link), 'btn sm') : null)));
   }
-  return [back, head, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)];
+  // A published post shows its link first: where it lives is the answer the person came for.
+  const link = live && h('div', { class: 'card pad stack' }, h('h3', {}, 'Liên kết bài đã đăng'),
+    h('button', { class: 'link inline', type: 'button', title: p.url, onclick: () => bridge.open(p.url) }, p.url), h('small', { class: 'muted' }, `${p.channel} · đăng ${M.when(p.updated_at)}`));
+  return [back, head, nextCard, link, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)].filter(Boolean);
 }
 
 /** One on/off switch: on means publishing ("Bật là đang đăng"). */
@@ -423,34 +637,76 @@ const toggle = (/** @type {string} */ label, /** @type {boolean} */ on, /** @typ
   h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), disabled: S.busy, onclick: fn }, h('i', { 'aria-hidden': 'true' }), label);
 
 function queue(d) {
-  const t = S.t, blog = d.channels.find((/** @type {any} */ c) => c.id === 'blog-lohi') ?? d.channels[0];
+  const t = S.t;
   const out = [];
-  if (d.paused_all) out.push(h('div', { class: 'notice plain', role: 'status' }, h('b', {}, `⏸ ${t.pausedAll}`), h('span', {}, `${d.paused_at ? `Bạn dừng lúc ${M.hm(d.paused_at)}. ` : ''}${t.pausedHelp}`)));
+  const head = M.queueHeadline(d);
+  out.push(h('div', { class: `notice ${head.tone === 'err' ? 'err' : head.tone === 'warn' ? 'plain warn' : 'plain'}`, role: 'status' }, h('b', {}, head.tone === 'plain' ? 'Soot đang chạy' : 'Cần bạn'), h('span', {}, head.text),
+    head.button && button(head.button.label, () => (head.button.do === 'ask_writer' ? bridge.open(M.writeLink(d.writer, d.product)) : doNext(head.button, d, {})), 'btn sm primary')));
   out.push(h('div', { class: 'card pad bar' },
-    h('div', { class: 'line gap' }, toggle(t.pauseAll, !d.paused_all, () => void act(d.paused_all ? 'resume' : 'pause')),
-      ...d.channels.map((/** @type {any} */ c) => toggle(c.label, !c.paused, () => void act(c.paused ? 'resume' : 'pause', { channel: c.id })))),
-    h('span', { class: 'muted' }, t.switchHint)));
-  const social = d.channels.filter((/** @type {any} */ c) => c.id !== 'blog-lohi' && c.posts_today !== undefined);
-  if (blog && !social.length && !d.paused_all && !d.empty) out.push(h('p', { class: 'muted line' }, `${blog.label}: ${t.perDay(blog.cap_per_day, Math.round(blog.spacing_min / 60))} · ${t.quiet(d.quiet_hours.from, d.quiet_hours.to)} ·`,
-    h('button', { class: 'link small', type: 'button', 'aria-expanded': String(S.caps), onclick: () => { S.caps = !S.caps; render(); } }, t.caps)));
-  // Today's use of each cap: "X 2/4 · Facebook 0/2 (đang dừng: chưa đăng nhập) · trả lời X 3/10".
-  if (social.length && !d.paused_all) out.push(h('p', { class: 'muted line' }, `${t.today}: ${[
-    ...social.map((/** @type {any} */ c) => `${c.label} ${c.posts_today}/${c.cap_per_day}${c.paused_label ? ` (${t.pausedAs(c.paused_label)})` : ''}`),
-    ...social.filter((/** @type {any} */ c) => c.reply_cap_per_day && c.replies_today).map((/** @type {any} */ c) => `${t.replies} ${c.label} ${c.replies_today}/${c.reply_cap_per_day}`),
-  ].join(' · ')} ·`, h('button', { class: 'link small', type: 'button', 'aria-expanded': String(S.caps), onclick: () => { S.caps = !S.caps; render(); } }, t.caps)));
-  if (S.caps) out.push(h('table', { class: 'table card' }, h('thead', {}, h('tr', {}, ...t.capsHead.map((/** @type {string} */ x) => h('th', {}, x)))),
-    h('tbody', {}, ...d.channels.map((/** @type {any} */ c) => h('tr', {}, h('td', {}, c.label), h('td', {}, String(c.cap_per_day)), h('td', {}, M.spacing(c.spacing_min)), h('td', {}, c.reply_cap_per_day ? String(c.reply_cap_per_day) : '—'))))));
+    h('div', { class: 'line gap' }, toggle(t.pauseAll, !d.paused_all, () => void act(d.paused_all ? 'resume' : 'pause')), h('span', { class: 'muted' }, t.switchHint))));
+  out.push(h('h3', {}, 'Kênh đăng'), h('ul', { class: 'list card' }, ...d.channels.map((/** @type {any} */ c) => channelRow(d, c))));
+  if (S.caps) out.push(...limitsCard(d));
+  else out.push(h('p', { class: 'muted line' }, `${t.quiet(d.quiet_hours.from, d.quiet_hours.to)} · `, h('button', { class: 'link small', type: 'button', 'aria-expanded': 'false', onclick: () => { S.caps = true; render(); } }, `${t.caps}: đổi số bài mỗi ngày, khoảng cách`)));
+  out.push(h('h3', {}, 'Sắp đăng'));
   if (d.empty) out.push(h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, t.emptyQueue), h('span', {}, t.emptyHelp), askWriter(d)));
   else out.push(h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ q) => queueRow(d, q))));
   if (d.items.some((/** @type {any} */ q) => q.kind === 'video')) out.push(h('p', { class: 'muted' }, t.videoNote));
   if (d.recent.length) out.push(h('h3', {}, t.recent), h('ul', { class: 'list' }, ...d.recent.map((/** @type {any} */ r) =>
-    h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.url ? M.shortUrl(r.url) : r.title}`),
+    h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.title}`),
+      r.url && h('button', { class: 'link inline small', type: 'button', title: r.url, onclick: () => bridge.open(r.url) }, M.shortUrl(r.url)),
       h('small', { class: r.status === 'published' || r.status === 'removed' ? 'muted' : 'errline' }, r.status === 'published' ? (r.action === 'unpublish' ? t.removedDone : t.recorded) : r.status === 'removed' ? t.removedDone : r.reason ?? '')),
       badge(r.status === 'published' ? 'Đã đăng' : r.status === 'removed' ? 'Đã gỡ' : r.status === 'needs_person' ? 'Cần bạn' : 'Lỗi',
         r.status === 'published' ? 'published' : r.status === 'removed' ? '' : r.status === 'needs_person' ? 'uncertain' : 'failed'),
       r.status === 'published' && r.url && button(`↗ ${t.open}`, () => bridge.open(r.url)),
       r.live && r.action === 'publish' && button(t.unpublish, () => askUnpublish(r), 'btn sm danger')))));
   return out;
+}
+
+/** Cài đặt › Kênh đăng bài: every channel's connection state and its one fix; the queue lives on Hàng đợi. @param {any} d */
+function channelsPage(d) {
+  const need = d.channels.filter((/** @type {any} */ c) => c.paused && c.paused_reason !== 'person').length;
+  const head = need ? `Cần bạn: ${need} kênh chưa sẵn sàng đăng. Bấm nút ở kênh đó.` : 'Không cần làm gì — mọi kênh bật đang tự đăng. Bài chờ đăng ở trang Hàng đợi.';
+  return [h('p', { class: need ? 'warnline' : 'muted', role: 'status' }, head),
+    h('ul', { class: 'list card' }, ...d.channels.map((/** @type {any} */ c) => channelRow(d, c)))];
+}
+
+/** One channel: its switch, what it is doing now in words, and the one button that fixes it. */
+function channelRow(/** @type {any} */ d, /** @type {any} */ c) {
+  const line = M.channelLine(c, d);
+  const on = !c.paused;
+  const flip = () => {
+    if (on) return void act('pause', { channel: c.id });
+    // Turning on a channel nobody signed in to: it would try, fail and stop again. Say so first.
+    if (c.paused_reason === 'signed_out') {
+      S.confirm = { title: `${c.label} chưa đăng nhập`, help: `Nếu bật bây giờ, Soot thử đăng rồi dừng lại vì chưa đăng nhập ${c.label}. Đăng nhập trước, rồi quay lại bật.`, yes: `Tôi đã đăng nhập, bật ${c.label}`, keep: `Đăng nhập ${c.label}`, keepRun: () => bridge.open(M.signInLink(d.editor, c.id)), run: () => void act('resume', { channel: c.id }) };
+      return render();
+    }
+    void act('resume', { channel: c.id });
+  };
+  return h('li', { class: 'row' },
+    toggle(c.label, on, flip),
+    h('div', { class: 'who' }, h('small', { class: line.tone === 'warn' ? 'warnline soft' : 'muted' }, line.text)),
+    line.button && button(line.button.label, () => (line.button.do === 'sign_in' ? bridge.open(M.signInLink(d.editor, c.id)) : void act('resume', { channel: c.id })), 'btn sm primary'));
+}
+
+/** Giới hạn kênh, edited in place: posts a day, hours apart, replies a day; saved after a confirmation. */
+function limitsCard(/** @type {any} */ d) {
+  const t = S.t;
+  const draft = S.limits;
+  const rows = d.channels.map((/** @type {any} */ c) => {
+    const f = draft[c.id] ?? (draft[c.id] = { cap: String(c.cap_per_day), gap: String(Math.round((c.spacing_min / 60) * 10) / 10), rep: String(c.reply_cap_per_day ?? 0) });
+    const field = (/** @type {'cap' | 'gap' | 'rep'} */ k, /** @type {string} */ label) => h('input', { class: 'input sm num', type: 'text', inputmode: 'decimal', 'aria-label': `${label} ${c.label}`, value: f[k], disabled: S.busy, oninput: (/** @type {Event} */ e) => { f[k] = /** @type {HTMLInputElement} */ (e.target).value; } });
+    const save = () => {
+      const body = M.limitsBody(c, f);
+      if (typeof body === 'string') { S.notice = { kind: 'info', text: body }; return render(); }
+      if (!Object.keys(body).length) { S.notice = { kind: 'info', text: `${c.label}: chưa đổi gì.` }; return render(); }
+      S.confirm = { title: `Đổi giới hạn ${c.label}?`, help: M.limitsAsk(c, body), yes: 'Lưu giới hạn', run: () => { delete S.limits[c.id]; void act('set_limits', { channel: c.id, ...body }); } };
+      render();
+    };
+    return h('tr', {}, h('td', {}, c.label), h('td', {}, field('cap', t.capsHead[1])), h('td', {}, field('gap', 'Giờ giữa hai bài')), h('td', {}, c.reply_cap_per_day || c.id !== 'blog-lohi' ? field('rep', t.capsHead[3]) : '—'), h('td', {}, button(t.save, save)));
+  });
+  return [h('div', { class: 'card scroll' }, h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Kênh'), h('th', {}, 'Bài mỗi ngày'), h('th', {}, 'Cách nhau (giờ)'), h('th', {}, 'Trả lời mỗi ngày'), h('th', {}, ''))), h('tbody', {}, ...rows))),
+    h('p', { class: 'muted line' }, 'Mỗi kênh có mức tối đa 50 bài mỗi ngày. Số mới áp dụng cho các bài xếp lịch từ giờ trở đi. ', h('button', { class: 'link small', type: 'button', onclick: () => { S.caps = false; S.limits = {}; render(); } }, 'Xong'))];
 }
 
 /** A queue item's state label and the person's buttons, shared by every row kind (posts, replies, videos). */
@@ -527,23 +783,31 @@ function askUnpublish(/** @type {any} */ p) {
 }
 const closeConfirm = () => { S.confirm = null; render(); };
 
+let shown = '';
 function render() {
   const t = S.t, root = /** @type {HTMLElement} */ (document.getElementById('app'));
   const d = S.data;
+  // Opening a post or a campaign (or going back) starts at its top, not where the list was scrolled.
+  const here = `${d?.page ?? ''}/${d?.post?.id ?? ''}/${d?.campaign?.id ?? d?.campaign ?? ''}`;
+  if (here !== shown) { shown = here; window.scrollTo(0, 0); }
   const out = [];
   if (S.loadError) out.push(h('div', { class: 'notice err', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load), 'btn sm')));
   else if (!d) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
   else if (d.page === 'hang-doi') out.push(...queue(d));
+  else if (d.page === 'kenh') out.push(...channelsPage(d));
   else if (d.page === 'chien-dich') out.push(...(d.campaign ? campaignDetail(d) : campaignList(d)));
   else out.push(...(d.post ? postDetail(d) : postList(d)));
-  if (S.notice) out.push(h('p', { class: `notice ${S.notice.kind}`, role: 'status' }, S.notice.text));
+  if (S.notice) { const n = S.notice; out.push(h('div', { class: `notice ${n.kind}`, role: 'status' }, h('span', {}, n.text), n.fix && button(n.fix.label, () => bridge.open(/** @type {{link: string}} */ (n.fix).link), 'btn sm primary'))); }
   if (S.sheet && d?.page === 'chien-dich') out.push(...campaignSheet(d));
   const c = S.confirm;
   if (c) out.push(h('div', { class: 'scrim', onclick: closeConfirm }),
     h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': c.title, onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeConfirm(); } },
-      h('b', { class: 'dialog-title' }, c.title), h('span', { class: 'muted' }, t.unpublishHelp(c.title)),
-      h('div', { class: 'line end' }, button(t.keep, closeConfirm, 'btn out', { 'data-keep': '' }), button(c.yes, () => { S.confirm = null; c.run(); }, 'btn danger'))));
+      h('b', { class: 'dialog-title' }, c.title), h('span', { class: 'muted' }, c.help ?? t.unpublishHelp(c.title)),
+      h('div', { class: 'line end' }, button(c.keep ?? t.keep, c.keepRun ? () => { S.confirm = null; /** @type {() => void} */ (c.keepRun)(); render(); } : closeConfirm, c.keepRun ? 'btn primary' : 'btn out', { 'data-keep': '' }), button(c.yes, () => { S.confirm = null; c.run(); }, c.keepRun || c.help ? 'btn out' : 'btn danger'))));
+  const hadDialog = !!root.querySelector('.dialog');
   root.replaceChildren(...out);
+  // A new dialog takes focus, so Tab and Enter act on it and never on the page behind.
+  if (c && !hadDialog) /** @type {HTMLElement | null} */ (root.querySelector('[data-keep]'))?.focus();
 }
 
 // ---------- Chiến dịch (#p5-campaigns, #p5-campaign-new, #p5-campaign-detail, #p5-campaign-api-error) ----------
@@ -551,7 +815,7 @@ function render() {
 /** A bar fill, sized through CSSOM (the frame's CSP refuses style attributes). @param {number} pct */
 const fill = pct => { const i = h('i'); i.style.width = `${pct}%`; return i; };
 const openCampaign = (/** @type {string} */ id) => { S.campaign = id; S.notice = null; void run(load); };
-const openSheet = (/** @type {any} */ d) => { S.sheet = M.newCampaign(d.choices); S.sheetError = ''; S.pending = null; render(); /** @type {HTMLElement | null} */ (document.getElementById('mk-name'))?.focus(); };
+const openSheet = (/** @type {any} */ d) => { S.sheet = M.newCampaign(d.choices); S.sheetError = ''; S.sheetFix = null; S.pending = null; render(); /** @type {HTMLElement | null} */ (document.getElementById('mk-name'))?.focus(); };
 const closeSheet = () => { S.sheet = null; S.sheetError = ''; render(); };
 
 function campaignList(/** @type {any} */ d) {
@@ -562,7 +826,7 @@ function campaignList(/** @type {any} */ d) {
     const pct = M.goalPct(c.goal);
     const line = [M.dayRange(c.starts, c.ends), c.channels.join(', '), c.published ? `${c.published} bài đã đăng` : null].filter(Boolean).join(' · ');
     return h('li', { class: 'row' },
-      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => openCampaign(c.id) }, c.name), h('small', { class: 'muted' }, line),
+      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => openCampaign(c.id) }, c.name), h('small', { class: 'muted' }, line), h('small', { class: 'muted' }, M.campaignNextLine(c)),
         c.phase === 'running' && h('div', { class: 'bar2', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': pct == null ? null : String(pct), 'aria-label': M.goalLine(c.goal) }, fill(pct ?? 0)),
         c.phase === 'running' && h('small', { class: 'muted' }, M.goalLine(c.goal))),
       h('span', { class: `badge ${c.phase === 'running' ? 'ok' : ''}` }, c.phase_label));
@@ -582,6 +846,11 @@ function campaignDetail(/** @type {any} */ d) {
   if (failed) out.push(h('div', { class: 'notice plain', role: 'alert' }, h('b', {}, `Chưa đọc được số đăng ký từ ${product}`), h('span', {}, M.readFailLine(d.read)),
     h('span', {}, button('↻ Thử lại', () => void act('campaign_refresh', { campaign_id: c.id }), 'btn sm out'))));
   out.push(head);
+  // The next step: links first (nothing can be tracked without them), then the first read of the numbers.
+  const noLinks = d.links_missing.length > 0, unread = !d.read;
+  out.push(h('div', { class: `notice ${noLinks ? 'plain warn' : 'plain'}`, role: 'status' }, h('b', {}, noLinks ? 'Cần làm' : 'Soot đang theo dõi'),
+    h('span', {}, noLinks ? 'Chưa đủ liên kết cho mọi kênh, nên lượt bấm và đăng ký của kênh thiếu chưa đếm được. Tạo lại liên kết.' : unread ? 'Soot đọc số lượt bấm và đăng ký mỗi sáng 07:00. Bấm Đọc số ngay nếu muốn xem liền.' : 'Soot đọc lại số mỗi sáng 07:00 và báo bạn khi dùng 80% token. Không cần làm gì.'),
+    button(noLinks ? 'Tạo lại liên kết' : '↻ Đọc số ngay', () => void (noLinks ? act('campaign_save', { campaign: { id: c.id, name: c.name, goal: { metric: c.goal.metric, target: c.goal.target }, channels: c.channel_ids, starts: M.localInput(c.starts).slice(0, 10), ends: M.localInput(c.ends).slice(0, 10), token_budget: c.token_budget } }) : act('campaign_refresh', { campaign_id: c.id })), (noLinks || unread) ? 'btn sm primary' : 'btn sm out')));
   const goal = c.goal, of = (/** @type {string} */ m) => (goal.metric === m ? ` / ${M.num(goal.target)}` : '');
   out.push(failed
     ? h('div', { class: 'kpis four' }, kpi('Đã đăng', n(t.published), null), kpi('Tiếp cận', n(t.reach), null), kpi('Lượt bấm', '—', 'chưa rõ'), kpi('Đăng ký', '—', 'chưa rõ'))
@@ -594,7 +863,11 @@ function campaignDetail(/** @type {any} */ d) {
   if (d.links_missing.length) out.push(h('div', { class: 'notice plain', role: 'status' }, h('b', {}, `Chưa có liên kết cho ${d.links_missing.join(', ')}`),
     h('span', {}, 'Bài trên kênh này chưa đếm được lượt bấm. Tạo lại khi api trả lời.'),
     h('span', {}, button('Tạo lại liên kết', () => void act('campaign_save', { campaign: { id: c.id, name: c.name, goal: { metric: goal.metric, target: goal.target }, channels: c.channel_ids, starts: M.localInput(c.starts).slice(0, 10), ends: M.localInput(c.ends).slice(0, 10), token_budget: c.token_budget } }), 'btn sm out'))));
-  out.push(h('p', { class: 'muted' }, `${M.tokenLine(c.tokens_used, c.token_budget)} Đăng ký tính theo nguồn đầu tiên (utm) khi tạo tài khoản.`));
+  // The links to use: one per channel, tagged so every click and signup is counted.
+  if (d.links.length) out.push(h('div', { class: 'card pad stack' }, h('h3', {}, 'Liên kết của chiến dịch'), h('small', { class: 'muted' }, 'Dán đúng liên kết của kênh vào bài; Writer tự gắn khi viết bài cho chiến dịch.'),
+    ...d.links.map((/** @type {any} */ l) => h('div', { class: 'line' }, h('b', {}, l.label), h('button', { class: 'link inline', type: 'button', title: l.url, onclick: () => bridge.open(l.url) }, l.url))),
+    d.writer && button('Nhờ Writer viết bài cho chiến dịch', () => bridge.open(M.campaignWriteLink(d.writer, c, d.links)), 'btn sm out')));
+  out.push(h('p', { class: 'muted' }, `${M.tokenLine(c.tokens_used, c.token_budget)} Đăng ký tính theo liên kết người đó bấm đầu tiên khi tạo tài khoản.`));
   return out;
 }
 
@@ -636,12 +909,12 @@ function campaignSheet(/** @type {any} */ d) {
     h('div', { class: 'two' }, field('Từ', 'mk-starts', [textInput('mk-starts', 'starts', { type: 'date' })]), field('Đến', 'mk-ends', [textInput('mk-ends', 'ends', { type: 'date' })])),
     field('Ngân sách token', 'mk-budget', [textInput('mk-budget', 'budget', { inputmode: 'numeric', placeholder: '2.000.000', onchange: groupDigits })],
       h('span', { class: 'muted' }, 'Đầu mối báo bạn khi dùng 80%. Chi tiền (quảng cáo, công cụ trả phí) vẫn do bạn quyết.')),
-    h('div', { class: 'field' }, h('span', { class: 'label' }, 'Liên kết'), h('span', { class: 'muted' }, `Mỗi kênh một liên kết ${d.api_host ? `${d.api_host}/r/…` : 'rút gọn'} gắn UTM, tạo khi lưu.`)));
+    h('div', { class: 'field' }, h('span', { class: 'label' }, 'Liên kết'), h('span', { class: 'muted' }, `Mỗi kênh một liên kết ${d.api_host ? `${d.api_host}/r/…` : 'rút gọn'} riêng cho từng kênh, tạo khi lưu để đếm được lượt bấm và đăng ký.`)));
   return [h('div', { class: 'scrim', onclick: closeSheet }),
     h('aside', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'mk-sheet-title', onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeSheet(); } },
       h('header', {}, h('h2', { id: 'mk-sheet-title' }, 'Tạo chiến dịch'), h('button', { class: 'btn sm ghost', type: 'button', 'aria-label': 'Đóng', onclick: closeSheet }, '✕')),
       body,
-      h('footer', {}, h('span', { id: 'mk-hint', class: S.sheetError ? 'errline grow' : 'muted grow', role: 'status' }, S.sheetError || problem || ''),
+      h('footer', {}, h('span', { id: 'mk-hint', class: S.sheetError ? 'errline grow' : 'muted grow', role: 'status' }, S.sheetError || problem || ''), S.sheetError && S.sheetFix && button(S.sheetFix.label, () => bridge.open(/** @type {{link: string}} */ (S.sheetFix).link), 'btn primary'),
         button('Hủy', closeSheet, 'btn ghost'), h('button', { id: 'mk-create', class: 'btn primary', type: 'button', disabled: S.busy || !!problem, onclick: () => void saveCampaign() }, 'Tạo chiến dịch')))];
 }
 
@@ -656,7 +929,7 @@ async function saveCampaign() {
     if (!r.ok && r.error.code === 'no_response') { S.sheetError = S.t.unknown; return; }
     S.pending = null;
     let out;
-    try { out = M.output(r); } catch (e) { S.sheetError = M.errorText(S.t, e); return; }
+    try { out = M.output(r); } catch (e) { S.sheetError = M.errorText(S.t, e); S.sheetFix = e?.link ? { label: 'Mở Thiết lập', link: e.link } : null; return; }
     S.sheet = null;
     S.campaign = out.id;
     S.notice = out.links_error ? { kind: 'info', text: `Đã tạo chiến dịch. Chưa tạo được liên kết: ${out.links_error.message}` } : { kind: 'success', text: 'Đã tạo chiến dịch và liên kết cho từng kênh.' };

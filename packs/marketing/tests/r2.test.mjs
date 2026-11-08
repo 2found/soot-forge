@@ -89,7 +89,9 @@ test('blog chain: due → claim → publish → record publishes with no model, 
   const w = world();
   const id = await passed(w, 'truyện tiên hiệp hay', 'tien-hiep-hay-nhat-2026');
   const s = await w.call('schedule', { id });
-  // Not yet due: the chain stops quietly.
+  // Not yet due: the chain stops quietly. (The slot's 0..9 minute jitter comes from the random ref, so
+  // "now" is placed before the slot rather than assumed to be: a zero jitter made the post due at once.)
+  w.now = Date.parse(s.scheduled_at) - 60_000;
   assert.deepEqual(await w.call('due', { schedule: true, channel: 'blog-lohi' }), { done: true });
   w.now = Date.parse(s.scheduled_at) + 60_000;
   const step1 = await w.call('due', { schedule: true, channel: 'blog-lohi' });

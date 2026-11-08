@@ -573,7 +573,10 @@ export async function items(input, { store }) {
   if (input.campaign) where.push(eq('campaign', input.campaign));
   const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 50);
   const rows = input.query ? await store.search('posts', input.query, where, limit) : await store.query('posts', where, { order: 'updated_at', limit });
-  return { items: rows.map(p => itemOf(p)) };
+  // The queue holds the time a scheduled item goes out: items carries it, as the page does.
+  const queued = rows.length ? await store.query('queue', [], { limit: 500 }) : [];
+  const at = Object.fromEntries(queued.map(q => [q.post, q]));
+  return { items: rows.map(p => itemOf(p, at[p.ref])) };
 }
 
 // ---------- facts ----------

@@ -10,9 +10,11 @@ import { campaignView, campaign_save, readReport, noKey } from './campaign.mjs';
 const DAY = 86_400_000;
 export const TABS = {
   all: null,
+  // Cần bạn: computed (failed, uncertain, late), see needsYou.
+  need: [],
   draft: ['draft', 'checking'],
   ready: ['ready'],
-  waiting: ['scheduled', 'publishing', 'failed', 'uncertain', 'unpublishing'],
+  waiting: ['scheduled', 'publishing', 'unpublishing'],
   published: ['published'],
   refused: ['refused'],
   removed: ['pulled', 'removed'],
@@ -20,8 +22,9 @@ export const TABS = {
 const CHANNEL_LABEL = { 'blog-lohi': 'Blog', x: 'X', facebook: 'Facebook', reddit: 'Reddit', hub: 'Hub' };
 export const PAUSED_LABEL = { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha', person: 'bạn dừng', signed_in: 'đã đăng nhập, chờ Bật' };
 const channelLabel = key => CHANNEL_LABEL[key] ?? CHANNEL_LABEL[platformOf(key)] ?? key;
-const title = p => p.brief?.title ?? p.title ?? String(p.body ?? '').slice(0, 80);
 const URL_RE = /https?:\/\/\S+/g;
+/** A post's name: its title; a social post or reply reads as its own words, never blank. */
+const title = p => p.brief?.title || p.title || String(p.body ?? '').replace(URL_RE, '').replace(/\s+/g, ' ').trim().slice(0, 80) || String(p.ref ?? '');
 /** A social post on a queue row: its words without the link, and whether it carries one. */
 const socialText = p => (p.kind === 'social' ? { text: String(p.body ?? '').replace(URL_RE, '').replace(/\s+/g, ' ').trim().slice(0, 100), has_link: /https?:\/\/\S/.test(String(p.body ?? '')) } : {});
 /** Blog first, then X, Facebook, Reddit: the order the founder reads the channels in. */
@@ -54,31 +57,80 @@ export async function metricsRows(store, now) {
   return [...days, ...queries];
 }
 
-export async function page_view(input, { store, now, page, env }) {
+export async function page_view(input, { store, now, page, env, soot }) {
   const id = input.page ?? page;
-  if (id === 'bai-viet') return input.id ? postDetail(input.id, { store, now }) : postList(input.filter, { store, now });
-  if (id === 'hang-doi') return queueView({ store, now });
-  if (id === 'chien-dich') return campaignView(input, { store, now, env });
-  fail('invalid_request', 'page is bai-viet, hang-doi or chien-dich.');
+  if (id === 'bai-viet') return input.id ? postDetail(input.id, { store, now, soot }) : postList(input.filter, { store, now, soot });
+  if (id === 'hang-doi') return queueView({ store, now, soot });
+  if (id === 'kenh') return { ...(await queueView({ store, now, soot })), page: 'kenh' };
+  if (id === 'chien-dich') return campaignView(input, { store, now, env, soot });
+  fail('invalid_request', 'page is bai-viet, hang-doi, kenh or chien-dich.');
 }
 
-async function postList(filter = 'all', { store, now }) {
+const HOUR = 3_600_000;
+/** An item whose time has long passed with nothing sent: it is never sent on its own (Bài lỡ giờ). */
+const isLate = (q, now, staleH) => !!q && !q.intent_id && q.action !== 'unpublish' && now - Date.parse(q.scheduled_at) >= (staleH ?? 6) * HOUR;
+
+/**
+ * The one next step of a post, as a code the page words in Vietnamese: what Soot does and when, or the one
+ * thing the person does. {code, at?, reason?, channel_id, channel, do?}. `do` is the primary button:
+ * schedule, post_now, sign_in, resume_channel, resume_all, retry, ask_writer, confirm, open, restore.
+ */
+export function nextStep(p, q, ch, settings, now) {
+  const at = q?.scheduled_at ?? null;
+  const base = { channel_id: p.channel, channel: channelLabel(p.channel) };
+  const held = !q?.intent_id && (settings.paused_all ? 'all' : ch?.paused ? ch.paused_reason ?? 'person' : null);
+  switch (p.state) {
+    case 'draft': case 'checking':
+      return now - Date.parse(p.updated_at) > 24 * HOUR ? { ...base, code: 'draft_stale', do: 'ask_writer' } : { ...base, code: 'draft' };
+    case 'refused': return { ...base, code: 'refused', do: 'ask_writer' };
+    case 'ready': return { ...base, code: 'ready', do: 'schedule' };
+    case 'pulled': return { ...base, code: 'pulled', do: 'restore' };
+    case 'removed': return { ...base, code: 'removed', do: 'restore' };
+    case 'unpublishing': return { ...base, code: 'unpublishing' };
+    case 'published': return { ...base, code: 'published', at: p.updated_at, do: p.url ? 'open' : null };
+    case 'uncertain': return { ...base, code: 'uncertain', do: 'confirm' };
+    case 'publishing': return { ...base, code: 'in_flight' };
+    case 'failed': return Date.parse(at) > now
+      ? { ...base, code: 'failed_retry', at, reason: q?.wait_reason || p.reason, do: 'retry' }
+      : { ...base, code: 'failed', reason: q?.wait_reason || p.reason, do: 'retry' };
+    case 'scheduled': {
+      if (q?.intent_id) return { ...base, code: 'in_flight' };
+      if (isLate(q, now, settings.stale_after_h)) return { ...base, code: 'late', at, do: 'post_now' };
+      if (held === 'all') return { ...base, code: 'paused_all', at, do: 'resume_all' };
+      if (held === 'signed_out') return { ...base, code: 'signed_out', at, do: 'sign_in' };
+      if (held === 'signed_in') return { ...base, code: 'signed_in', at, do: 'resume_channel' };
+      if (held === 'person') return { ...base, code: 'person_paused', at, do: 'resume_channel' };
+      if (held) return { ...base, code: 'channel_held', at, reason: PAUSED_LABEL[held] ?? held };
+      if (q?.wait_reason) return { ...base, code: 'waiting', at, reason: q.wait_reason };
+      return { ...base, code: 'scheduled', at };
+    }
+  }
+  return { ...base, code: 'other' };
+}
+/** What waits for the person in Bài viết: a failed or unsure post, a late one. */
+const needsYou = (p, q, now, staleH) => ['failed', 'uncertain'].includes(p.state) || (p.state === 'scheduled' && isLate(q, now, staleH));
+
+async function postList(filter = 'all', { store, now, soot }) {
   if (!(filter in TABS)) fail('invalid_request', 'Unknown filter.');
-  const [posts, queue, metrics, settings] = await Promise.all([
+  const [posts, queue, metrics, settings, channels] = await Promise.all([
     store.query('posts', [], { order: 'updated_at', limit: 200 }),
     store.query('queue', [], { order: 'scheduled_at', limit: 200 }),
     metricsRows(store, now),
     getSettings(store),
+    store.query('channels', [], { limit: 50 }),
   ]);
-  const counts = Object.fromEntries(Object.entries(TABS).map(([k, states]) => [k, states ? posts.filter(p => states.includes(p.state)).length : posts.length]));
   const q = Object.fromEntries(queue.map(r => [r.post, r]));
-  const shown = TABS[filter] ? posts.filter(p => TABS[filter].includes(p.state)) : posts;
+  const chOf = Object.fromEntries(channels.map(c => [c.key, c]));
+  const need = p => needsYou(p, q[p.ref], now, settings.stale_after_h);
+  const inTab = (k, p) => (k === 'all' ? true : k === 'need' ? need(p) : TABS[k].includes(p.state) && !need(p));
+  const counts = Object.fromEntries(Object.keys(TABS).map(k => [k, posts.filter(p => inTab(k, p)).length]));
+  const shown = posts.filter(p => inTab(filter, p));
   return {
-    page: 'bai-viet', filter, counts, writer: settings.writer, product: settings.product,
+    page: 'bai-viet', filter, counts, writer: settings.writer, product: settings.product, editor: soot ?? null,
     items: shown.slice(0, 100).map(p => ({
       id: p.ref, kind: p.kind, title: title(p), channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url, ...hold(p),
       scheduled_at: q[p.ref]?.scheduled_at ?? null, wait_reason: q[p.ref]?.wait_reason ?? null, updated_at: p.updated_at,
-      unpublishing: q[p.ref]?.action === 'unpublish',
+      unpublishing: q[p.ref]?.action === 'unpublish', next: nextStep(p, q[p.ref], chOf[p.channel], settings, now), late: isLate(q[p.ref], now, settings.stale_after_h),
       metrics_28: p.state === 'published' ? totals(metrics, p.url, 28, now) : null,
     })),
   };
@@ -93,14 +145,15 @@ function linkSummary(links) {
   return `${links.length} (${parts.join(', ')})`;
 }
 
-async function postDetail(id, { store, now }) {
+async function postDetail(id, { store, now, soot }) {
   const p = await store.one('posts', [eq('ref', id)]);
   if (!p) fail('not_found', `Không có bài ${id}.`);
   const ch = await channel(store, p.channel);
-  const [checks, metrics, settings] = await Promise.all([
+  const [checks, metrics, settings, q] = await Promise.all([
     store.query('checks', [eq('post', p.ref)], { order: 'at', limit: 1 }),
     metricsRows(store, now),
     getSettings(store),
+    store.one('queue', [eq('post', p.ref)]),
   ]);
   const lint = briefLint(p, ch);
   const b = p.brief ?? {};
@@ -115,7 +168,9 @@ async function postDetail(id, { store, now }) {
   const check = checks[0] ?? null;
   const queries = p.url ? metrics.filter(r => r.url === p.url && r.query).sort((a, b) => b.impressions - a.impressions).slice(0, 5).map(r => ({ query: r.query, position: r.position, impressions: r.impressions })) : [];
   return {
-    page: 'bai-viet', id: p.ref, post: { id: p.ref, title: title(p), kind: p.kind, channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url, revision: p.revision, body: p.body, ...hold(p) },
+    page: 'bai-viet', id: p.ref, writer: settings.writer, product: settings.product, editor: soot ?? null,
+    post: { id: p.ref, title: title(p), kind: p.kind, channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url, revision: p.revision, body: p.body, updated_at: p.updated_at,
+      scheduled_at: q?.scheduled_at ?? null, late: isLate(q, now, settings.stale_after_h), next: nextStep(p, q, ch, settings, now), ...hold(p) },
     video: p.kind === 'video' ? (await videoBlocks(store, [p]))[p.ref] ?? null : null,
     brief: fields,
     check: check && { verdict: check.verdict, revision: check.revision, at: check.at, current: check.content_hash === p.content_hash, auto: check.auto ?? [], reasons: check.reasons ?? [] },
@@ -123,7 +178,7 @@ async function postDetail(id, { store, now }) {
   };
 }
 
-async function queueView({ store, now }) {
+async function queueView({ store, now, soot }) {
   const settings = await getSettings(store);
   // A view never writes (its storage token is read-only): an unset blog channel shows its defaults.
   const [stored, queue, log] = await Promise.all([
@@ -146,14 +201,15 @@ async function queueView({ store, now }) {
   const vparents = [...new Set(Object.keys(videos).map(r => byRef[r]?.parent).filter(Boolean))];
   const source = vparents.length ? Object.fromEntries((await store.query('posts', [{ column: 'ref', op: 'in', values: vparents }], { limit: 50 })).map(p => [p.ref, title(p)])) : {};
   return {
-    page: 'hang-doi', writer: settings.writer, product: settings.product,
+    page: 'hang-doi', writer: settings.writer, product: settings.product, editor: soot ?? null,
     paused_all: settings.paused_all, paused_at: settings.paused_at, quiet_hours: settings.quiet_hours,
     channels: [...channels].sort((a, b) => rank(a.key) - rank(b.key)).map(c => ({ id: c.key, label: channelLabel(c.key), paused: !!c.paused, paused_reason: c.paused_reason ?? null, paused_label: c.paused ? PAUSED_LABEL[c.paused_reason] ?? null : null, cap_per_day: c.cap_per_day, spacing_min: c.spacing_min,
-      reply_cap_per_day: c.reply_cap_per_day ?? 0, posts_today: used(c.key, 'publish'), replies_today: used(c.key, 'reply') })),
+      reply_cap_per_day: c.reply_cap_per_day ?? 0, posts_today: used(c.key, 'publish'), replies_today: used(c.key, 'reply'),
+      waiting: queue.filter(q => q.channel === c.key && q.action !== 'unpublish').length })),
     items: queue.map(q => {
       const p = byRef[q.post] ?? {};
-      const late = !q.intent_id && q.action !== 'unpublish' && now - Date.parse(q.scheduled_at) >= (settings.stale_after_h ?? 6) * 3_600_000;
-      return { id: q.post, title: title(p), channel: channelLabel(q.channel), action: q.action, scheduled_at: q.scheduled_at, state: p.state ?? null, label: late ? 'Bài lỡ giờ' : STATE_LABEL[p.state] ?? '', reason: q.wait_reason ?? p.reason ?? null, in_flight: !!q.intent_id && p.state !== 'uncertain', late,
+      const late = isLate(q, now, settings.stale_after_h);
+      return { id: q.post, channel_id: q.channel, next: p.ref ? nextStep(p, q, channels.find(c => c.key === q.channel), settings, now) : null, title: title(p), channel: channelLabel(q.channel), action: q.action, scheduled_at: q.scheduled_at, state: p.state ?? null, label: late ? 'Bài lỡ giờ' : STATE_LABEL[p.state] ?? '', reason: q.wait_reason ?? p.reason ?? null, in_flight: !!q.intent_id && p.state !== 'uncertain', late,
         reply_to: p.kind === 'reply' && p.parent ? handle[p.parent] ?? null : null, ...socialText(p), retry_at: p.state === 'failed' && Date.parse(q.scheduled_at) > now ? q.scheduled_at : null, ...(p.kind === 'video' ? { kind: 'video', video: videos[p.ref] ?? null, source_title: source[p.parent] ?? null } : {}) };
     }),
     // A failed try whose post is still queued shows once, on its queue row with the retry.

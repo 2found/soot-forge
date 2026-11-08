@@ -244,7 +244,7 @@ test('ready: every missing prerequisite in one Cần bạn item, raised once and
     if (cmd === 'git') return { ok: false, code: 128, stdout: '', stderr: 'Permission denied (publickey).' };
     return { ok: false, code: 1, stdout: '', stderr: '' };
   };
-  const env = { SOOT_PACK_STATE: state, HOME: state, PATH: '' };
+  const env = { SOOT_PACK_STATE: state, HOME: state, PATH: '', LOHI_BLOG_REMOTE: 'git@example.invalid:x/blog.git' };
   const first = await ready(env, { run });
   assert.equal(first.ok, false);
   assert.deepEqual(first.missing.map(m => m.key).sort(), ['2server', 'connection', 'gcloud', 'git_remote', 'go']);
@@ -274,4 +274,21 @@ test('ready: resolves_need is not claimed while something is missing', async () 
   const run = async () => ({ ok: false, code: 1, stdout: '', stderr: '' });
   const out = await ready({ SOOT_PACK_STATE: state, HOME: state, PATH: '' }, { run });
   assert.notEqual(out.resolves_need, true);
+});
+
+test('no remote and no LOHI_REPO: nothing is cloned or pushed, and blog-ready raises one card', async () => {
+  const w = setup();
+  const env = { ...w.env };
+  delete env.LOHI_REPO; delete env.LOHI_BLOG_REMOTE;
+  await assert.rejects(publish(claim(), env, stubs()), /No blog repository is configured/);
+  assert.ok(!existsSync(join(w.state, 'blog-repo')));
+});
+
+test('ready: no blog remote is one named card, never a probe of a default repository', async () => {
+  const state = mkdtempSync(join(tmpdir(), 'lohi-ready-'));
+  const calls = [];
+  const run = async (cmd, args) => { calls.push([cmd, ...args]); return cmd === 'sh' ? { ok: true, code: 0, stdout: '', stderr: '' } : { ok: false, code: 1, stdout: '', stderr: '' }; };
+  const out = await ready({ SOOT_PACK_STATE: state, HOME: state, PATH: '' }, { run });
+  assert.ok(out.missing.some(m => m.key === 'blog_remote' && /kho đăng blog/.test(m.title)));
+  assert.ok(!calls.some(c => c[0] === 'git' && c.includes('ls-remote')), 'no ls-remote of an invented remote');
 });

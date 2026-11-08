@@ -111,6 +111,7 @@ p { margin: 0; }
 .table.channels tbody tr:first-child td { border-top: 0; }
 .sheet { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--mk-card); border-left: 1px solid var(--mk-border); box-shadow: -12px 0 32px rgba(0, 0, 0, .12); display: flex; flex-direction: column; z-index: 3; }
 .scrim { z-index: 2; }
+.dialog { z-index: 3; }
 .sheet header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--mk-border); }
 .sheet header h2 { font-size: 16px; font-weight: 700; }
 .sheet-body { padding: 14px 16px; display: grid; gap: 12px; overflow: auto; align-content: start; flex: 1; }

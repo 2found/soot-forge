@@ -3,7 +3,7 @@
 The know-how and the tools of a marketing team that researches, writes, reviews,
 publishes and learns for one product. It is product-neutral: what the product
 is, who it is for and how it sounds come from the team's brief (`team.brief` in
-team memory, asked by Kamaji when it builds the team) and from a product's own
+team memory, asked by the lead Soot when it builds the team) and from a product's own
 skill, never from this pack. Installing it grants nothing.
 
 | skill | for | tools |
@@ -18,7 +18,7 @@ skill, never from this pack. Installing it grants nothing.
 A Soot selects the pack whole (`"packs": ["marketing"]`); `"marketing:read"` gives all skills and only the read-mode tools (`radar_feeds`, `radar_items`, `cms_list`, `cms_read`, `social_channels`, `social_list`, `content_stats`). The roles in the table are separated by each Soot's mission and by the hub token, not by selecting parts of the pack.
 
 The [Marketing team](../../groups/marketing-team/README.md) template puts these
-together: Kamaji leads, a radar, a writer and an editor work on tasks, keep
+together: a lead Soot leads, a radar, a writer and an editor work on tasks, keep
 shared records in the team tables `signals` and `content`, and keep the brief,
 voice rules and lessons in team memory. Nothing goes live without an editor's
 review task.
@@ -64,6 +64,23 @@ shows it on two operator rail pages that belong to the **Marketing** flow
 (`provides: ["flow-marketing"]`): **Bài viết** (posts, the SEO brief lint,
 the editor's check, Search Console numbers or "Chưa có số liệu") and **Hàng
 đợi** (the queue, pause for every channel or one, what just went out).
+
+Every post and channel on these pages shows **what happens next**, in one
+plain sentence, with the one button the founder needs or "Không cần làm gì":
+
+- **Bài viết** has a **Cần bạn** tab (a refused post, a failed or uncertain
+  post, a post late by 6 hours or more). A social post shows its words, a
+  published post shows its link first, and each row says what Soot does and
+  when (`next` in `page_view`: `draft`, `ready`, `scheduled`, `late`,
+  `signed_out`, `person_paused`, `paused_all`, `failed_retry`, `uncertain`,
+  `published` and the rest; the page turns each code into a sentence).
+- **Hàng đợi** opens with one headline (the one blocker, or "Không cần làm gì,
+  Soot đang tự chạy. Bài kế tiếp: …"). A signed-out channel carries **Đăng nhập
+  X** (opens the Editor's browser pane in Nest), not only a switch. Limits
+  (posts per day, spacing, replies per day) are edited per channel with a
+  confirmation (`page_action set_limits`).
+- **Chiến dịch** shows the next step of each campaign and "Mở Thiết lập" when
+  `PRODUCT_ADMIN_KEY` is missing; the page never shows the key's name alone.
 
 ```text
 draft_save → check (guard + editor verdict) → schedule → due (tool-only schedule)
