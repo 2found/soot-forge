@@ -6,8 +6,8 @@
   "soul": "SOUL.md",
   "mission": "editor.md",
   "packs": [
-    "marketing",
-    "lohi-blog",
+    "marketing:tools=due,claim,record,fail,raised,answer,pause,items,check,schedule,draft_save,reply_save,replies_sync,channels_setup,channels_probe,gsc_sync,report,campaign_report,campaign_save,page_view,page_action",
+    "lohi-blog:tools=publish,unpublish,find,ready",
     "browser-use"
   ],
   "execution": {

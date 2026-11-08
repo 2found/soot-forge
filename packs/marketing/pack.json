@@ -713,8 +713,8 @@
     {
       "name": "due",
       "title": "Việc đến hạn",
-      "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised. The dispatch schedule passes schedule: true, which remembers whom it woke for.",
-      "parameters": {"type":"object","properties":{"refile":{"type":"boolean"},"schedule":{"type":"boolean"}},"required":[],"additionalProperties":false},
+      "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised; resolves_need when no need is left. The dispatch schedule passes schedule: true (remembers whom it woke for) and skip: channels a tool chain publishes. With channel it is the chain's first step: {id, action} of the one due publish on that channel for marketing_claim, or {done: true}.",
+      "parameters": {"type":"object","properties":{"refile":{"type":"boolean"},"schedule":{"type":"boolean"},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"skip":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":32}}},"required":[],"additionalProperties":false},
       "run": {
         "program": "node",
         "args": ["tools/marketing.mjs","due"],
@@ -727,7 +727,7 @@
     {
       "name": "claim",
       "title": "Nhận lượt đăng",
-      "description": "Claim one due post (publish), reply (reply) or removal (unpublish) for its publisher. Re-runs the guard, checks pause, cap, spacing, quiet hours, staleness and the Editor's verdict on this exact content, writes the intent record, then returns a signed claim; otherwise a refusal with its reason. With verify_first the publisher must look for an earlier post (find) and never post again.",
+      "description": "Claim one due post (publish), reply (reply) or removal (unpublish) for its publisher. Re-runs the guard, checks pause, cap, spacing, quiet hours, staleness and the Editor's verdict on this exact content, writes the intent record, then returns a signed claim; otherwise a refusal with its reason (done: true, so a tool chain stops quietly). With verify_first the publisher must look for an earlier post (find) and never post again.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -751,13 +751,15 @@
     {
       "name": "record",
       "title": "Ghi đã đăng",
-      "description": "Record the publisher's result for a claim: the live URL. A post returns the outcome {id: post_published, ref: url} for the Soot to report; a reply or removal returns none.",
+      "description": "Record the publisher's result for a claim: the live URL. A tool chain passes the publisher's answer as is. A post returns the outcome {id: post_published, ref: url} for the Soot to report; a reply or removal returns none.",
       "parameters": {
         "type": "object",
         "properties": {
           "intent_id": {"type":"string","maxLength":40},
           "url": {"type":"string","maxLength":500},
-          "platform_id": {"type":"string","maxLength":200}
+          "platform_id": {"type":"string","maxLength":200},
+          "ok": {"type":"boolean"},
+          "status": {"type":"string","maxLength":16}
         },
         "required": ["intent_id"],
         "additionalProperties": false
@@ -845,7 +847,7 @@
     {
       "name": "page_action",
       "title": "Đổi trang marketing",
-      "description": "Bài viết / Hàng đợi / Chiến dịch page action: pull, restore, reschedule, unpublish, pause, resume, campaign_save or campaign_refresh. Needs a request_id.",
+      "description": "Bài viết / Hàng đợi / Chiến dịch page action: pull, restore, reschedule, unpublish, set_limits (a channel's caps), pause, resume, campaign_save or campaign_refresh. Needs a request_id. Only the campaign ops need PRODUCT_ADMIN_KEY (optional; absent answers needs_credential).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -858,6 +860,7 @@
               "drop",
               "confirm_posted",
               "confirm_not_posted",
+              "set_limits",
               "pause",
               "resume",
               "campaign_save",
@@ -870,7 +873,10 @@
           "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
           "scheduled_at": {"type":"string","maxLength":40},
           "channel": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
-          "url": {"type":"string","maxLength":500}
+          "url": {"type":"string","maxLength":500},
+          "cap_per_day": {"type":"integer","minimum":0,"maximum":50},
+          "spacing_min": {"type":"integer","minimum":0,"maximum":10080},
+          "reply_cap_per_day": {"type":"integer","minimum":0,"maximum":50}
         },
         "required": ["op","request_id"],
         "additionalProperties": false
@@ -944,7 +950,7 @@
     {
       "name": "plan",
       "title": "Kế hoạch bài hôm nay",
-      "description": "The daily content plan. wake: true is the schedule: is a blog slot free (cap, spacing, queue, open drafts)? notify only then. Without wake it is the Writer's ready brief (query: a subject asked for): topic, keyword, angle, real novels with links, internal_links, titles to avoid. Saves the catalog it was given.",
+      "description": "The daily content plan. wake: true is the schedule, tool-only: it queues a checked draft nobody scheduled, and wakes the Writer only for a free blog slot or a published post still to share on a signed-in social channel. Without wake it is the Writer's ready brief (query: a subject asked for): topic (ranked by how published posts did), keyword, angle, real novels with links, internal_links, titles to avoid, social (posts to share per channel). Saves the catalog it was given.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -976,6 +982,34 @@
         "mode": "write",
         "timeout": "60s",
         "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "channels_probe",
+      "title": "Kiểm tra đăng nhập kênh",
+      "description": "For a tool chain around the Editor's browser: with no result it names the next paused social channel's check page ({action: navigate, url}, the browser-use_control input) or {done: true}; with the page's result it decides signed in or out from the page text, unpauses only a channel the person confirmed and that is really signed in, and sends a confirmed-but-signed-out channel back to its sign-in card. Unsure changes nothing.",
+      "parameters": {"type":"object","properties":{"session":{"type":"string","maxLength":200},"result":{},"resource":{"type":"object"}},"required":[],"additionalProperties":false},
+      "run": {
+        "program": "node",
+        "args": ["tools/marketing.mjs","channels_probe"],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 16384
+      }
+    },
+    {
+      "name": "report",
+      "title": "Báo cáo hằng ngày",
+      "description": "The Editor's daily report in at most six plain Vietnamese lines: what went out, the top posts by clicks or sign-ups, what the plan does next, stale drafts (once). Say the lines as they are.",
+      "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
+      "run": {
+        "program": "node",
+        "args": ["tools/marketing.mjs","report"],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 16384
       }
     },
     {

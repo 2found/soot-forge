@@ -375,7 +375,13 @@ test('AC3: gsc_sync fills metrics for published URLs; the post shows numbers; se
 });
 
 test('AC3 non-happy: no sign-in or a revoked token answers needs_person and stores nothing', async () => {
+  // Never signed in: Search Console is optional, so this is a quiet skip (no sign-in item, no failure) ...
   const none = world();
+  const skipped = await none.call('gsc_sync', { site: 'sc-domain:lohi2.com' });
+  assert.deepEqual([skipped.skipped, skipped.reason_code, skipped.key, skipped.needs_person], [true, 'optional_credential', 'GSC_GOOGLE', undefined]);
+  assert.equal(none.store.data.metrics.length, 0);
+  // ... but a sign-in that worked once and then vanished is a person's job again.
+  await none.store.insert('settings', { key: 'gsc', value: { state: 'ok', at: new Date(T0).toISOString() } });
   assert.equal((await none.call('gsc_sync', { site: 'sc-domain:lohi2.com' })).status, 'needs_person');
   const w = world({ env: { GSC_GOOGLE: GSC } });
   w.fetch = google({ grant: 'revoked', rows: {} });
@@ -445,7 +451,7 @@ test('a claim whose intent row was lost (crash after the compare-and-set) writes
 });
 
 test('the CLI exits 1 with the host sign-in line when Google refuses, so the host raises one Cần bạn item', async () => {
-  const child = spawn(process.execPath, [fileURLToPath(new URL('../tools/marketing.mjs', import.meta.url)), 'gsc_sync'], { env: { PATH: process.env.PATH, SOOT_STORAGE_URL: 'http://127.0.0.1:9', SOOT_STORAGE_TOKEN: 't', GSC_GOOGLE: '' } });
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../tools/marketing.mjs', import.meta.url)), 'gsc_sync'], { env: { PATH: process.env.PATH, SOOT_STORAGE_URL: 'http://127.0.0.1:9', SOOT_STORAGE_TOKEN: 't', GSC_GOOGLE: 'not a google sign-in' } });
   let out = '';
   child.stdout.on('data', c => { out += c; });
   child.stdin.end(JSON.stringify({ input: { site: 'sc-domain:lohi2.com' } }));

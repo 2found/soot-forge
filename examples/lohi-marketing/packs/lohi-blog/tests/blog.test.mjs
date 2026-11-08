@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, lstatSync, readlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { publish, unpublish, find, postFile, postURL, warnings, linkConnection, catalog, ready } from '../tools/blog.mjs';
+import { publish, unpublish, find, postFile, postURL, warnings, linkConnection, catalog, ready, asChainStep } from '../tools/blog.mjs';
 import { signClaim, contentHash } from '../../../../../packs/marketing/tools/lib/claim.mjs';
 
 const KEY = 'k'.repeat(32);
@@ -260,4 +260,18 @@ test('ready: every missing prerequisite in one Cần bạn item, raised once and
   const done = await ready(env, { run: gc });
   assert.deepEqual([done.ok, done.notify, done.missing.length], [true, false, 0]);
   assert.equal(done.ask, undefined);
+});
+
+test('chain step: a published post is ok:true and a failed or uncertain one ok:false, each carrying the intent id', () => {
+  const claim = { intent_id: 'int_1' };
+  assert.deepEqual(asChainStep({ status: 'published', url: 'u' }, claim), { status: 'published', url: 'u', ok: true, intent_id: 'int_1' });
+  for (const status of ['failed', 'uncertain']) assert.equal(asChainStep({ status }, claim).ok, false);
+  assert.equal(asChainStep({ status: 'failed' }, null).intent_id, undefined);
+});
+
+test('ready: resolves_need is not claimed while something is missing', async () => {
+  const state = mkdtempSync(join(tmpdir(), 'lohi-ready2-'));
+  const run = async () => ({ ok: false, code: 1, stdout: '', stderr: '' });
+  const out = await ready({ SOOT_PACK_STATE: state, HOME: state, PATH: '' }, { run });
+  assert.notEqual(out.resolves_need, true);
 });

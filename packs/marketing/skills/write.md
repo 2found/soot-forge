@@ -96,7 +96,7 @@ Drafts live in this pack's own storage; there is no `content` table to keep.
 
 ## The daily plan (nobody to ask)
 
-The plan schedule woke you because a blog slot is free. Nobody will answer a
+The plan schedule woke you because a blog slot is free, or because a blog post went out and a signed-in social channel has no post for it yet. Nobody will answer a
 question, so never stop to ask, never list "next steps"; take the safe choice
 and finish. In this order, one call at a time; never repeat a call, never
 save the same draft twice:
@@ -118,6 +118,14 @@ save the same draft twice:
    `marketing_schedule {id}` once the check passes. A check that refuses
    (`reason`: a dead link, an unsourced number): fix that one thing, save
    again, check again once; still refused, stop.
+   If the brief has `social` (a list of published blog posts), also write for
+   each channel in it one short post from the blog post's `title`, `summary`
+   and `url`: `marketing_draft_save {kind:"social", channel, link, body,
+   brief:{from:<post>, title?, subreddit?}}` with `link` exactly as given (it
+   carries the UTM tags), the length in `max_chars`, then check and schedule
+   as above. A brief with `mode: "social"` has no article to write. Only
+   signed-in, unpaused channels are listed; never write for another.
+   `topic` was chosen from how the published posts did (`insight`): use it.
 5. A missing fact or a failing tool is never a reason to ask: leave the claim
    out, or end. The last line of every run is one line: `P-… · state · time or
    reason`.

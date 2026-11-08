@@ -151,3 +151,14 @@ down, choose **Gỡ bài** on the Bài viết page (a queued post: **Gỡ khỏi
 claim and leaves one commit on the blog's history; on X, Facebook and Reddit
 the Editor deletes the post in its browser. To stop one platform, pause its
 channel.
+
+## Friction round 2: what runs without a model
+
+- `marketing-blog` (every 10 minutes) is a tool chain: `due {channel}` -> `claim` -> `lohi-blog.publish` -> `record`. It wakes the Editor only when a step fails.
+- `marketing-dispatch` skips the blog channel (`skip`), so the Editor's turn is for X, Facebook and Reddit.
+- `marketing-plan` queues a `ready` draft older than one hour itself, and wakes the Writer for a blog slot or for social drafts of a published post (one per signed-in, unpaused channel; none while all are paused).
+- `marketing-probe` (chain around `browser-use.control`) checks whether a paused channel is really signed in and unpauses one the founder confirmed. Its page markers are heuristics, untested against a live login.
+- `marketing-report` (21:00): at most six plain lines, the top three posts and what the plan does next.
+- The next topic is ranked by Search Console clicks, else campaign leads; a genre written twice to no effect is tried last.
+- Search Console and campaign credentials are optional: without them their tools answer a quiet `skipped`. Campaign actions on the page answer `needs_credential` with a link to Thiết lập; reschedule, pull, restore, pause and `set_limits` need no key.
+- `setup.mjs` finds `.2server/connection.yaml` (LOHI_REPO, a parent checkout, then `~/.2server`) and writes `LOHI_CONNECTION` into the host env. The Editor and Writer carry only the marketing tools they use (`marketing:tools=...`).

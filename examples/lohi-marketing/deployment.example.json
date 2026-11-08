@@ -55,10 +55,8 @@
   "schedules": [
     {
       "id": "marketing-plan",
-      "name": "Lên bài blog mỗi sáng",
+      "name": "Lên bài blog và bài mạng xã hội",
       "soot": "lohi-writer",
-      "every": "24h",
-      "at": "08:00",
       "timezone": "Asia/Ho_Chi_Minh",
       "tool": {
         "pack": "marketing",
@@ -82,7 +80,8 @@
       "wake_when": {
         "notify": true
       },
-      "text": "A blog slot is free. Follow the marketing-write skill, section \"The daily plan\": marketing_plan, one article, marketing_draft_save, marketing_check, marketing_schedule. Nobody will answer a question: finish, and end with the one-line result."
+      "text": "marketing_plan found work. Follow the marketing-write skill, section \"The daily plan\": marketing_plan {} returns the brief. If it has a topic, write one article (draft_save, check, schedule). If it has social, write one short post per listed channel from the blog post (kind social, link exactly as given, brief.from = the blog post id), check, schedule. Nobody will answer a question: finish, and end with the one-line result.",
+      "cron": "7 8-21/3 * * *"
     },
     {
       "id": "marketing-dispatch",
@@ -92,7 +91,10 @@
         "pack": "marketing",
         "name": "due",
         "input": {
-          "schedule": true
+          "schedule": true,
+          "skip": [
+            "blog-lohi"
+          ]
         }
       },
       "wake_when": {
@@ -101,6 +103,98 @@
       "text": "marketing_due says something is due or needs a person that you have not raised. Follow the marketing-dispatch skill: claim, publish (lohi-blog for the blog, marketing-browser-post for X, Facebook and Reddit), record, then one report_blocker: due.ask as is.",
       "cron": "*/10 7-22 * * *",
       "timezone": "Asia/Ho_Chi_Minh"
+    },
+    {
+      "id": "marketing-blog",
+      "name": "Đăng bài blog",
+      "soot": "lohi-editor",
+      "cron": "*/10 7-22 * * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "marketing",
+        "name": "due",
+        "input": {
+          "schedule": true,
+          "channel": "blog-lohi"
+        }
+      },
+      "then": [
+        {
+          "pack": "marketing",
+          "tool": "claim",
+          "label": "Nhận lượt đăng",
+          "input_from": "previous"
+        },
+        {
+          "pack": "lohi-blog",
+          "tool": "publish",
+          "label": "Đăng lên blog",
+          "input_from": "previous"
+        },
+        {
+          "pack": "marketing",
+          "tool": "record",
+          "label": "Ghi bài đã đăng",
+          "input_from": "previous"
+        }
+      ],
+      "text": "The blog publish chain stopped on a failed step (its output is attached). If it has an intent_id and the post is not live, call marketing_fail {intent_id, status:\"failed\", reason}; otherwise do nothing. End with one line."
+    },
+    {
+      "id": "marketing-probe",
+      "name": "Kiểm tra đăng nhập mạng xã hội",
+      "soot": "lohi-editor",
+      "cron": "*/15 7-22 * * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "marketing",
+        "name": "channels_probe",
+        "input": {}
+      },
+      "then": [
+        {
+          "pack": "browser-use",
+          "tool": "control",
+          "label": "Mở trang kiểm tra",
+          "input_from": "previous"
+        },
+        {
+          "pack": "browser-use",
+          "tool": "control",
+          "label": "Đọc trang",
+          "input": {
+            "action": "command",
+            "args": [
+              "snapshot",
+              "-i",
+              "-c"
+            ]
+          }
+        },
+        {
+          "pack": "marketing",
+          "tool": "channels_probe",
+          "label": "Quyết định đã đăng nhập chưa",
+          "input_from": "previous"
+        }
+      ],
+      "text": "The sign-in check could not open the browser. If the browser is not installed say so in one line (Nest: Cài trình duyệt); do nothing else."
+    },
+    {
+      "id": "marketing-report",
+      "name": "Báo cáo hằng ngày",
+      "soot": "lohi-editor",
+      "cron": "0 21 * * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "marketing",
+        "name": "report",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "marketing_report gave the daily report lines. Answer with those lines as they are, in plain Vietnamese, nothing added; no tool calls."
     },
     {
       "id": "marketing-channels",

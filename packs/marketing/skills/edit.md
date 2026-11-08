@@ -55,3 +55,9 @@ or English. For "hôm nay làm gì" and similar: call `marketing_page_view` for
 `bai-viet` and `hang-doi` once each, then give four lines: bài đã đăng, bài
 chờ đăng (giờ), bài bị từ chối (lý do), và việc cần bạn làm (nếu có). End with
 that summary; never end on a tool call or a list of steps.
+
+## The daily report
+
+The `marketing-report` schedule (21:00) runs `marketing_report` and wakes you
+with at most six lines: what went out, the top posts, what the plan does next.
+Say those lines as they are, in plain Vietnamese. Add nothing and call no tool.

@@ -117,3 +117,7 @@ the budget the tool returns one `tell` for the person and never stops the
 campaign. When the api cannot be read the page keeps the Soot-side numbers
 (published, reach) and says "Chưa đọc được số đăng ký từ <product>" with
 **Thử lại**; clicks and signups show "—", never 0.
+
+## Added in friction round 2
+
+`due {channel, skip}` and `claim` answer `{done:true}` when a chain should stop quietly; `record` accepts the publisher's `ok` and `status`. `channels_probe` is the tool-only sign-in probe (start phase returns `{action:"navigate", url}`; a phase with `result` decides). `report` builds the Editor's daily report (six lines or fewer). `plan` also reports `social` work and ranks topics by `insight`. `page_action set_limits` edits a channel's `cap_per_day`, `spacing_min` and `reply_cap_per_day`. Tools that need an optional credential answer `{ok:true, skipped:true, reason_code:'optional_credential', key}` when it is unset; campaign operations answer `needs_credential` (`link: nest://settings/setup`). `ready` and `due` and a signed-in probe set `resolves_need:true`.

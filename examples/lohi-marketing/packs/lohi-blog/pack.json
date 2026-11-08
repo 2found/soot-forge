@@ -52,12 +52,15 @@
     {
       "name": "publish",
       "title": "Đăng bài blog",
-      "description": "Publish one signed blog-lohi claim: own clean worktree at origin/main, look for an earlier commit of the same intent first, write posts/<series>/<slug>.vi.md, build with zero warnings, commit only that file, push fast-forward, deploy, poll the URL. Answers {status: published, url, platform_id} or {status: failed, reason, retry}.",
+      "description": "Publish one signed blog-lohi claim (a tool-chain step: input is marketing_claim's answer): own clean worktree at origin/main, look for an earlier commit of the same intent first, write posts/<series>/<slug>.vi.md, build with zero warnings, commit only that file, push fast-forward, deploy, poll the URL. Answers {ok, status: published, url, platform_id, intent_id} (the marketing_record input) or {ok: false, status: failed, reason, retry, intent_id}.",
       "parameters": {
         "type": "object",
         "properties": {
           "claim": {
             "type": "object"
+          },
+          "verify_first": {
+            "type": "boolean"
           }
         },
         "required": [

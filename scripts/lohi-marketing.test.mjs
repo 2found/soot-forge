@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const json = async path => JSON.parse(await readFile(new URL(path, root), 'utf8'));
 
-test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none), seven tool-only schedules on declared tools, three paused social channels', async () => {
+test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none), tool-only schedules (three with a then chain) on declared tools, three paused social channels', async () => {
   const host = await json('examples/lohi-marketing/deployment.example.json');
   const catalog = await json('catalog.json');
   // lohi-blog is Lohi's own publisher: a local pack inside the recipe, never a catalog row.
@@ -21,11 +21,11 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   assert.equal(packs.marketing.tools.find(t => t.name === 'claim').run.approval, 'operator', 'the pack stays guarded; only this host relaxes it');
 
   const byId = Object.fromEntries(host.schedules.map(s => [s.id, s]));
-  assert.deepEqual(Object.keys(byId).sort(), ['blog-ready', 'marketing-campaigns', 'marketing-channels', 'marketing-dispatch', 'marketing-gsc', 'marketing-plan', 'marketing-replies']);
+  assert.deepEqual(Object.keys(byId).sort(), ['blog-ready', 'marketing-blog', 'marketing-campaigns', 'marketing-channels', 'marketing-dispatch', 'marketing-gsc', 'marketing-plan', 'marketing-probe', 'marketing-replies', 'marketing-report']);
   // Campaigns: a daily api read that wakes the Đầu mối (the Editor) for lead outcomes and the token budget.
   assert.deepEqual([byId['marketing-campaigns'].tool.name, byId['marketing-campaigns'].at, byId['marketing-campaigns'].wake_when, byId['marketing-campaigns'].soot], ['campaign_report', '07:00', { notify: true }, host.default_soot]);
   assert.ok(host.pack_grants.marketing.env.includes('PRODUCT_API_URL'), 'the api address is an operator env, never tool input');
-  assert.deepEqual([byId['marketing-dispatch'].cron, byId['marketing-dispatch'].timezone, byId['marketing-dispatch'].tool.input], ['*/10 7-22 * * *', 'Asia/Ho_Chi_Minh', { schedule: true }], 'the dispatch records its own wakes and sleeps at night');
+  assert.deepEqual([byId['marketing-dispatch'].cron, byId['marketing-dispatch'].timezone, byId['marketing-dispatch'].tool.input], ['*/10 7-22 * * *', 'Asia/Ho_Chi_Minh', { schedule: true, skip: ['blog-lohi'] }], 'the dispatch records its own wakes and sleeps at night');
   // The daily plan wakes the Writer only for a free blog slot; it also keeps the facts fresh (no facts schedule).
   assert.deepEqual([byId['marketing-plan'].soot, byId['marketing-plan'].tool.name, byId['marketing-plan'].wake_when], ['lohi-writer', 'plan', { notify: true }]);
   assert.equal(byId['marketing-plan'].tool.input.wake, true);
@@ -35,6 +35,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   assert.equal(byId['marketing-gsc'].at, '06:00');
   for (const s of host.schedules) {
     assert.ok(packs[s.tool.pack].tools.some(t => t.name === s.tool.name), s.id);
+    for (const step of s.then ?? []) assert.ok(packs[step.pack].tools.some(t => t.name === step.tool), `${s.id}: then ${step.pack}_${step.tool}`);
     assert.ok(s.text, `${s.id} has its wake prompt`);
     assert.ok(host.soots.includes(`soots/${s.soot}.json`), s.id);
   }
@@ -75,10 +76,21 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
     for (const f of [soot.soul, soot.mission]) assert.ok((await readFile(new URL(`examples/lohi-marketing/soots/${f}`, root), 'utf8')).trim(), f);
   }
   const editor = await json('examples/lohi-marketing/soots/lohi-editor.json');
-  assert.deepEqual(editor.packs, ['marketing', 'lohi-blog', 'browser-use'], 'the editor claims and publishes, blog and browser');
+  assert.deepEqual(editor.packs.map(r => r.split(':')[0]), ['marketing', 'lohi-blog', 'browser-use']);
+  // The Editor carries only what its skills and schedules call, and every schedule/chain tool it runs.
+  const granted = new Set(editor.packs.find(r => r.startsWith('marketing:tools=')).slice('marketing:tools='.length).split(','));
+  for (const t of granted) assert.ok(packs.marketing.tools.some(x => x.name === t), `editor tool ${t}`);
+  for (const s of host.schedules.filter(x => x.soot === 'lohi-editor')) for (const st of [{ pack: s.tool.pack, tool: s.tool.name }, ...(s.then ?? [])]) if (st.pack === 'marketing') assert.ok(granted.has(st.tool), `${s.id} runs marketing_${st.tool} as the Editor`);
+  assert.ok(granted.size <= 21 && !granted.has('video_import') && !granted.has('cms_save'), 'no hub or video tools in the Editor');
+  const blogChain = byId['marketing-blog'];
+  assert.deepEqual(blogChain.tool.input, { schedule: true, channel: 'blog-lohi' });
+  assert.deepEqual(blogChain.then.map(x => `${x.pack}_${x.tool}`), ['marketing_claim', 'lohi-blog_publish', 'marketing_record']);
+  assert.ok(blogChain.then.every(x => x.input_from === 'previous'));
+  assert.equal(blogChain.wake_when, undefined, 'a chain wakes the Soot only through its failure path');
   assert.ok(!host.soots.includes('soots/lohi-radar.json'), 'no Radar Soot: the plan tool supplies the topic');
   const writer = (await json('examples/lohi-marketing/soots/lohi-writer.json')).packs;
   assert.equal(writer.length, 1);
+  assert.deepEqual(writer[0].replace(/^marketing:tools=/, '').split(',').sort(), ['check', 'draft_save', 'items', 'plan', 'schedule']);
   const tools = writer[0].replace(/^marketing:tools=/, '').split(',');
   const declared = new Set((await json('packs/marketing/pack.json')).tools.map((t) => t.name));
   for (const t of tools) assert.ok(declared.has(t), `writer tool ${t} is declared by marketing`);
