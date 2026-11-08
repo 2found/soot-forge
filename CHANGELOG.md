@@ -3,6 +3,51 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.7
+
+### Added
+
+- **`marketing` publishes and replies on social channels through Nest's
+  browser.** X, a Facebook Page and a Reddit profile are `browser` channels:
+  the `marketing-dispatch` skill claims each due post, reply or unpublish and
+  the `marketing-browser-post` skill posts the exact checked text in the
+  Soot-kept browser, then records the post URL or fails it. A post is never
+  sent twice; a post that may have gone out is `uncertain` and is looked up
+  before any retry.
+- **Sign-in and other person-needed states are Cần bạn items.** A signed-out
+  channel files one sign-in item (opening each login page in its own tab);
+  captcha and a changed page layout pause that channel and file an item with
+  "Chạy lại" as the recommended option. `marketing_raised` and
+  `marketing_answer` track and resolve the item; the next comes after an
+  answer.
+- **Replies.** `marketing-replies` reads replies and comments
+  (`marketing_replies_sync`), classifies each (safe, complaint, money,
+  account, flagged, spam), answers only safe ones through the guard and a
+  claim (`marketing_reply_save`), and raises the rest as Cần bạn items, most
+  urgent first.
+- **Per-channel caps and spacing** for X, Facebook and Reddit (posts and
+  replies per day), and **Tạm dừng đăng** switches (all channels or one) in
+  Hàng đợi; `marketing_channels_setup` configures the social channels.
+- **Unpublish on social channels**, from Bài viết or Hàng đợi, through the
+  same claim and browser path; a removed blog post notes that its page now
+  returns to the blog home.
+- **`browser-use` persistent profile.** A Soot the host lists in
+  `SOOT_BROWSER_PERSISTENT_SOOTS` (an inherited `needs.env` name) keeps one
+  signed-in browser profile across all its conversations, so the person signs
+  in once. Unlisted Soots keep one profile per conversation. Export it in the
+  shell that runs `soot service start`.
+
+### Changed
+
+- Hàng đợi and Bài viết read like the prototype: channels ordered Blog, X,
+  Facebook, Reddit; social rows show the post text and "có liên kết"; failed
+  rows waiting to retry are muted; guard refusals name the price source and
+  the time it was read.
+- `examples/lohi-marketing`: the Editor dispatches social claims; the Writer
+  is `lohi-writer`.
+
+Requires Soot 0.13.10 or later (unchanged).
+
 ## 0.11.6
 
 ### Added
