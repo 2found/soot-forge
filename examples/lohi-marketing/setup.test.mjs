@@ -78,3 +78,14 @@ test('personSteps: the bbs:team step asks for --product-repo only when it was no
   assert.match(personSteps().at(-1), /--product-repo/);
   assert.doesNotMatch(personSteps({ productRepo: '/tmp/p' }).at(-1), /--product-repo/);
 });
+
+test('recipe: every env a Forge pack asks for is granted (a missing name holds the pack update for a person)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve: r } = await import('node:path');
+  const host = JSON.parse(readFileSync(r(import.meta.dirname, 'deployment.example.json'), 'utf8'));
+  for (const id of ['company-loop', 'marketing', 'browser-use']) {
+    const pack = JSON.parse(readFileSync(r(import.meta.dirname, '..', '..', 'packs', id, 'pack.json'), 'utf8'));
+    const granted = host.pack_grants?.[id]?.env ?? [];
+    assert.deepEqual((pack.needs?.env ?? []).filter(e => !granted.includes(e)), [], `${id}: env not granted by the recipe`);
+  }
+});
