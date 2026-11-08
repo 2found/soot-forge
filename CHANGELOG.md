@@ -3,6 +3,50 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.8
+
+### Added
+
+- **One video path for marketing videos.** The `marketing-video` skill drives
+  2build's `marketing-video` (`mvf`) for a product video: script, hook,
+  Micro Fish pretest and per-platform files. The new `marketing_video_import`
+  tool reads the mvf campaign folder under the host-bound `FILE_ROOT`. It
+  accepts both the mvf ≥ 1.122 layout (`08-delivery/<script>/<canvas>`) and
+  the v1.119 one (`<script>/<hook>/<canvas>`), and refuses parent, hidden or
+  symlinked parts. For each channel (X, Facebook) it records the video
+  (sha256, size, duration), the captions and a poster, then writes one
+  `kind:"video"` draft that passes the same guard, caps and signed claim.
+  TikTok stays a handoff.
+- **A video that is not ready stays a draft with its reason.** An mvf render
+  error, a missing or draft export, or a failed file QA gives **Lỗi dựng**.
+  A hook with no Micro Fish round, or one under the bar (setting
+  `video_pretest_bar`, default 35 % watch-through), gives **Câu mở đầu yếu**.
+  Both hold at check and at claim; nothing is queued. A video that also breaks
+  a hard rule (facts, personal data, duplicate) is refused.
+- **Hàng đợi shows a queued video** with its poster, captions and the hook
+  table (score and **chọn**). **Xem video** opens the workspace file, and
+  **Kéo khỏi hàng đợi** pulls the video. A video row has the same Chưa rõ,
+  Bài lỡ giờ, sign-in hold, retry and Đổi giờ controls as other rows. Bài viết
+  shows the hold badge.
+- **`browser-use` `upload`**:
+  `control {action:"upload", selector, path, sha256}` uploads a
+  workspace-relative media file (mp4, mov, m4v, jpg, jpeg, png, webp; at most
+  512 MiB) under `FILE_ROOT`. Absolute, traversing, hidden and symlinked paths
+  are refused, and the file must match the claim's sha256. The
+  `marketing-browser-post` skill uploads a video claim's file before it types
+  and posts only after the preview shows. It turns on Facebook's AI label when
+  mvf asks for it.
+- `examples/lohi-marketing`: a Video Soot (`lohi-video`) renders with mvf in
+  a workspace it shares with the Editor.
+
+### Changed
+
+- **`video-editor` has one skill** (`video_editor_video`, replacing plan, edit
+  and hyperframes). It routes marketing videos to mvf. The HyperFrames
+  operator pin is now 0.8.153, matching mvf.
+
+Requires Soot 0.13.10 or later (unchanged).
+
 ## 0.11.7
 
 ### Added
