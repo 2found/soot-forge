@@ -1,0 +1,675 @@
+{
+  "api_version": "soot/v1",
+  "id": "lohi-ops",
+  "label": {
+    "vi": "Vận hành Lohi",
+    "en": "Lohi operations"
+  },
+  "keywords": {
+    "vi": [
+      "vận hành",
+      "kho truyện",
+      "bình luận",
+      "đánh giá",
+      "giá"
+    ],
+    "en": [
+      "operations",
+      "catalog",
+      "moderation",
+      "reviews",
+      "pricing"
+    ]
+  },
+  "description": {
+    "vi": "Vận hành Lohi ngoài marketing: sức khoẻ kho truyện, theo dõi thu thập, ẩn bình luận spam, đánh giá App Store, báo cáo SEO trang truyện và báo cáo giá. Chỉ đọc số tổng hợp; tiền bạc là quyết định của người.",
+    "en": "Lohi operations beyond marketing: catalog health, crawl watch, comment moderation, App Store reviews, novel-page SEO and a pricing report. Aggregate reads only; money decisions stay with a person."
+  },
+  "needs": {
+    "env": [
+      "PRODUCT_API_URL",
+      "CLI_CATALOG_DB",
+      "APPSTORE_APP_ID",
+      "APPSTORE_COUNTRY",
+      "GSC_SITE",
+      "SITE_URL",
+      "PATH",
+      "HOME"
+    ],
+    "credentials": {
+      "PRODUCT_ADMIN_KEY": {
+        "title": "Khoá admin sản phẩm",
+        "description": "Khoá API vai trò agent_mod của Lohi để đọc sức khoẻ kho truyện, bảng số tổng hợp và ẩn hoặc giữ bình luận. Chỉ gửi tới PRODUCT_API_URL. Dùng chung khoá đã nhập cho marketing; nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
+      },
+      "GSC_GOOGLE": {
+        "title": "Google Search Console",
+        "description": "Đăng nhập Google trong Nest để Soot đọc số hiển thị, lượt bấm và vị trí của các trang truyện (chỉ quyền đọc). Cùng đăng nhập với gói marketing.",
+        "from": "operator",
+        "optional": true,
+        "oauth": {
+          "provider": "google",
+          "scopes": [
+            "https://www.googleapis.com/auth/webmasters.readonly"
+          ]
+        }
+      },
+      "ASC_API_KEY": {
+        "title": "Khoá App Store Connect API",
+        "description": "JSON {\"key_id\",\"issuer_id\",\"private_key\"} của khoá App Store Connect API (quyền Customer Support) do chủ tài khoản Apple tạo; chỉ để đăng phản hồi đánh giá. Không có khoá thì Soot chỉ soạn nháp. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
+      }
+    }
+  },
+  "skills": [
+    {
+      "name": "lohi-ops-moderation",
+      "description": "Judge a batch of reader comments (spam, abuse, scam, ok, unsure) and hand the verdicts to the pack, which hides only the clear ones.",
+      "file": "skills/moderation.md"
+    },
+    {
+      "name": "lohi-ops-reviews",
+      "description": "Draft Vietnamese replies to low-rated App Store reviews; never post without a person approving that reply.",
+      "file": "skills/reviews.md"
+    }
+  ],
+  "tools": [
+    {
+      "name": "catalog_health",
+      "title": "Sức khoẻ kho truyện",
+      "description": "Run the api catalog-health checks (stale ongoing novels, chapter-number gaps, empty or very short recent chapters, recent chapters still mostly Chinese), keep a findings table, and raise one Cần bạn card only for what a person must act on (wake/notify when that set changes; resolves_need when it clears). Each run scans a bounded window of novels per check (pages x limit), never the whole catalog.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "stale",
+                "gaps",
+                "thin",
+                "untranslated"
+              ]
+            },
+            "maxItems": 4
+          },
+          "stale_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "recent_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "act_stale_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "act_gap_chapters": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "catalog_health"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "3m",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "crawl_watch",
+      "title": "Theo dõi thu thập truyện",
+      "description": "Read the cli crawler catalog (CLI_CATALOG_DB, SQLite, opened read-only): sources with work left, crawls stuck in \"crawling\", failed crawls grouped by error, sources that stopped moving, radar finds not yet onboarded. One Cần bạn card only for stuck, repeated failures or a stalled source. Without CLI_CATALOG_DB it answers a quiet skipped.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "stuck_hours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168
+          },
+          "stale_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 90
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "crawl_watch"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "comments_pull",
+      "title": "Lấy bình luận cần xem",
+      "description": "Pull comments to screen from the api: those readers reported (flagged) and the newest visible ones (recent), minus the ones already decided. Answers {items:[{id, source, body, report_reason}]} and the rules to judge them by. Comment text only: no author, no reader.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "enum": [
+              "flagged",
+              "recent",
+              "both"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "comments_pull"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "comments_decide",
+      "title": "Quyết định bình luận",
+      "description": "Apply the model verdicts [{id, verdict: spam|abuse|scam|ok|unsure, confidence, why}]. Only spam/abuse/scam at confidence >= 0.9 is hidden through the api (at most 15 per call); a confident ok on a reader-flagged comment is kept; everything else is escalated to one Cần bạn card. dry_run records without calling the api.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "verdicts": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                "verdict": {
+                  "enum": [
+                    "spam",
+                    "abuse",
+                    "scam",
+                    "ok",
+                    "unsure"
+                  ]
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "why": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "id",
+                "verdict",
+                "confidence"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "dry_run": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "verdicts"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "comments_decide"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "2m",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "comments_resolve",
+      "title": "Xử lý bình luận chờ người",
+      "description": "Apply a person's decision on a comment that was escalated: hide it (with a reason) or keep it (restores it if hidden). Only an escalated comment can be resolved here.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36
+          },
+          "action": {
+            "enum": [
+              "hide",
+              "keep"
+            ]
+          },
+          "reason": {
+            "enum": [
+              "spam",
+              "abuse",
+              "scam",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "comments_resolve"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "appstore_sync",
+      "title": "Đọc đánh giá App Store",
+      "description": "Read the Lohi app public reviews from Apple's customer-reviews feed (APPSTORE_APP_ID, APPSTORE_COUNTRY; no sign-in), store the new ones (no reviewer name) and list the 1-3 star reviews that still need a reply. wake: true when there are new reviews.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "appstore_sync"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "appstore_draft",
+      "title": "Soạn phản hồi đánh giá",
+      "description": "Store a Vietnamese reply draft (at most 1000 characters, no email or phone) for one review id from appstore_sync. Posts nothing.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "rid": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "reply": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "rid",
+          "reply"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "appstore_draft"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "appstore_post",
+      "title": "Đăng phản hồi lên App Store",
+      "description": "Post one drafted reply through the App Store Connect API (ASC_API_KEY, the founder's key). Without the key it answers needs_credential naming ASC_API_KEY and posts nothing; it never invents a key. Operator approval of the exact reply is expected before calling.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "rid": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "rid"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "appstore_post"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "ASC_API_KEY": "{{cred:ASC_API_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "seo_report",
+      "title": "Báo cáo SEO trang truyện",
+      "description": "From Search Console (the same GSC_GOOGLE sign-in as marketing): lohi2.com/truyen pages with impressions but a low CTR for their position, or sitting at positions 8-20, with the top queries, the page's current title and meta, one concrete change each, and up to 3 content opportunities in the shape company-loop digest_save takes. Read-only; the web app is not changed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 7,
+            "maximum": 90
+          },
+          "min_impressions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 40
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "seo_report"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "90s",
+        "max_output_bytes": 131072,
+        "secret_env": {
+          "GSC_GOOGLE": "{{cred:GSC_GOOGLE}}"
+        }
+      }
+    },
+    {
+      "name": "pricing_report",
+      "title": "Báo cáo giá và gói",
+      "description": "Read the scoreboard's plans and cohorts (api.lohi2.com, last N full days) and report the payer funnel, plan mix with revenue per start, cohort retention, and hypotheses to test. Read-only: it never changes a price, plan or discount; each suggestion is marked decision: founder.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer",
+            "minimum": 7,
+            "maximum": 92
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "pricing_report"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+        }
+      }
+    }
+  ],
+  "storage": {
+    "version": 1,
+    "tables": [
+      {
+        "name": "findings",
+        "description": "Điều bảng sức khoẻ kho truyện đã thấy: truyện ngừng cập nhật, thiếu chương, chương trống hoặc chưa dịch.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "check",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "severity",
+            "type": "text"
+          },
+          {
+            "name": "subject",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "actionable",
+            "type": "boolean"
+          },
+          {
+            "name": "first_seen",
+            "type": "timestamp"
+          },
+          {
+            "name": "last_seen",
+            "type": "timestamp"
+          }
+        ]
+      },
+      {
+        "name": "comments",
+        "description": "Bình luận đã đưa cho Soot xem và quyết định cho từng cái: ẩn, giữ, hay chờ người.",
+        "columns": [
+          {
+            "name": "reply_id",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "source",
+            "type": "text"
+          },
+          {
+            "name": "excerpt",
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "verdict",
+            "type": "text"
+          },
+          {
+            "name": "confidence",
+            "type": "number"
+          },
+          {
+            "name": "why",
+            "type": "text"
+          },
+          {
+            "name": "decided_at",
+            "type": "timestamp"
+          }
+        ]
+      },
+      {
+        "name": "reviews",
+        "description": "Đánh giá công khai trên App Store, bản nháp phản hồi và trạng thái đăng.",
+        "columns": [
+          {
+            "name": "rid",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "rating",
+            "type": "integer",
+            "index": true
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "body",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "version",
+            "type": "text"
+          },
+          {
+            "name": "posted_at",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "country",
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "reply_draft",
+            "type": "text"
+          },
+          {
+            "name": "asc_id",
+            "type": "text"
+          },
+          {
+            "name": "replied_at",
+            "type": "timestamp"
+          }
+        ]
+      },
+      {
+        "name": "state",
+        "description": "Trạng thái nhỏ: thẻ Cần bạn đã báo, để không báo lại khi chưa có gì đổi.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "value",
+            "type": "json"
+          }
+        ]
+      }
+    ]
+  }
+}
