@@ -2,7 +2,7 @@
   "extends": "company-team",
   "id": "lohi",
   "name": "Lohi",
-  "description": "Lohi as a company of teams. Soot ids are the recipe's; op-catalog is a slot that the lohi-ops pack fills; support and the desk run on the CS server and are declared here, not deployed by setup.",
+  "description": "Lohi as a company of teams. Soot ids are the recipe's; op-catalog is the lohi-catalog Soot that the lohi-ops pack ships; support and the desk run on the CS server and are declared here, not deployed by setup.",
   "teams": {
     "insight": {
       "soots": [
@@ -57,7 +57,7 @@
       "group": "team-op",
       "soots": [
         {
-          "id": "lohi-ops",
+          "id": "lohi-catalog",
           "role": "operator"
         }
       ],
@@ -71,14 +71,19 @@
       ],
       "gives_out": [
         {
-          "table": "catalog_jobs",
+          "table": "findings",
           "pack": "lohi-ops",
           "fields": [
-            "job",
-            "state",
-            "at"
+            "key",
+            "check",
+            "severity",
+            "subject",
+            "detail",
+            "actionable",
+            "first_seen",
+            "last_seen"
           ],
-          "note": "what the catalog job did; the pack W3 builds owns it"
+          "note": "what the catalog, crawl and SEO checks found; the lohi-ops pack owns the table"
         }
       ],
       "decides": {

@@ -264,14 +264,8 @@
       ],
       "gives_out": [
         {
-          "table": "report",
-          "pack": "company-loop",
-          "fields": [
-            "week",
-            "revenue",
-            "cost_per_team"
-          ],
-          "note": "a weekly read-only report in the team thread"
+          "event": "weekly_finance_report",
+          "note": "the weekly read-only finance report; company-loop has no report table"
         }
       ],
       "decides": {

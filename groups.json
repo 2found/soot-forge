@@ -12,25 +12,33 @@
       "id": "team-insight",
       "name": "Insight team",
       "description": "The company's eyes and thin lead: an Analyst reads the numbers and writes the weekly digest, a Radar watches the market read-only. It also sets goals, runs the weekly review and splits the token budget between teams; the founder decides.",
-      "source": "groups/team-insight/group.source.json"
+      "source": "groups/team-insight/group.source.json",
+      "stability": "experimental",
+      "audience": "internal"
     },
     {
       "id": "team-marketing",
       "name": "Marketing team (company)",
       "description": "The company's voice: a Writer that only writes, and a Publisher that posts what passed the checks. Publishing, Search Console, sign-in probes and video stats are tool-chain schedules of this team, not separate teams.",
-      "source": "groups/team-marketing/group.source.json"
+      "source": "groups/team-marketing/group.source.json",
+      "stability": "experimental",
+      "audience": "internal"
     },
     {
       "id": "team-financial",
       "name": "Financial team",
       "description": "Read-only finance: revenue, cohorts, plans, unit economics and what each team's Soots cost. It reports and warns; it never acts on money.",
-      "source": "groups/team-financial/group.source.json"
+      "source": "groups/team-financial/group.source.json",
+      "stability": "experimental",
+      "audience": "internal"
     },
     {
       "id": "team-op",
       "name": "Operations team (one job)",
       "description": "A team for one operational job of the company (a catalog, an inventory, a content import). Use it once per job: the job's pack comes from the product, so the template carries none.",
-      "source": "groups/team-op/group.source.json"
+      "source": "groups/team-op/group.source.json",
+      "stability": "experimental",
+      "audience": "internal"
     },
     {
       "id": "support-team",
@@ -49,6 +57,16 @@
       "name": "Server watch",
       "description": "One server-care Soot checks your host every morning and files remediations that wait for your approval; nothing runs until you resume the schedule and approve each fix.",
       "source": "groups/server-watch/group.source.json"
+    }
+  ],
+  "companies": [
+    {
+      "id": "company-team",
+      "name": "Company (teams with contracts)",
+      "description": "Internal and experimental: teams with data contracts between them, compiled to the runtime's company template. Not offered publicly.",
+      "source": "groups/company-team/company.source.json",
+      "stability": "experimental",
+      "audience": "internal"
     }
   ]
 }

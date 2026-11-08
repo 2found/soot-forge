@@ -1,5 +1,5 @@
 {
-  "api_version": "soot/group-template/v2",
+  "api_version": "soot/group-template/v3",
   "id": "team-op",
   "name": "Operations team (one job)",
   "description": "A team for one operational job of the company (a catalog, an inventory, a content import). Use it once per job: the job's pack comes from the product, so the template carries none.",
@@ -43,7 +43,8 @@
           "tier": "flash",
           "daily_tokens": 80000
         }
-      }
+      },
+      "team_daily_tokens": 80000
     },
     {
       "id": "steady",
@@ -54,8 +55,33 @@
           "tier": "flash",
           "daily_tokens": 200000
         }
-      }
+      },
+      "team_daily_tokens": 200000
     }
   ],
-  "schedules": []
+  "schedules": [],
+  "contract": {
+    "version": "team-contract/v1",
+    "decides": {
+      "self": [
+        "routine jobs inside the job pack's limits"
+      ],
+      "with_person": [
+        "anything that deletes or republishes content",
+        "anything about money or accounts"
+      ]
+    },
+    "escalates": [
+      {
+        "when": "a source is down",
+        "on": "chain_failed"
+      },
+      {
+        "when": "a job would remove content"
+      }
+    ],
+    "budget": {
+      "daily_tokens": 80000
+    }
+  }
 }

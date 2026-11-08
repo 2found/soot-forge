@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readGroups, validateGroup } from './groups.mjs';
+import { readGroups, validateGroup, refPack, refTools } from './groups.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
+const packTool = (pack, name) => JSON.parse(readFileSync(new URL(`../packs/${pack}/pack.json`, import.meta.url), 'utf8')).tools.find(t => t.name === name);
+const packJson = pack => JSON.parse(readFileSync(new URL(`../packs/${pack}/pack.json`, import.meta.url), 'utf8'));
 const source = id => JSON.parse(readFileSync(new URL(`../groups/${id}/group.source.json`, import.meta.url), 'utf8'));
 
 test('the catalog lists the Kamaji-led templates first and every template validates', async () => {
@@ -11,7 +13,7 @@ test('the catalog lists the Kamaji-led templates first and every template valida
   assert.deepEqual(catalog.groups.map(g => g.id), ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team', 'society-sim', 'server-watch']);
   for (const id of ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team', 'server-watch']) {
     const t = source(id);
-    assert.equal(t.api_version, 'soot/group-template/v2');
+    assert.equal(t.api_version, id.startsWith('team-') ? 'soot/group-template/v3' : 'soot/group-template/v2');
     assert.equal(t.root, '', `${id} is led by the host's lead`);
     assert.ok(t.inputs.some(i => i.confirm), `${id} confirms something before proposing`);
     for (const p of t.profiles) assert.deepEqual(Object.keys(p.members).sort(), t.members.map(m => m.id).sort(), `${id}/${p.id}`);
@@ -83,11 +85,12 @@ test('company team groups: one group per team, roles by job, no private content 
   assert.deepEqual(g['team-insight'].members.map(m => m.id), ['analyst', 'radar']);
   assert.deepEqual(g['team-marketing'].members.map(m => m.id), ['writer', 'publisher']);
   assert.deepEqual(g['team-financial'].members.map(m => m.id), ['finance']);
-  assert.deepEqual(g['team-financial'].members[0].packs, ['company-loop:read', 'marketing:read'], 'finance is read-only');
+  assert.deepEqual(g['team-financial'].members[0].packs, ['company-loop:tools=signals', 'marketing:read'], 'finance is read-only: one read tool and a read-only pack');
+  assert.equal(packTool('company-loop', 'signals').run.mode, 'read');
   assert.match(g['team-financial'].members[0].mission, /never change a price|never change a price, a budget/i);
   assert.match(g['team-marketing'].members[0].mission, /no `content` table/);
   assert.match(g['team-marketing'].members[0].mission, /Never check, schedule or publish/);
-  assert.deepEqual(g['team-insight'].members[1].packs, ['marketing']);
+  assert.deepEqual(g['team-insight'].members[1].packs, ['marketing:tools=radar_read,signals_list,signals_mark'], 'the radar carries three tools of the pack, not forty');
   assert.match(g['team-insight'].members[1].mission, /Never post, reply, sign in/);
   assert.doesNotMatch(JSON.stringify(g), /team table `content`/);
   const lean = Object.values(g).flatMap(x => Object.values(x.profiles.find(p => p.id === 'lean').members));
@@ -96,4 +99,74 @@ test('company team groups: one group per team, roles by job, no private content 
   const bad = fn => assert.throws(() => validateGroup(fn(structuredClone(g['team-insight']))));
   bad(x => { x.members[1].packs = ['marketing', 'nope']; return x; });
   bad(x => { x.profiles[0].members.radar.tier = 'huge'; return x; });
+});
+
+const TEAMS = ['team-insight', 'team-marketing', 'team-financial', 'team-op'];
+
+test('v3: the team templates carry a contract, a team budget per profile and member tool-chain schedules', () => {
+  for (const id of TEAMS) {
+    const t = validateGroup(source(id));
+    assert.equal(t.api_version, 'soot/group-template/v3', id);
+    assert.equal(t.contract.version, 'team-contract/v1', id);
+    assert.ok(t.contract.decides.self.length && t.contract.escalates.length, `${id} says what it decides and when it escalates`);
+    assert.deepEqual([t.contract.consumes, t.contract.requests], [undefined, undefined], `${id}: edges are the company's, a group alone has no other team`);
+    for (const p of t.profiles) {
+      assert.ok(p.team_daily_tokens >= Object.values(p.members).reduce((n, m) => n + m.daily_tokens, 0), `${id}/${p.id}: the team budget holds its members' caps`);
+    }
+    const lean = t.profiles.find(p => p.id === 'lean');
+    assert.equal(t.contract.budget.daily_tokens, lean.team_daily_tokens, `${id}: the contract budget is the lean team budget`);
+    assert.equal(lean.team_daily_tokens, Object.values(lean.members).reduce((n, m) => n + m.daily_tokens, 0), `${id}: lean team budget = sum of member caps`);
+  }
+});
+
+test('v3: every tool a chain calls exists in its pack, is granted to the member that runs it and is not a write by a read-only member', () => {
+  for (const id of TEAMS) {
+    const t = source(id);
+    for (const s of (t.schedules ?? []).filter(x => x.tool)) {
+      const member = t.members.find(m => m.id === s.member);
+      for (const step of [{ pack: s.tool.pack, tool: s.tool.name }, ...(s.then ?? []).map(x => ({ pack: x.pack, tool: x.tool }))]) {
+        const tool = packTool(step.pack, step.tool);
+        assert.ok(tool, `${id}/${s.id}: ${step.pack}.${step.tool} exists`);
+        const ref = member.packs.find(r => refPack(r) === step.pack);
+        assert.ok(ref, `${id}/${s.id}: ${member.id} selects ${step.pack}`);
+        if (ref.endsWith(':read')) assert.equal(tool.run.mode, 'read', `${id}/${s.id}: ${step.tool} is read for a read-only selection`);
+        const only = refTools(ref);
+        if (only) assert.ok(only.includes(step.tool), `${id}/${s.id}: ${step.tool} is in the member's allow-list`);
+      }
+    }
+    for (const m of t.members) for (const ref of m.packs) for (const name of refTools(ref) ?? []) assert.ok(packTool(refPack(ref), name), `${id}: ${m.id} narrows to a real tool ${name}`);
+  }
+});
+
+test('v3: contract tables name real columns of their packs, and a member of the team selects each pack', () => {
+  for (const id of TEAMS) {
+    const t = source(id);
+    for (const tb of t.contract.provides?.tables ?? []) {
+      const table = packJson(tb.pack).storage.tables.find(x => x.name === tb.table);
+      assert.ok(table, `${id}: ${tb.pack}.${tb.table}`);
+      const cols = new Set(table.columns.map(c => c.name));
+      for (const f of tb.fields) assert.ok(cols.has(f), `${id}: ${tb.table} has column ${f}`);
+      assert.ok(!table.columns.some(c => c.principal && tb.fields.includes(c.name) && tb.tenant === 'all'), `${id}: no principal column leaves under tenant all`);
+      assert.ok(t.members.some(m => m.packs.some(r => refPack(r) === tb.pack)), `${id}: a member selects ${tb.pack}`);
+    }
+  }
+});
+
+test('v3 fields are refused where the runtime refuses them', () => {
+  const t = source('team-insight');
+  const bad = (change, why) => assert.throws(() => validateGroup(change(structuredClone(t))), undefined, why);
+  bad(x => ({ ...x, api_version: 'soot/group-template/v2' }), 'a contract on v2');
+  bad(x => { delete x.schedules[1].member; return x; }, 'a chain nobody runs: the lead holds none of the team packs');
+  bad(x => { x.schedules[1].member = 'nobody'; return x; }, 'a chain run by a non-member');
+  bad(x => { x.members[1].packs = ['marketing:tools=signals_list']; return x; }, 'a chain tool outside the member allow-list');
+  bad(x => { x.members[1].packs = ['company-loop']; return x; }, 'a chain pack the member does not select');
+  bad(x => { x.schedules[1].tool.pack = 'writing'; return x; }, 'a chain pack the template does not ship');
+  bad(x => { x.schedules[1].then = Array(9).fill({ pack: 'marketing', tool: 'plan' }); return x; }, 'more than eight steps');
+  bad(x => { x.schedules[1].then = [{ pack: 'marketing', tool: 'plan', input_from: 'elsewhere' }]; return x; }, 'input_from other than previous');
+  bad(x => { x.contract.consumes = [{ team: 'marketing', item: 'posts' }]; return x; }, 'an edge inside a group template');
+  bad(x => { x.contract.provides.tables[0].pack = 'writing'; return x; }, 'a provided pack the template does not ship');
+  bad(x => { x.contract.provides.tables[0].tenant = ''; return x; }, 'a table without a tenant');
+  bad(x => { x.contract.escalates[0].on = 'whenever'; return x; }, 'an unknown trigger');
+  bad(x => { x.profiles[0].team_daily_tokens = -1; return x; }, 'a negative team budget');
+  bad(x => { x.members[1].packs = ['marketing:tools=Radar-Read']; return x; }, 'a malformed tool list');
 });

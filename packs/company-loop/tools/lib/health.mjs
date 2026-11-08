@@ -2,9 +2,12 @@
 // the tokens it spent and what it cost the founder (taps and answers). The Công ty page shows it; this is the one place
 // founder hours and token cost are measured together.
 //
-// Runtime numbers come from the `soot` CLI of this workspace (`traces list`, `schedules list`, `attention list`; read-only,
-// local files, LOOP_SOOT_CONFIG names the deployment). Marketing's starving inputs arrive from a chain step
-// (marketing_inputs_health -> company-loop_health_sync). Nothing here posts, spends or changes anything.
+// Runtime numbers come from the `soot` CLI of this workspace (read-only; LOOP_SOOT_CONFIG names the deployment):
+// `teams health --json` (one row per team: its schedules' last runs, the inputs it is starving for, tokens against the team
+// budget) and `attention answers --json` (who answered which card, and how fast). A runtime without those commands (before
+// L6) is read the old way for one more release: `schedules list`, `traces list` and `attention list`, with schedule ids
+// matched to stages by name. Marketing's starving inputs arrive from a chain step (marketing_inputs_health ->
+// company-loop_health_sync). Nothing here posts, spends or changes anything.
 import { execFile } from 'node:child_process';
 import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
@@ -32,14 +35,63 @@ const soot = (bin, config, args) => new Promise(resolve => {
   });
 });
 
+// Used only by the older runtime path above: a schedule has no team there, so its stage is guessed from its id.
 const stageOf = (id, stages) => stages.find(s => (s.schedules ?? []).includes(id) || (s.prefixes ?? []).some(p => id.startsWith(p)))?.key ?? null;
 const cleanInput = i => (i && typeof i === 'object' && /^[a-z0-9_-]{1,24}$/.test(String(i.key))
   ? { key: i.key, label: short(i.label ?? i.key, 40), starving: i.starving === true, detail: short(i.detail, 240), rows: Number.isFinite(i.rows) ? i.rows : null } : null);
 
-/** What the runtime says: per-schedule last run, tokens by stage, cards open. Null parts when the CLI is not reachable. */
+const REASONS = { never_ran: 'chưa chạy lần nào', stale: 'đã lâu không có dữ liệu mới', no_peer_key: 'thiếu khoá nối runtime của đội kia', team_unknown: 'đội kia không còn trong công ty' };
+const reasonText = r => REASONS[r] ?? short(String(r ?? ''), 80);
+const num = v => (Number.isFinite(v) ? v : 0);
+
+/** One team of `soot teams health --json` as a row of the Vòng lặp view. */
+function teamRow(h) {
+  const sched = Array.isArray(h.schedules) ? h.schedules : [];
+  const last = sched.filter(x => x.last).sort((a, b) => Date.parse(b.last) - Date.parse(a.last))[0] ?? null;
+  const days = Array.isArray(h.tokens?.last_7_days) ? h.tokens.last_7_days : [];
+  return {
+    key: String(h.team), label: short(h.name || h.team, 60), schedules: sched.length,
+    last_run: last ? { schedule: last.id, name: last.name ?? last.id, at: last.last, status: last.skip ? 'skipped' : last.ok ? 'ok' : 'failed' } : null,
+    tokens_7d: days.reduce((n, d) => n + num(d), 0),
+    tokens_today: num(h.tokens?.spent), budget_daily: num(h.tokens?.budget) || null, budget_percent: num(h.tokens?.percent) || null,
+    skipped: sched.filter(x => x.skip).map(x => ({ schedule: x.id, key: x.skip })),
+    failing: sched.filter(x => !x.ok && !x.skip && x.last).map(x => x.id),
+    // The runtime's own account of what the team lacks; an optional input is a note, not hunger.
+    starving: (Array.isArray(h.starving_inputs) ? h.starving_inputs : []).filter(i => !i.optional).map(i => ({ key: `${i.team}.${i.item}`, label: short(`${i.team}.${i.item}`, 60), detail: reasonText(i.reason) })),
+  };
+}
+
+/** `soot teams health` and `soot attention answers`: the runtime's own per-team view. Null when this runtime does not have them. */
+async function teamFacts(bin, config, now) {
+  const [health, answers] = await Promise.all([
+    soot(bin, config, ['teams', 'health']),
+    soot(bin, config, ['attention', 'answers', '--days', '7']),
+  ]);
+  const teams = Array.isArray(health?.teams) ? health.teams : health?.team ? [health] : null;
+  if (!teams) return null;
+  const rows = teams.map(teamRow);
+  const effort = answers?.effort;
+  return {
+    ok: true, via: 'teams', stages: rows, direct: { runs: null, tokens: null },
+    // Cards the founder answered in the window and how long they waited, from the runtime's answer log.
+    answered: Number.isFinite(effort?.answered) ? effort.answered : null,
+    median_answer_s: Number.isFinite(effort?.median_seconds_to_answer) ? effort.median_seconds_to_answer : null,
+    cards_open: Number.isFinite(effort?.open_unanswered) ? effort.open_unanswered : null,
+    at: iso(now),
+  };
+}
+
+/** What the runtime says: per team (or, on an older runtime, per stage) the last run, tokens, hunger and the cards. Null parts when the CLI is not reachable. */
 export async function runtimeFacts(env, now, stages) {
   const bin = findSoot(env), config = env.LOOP_SOOT_CONFIG;
   if (!bin || !config || !isAbsolute(config)) return { ok: false, reason: !bin ? 'no_soot' : 'no_config' };
+  const teams = await teamFacts(bin, config, now);
+  if (teams) return teams;
+  return legacyFacts(bin, config, now, stages);
+}
+
+/** Before L6: schedule ids matched to stages by name, runs and tokens from the traces, cards from `attention list`. */
+async function legacyFacts(bin, config, now, stages) {
   const [schedules, traces, attention] = await Promise.all([
     soot(bin, config, ['schedules', 'list']),
     soot(bin, config, ['traces', 'list', '--since', '7d', '--limit', '500']),
@@ -75,7 +127,7 @@ export async function runtimeFacts(env, now, stages) {
     };
   });
   const items = Array.isArray(attention?.items) ? attention.items : null;
-  return { ok: true, stages: stageRows, direct, cards_open: items ? items.length : null, at: iso(now) };
+  return { ok: true, via: 'schedules', stages: stageRows, direct, cards_open: items ? items.length : null, at: iso(now) };
 }
 
 export async function health_sync(input, deps) {
@@ -96,19 +148,27 @@ export async function health_sync(input, deps) {
   const decisions = await store.query('decisions', [], { limit: 500 });
   const since = now - 7 * DAY;
   const taps = decisions.filter(d => d.by === 'founder' && Date.parse(d.at) >= since).length;
-  const rows = (runtime.ok ? runtime.stages : stages.map(s => ({ key: s.key, label: s.label }))).map(st => {
-    const mine = inputs.filter(i => i.starving && (st.key === 'insight' ? ['scoreboard', 'cohorts', 'plans'].includes(i.key) : st.key === 'cs' ? i.key === 'cs' : st.key === 'marketing' ? ['gsc', 'signals', 'tiktok', 'youtube'].includes(i.key) : false));
-    return { ...st, starving: mine.map(i => ({ key: i.key, label: i.label, detail: i.detail })) };
+  // Teams the runtime reports carry their own hunger; the stage list only supplies the labels of the older path and the
+  // Support row (a remote team is not in `teams health`, so it stays a line of its own).
+  const base = runtime.ok ? runtime.stages : stages.map(s => ({ key: s.key, label: s.label }));
+  const withCs = runtime.ok && runtime.via === 'teams' && !base.some(r => r.key === 'cs' || r.key === 'support') ? [...base, { key: 'cs', label: 'Hỗ trợ khách', external: true }] : base;
+  const rows = withCs.map(st => {
+    const mine = inputs.filter(i => i.starving && (st.key === 'insight' ? ['scoreboard', 'cohorts', 'plans'].includes(i.key) : st.key === 'cs' ? i.key === 'cs' : st.key === 'marketing' ? ['gsc', 'signals', 'tiktok', 'youtube'].includes(i.key) : false))
+      .map(i => ({ key: i.key, label: i.label, detail: i.detail }));
+    return { ...st, starving: [...(st.starving ?? []), ...mine] };
   });
   const value = {
     at: iso(now), stages: rows, inputs,
-    runtime: runtime.ok ? { tokens_7d: rows.reduce((n, r) => n + (r.tokens_7d ?? 0), 0), chat_runs_7d: runtime.direct.runs, chat_tokens_7d: runtime.direct.tokens } : { reason: runtime.reason },
+    runtime: runtime.ok ? { via: runtime.via, tokens_7d: rows.reduce((n, r) => n + (r.tokens_7d ?? 0), 0), chat_runs_7d: runtime.direct.runs, chat_tokens_7d: runtime.direct.tokens } : { reason: runtime.reason },
     effort: {
       decisions_tapped_7d: taps,
       chat_instructions_7d: runtime.ok ? runtime.direct.runs : null,
       cards_open: runtime.ok ? runtime.cards_open : null,
-      // The runtime keeps no record of which card a person answered; until it does, answers are counted where they land.
-      note: 'Số lần bấm trên thẻ Cần bạn chưa được runtime ghi riêng; đây là số lần bạn quyết định cơ hội và số lần bạn nhắn Soot trong 7 ngày.',
+      cards_answered_7d: runtime.ok ? runtime.answered ?? null : null,
+      median_answer_s: runtime.ok ? runtime.median_answer_s ?? null : null,
+      note: runtime.ok && runtime.via === 'teams'
+        ? 'Số thẻ Cần bạn đã trả lời và thời gian chờ trung vị lấy từ nhật ký trả lời của runtime, cộng số lần bạn quyết định cơ hội trong 7 ngày.'
+        : 'Runtime này chưa ghi riêng việc trả lời thẻ Cần bạn; đây là số lần bạn quyết định cơ hội và số lần bạn nhắn Soot trong 7 ngày.',
     },
     daily_report: Array.isArray(input.daily_report?.lines) ? input.daily_report.lines.slice(0, 6).map(l => short(l, 240)) : null,
   };

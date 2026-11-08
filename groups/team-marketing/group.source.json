@@ -1,5 +1,5 @@
 {
-  "api_version": "soot/group-template/v2",
+  "api_version": "soot/group-template/v3",
   "id": "team-marketing",
   "name": "Marketing team (company)",
   "description": "The company's voice: a Writer that only writes, and a Publisher that posts what passed the checks. Publishing, Search Console, sign-in probes and video stats are tool-chain schedules of this team, not separate teams.",
@@ -102,8 +102,11 @@
       },
       "schedules": [
         "write",
-        "ops"
-      ]
+        "ops",
+        "dispatch",
+        "report"
+      ],
+      "team_daily_tokens": 250000
     },
     {
       "id": "steady",
@@ -118,7 +121,8 @@
           "tier": "flash",
           "daily_tokens": 250000
         }
-      }
+      },
+      "team_daily_tokens": 550000
     }
   ],
   "schedules": [
@@ -135,6 +139,142 @@
       "every": "24h",
       "at": "16:00",
       "text": "Daily operations. For every writing task in review, give the publisher a task to check, schedule and publish what passes; ask for missing sign-ins. Put what needs the person in one report."
+    },
+    {
+      "id": "dispatch",
+      "name": "Đăng bài đến giờ",
+      "member": "publisher",
+      "cron": "*/10 7-22 * * *",
+      "tool": {
+        "pack": "marketing",
+        "name": "due",
+        "input": {
+          "schedule": true
+        }
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "marketing_due says something is due or needs a person that you have not raised. Give the publisher one task: follow the marketing-dispatch skill (claim, publish, record), then one report_blocker with due.ask as it is."
+    },
+    {
+      "id": "report",
+      "name": "Báo cáo hằng ngày",
+      "member": "publisher",
+      "cron": "0 21 * * *",
+      "tool": {
+        "pack": "marketing",
+        "name": "report",
+        "input": {}
+      },
+      "text": "The daily report is read by a tool and kept for the company page; no model is woken for it."
+    },
+    {
+      "id": "replies",
+      "name": "Đọc phản hồi",
+      "member": "publisher",
+      "every": "2h",
+      "tool": {
+        "pack": "marketing",
+        "name": "replies_sync",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "marketing_replies_sync found replies to classify or a channel to read. Give the publisher one task: follow the marketing-replies skill, answer only the safe ones through check and schedule, and raise the rest."
+    },
+    {
+      "id": "video-stats",
+      "name": "Đọc số TikTok và YouTube",
+      "member": "publisher",
+      "every": "24h",
+      "at": "07:30",
+      "tool": {
+        "pack": "marketing",
+        "name": "video_stats",
+        "input": {}
+      },
+      "text": "Reads public view, like and comment counts of the published videos with yt-dlp into the metrics table. No login and no model; without yt-dlp it keeps one plain need in the inputs view."
     }
-  ]
+  ],
+  "contract": {
+    "version": "team-contract/v1",
+    "provides": {
+      "tables": [
+        {
+          "pack": "marketing",
+          "table": "posts",
+          "fields": [
+            "ref",
+            "kind",
+            "channel",
+            "title",
+            "link",
+            "state",
+            "url"
+          ],
+          "note": "the one record of what was written and published",
+          "tenant": "all"
+        },
+        {
+          "pack": "marketing",
+          "table": "metrics",
+          "fields": [
+            "url",
+            "source",
+            "day",
+            "views",
+            "likes",
+            "comments",
+            "impressions",
+            "clicks"
+          ],
+          "note": "views, clicks and likes per published URL and day",
+          "tenant": "all"
+        },
+        {
+          "pack": "marketing",
+          "table": "signals",
+          "fields": [
+            "source",
+            "title",
+            "url",
+            "state",
+            "note",
+            "ref"
+          ],
+          "note": "market signals the radar kept",
+          "tenant": "all"
+        }
+      ]
+    },
+    "decides": {
+      "self": [
+        "write and schedule within the checks and caps",
+        "pause a channel"
+      ],
+      "with_person": [
+        "publishing while publish_approval is required",
+        "a new channel or a sign-in",
+        "anything about money or accounts"
+      ]
+    },
+    "escalates": [
+      {
+        "when": "a channel is signed out",
+        "on": "chain_failed"
+      },
+      {
+        "when": "a post is late past stale_after_h",
+        "on": "queue_waiting"
+      },
+      {
+        "when": "a reply is about money, an account or a complaint"
+      }
+    ],
+    "budget": {
+      "daily_tokens": 250000
+    }
+  }
 }

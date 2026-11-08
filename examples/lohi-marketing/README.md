@@ -191,6 +191,8 @@ set). Without the key every loop tool answers a quiet `skipped`. If `bbs` is not
 machine a Go still writes the requirement and the page shows the exact command to run.
 
 
+To move an existing workspace onto teams (groups, per-team budgets, cross-team read grants), follow [ADOPT.md](ADOPT.md). That path is experimental and internal.
+
 ## Set it up
 
 ```bash

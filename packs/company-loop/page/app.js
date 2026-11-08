@@ -166,10 +166,10 @@ function healthSection(d) {
     h('p', { class: 'muted' }, `Cập nhật ${day(hl.at)}${hl.age_h > 30 ? ' (đã cũ)' : ''}. ${rt === undefined ? 'Chưa đọc được số token từ Soot.' : `Token 7 ngày: ${nf.format(rt)}.`}`),
     h('div', { class: 'stack' }, hl.stages.map(st => h('div', { class: 'card stack' },
       h('div', { class: 'line between' }, h('span', { class: 'strong' }, st.label), badge(st.starving?.length ? `${st.starving.length} nguồn đang đói` : 'đủ nguồn', st.starving?.length ? 'warn' : '')),
-      h('p', { class: 'muted' }, st.external ? 'Chạy ở máy chủ Hỗ trợ riêng.' : st.last_run ? `Lần chạy gần nhất: ${st.last_run.name} (${day(st.last_run.at)}, ${st.last_run.status ?? 'chưa rõ'}). Token 7 ngày: ${nf.format(st.tokens_7d ?? 0)}, gọi model ${st.model_wakes_7d ?? 0} lần.` : 'Chưa có lần chạy nào.'),
+      h('p', { class: 'muted' }, st.external ? 'Chạy ở máy chủ Hỗ trợ riêng.' : st.last_run ? `Lần chạy gần nhất: ${st.last_run.name} (${day(st.last_run.at)}, ${st.last_run.status ?? 'chưa rõ'}). Token 7 ngày: ${nf.format(st.tokens_7d ?? 0)}${st.model_wakes_7d != null ? `, gọi model ${st.model_wakes_7d} lần` : ''}${st.budget_daily ? `. Hôm nay ${nf.format(st.tokens_today ?? 0)}/${nf.format(st.budget_daily)} (${Math.round(st.budget_percent ?? 0)}%)` : ''}.` : 'Chưa có lần chạy nào.'),
       (st.starving ?? []).map(i => h('p', {}, h('span', { class: 'strong' }, i.label + ': '), i.detail || 'chưa có'))))),
     h('div', { class: 'card stack' }, h('span', { class: 'strong' }, 'Công sức của bạn (7 ngày)'),
-      h('p', {}, `Quyết định cơ hội: ${hl.effort?.decisions_tapped_7d ?? 0}. Lần nhắn Soot: ${hl.effort?.chat_instructions_7d ?? 'chưa rõ'}. Thẻ Cần bạn đang mở: ${hl.effort?.cards_open ?? 'chưa rõ'}.`),
+      h('p', {}, `Quyết định cơ hội: ${hl.effort?.decisions_tapped_7d ?? 0}. Lần nhắn Soot: ${hl.effort?.chat_instructions_7d ?? 'chưa rõ'}. Thẻ Cần bạn đang mở: ${hl.effort?.cards_open ?? 'chưa rõ'}${hl.effort?.cards_answered_7d != null ? `, đã trả lời 7 ngày: ${hl.effort.cards_answered_7d}${hl.effort.median_answer_s != null ? ` (chờ trung vị ${Math.round(hl.effort.median_answer_s)} giây)` : ''}` : ''}.`),
       h('p', { class: 'muted' }, hl.effort?.note || '')));
 }
 

@@ -1,5 +1,5 @@
 {
-  "api_version": "soot/group-template/v2",
+  "api_version": "soot/group-template/v3",
   "id": "team-financial",
   "name": "Financial team",
   "description": "Read-only finance: revenue, cohorts, plans, unit economics and what each team's Soots cost. It reports and warns; it never acts on money.",
@@ -12,7 +12,7 @@
       "soul": "You are Finance on the financial team of a small company, led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
       "mission": "Read company-loop's scoreboard (revenue, cohorts, plans) and the token use per team that the loop-health view keeps. Once a week write a short Vietnamese report: revenue and its change, payers per plan, cohort retention (w1/w2/w4), Soot token cost per team and cost per signup or first payer when both exist. A field that is missing is 'chưa có', never guessed. You never change a price, a budget, a plan or any money setting; you only warn the founder.",
       "packs": [
-        "company-loop:read",
+        "company-loop:tools=signals",
         "marketing:read"
       ]
     }
@@ -59,7 +59,8 @@
       },
       "schedules": [
         "report"
-      ]
+      ],
+      "team_daily_tokens": 30000
     },
     {
       "id": "steady",
@@ -70,16 +71,54 @@
           "tier": "lite",
           "daily_tokens": 60000
         }
-      }
+      },
+      "team_daily_tokens": 60000
     }
   ],
   "schedules": [
     {
       "id": "report",
       "name": "Báo cáo tài chính tuần",
+      "member": "finance",
       "every": "168h",
       "at": "09:00",
-      "text": "Weekly finance report. Give the finance Soot one task: revenue, cohorts, plans, unit economics and Soot cost per team, from the scoreboard and the loop-health view. Read-only: it warns and never acts on money."
+      "tool": {
+        "pack": "company-loop",
+        "name": "signals",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "Weekly finance report. company-loop_signals gave the week's numbers. Give the finance Soot one task: revenue, cohorts, plans, unit economics and Soot cost per team, from the scoreboard and the loop-health view. Read-only: it warns and never acts on money."
     }
-  ]
+  ],
+  "contract": {
+    "version": "team-contract/v1",
+    "provides": {
+      "events": [
+        "weekly_finance_report"
+      ]
+    },
+    "decides": {
+      "self": [
+        "write the weekly report"
+      ],
+      "with_person": [
+        "it never acts on money: any change is the founder's"
+      ]
+    },
+    "escalates": [
+      {
+        "when": "revenue falls two weeks running"
+      },
+      {
+        "when": "Soot cost per team grows faster than its output",
+        "on": "budget_80"
+      }
+    ],
+    "budget": {
+      "daily_tokens": 30000
+    }
+  }
 }

@@ -1,5 +1,5 @@
 {
-  "api_version": "soot/group-template/v2",
+  "api_version": "soot/group-template/v3",
   "id": "team-insight",
   "name": "Insight team",
   "description": "The company's eyes and thin lead: an Analyst reads the numbers and writes the weekly digest, a Radar watches the market read-only. It also sets goals, runs the weekly review and splits the token budget between teams; the founder decides.",
@@ -23,7 +23,7 @@
       "soul": "You are Radar on the insight team of a small company, led by Kamaji. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private.",
       "mission": "Read the marketing-radar skill. Run marketing_radar_read for the company's sources, mark each new signal kept, dismissed or used with marketing_signals_mark and a one-line Vietnamese note, and hand the strongest angle to the Analyst. Never post, reply, sign in or open a browser.",
       "packs": [
-        "marketing"
+        "marketing:tools=radar_read,signals_list,signals_mark"
       ]
     }
   ],
@@ -91,8 +91,11 @@
       },
       "schedules": [
         "digest",
-        "radar"
-      ]
+        "radar",
+        "scoreboard",
+        "health"
+      ],
+      "team_daily_tokens": 130000
     },
     {
       "id": "steady",
@@ -107,7 +110,8 @@
           "tier": "lite",
           "daily_tokens": 100000
         }
-      }
+      },
+      "team_daily_tokens": 250000
     }
   ],
   "schedules": [
@@ -116,14 +120,157 @@
       "name": "Bản tin tuần và rà soát",
       "every": "168h",
       "at": "08:30",
-      "text": "Weekly digest and review. Give the analyst one task: read the numbers, rank at most five opportunities with the measure each is judged by, name every input that is missing. Then review the goals in the brief against the week, and propose (never apply) a split of the daily token budget between teams. Deciding an opportunity or a budget is the person's call."
+      "text": "Weekly digest and review. Give the analyst one task: read the numbers, rank at most five opportunities with the measure each is judged by, name every input that is missing. Then review the goals in the brief against the week, and propose (never apply) a split of the daily token budget between teams. Deciding an opportunity or a budget is the person's call. If the radar has no sources yet, give it one task: seed the market sources from the brief with marketing_radar_read {sources}."
     },
     {
       "id": "radar",
       "name": "Đọc thị trường",
+      "member": "radar",
+      "cron": "20 */3 * * *",
+      "tool": {
+        "pack": "marketing",
+        "name": "radar_read",
+        "input": {
+          "schedule": true,
+          "per_call": 2,
+          "min_hours": 6,
+          "wake_at": 6
+        }
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "marketing_radar_read kept new market signals (its answer says how many). Give the radar one task: list the new signals, mark each kept, dismissed or used with a one-line Vietnamese note, and hand the strongest angle to the analyst. Read-only: never post or reply anywhere."
+    },
+    {
+      "id": "scoreboard",
+      "name": "Đọc bảng số sản phẩm",
+      "member": "analyst",
       "every": "24h",
-      "at": "07:00",
-      "text": "Daily market read. Give the radar one task: read the sources, keep new signals once and hand the strongest angle to the analyst. Read-only."
+      "at": "06:15",
+      "tool": {
+        "pack": "company-loop",
+        "name": "scoreboard_sync",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "company-loop_scoreboard_sync has news: it could not read the product scoreboard, or readers are waiting for a person. If its answer has an ask, file it as one Cần bạn item with report_blocker (summary, missing, options as given) and end the turn; otherwise say its message in one line."
+    },
+    {
+      "id": "health",
+      "name": "Sức khoẻ vòng lặp",
+      "member": "analyst",
+      "every": "24h",
+      "at": "06:45",
+      "tool": {
+        "pack": "marketing",
+        "name": "inputs_health",
+        "input": {}
+      },
+      "then": [
+        {
+          "pack": "company-loop",
+          "tool": "health_sync",
+          "label": "Ghi sức khoẻ vòng lặp",
+          "input_from": "previous"
+        }
+      ],
+      "text": "A step of the loop-health chain failed (its output is attached). Say the plain reason in one sentence and stop."
     }
-  ]
+  ],
+  "contract": {
+    "version": "team-contract/v1",
+    "provides": {
+      "tables": [
+        {
+          "pack": "company-loop",
+          "table": "opportunities",
+          "fields": [
+            "ref",
+            "title",
+            "kind",
+            "query",
+            "state",
+            "target_outcome",
+            "expected_delta"
+          ],
+          "note": "ranked weekly; the founder decides product ones",
+          "tenant": "all"
+        },
+        {
+          "pack": "company-loop",
+          "table": "topics",
+          "fields": [
+            "query",
+            "reason",
+            "opportunity_ref",
+            "kind",
+            "state"
+          ],
+          "note": "content topics marketing writes next",
+          "tenant": "all"
+        },
+        {
+          "pack": "company-loop",
+          "table": "scoreboard",
+          "fields": [
+            "key",
+            "period_from",
+            "period_to",
+            "metrics",
+            "cohorts",
+            "plans"
+          ],
+          "note": "the product's numbers, one row a week",
+          "tenant": "all"
+        },
+        {
+          "pack": "company-loop",
+          "table": "handoffs",
+          "fields": [
+            "opportunity",
+            "requirement_path",
+            "state",
+            "ticket",
+            "released_at"
+          ],
+          "note": "requests to build and their state",
+          "tenant": "all"
+        }
+      ]
+    },
+    "decides": {
+      "self": [
+        "rank and queue content topics",
+        "which sources the radar reads",
+        "propose a budget split"
+      ],
+      "with_person": [
+        "a product opportunity (Go, Để sau, Bỏ)",
+        "goals",
+        "any change of a team's daily budget"
+      ]
+    },
+    "escalates": [
+      {
+        "when": "a scoreboard key is refused or the product serves no numbers",
+        "on": "input_starving",
+        "after": "24h"
+      },
+      {
+        "when": "readers wait for a person",
+        "on": "queue_waiting"
+      },
+      {
+        "when": "an opportunity has waited a week for the founder",
+        "on": "queue_waiting",
+        "after": "168h"
+      }
+    ],
+    "budget": {
+      "daily_tokens": 130000
+    }
+  }
 }

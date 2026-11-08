@@ -1,102 +1,269 @@
-// A company is a set of teams, each an interface (what it takes in, gives out, decides alone or with the founder, its daily
-// token budget and when it escalates). The runtime has no company object yet, so the composition lives here as data:
-// `groups/company-team/company.source.json` is the template, a per-company overlay adds, removes, renames or patches teams
-// and contracts, and `composeCompany` returns the resolved company. Nothing here edits a runtime; `setup` reads the result.
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { validateGroup } from './groups.mjs';
+// Compiler from `soot-forge/company-template/v1` (groups/company-team/company.source.json plus a per-company overlay, the
+// shape W2 wrote in L5) to `soot/company-template/v1`, the runtime's company file. It keeps no checks of its own: the
+// runtime owns what a company is, so `check` hands the compiled file to `soot company check --json` and returns its
+// diagnostics, and an overlay that removes a team a required edge needs is refused there (`company_edge_required`).
+//
+//   node scripts/company.mjs compile [--template file] [--overlay file]... [--mode create|adopt] [--groups dir] [--remotes file] [--out file]
+//   node scripts/company.mjs check   [same flags] [--config deployment.json]
+//
+// What this file does, and nothing more:
+//   * shapes the data an overlay patches or adds (team fields, contracts) before it is translated;
+//   * translates teams, contracts and the company block into the runtime's fields (see the table in groups/company-team/README.md);
+//   * hands `remove` and `rename` to the runtime as its own overlay, so the runtime applies them and refuses what it refuses.
+// The runtime binary is found from LOOP_SOOT_BIN, else `soot` on PATH (SOOT_* names belong to the runtime).
+//
+// This file is deleted in the first Forge release whose minimum runtime is L6: company.source.json is then written in the
+// runtime's own format and these two commands become `soot company check|create|adopt`.
+import { execFile } from 'node:child_process';
+import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 
-const ident = v => typeof v === 'string' && /^[a-z0-9][a-z0-9_-]{0,47}$/.test(v);
-const lists = (v, max = 32) => Array.isArray(v) && v.length <= max;
-const fail = m => { throw new Error(`Invalid company: ${m}`); };
+const run = promisify(execFile);
 const clone = x => structuredClone(x);
+export const FORGE_VERSION = 'soot-forge/company-template/v1';
+export const RUNTIME_VERSION = 'soot/company-template/v1';
+const OVERLAY_KEYS = ['extends', 'id', 'name', 'description', 'remove', 'rename', 'teams', 'add', 'contracts', 'daily_token_ceiling'];
 
-/** The template plus an overlay: {remove, rename, teams: {id: patch}, add, contracts: {add, remove}, daily_token_ceiling}. */
-export function composeCompany(template, overlay = {}) {
-  const c = clone(template);
-  const o = overlay ?? {};
-  for (const k of Object.keys(o)) if (!['extends', 'id', 'name', 'description', 'remove', 'rename', 'teams', 'add', 'contracts', 'daily_token_ceiling'].includes(k)) fail(`unknown overlay field ${k}`);
-  if (o.extends && o.extends !== template.id) fail(`overlay extends ${o.extends}, not ${template.id}`);
+/** A refusal with a stable code: the compiler's own (`company_input`) or the runtime's, carried through. */
+export class CompanyError extends Error {
+  constructor(code, message, diagnostics = []) { super(`${code}: ${message}`); this.code = code; this.diagnostics = diagnostics; }
+}
+const input = m => { throw new CompanyError('company_input', m); };
+
+/**
+ * Applies the overlay's data-shaping parts to a copy of the template: the company's own fields, patches of a team's
+ * fields (soots, daily_tokens, decides, ...), added teams and added or removed contracts. `remove` and `rename` are not
+ * applied here: they go to the runtime as its overlay (see compileCompany). Returns the shaped company and the ids of
+ * teams whose budget the overlay set on purpose.
+ */
+export function shapeCompany(template, overlay = {}) {
+  const c = clone(template), o = overlay ?? {};
+  for (const k of Object.keys(o)) if (!OVERLAY_KEYS.includes(k)) input(`unknown overlay field ${k}`);
+  if (o.extends && o.extends !== template.id) input(`overlay extends ${o.extends}, not ${template.id}`);
   for (const k of ['id', 'name', 'description', 'daily_token_ceiling']) if (o[k] !== undefined) c[k] = o[k];
-  const known = id => c.teams.some(t => t.id === id);
-  for (const id of o.remove ?? []) { if (!known(id)) fail(`remove names unknown team ${id}`); c.teams = c.teams.filter(t => t.id !== id); }
+  const explicit = new Set();
   for (const [id, patch] of Object.entries(o.teams ?? {})) {
     const t = c.teams.find(x => x.id === id);
-    if (!t) fail(`patch names unknown team ${id}`);
+    if (!t) throw new CompanyError('company_unknown_team', `patch names unknown team ${id}`);
     for (const [k, v] of Object.entries(patch)) t[k] = k === 'decides' ? { ...t.decides, ...v } : v;
+    if (patch.daily_tokens !== undefined) explicit.add(id);
   }
-  for (const t of o.add ?? []) { if (known(t.id)) fail(`add repeats team ${t.id}`); c.teams.push(clone(t)); }
-  for (const [from, to] of Object.entries(o.rename ?? {})) {
-    if (!known(from)) fail(`rename names unknown team ${from}`);
-    if (known(to)) fail(`rename target ${to} exists`);
-    c.teams.find(t => t.id === from).id = to;
-    for (const k of c.contracts) { if (k.owner === from) k.owner = to; if (k.reader === from) k.reader = to; }
-    for (const t of c.teams) for (const i of t.takes_in ?? []) if (i.from === from) i.from = to;
+  for (const t of o.add ?? []) {
+    if (c.teams.some(x => x.id === t.id)) throw new CompanyError('company_invalid', `add repeats team ${t.id}`);
+    c.teams.push(clone(t));
+    if (t.daily_tokens) explicit.add(t.id);
   }
-  for (const id of o.contracts?.remove ?? []) { if (!c.contracts.some(k => k.id === id)) fail(`contract ${id} unknown`); c.contracts = c.contracts.filter(k => k.id !== id); }
-  for (const k of o.contracts?.add ?? []) { if (c.contracts.some(x => x.id === k.id)) fail(`contract ${k.id} repeated`); c.contracts.push(clone(k)); }
-  // A contract whose team was removed goes with it when it is optional; a required one makes the company invalid.
-  const live = new Set(c.teams.map(t => t.id));
-  c.contracts = c.contracts.filter(k => {
-    if (live.has(k.owner) && live.has(k.reader)) return true;
-    if (k.optional) return false;
-    return fail(`contract ${k.id} needs ${live.has(k.owner) ? k.reader : k.owner}, which this company does not have`);
-  });
-  const cids = new Set(c.contracts.map(k => k.id));
-  for (const t of c.teams) t.takes_in = (t.takes_in ?? []).filter(i => (!i.from || live.has(i.from)) && (!i.contract || cids.has(i.contract)));
-  return c;
+  for (const id of o.contracts?.remove ?? []) {
+    if (!c.contracts.some(k => k.id === id)) throw new CompanyError('company_invalid', `contract ${id} unknown`);
+    c.contracts = c.contracts.filter(k => k.id !== id);
+  }
+  for (const k of o.contracts?.add ?? []) {
+    if (c.contracts.some(x => x.id === k.id)) throw new CompanyError('company_invalid', `contract ${k.id} repeated`);
+    c.contracts.push(clone(k));
+  }
+  return { company: c, explicit };
+}
+
+/** Reads a built groups directory (what `buildGroups` writes): the pin of each group template. */
+export async function readPins(dir) {
+  const manifest = JSON.parse(await readFile(join(dir, 'groups.json'), 'utf8'));
+  const pins = {};
+  for (const g of manifest.groups) {
+    if (!g.archive) continue;
+    // A archive built next to the manifest is used from disk; otherwise the release URL is the source.
+    const local = join(dir, basename(new URL(g.archive.url).pathname));
+    const exists = await readFile(local).then(() => true, () => false);
+    pins[g.id] = { source: exists ? resolve(local) : g.archive.url, sha256: g.archive.sha256 };
+  }
+  return pins;
+}
+
+async function groupSource(root, id) {
+  try { return JSON.parse(await readFile(join(root, 'groups', id, 'group.source.json'), 'utf8')); } catch { return null; }
 }
 
 /**
- * Checks a resolved company against the Forge: every team has a group of this catalog (or declares an external runtime),
- * every contract names a table its owner gives out with only declared fields, and (given the packs' manifests) only columns
- * the pack really has. The total of daily budgets stays under the ceiling and a group-backed team's budget equals its lean profile.
+ * Compiles a company. Options: mode `create` (teams are pinned group templates: needs `pins`) or `adopt` (teams are the
+ * Soots a deployment already has), the repository root (for the group templates' packs and escalation triggers) and
+ * `remotes`, a map from a forge team's external runtime to `{url, token_env, group?}`. An external team with no remote
+ * entry has no runtime representation (build, which is Claude Code through `bbs team`); it is left out and named in notes.
  */
-export async function validateCompany(c, { root, packs = {} } = {}) {
-  if (c.api_version !== 'soot-forge/company-template/v1' || !ident(c.id) || !lists(c.teams, 24) || !c.teams.length || !lists(c.contracts, 64)) fail('shape');
-  if (!Number.isInteger(c.daily_token_ceiling) || c.daily_token_ceiling < 1) fail('daily_token_ceiling');
-  const catalog = root ? JSON.parse(await readFile(join(root, 'groups.json'), 'utf8')).groups : null;
-  const ids = new Set();
-  let total = 0;
+export async function compileCompany(template, overlay, { mode = 'create', root, pins = {}, remotes = {} } = {}) {
+  if (template.api_version !== FORGE_VERSION) input(`api_version must be ${FORGE_VERSION}`);
+  if (!['create', 'adopt'].includes(mode)) input('mode is create or adopt');
+  const { company: c, explicit } = shapeCompany(template, overlay);
+  const notes = [];
+  const kept = [], dropped = new Set();
   for (const t of c.teams) {
-    if (!ident(t.id) || ids.has(t.id)) fail(`team id ${t.id}`);
-    ids.add(t.id);
-    if (!lists(t.soots, 16) || !t.soots.every(s => ident(s.id) && typeof s.role === 'string')) fail(`${t.id}: soots`);
-    if (!lists(t.takes_in) || !lists(t.gives_out) || !t.decides || !lists(t.decides.alone) || !lists(t.decides.with_founder)) fail(`${t.id}: an interface declares takes_in, gives_out and decides`);
-    if (!lists(t.escalates_when) || !t.escalates_when.length) fail(`${t.id}: says when it escalates`);
-    if (!Number.isInteger(t.daily_tokens) || t.daily_tokens < 0) fail(`${t.id}: daily_tokens`);
-    for (const g of t.gives_out) if (!ident(g.table) || !lists(g.fields, 32) || !g.fields.length) fail(`${t.id}: gives_out ${g.table}`);
-    if (t.external) { if (t.group || t.daily_tokens) fail(`${t.id}: an external team has no group and no budget here`); continue; }
-    if (!ident(t.group)) fail(`${t.id}: group`);
-    total += t.daily_tokens;
-    if (catalog) {
-      const entry = catalog.find(e => e.id === t.group);
-      if (!entry) fail(`${t.id}: group ${t.group} is not in groups.json`);
-      const group = validateGroup(JSON.parse(await readFile(join(root, entry.source), 'utf8')));
-      const lean = group.profiles.find(p => p.id === 'lean') ?? group.profiles[0];
-      const sum = Object.values(lean.members).reduce((n, m) => n + m.daily_tokens, 0);
-      if (!t.slot && !t.budget_override && sum !== t.daily_tokens) fail(`${t.id}: daily_tokens ${t.daily_tokens} is not its group's ${lean.id} profile (${sum})`);
+    if (t.external && !remotes[t.external.runtime]) { dropped.add(t.id); notes.push(`team ${t.id} runs on ${t.external.runtime}, which has no runtime representation: left out with its edges`); } else kept.push(t);
+  }
+  const groups = {};
+  for (const t of kept) if (t.group && !t.external) groups[t.group] = await groupSource(root, t.group) ?? input(`team ${t.id}: group ${t.group} is not in this repository`);
+  // What each team provides: a table of a pack the group template does not ship cannot be owned in create mode yet (the
+  // product's pack arrives with the product), so it is left out of the created team's contract and named in notes.
+  const unowned = (t, g) => mode === 'create' && !t.external && !(groups[t.group]?.packs ?? []).some(p => p.id === g.pack);
+  const items = t => t.gives_out.filter(g => g.table);
+  const notYet = new Set(kept.flatMap(t => items(t).filter(g => unowned(t, g)).map(g => `${t.id}.${g.table}`)));
+  for (const t of kept) for (const g of items(t)) if (unowned(t, g)) notes.push(`team ${t.id}: ${g.pack}.${g.table} is provided once the product's pack is installed (adopt)`);
+  const contractsOf = id => c.contracts.filter(k => k.owner === id || k.reader === id);
+  const teams = [];
+  for (const t of kept) {
+    const out = { id: t.id };
+    const group = t.group ? groups[t.group] : null;
+    const name = t.name ?? (group ? (await catalogName(root, t.group)) : undefined);
+    if (name) out.name = name;
+    if (t.external) {
+      const r = remotes[t.external.runtime];
+      out.remote = { runtime: t.external.runtime, group: r.group ?? t.id };
+    } else if (mode === 'create') {
+      const pin = pins[t.group] ?? input(`team ${t.id}: no pinned archive for group ${t.group}; pass --groups <dir with groups.json>`);
+      out.template = pin; out.profile = 'lean';
+    } else {
+      out.members = t.soots.map(s => s.id);
     }
+    const contract = { version: 'team-contract/v1' };
+    const tables = items(t).filter(g => !unowned(t, g)).map(g => ({ name: g.table, pack: g.pack, table: g.table, fields: g.fields, ...(g.note ? { note: g.note } : {}), tenant: 'all' }));
+    const queues = contractsOf(t.id).filter(k => k.mode === 'write' && k.owner === t.id && !dropped.has(k.reader))
+      .map(k => ({ name: k.id, kind: 'table', pack: k.pack, table: k.table, fields: k.fields }));
+    const events = t.gives_out.filter(g => g.event).map(g => g.event);
+    if (tables.length || queues.length || events.length) contract.provides = { ...(tables.length ? { tables } : {}), ...(queues.length ? { queues } : {}), ...(events.length ? { events } : {}) };
+    const consumes = [], requests = [];
+    for (const k of c.contracts.filter(x => x.reader === t.id)) {
+      if (dropped.has(k.owner)) continue;
+      const why = (t.takes_in ?? []).find(i => i.contract === k.id);
+      if (k.mode === 'write') { requests.push({ team: k.owner, queue: k.id }); continue; }
+      if (notYet.has(`${k.owner}.${k.table}`)) continue; // the owner provides it once its pack is installed: nothing to read yet
+      consumes.push({ team: k.owner, item: k.table, fields: k.fields, ...(why?.what ? { why: why.what } : {}), ...(k.optional || why?.optional ? { optional: true } : {}) });
+    }
+    if (consumes.length) contract.consumes = consumes;
+    if (requests.length) contract.requests = requests;
+    if (t.decides) contract.decides = { self: t.decides.alone ?? [], with_person: t.decides.with_founder ?? [] };
+    if (t.escalates_when?.length) {
+      // Text is the company's; a trigger comes along when the group template declares the same text with one.
+      const known = new Map((group?.contract?.escalates ?? []).map(e => [e.when, e]));
+      contract.escalates = t.escalates_when.map(w => (typeof w === 'string' ? (known.get(w) ?? { when: w }) : w));
+    }
+    if (t.daily_tokens > 0 && (mode === 'create' || explicit.has(t.id)) && !t.external) contract.budget = { daily_tokens: t.daily_tokens };
+    out.contract = contract;
+    teams.push(out);
   }
-  if (total > c.daily_token_ceiling) fail(`daily budgets total ${total}, over the ceiling ${c.daily_token_ceiling}`);
-  const cids = new Set();
-  for (const k of c.contracts) {
-    if (!ident(k.id) || cids.has(k.id)) fail(`contract id ${k.id}`);
-    cids.add(k.id);
-    const owner = c.teams.find(t => t.id === k.owner), reader = c.teams.find(t => t.id === k.reader);
-    if (!owner || !reader || owner === reader) fail(`${k.id}: owner and reader are two teams of this company`);
-    if (!['read', 'write'].includes(k.mode)) fail(`${k.id}: mode`);
-    const gives = owner.gives_out.find(g => g.table === k.table && g.pack === k.pack);
-    if (!gives) fail(`${k.id}: ${owner.id} does not give out ${k.pack}.${k.table}`);
-    const missing = k.fields.filter(f => !gives.fields.includes(f));
-    if (!k.fields.length || missing.length) fail(`${k.id}: ${missing.join(', ') || 'no fields'} not given out by ${owner.id}`);
-    const real = packs[k.pack]?.storage?.tables?.find(x => x.name === k.table);
-    if (packs[k.pack] && !real) fail(`${k.id}: pack ${k.pack} has no table ${k.table}`);
-    if (real) { const cols = new Set(real.columns.map(x => x.name)); const bad = k.fields.filter(f => !cols.has(f)); if (bad.length) fail(`${k.id}: ${k.pack}.${k.table} has no column ${bad.join(', ')}`); }
+  const lead = c.teams.find(t => t.lead && !dropped.has(t.id));
+  const company = {
+    api_version: RUNTIME_VERSION, id: c.id, name: c.name, ...(c.description ? { description: c.description } : {}),
+    company: { name: c.name, ...(lead ? { lead_team: lead.id } : {}), ...(c.daily_token_ceiling ? { daily_token_ceiling: c.daily_token_ceiling } : {}) },
+    ...(Object.keys(remotes).length && teams.some(t => t.remote) ? { remotes: Object.fromEntries(teams.filter(t => t.remote).map(t => [t.remote.runtime, { url: remotes[t.remote.runtime].url, token_env: remotes[t.remote.runtime].token_env }])) } : {}),
+    teams,
+  };
+  // The runtime applies remove and rename itself, so it refuses a removal a required edge depends on.
+  // A team this compiler left out (it has no runtime form) is not the runtime's to remove or rename.
+  const o = overlay ?? {};
+  const rt = {};
+  const remove = (o.remove ?? []).filter(id => !dropped.has(id));
+  const rename = Object.fromEntries(Object.entries(o.rename ?? {}).filter(([id]) => !dropped.has(id)));
+  if (remove.length) rt.remove = remove;
+  if (Object.keys(rename).length) rt.rename = rename;
+  if (Object.keys(rt).length) company.overlay = rt;
+  return { company, notes };
+}
+
+async function catalogName(root, id) {
+  try { return JSON.parse(await readFile(join(root, 'groups.json'), 'utf8')).groups.find(g => g.id === id)?.name; } catch { return undefined; }
+}
+
+/** The runtime binary: LOOP_SOOT_BIN, else `soot` on PATH. */
+export const sootBin = (env = process.env) => env.LOOP_SOOT_BIN || 'soot';
+
+/**
+ * `soot company check --json` on a compiled company. Returns the runtime's report `{ok, teams, edges, diagnostics}`
+ * as it is; a refusal before the report (a load or compose error) is the same shape with its diagnostic. The compiler
+ * adds nothing to it.
+ */
+export async function checkCompiled(company, { config, bin = sootBin(), env = process.env } = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'forge-company-'));
+  try {
+    const file = join(dir, 'company.json');
+    await writeFile(file, JSON.stringify(company, null, 2) + '\n');
+    return await runtimeCheck(file, { config, bin, env });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+export async function runtimeCheck(file, { config, bin = sootBin(), env = process.env } = {}) {
+  let stdout = '';
+  try {
+    ({ stdout } = await run(bin, ['company', 'check', file, '--json', ...(config ? ['--config', config] : [])], { timeout: 10 * 60_000, maxBuffer: 16 * 1024 * 1024, env: { PATH: env.PATH, HOME: env.HOME, ...(env.SOOT_HOME ? { SOOT_HOME: env.SOOT_HOME } : {}), ...(env.TMPDIR ? { TMPDIR: env.TMPDIR } : {}) } }));
+  } catch (e) {
+    if (typeof e.stdout !== 'string' || !e.stdout.trim()) throw new CompanyError('company_runtime', `cannot run ${bin} company check: ${e.stderr?.trim() || e.message}`);
+    stdout = e.stdout; // a refusal exits non-zero with its diagnostics on stdout
   }
-  for (const t of c.teams) for (const i of t.takes_in) {
-    if (i.from && !ids.has(i.from)) fail(`${t.id}: takes in from unknown team ${i.from}`);
-    if (i.contract && !cids.has(i.contract)) fail(`${t.id}: takes in by unknown contract ${i.contract}`);
+  let report;
+  try { report = JSON.parse(stdout); } catch { throw new CompanyError('company_runtime', 'the runtime did not answer with JSON; is it older than L6?'); }
+  // A refusal before the report (a load or compose error) answers with its diagnostics alone.
+  return { ok: report.ok === true, teams: [], edges: [], ...report, diagnostics: report.diagnostics ?? [] };
+}
+
+/** Compiles and checks one company; returns `{ok, diagnostics, teams, edges, notes, company}`. */
+export async function checkCompany(template, overlay, options = {}) {
+  const { company, notes } = await compileCompany(template, overlay, options);
+  const report = await checkCompiled(company, options);
+  return { ...report, notes, company };
+}
+
+// ---- command line -------------------------------------------------------------------------------------------------
+
+function parseArgs(argv) {
+  const a = { overlays: [], mode: 'create' };
+  for (let i = 0; i < argv.length; i++) {
+    const k = argv[i], v = () => argv[++i] ?? input(`${k} needs a value`);
+    if (k === '--template') a.template = v(); else if (k === '--overlay') a.overlays.push(v()); else if (k === '--mode') a.mode = v();
+    else if (k === '--groups') a.groups = v(); else if (k === '--remotes') a.remotes = v(); else if (k === '--out') a.out = v();
+    else if (k === '--config') a.config = v(); else if (k === '--json') a.json = true; else input(`unknown flag ${k}`);
   }
-  return { total, teams: c.teams.map(t => t.id), contracts: c.contracts.map(k => k.id) };
+  return a;
+}
+
+export async function main(argv, root = resolve(import.meta.dirname, '..')) {
+  const [cmd, ...rest] = argv;
+  if (!['compile', 'check'].includes(cmd)) input('usage: company.mjs compile|check [--template f] [--overlay f]... [--mode create|adopt] [--groups dir] [--remotes f] [--out f] [--config deployment.json]');
+  const a = parseArgs(rest);
+  const readJson = async f => JSON.parse(await readFile(f, 'utf8'));
+  const template = await readJson(a.template ?? join(root, 'groups/company-team/company.source.json'));
+  // Overlays apply in order; each is a forge overlay, so they merge into one before translation.
+  let overlay = {};
+  for (const f of a.overlays) overlay = mergeOverlays(overlay, await readJson(f));
+  const options = {
+    mode: a.mode, root, config: a.config,
+    pins: a.mode === 'create' ? await readPins(a.groups ?? input('create mode needs --groups <dir with groups.json>')) : {},
+    remotes: a.remotes ? await readJson(a.remotes) : {},
+  };
+  if (cmd === 'compile') {
+    const { company, notes } = await compileCompany(template, overlay, options);
+    const text = JSON.stringify(company, null, 2) + '\n';
+    if (a.out) await writeFile(a.out, text); else process.stdout.write(text);
+    for (const n of notes) console.error(`note: ${n}`);
+    return 0;
+  }
+  const r = await checkCompany(template, overlay, options);
+  for (const n of r.notes) console.error(`note: ${n}`);
+  if (a.json) process.stdout.write(JSON.stringify({ ok: r.ok, teams: r.teams, edges: r.edges, diagnostics: r.diagnostics, notes: r.notes }, null, 2) + '\n');
+  else if (r.ok) console.log(`ok: ${r.teams.length} teams, ${r.edges.length} edges`);
+  else for (const d of r.diagnostics) console.error(`${d.code}: ${d.message}`);
+  return r.ok ? 0 : 1;
+}
+
+/** Overlay files given in order: later keys win, the list-like keys add up, patches merge per team. */
+export function mergeOverlays(a, b) {
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) {
+    if (['remove', 'add'].includes(k)) out[k] = [...(a[k] ?? []), ...v];
+    else if (['rename', 'teams'].includes(k)) out[k] = { ...(a[k] ?? {}), ...v };
+    else if (k === 'contracts') out[k] = { add: [...(a.contracts?.add ?? []), ...(v.add ?? [])], remove: [...(a.contracts?.remove ?? []), ...(v.remove ?? [])] };
+    else out[k] = v;
+  }
+  return out;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main(process.argv.slice(2)).then(code => process.exit(code), e => { console.error(e.message); process.exit(2); });
 }

@@ -34,12 +34,32 @@ group's lean profile. `scripts/company.test.mjs` builds Lohi and a second compan
 Another product brings its own scoreboard adapter in the same shape (`SCOREBOARD_URL`,
 contract v1, optional `cohorts` and `plans`) and its own packs.
 
-## What the runtime does not have yet (for L6)
+## From template to runtime company
 
-A group schedule is a text task for Kamaji: it cannot hold a tool-only chain, and a
-member's packs cannot narrow their tools (`validateGroup`: `id` or `id:read` only). There
-is no company object that composes groups, no cross-team read grant (a team reads another's
-table only through pack storage and a tool env), no per-team budget (budgets are per
-member) and no per-team Nest page. This manifest is therefore Forge data plus the
-workspace recipe's setup; nothing here asks the runtime for those. File pointers are in
-the handoff of this change.
+Status: experimental, internal. It is not offered as a public catalog item.
+
+The `team-*` group templates are `soot/group-template/v3`: each carries a `contract`
+(provides, decides, escalates, budget) and tool-chain schedules that run as a named member.
+The edges between teams (`consumes`, `requests`) live only in this company template,
+because a group on its own would be refused for an edge to a team that is not there.
+
+`scripts/company.mjs` is a thin compiler from `soot-forge/company-template/v1` to
+`soot/company-template/v1`. It has no checks of its own: it shapes the file, then calls
+`soot company check --json` and prints the runtime's diagnostics. Find the binary with
+`LOOP_SOOT_BIN` (else `soot` on PATH).
+
+```bash
+node scripts/company.mjs compile --mode adopt --overlay examples/lohi-marketing/company.lohi.json \
+  --remotes examples/lohi-marketing/remotes.lohi.json --out lohi.company.json
+node scripts/company.mjs check   --mode adopt --overlay ... --config <workspace>/deployment.json
+```
+
+- `create`: each team is pinned to a built group archive (`--groups <dir>`).
+- `adopt`: the teams are the Soot ids of an existing workspace; `soot company adopt` moves it.
+- Overlay `remove` and `rename` go to the runtime unchanged, so it refuses a removal that a
+  required edge depends on (`company_edge_required`) or that removes the lead.
+- A team with an entry in `--remotes` becomes a remote team (cs, `https://soot.lohi2.com`,
+  no roster). Build runs outside Soot (Claude Code with `bbs team`) and is left out of the
+  compiled company; the compiler notes it.
+
+Runbook for a live workspace: [ADOPT.md](../../examples/lohi-marketing/ADOPT.md).
