@@ -3,6 +3,20 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.16
+
+Baseline: v0.11.15 (34462c8). **Needs Soot 0.13.14 or later**, as 0.11.15; Soot 0.13.17 or later pairs with it (the chain wake carries the last step's output, and `soot update` can add the `desk` Soot of the Lohi CS deploy). Commits since v0.11.15: d725811 (merge 427acf2) and this release commit. One pack changed, `company-loop`; no new pack and no catalog change.
+
+### Changed
+
+- **company-loop: customer-service pain reaches the weekly digest.** `signals` now also reads what readers asked for or lacked from the CS runtime's feedback desk (`GET /v1/sessions?source=event`, conversations of the `desk` Soot, first message `Loại:` and `Tóm tắt:`, last 14 days, at most 40 notes). The packet gains `cs_feedback`: `n` counts by kind (feature_request, bug, complaint, question, feedback) and `ex` up to five samples per kind, each scrubbed (links, addresses, handles, number runs, long ids and order codes removed, 70 characters), at most 1 KiB; if the whole packet is over 3 KiB the samples go first and the counts stay. It is optional like `cs_gaps`: with no `CS_RUNTIME_URL` or token it is absent, a failure shows as `cs_error`. The `signals` tool timeout goes from 30s to 45s for the extra reads. The digest skill now ranks CS pain as evidence (a high `support.waiting_human`, a hand-over reason, a repeating `feature_request` or `bug`), cites it as `feedback:<kind>` or `metric:waiting_human` and never copies a sample word for word into a title.
+- **company-loop: one Cần bạn ask when readers wait for a person.** The daily `scoreboard_sync` reads `support.by_state.waiting_human` from the scoreboard. At 5 or more it answers one ask (`ask`, `notify`, `wake`; key `company:support:waiting`, options "Đã xử lý" and "Để sau") that names where a person answers, once per change of the count bucket (5, 10, 20, 50); it keeps the bucket in the pack store. When fewer than 5 wait it answers `resolves_need: true` so the card closes by itself. Only counts are stored, never a reader. The digest-chain call (`for_digest`) never raises or closes the ask.
+- **Env `SUPPORT_QUEUE_URL` (optional).** Where a person answers waiting readers (the Lohi admin support queue); named in the ask, with a plain fallback text when unset or not a valid URL. It is added to the pack's allowed env, to the Lohi recipe's `deployment.example.json` and to `setup.mjs` `HOST_ENV` (`https://lohi2.com/admin/support`). The recipe's `company-scoreboard` wake text now says the sync may have news about waiting readers, not only an unreadable scoreboard.
+
+### Compatibility
+
+- Additive: an installed workspace without `SUPPORT_QUEUE_URL` or the CS runtime keeps working; the ask names the product admin's support page in words. Update `company-loop` on a live workspace with `setup.mjs` to pick up the new env and the schedule text.
+
 ## 0.11.15
 
 Baseline: v0.11.14 (c63356e). **Needs Soot 0.13.14 or later** for the new pack and the recipe (marketing storage version 4); Soot 0.13.16 or later is still what counts blog posts (see 0.11.14). Commits since v0.11.14: a2b79ee, 21d2fa3 and 99c94da (merge 6fbec46, branch loop-l1-pack) and this release commit.
