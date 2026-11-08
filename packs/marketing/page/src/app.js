@@ -10,9 +10,10 @@ const S = {
   t: M.strings('vi'), started: false, busy: false, filter: 'all', id: '',
   /** @type {any} */ data: null, loadError: '',
   /** @type {{ request_id: string, op: string, rest: object } | null} */ pending: null,
-  /** @type {{ kind: 'info' | 'success', text: string } | null} */ notice: null,
-  /** @type {{ title: string, yes: string, run: () => void } | null} */ confirm: null,
-  caps: false, editing: '',
+  /** @type {{ kind: 'info' | 'success', text: string, fix?: { label: string, link: string } } | null} */ notice: null,
+  /** @type {{ label: string, link: string } | null} */ sheetFix: null,
+  /** @type {{ title: string, yes: string, run: () => void, help?: string, keep?: string, keepRun?: () => void } | null} */ confirm: null,
+  caps: false, editing: '', /** @type {Record<string, any>} */ limits: {},
   campaign: '', /** @type {any} */ sheet: null, sheetError: '',
 };
 
@@ -55,7 +56,7 @@ async function act(/** @type {string} */ op, rest = {}) {
     const r = await bridge.call('action', M.actionBody(p.request_id, p.op, p.rest), p.request_id);
     if (!r.ok && r.error.code === 'no_response') { S.notice = { kind: 'info', text: S.t.unknown }; return; }
     S.pending = null;
-    try { S.notice = M.doneNotice(S.t, op, M.output(r)); } catch (e) { S.notice = { kind: 'info', text: M.errorText(S.t, e) }; }
+    try { S.notice = M.doneNotice(S.t, op, M.output(r)); } catch (e) { S.notice = { kind: 'info', text: M.errorText(S.t, e), ...(e?.link ? { fix: { label: 'Mở Thiết lập', link: e.link } } : {}) }; }
     await load();
   });
 }
@@ -66,6 +67,29 @@ function askWriter(/** @type {any} */ d) {
   return button(S.t.askWrite, () => bridge.open(M.writeLink(d.writer, d.product)), 'btn sm out');
 }
 
+/** The one button of a next step (do: schedule, post_now, sign_in, …). @param {any} b @param {any} d @param {any} p */
+function doNext(b, d, p) {
+  switch (b.do) {
+    case 'schedule': case 'restore': return void act('restore', { id: p.id });
+    case 'post_now': case 'retry': return void act('post_now', { id: p.id });
+    case 'sign_in': return signIn(d, b.channel ?? p?.next?.channel_id, p?.next?.channel);
+    case 'resume_channel': return void act('resume', { channel: b.channel ?? p.next.channel_id });
+    case 'resume_all': return void act('resume');
+    case 'ask_writer': { const link = p?.id ? M.reviseLink(d.writer, p) : null; return bridge.open(link ?? M.writeLink(d.writer, d.product)); }
+    case 'open': return bridge.open(p.url);
+    case 'confirm': S.id = p.id; return void run(load);
+  }
+}
+/** Sign in on a platform: Nest opens the Soot's browser (nest://browser/<soot>); the person signs in there, then turns the channel on. */
+function signIn(/** @type {any} */ d, /** @type {string} */ _id, /** @type {string} */ _label) { bridge.open(M.signInLink(d.editor)); }
+/** The next-step line of a post or item, and its one button. */
+function nextBlock(/** @type {any} */ d, /** @type {any} */ p, /** @type {any} */ n = p.next, skip = '') {
+  const line = M.nextLine(n, p);
+  if (!line?.text) return { line: null, button: null };
+  const b = line.button && line.button.do !== skip ? line.button : null;
+  return { line, button: b ? button(b.label, () => doNext(b, d, p), 'btn sm primary') : null };
+}
+
 function postList(d) {
   const t = S.t;
   const tabs = h('div', { class: 'seg', role: 'tablist' }, ...Object.entries(t.tabs).map(([k, label]) =>
@@ -73,20 +97,21 @@ function postList(d) {
   const top = h('div', { class: 'line wrap' }, tabs, askWriter(d));
   if (!d.items.length) return [top, h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, t.noPosts), h('span', {}, t.noPostsHelp))];
   return [top, h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ p) => {
-    const bad = p.reason && ['refused', 'failed'].includes(p.state);
     const state = p.unpublishing ? 'unpublishing' : p.state;
+    const { line, button: primary } = nextBlock(d, p);
     return h('li', { class: 'row' },
       h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => { S.id = p.id; void run(load); } }, p.kind === 'video' ? `Video "${p.title}"` : p.title),
+        h('small', { class: 'muted' }, `${p.channel}${p.kind === 'social' ? ' · bài mạng xã hội' : p.kind === 'reply' ? ' · trả lời' : ''}`),
         // A held video draft (#p4-video-failed): the reason, and it stays a draft.
         p.hold ? h('small', { class: p.hold === 'render_failed' ? 'errline' : 'muted' }, p.reason ?? t.stillDraft) :
-        h('small', { class: bad ? 'errline' : 'muted' }, bad ? `${t.refused}: ${p.reason.split(' · ')[0]}` : M.postLine(p, t))),
-      p.hold ? h('span', { class: `badge ${M.holdTone(p.hold)}` }, p.hold_label) : badge(p.unpublishing ? t.unpublishingLabel : p.label, state),
+        line && h('small', { class: line.tone === 'err' ? 'errline' : line.tone === 'warn' ? 'warnline soft' : 'muted' }, line.text),
+        p.state === 'published' && !p.unpublishing && h('small', { class: 'muted' }, M.metricLine(p.metrics_28, t)),
+        p.state === 'refused' && p.reason && h('small', { class: 'errline' }, `${t.refused}: ${p.reason.split(' · ')[0]}`)),
+      p.hold ? h('span', { class: `badge ${M.holdTone(p.hold)}` }, p.hold_label) : badge(p.late ? 'Bài lỡ giờ' : p.unpublishing ? t.unpublishingLabel : p.label, p.late ? 'uncertain' : state),
+      primary,
       p.state === 'refused' && button(t.why, () => { S.id = p.id; void run(load); }),
-      p.url && !p.unpublishing && p.state === 'published' && button(`↗ ${t.open}`, () => bridge.open(p.url)),
       p.state === 'published' && !p.unpublishing && button(t.unpublish, () => askUnpublish(p), 'btn sm danger'),
-      p.state === 'ready' && button(t.schedule, () => void act('restore', { id: p.id }), 'btn sm'),
-      ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })),
-      ['pulled', 'removed'].includes(p.state) && button(p.state === 'removed' ? t.republish : t.restore, () => void act('restore', { id: p.id })));
+      ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })));
   }))];
 }
 
@@ -117,17 +142,36 @@ function refusedCard(d) {
     h('p', { class: 'muted' }, t.refusedNext));
 }
 
+/** The post's words, read as markdown (headings, lists, bold, links); never HTML. */
+function bodyView(/** @type {string} */ text) {
+  const inline = (/** @type {any[]} */ parts) => parts.map(x => x.href ? h('button', { class: 'link inline', type: 'button', title: x.href, onclick: () => bridge.open(x.href) }, x.text) : x.b ? h('b', {}, x.text) : x.text);
+  const out = [];
+  let list = null;
+  for (const b of M.mdBlocks(text.length > 6000 ? `${text.slice(0, 6000)}…` : text)) {
+    if (b.t === 'li') { if (!list) { list = h('ul', { class: 'md' }); out.push(list); } list.append(h('li', {}, ...inline(b.parts))); continue; }
+    list = null;
+    out.push(b.t === 'h' ? h('h4', {}, ...inline(b.parts)) : h('p', {}, ...inline(b.parts)));
+  }
+  return h('div', { class: 'postbody' }, ...out);
+}
+
 function postDetail(d) {
   const t = S.t, p = d.post;
   const back = h('button', { class: 'btn sm ghost back', type: 'button', onclick: () => { S.id = ''; void run(load); } }, `← ${t.back}`);
-  if (p.state === 'refused') return [back, refusedCard(d)];
-  const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.label, p.state), h('h2', {}, p.title)),
-    h('div', { class: 'line' }, p.url && button(`↗ ${t.open}`, () => bridge.open(p.url)),
-      p.state === 'ready' && button(t.schedule, () => void act('restore', { id: p.id }), 'btn sm'),
+  const { line, button: primary } = nextBlock(d, p, p.next, 'confirm');
+  const nextCard = line && h('div', { class: `notice ${line.tone === 'err' ? 'err' : line.tone === 'warn' ? 'plain warn' : line.tone === 'ok' ? 'success' : 'plain'}`, role: 'status' },
+    h('b', {}, p.state === 'published' ? 'Đã đăng' : 'Bước tiếp theo'), h('span', {}, line.text), primary);
+  if (p.state === 'refused') return [back, nextCard, refusedCard(d)];
+  const live = p.state === 'published' && p.url;
+  const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.late ? 'Bài lỡ giờ' : p.label, p.late ? 'uncertain' : p.state), h('h2', {}, p.title)),
+    h('div', { class: 'line' },
+      ['ready', 'scheduled', 'failed'].includes(p.state) && p.next?.code !== 'late' && p.next?.code !== 'in_flight' && button(t.postNow, () => void act('post_now', { id: p.id })),
+      d.writer && ['article', 'social'].includes(p.kind) && !['published', 'unpublishing'].includes(p.state) && button('Nhờ Writer sửa', () => bridge.open(/** @type {string} */ (M.reviseLink(d.writer, p)))),
       ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
   const left = h('div', { class: 'card pad stack' });
   if (p.reason && ['failed', 'uncertain'].includes(p.state)) left.append(h('p', { class: 'errline', role: 'alert' }, p.reason));
-  if (p.body) left.append(h('h3', {}, t.bodyHead), h('div', { class: 'postbody' }, p.body.length > 6000 ? `${p.body.slice(0, 6000)}…` : p.body));
+  if (p.state === 'uncertain') left.append(h('div', { class: 'line' }, ...uncertainActions(t, { id: p.id })));
+  if (p.body) left.append(h('h3', {}, t.bodyHead), bodyView(p.body));
   if (d.brief.length) left.append(h('table', { class: 'table' }, h('tbody', {}, ...d.brief.map((/** @type {any} */ f) =>
     h('tr', {}, h('td', {}, f.label), h('td', {}, f.value), h('td', {}, f.ok ? badge(f.rule ?? 'hợp lệ', 'published') : badge(f.message, 'refused')))))));
   left.append(h('h3', {}, t.editorCheck));
@@ -144,7 +188,10 @@ function postDetail(d) {
       h('div', { class: 'stack' }, ...hooks.map(r => h('span', {}, `${r.score} · ${r.text}${r.chosen ? ` (${t.chosen})` : ''}`)),
         v.open_link ? button(t.watch, () => bridge.open(v.open_link), 'btn sm') : null)));
   }
-  return [back, head, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)];
+  // A published post shows its link first: where it lives is the answer the person came for.
+  const link = live && h('div', { class: 'card pad stack' }, h('h3', {}, 'Liên kết bài đã đăng'),
+    h('button', { class: 'link inline', type: 'button', title: p.url, onclick: () => bridge.open(p.url) }, p.url), h('small', { class: 'muted' }, `${p.channel} · đăng ${M.when(p.updated_at)}`));
+  return [back, head, nextCard, link, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)];
 }
 
 /** One on/off switch: on means publishing ("Bật là đang đăng"). */
@@ -152,34 +199,68 @@ const toggle = (/** @type {string} */ label, /** @type {boolean} */ on, /** @typ
   h('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(on), disabled: S.busy, onclick: fn }, h('i', { 'aria-hidden': 'true' }), label);
 
 function queue(d) {
-  const t = S.t, blog = d.channels.find((/** @type {any} */ c) => c.id === 'blog-lohi') ?? d.channels[0];
+  const t = S.t;
   const out = [];
-  if (d.paused_all) out.push(h('div', { class: 'notice plain', role: 'status' }, h('b', {}, `⏸ ${t.pausedAll}`), h('span', {}, `${d.paused_at ? `Bạn dừng lúc ${M.hm(d.paused_at)}. ` : ''}${t.pausedHelp}`)));
+  const head = M.queueHeadline(d);
+  out.push(h('div', { class: `notice ${head.tone === 'err' ? 'err' : head.tone === 'warn' ? 'plain warn' : 'plain'}`, role: 'status' }, h('b', {}, head.tone === 'plain' ? 'Soot đang chạy' : 'Cần bạn'), h('span', {}, head.text),
+    head.button && button(head.button.label, () => (head.button.do === 'ask_writer' ? bridge.open(M.writeLink(d.writer, d.product)) : doNext(head.button, d, {})), 'btn sm primary')));
   out.push(h('div', { class: 'card pad bar' },
-    h('div', { class: 'line gap' }, toggle(t.pauseAll, !d.paused_all, () => void act(d.paused_all ? 'resume' : 'pause')),
-      ...d.channels.map((/** @type {any} */ c) => toggle(c.label, !c.paused, () => void act(c.paused ? 'resume' : 'pause', { channel: c.id })))),
-    h('span', { class: 'muted' }, t.switchHint)));
-  const social = d.channels.filter((/** @type {any} */ c) => c.id !== 'blog-lohi' && c.posts_today !== undefined);
-  if (blog && !social.length && !d.paused_all && !d.empty) out.push(h('p', { class: 'muted line' }, `${blog.label}: ${t.perDay(blog.cap_per_day, Math.round(blog.spacing_min / 60))} · ${t.quiet(d.quiet_hours.from, d.quiet_hours.to)} ·`,
-    h('button', { class: 'link small', type: 'button', 'aria-expanded': String(S.caps), onclick: () => { S.caps = !S.caps; render(); } }, t.caps)));
-  // Today's use of each cap: "X 2/4 · Facebook 0/2 (đang dừng: chưa đăng nhập) · trả lời X 3/10".
-  if (social.length && !d.paused_all) out.push(h('p', { class: 'muted line' }, `${t.today}: ${[
-    ...social.map((/** @type {any} */ c) => `${c.label} ${c.posts_today}/${c.cap_per_day}${c.paused_label ? ` (${t.pausedAs(c.paused_label)})` : ''}`),
-    ...social.filter((/** @type {any} */ c) => c.reply_cap_per_day && c.replies_today).map((/** @type {any} */ c) => `${t.replies} ${c.label} ${c.replies_today}/${c.reply_cap_per_day}`),
-  ].join(' · ')} ·`, h('button', { class: 'link small', type: 'button', 'aria-expanded': String(S.caps), onclick: () => { S.caps = !S.caps; render(); } }, t.caps)));
-  if (S.caps) out.push(h('table', { class: 'table card' }, h('thead', {}, h('tr', {}, ...t.capsHead.map((/** @type {string} */ x) => h('th', {}, x)))),
-    h('tbody', {}, ...d.channels.map((/** @type {any} */ c) => h('tr', {}, h('td', {}, c.label), h('td', {}, String(c.cap_per_day)), h('td', {}, M.spacing(c.spacing_min)), h('td', {}, c.reply_cap_per_day ? String(c.reply_cap_per_day) : '—'))))));
+    h('div', { class: 'line gap' }, toggle(t.pauseAll, !d.paused_all, () => void act(d.paused_all ? 'resume' : 'pause')), h('span', { class: 'muted' }, t.switchHint))));
+  out.push(h('h3', {}, 'Kênh đăng'), h('ul', { class: 'list card' }, ...d.channels.map((/** @type {any} */ c) => channelRow(d, c))));
+  if (S.caps) out.push(...limitsCard(d));
+  else out.push(h('p', { class: 'muted line' }, `${t.quiet(d.quiet_hours.from, d.quiet_hours.to)} · `, h('button', { class: 'link small', type: 'button', 'aria-expanded': 'false', onclick: () => { S.caps = true; render(); } }, `${t.caps}: đổi số bài mỗi ngày, khoảng cách`)));
+  out.push(h('h3', {}, 'Sắp đăng'));
   if (d.empty) out.push(h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, t.emptyQueue), h('span', {}, t.emptyHelp), askWriter(d)));
   else out.push(h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ q) => queueRow(d, q))));
   if (d.items.some((/** @type {any} */ q) => q.kind === 'video')) out.push(h('p', { class: 'muted' }, t.videoNote));
   if (d.recent.length) out.push(h('h3', {}, t.recent), h('ul', { class: 'list' }, ...d.recent.map((/** @type {any} */ r) =>
-    h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.url ? M.shortUrl(r.url) : r.title}`),
+    h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.title}`),
+      r.url && h('button', { class: 'link inline small', type: 'button', title: r.url, onclick: () => bridge.open(r.url) }, M.shortUrl(r.url)),
       h('small', { class: r.status === 'published' || r.status === 'removed' ? 'muted' : 'errline' }, r.status === 'published' ? (r.action === 'unpublish' ? t.removedDone : t.recorded) : r.status === 'removed' ? t.removedDone : r.reason ?? '')),
       badge(r.status === 'published' ? 'Đã đăng' : r.status === 'removed' ? 'Đã gỡ' : r.status === 'needs_person' ? 'Cần bạn' : 'Lỗi',
         r.status === 'published' ? 'published' : r.status === 'removed' ? '' : r.status === 'needs_person' ? 'uncertain' : 'failed'),
       r.status === 'published' && r.url && button(`↗ ${t.open}`, () => bridge.open(r.url)),
       r.live && r.action === 'publish' && button(t.unpublish, () => askUnpublish(r), 'btn sm danger')))));
   return out;
+}
+
+/** One channel: its switch, what it is doing now in words, and the one button that fixes it. */
+function channelRow(/** @type {any} */ d, /** @type {any} */ c) {
+  const line = M.channelLine(c, d);
+  const on = !c.paused;
+  const flip = () => {
+    if (on) return void act('pause', { channel: c.id });
+    // Turning on a channel nobody signed in to: it would try, fail and stop again. Say so first.
+    if (c.paused_reason === 'signed_out') {
+      S.confirm = { title: `${c.label} chưa đăng nhập`, help: `Nếu bật bây giờ, Soot thử đăng rồi dừng lại vì chưa đăng nhập ${c.label}. Đăng nhập trước, rồi quay lại bật.`, yes: `Tôi đã đăng nhập, bật ${c.label}`, keep: `Đăng nhập ${c.label}`, keepRun: () => bridge.open(M.signInLink(d.editor)), run: () => void act('resume', { channel: c.id }) };
+      return render();
+    }
+    void act('resume', { channel: c.id });
+  };
+  return h('li', { class: 'row' },
+    toggle(c.label, on, flip),
+    h('div', { class: 'who' }, h('small', { class: line.tone === 'warn' ? 'warnline soft' : 'muted' }, line.text)),
+    line.button && button(line.button.label, () => (line.button.do === 'sign_in' ? bridge.open(M.signInLink(d.editor)) : void act('resume', { channel: c.id })), 'btn sm primary'));
+}
+
+/** Giới hạn kênh, edited in place: posts a day, hours apart, replies a day; saved after a confirmation. */
+function limitsCard(/** @type {any} */ d) {
+  const t = S.t;
+  const draft = S.limits;
+  const rows = d.channels.map((/** @type {any} */ c) => {
+    const f = draft[c.id] ?? (draft[c.id] = { cap: String(c.cap_per_day), gap: String(Math.round((c.spacing_min / 60) * 10) / 10), rep: String(c.reply_cap_per_day ?? 0) });
+    const field = (/** @type {'cap' | 'gap' | 'rep'} */ k, /** @type {string} */ label) => h('input', { class: 'input sm num', type: 'text', inputmode: 'decimal', 'aria-label': `${label} ${c.label}`, value: f[k], disabled: S.busy, oninput: (/** @type {Event} */ e) => { f[k] = /** @type {HTMLInputElement} */ (e.target).value; } });
+    const save = () => {
+      const body = M.limitsBody(c, f);
+      if (typeof body === 'string') { S.notice = { kind: 'info', text: body }; return render(); }
+      if (!Object.keys(body).length) { S.notice = { kind: 'info', text: `${c.label}: chưa đổi gì.` }; return render(); }
+      S.confirm = { title: `Đổi giới hạn ${c.label}?`, help: M.limitsAsk(c, body), yes: 'Lưu giới hạn', run: () => { delete S.limits[c.id]; void act('set_limits', { channel: c.id, ...body }); } };
+      render();
+    };
+    return h('tr', {}, h('td', {}, c.label), h('td', {}, field('cap', t.capsHead[1])), h('td', {}, field('gap', 'Giờ giữa hai bài')), h('td', {}, c.reply_cap_per_day || c.id !== 'blog-lohi' ? field('rep', t.capsHead[3]) : '—'), h('td', {}, button(t.save, save)));
+  });
+  return [h('div', { class: 'card scroll' }, h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Kênh'), h('th', {}, 'Bài mỗi ngày'), h('th', {}, 'Cách nhau (giờ)'), h('th', {}, 'Trả lời mỗi ngày'), h('th', {}, ''))), h('tbody', {}, ...rows))),
+    h('p', { class: 'muted line' }, 'Mỗi kênh có mức tối đa 50 bài mỗi ngày. Số mới áp dụng cho các bài xếp lịch từ giờ trở đi. ', h('button', { class: 'link small', type: 'button', onclick: () => { S.caps = false; S.limits = {}; render(); } }, 'Xong'))];
 }
 
 /** A queue item's state label and the person's buttons, shared by every row kind (posts, replies, videos). */
@@ -265,13 +346,13 @@ function render() {
   else if (d.page === 'hang-doi') out.push(...queue(d));
   else if (d.page === 'chien-dich') out.push(...(d.campaign ? campaignDetail(d) : campaignList(d)));
   else out.push(...(d.post ? postDetail(d) : postList(d)));
-  if (S.notice) out.push(h('p', { class: `notice ${S.notice.kind}`, role: 'status' }, S.notice.text));
+  if (S.notice) { const n = S.notice; out.push(h('div', { class: `notice ${n.kind}`, role: 'status' }, h('span', {}, n.text), n.fix && button(n.fix.label, () => bridge.open(/** @type {{link: string}} */ (n.fix).link), 'btn sm primary'))); }
   if (S.sheet && d?.page === 'chien-dich') out.push(...campaignSheet(d));
   const c = S.confirm;
   if (c) out.push(h('div', { class: 'scrim', onclick: closeConfirm }),
     h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': c.title, onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeConfirm(); } },
-      h('b', { class: 'dialog-title' }, c.title), h('span', { class: 'muted' }, t.unpublishHelp(c.title)),
-      h('div', { class: 'line end' }, button(t.keep, closeConfirm, 'btn out', { 'data-keep': '' }), button(c.yes, () => { S.confirm = null; c.run(); }, 'btn danger'))));
+      h('b', { class: 'dialog-title' }, c.title), h('span', { class: 'muted' }, c.help ?? t.unpublishHelp(c.title)),
+      h('div', { class: 'line end' }, button(c.keep ?? t.keep, c.keepRun ? () => { S.confirm = null; /** @type {() => void} */ (c.keepRun)(); render(); } : closeConfirm, c.keepRun ? 'btn primary' : 'btn out', { 'data-keep': '' }), button(c.yes, () => { S.confirm = null; c.run(); }, c.keepRun || c.help ? 'btn out' : 'btn danger'))));
   root.replaceChildren(...out);
 }
 
@@ -280,7 +361,7 @@ function render() {
 /** A bar fill, sized through CSSOM (the frame's CSP refuses style attributes). @param {number} pct */
 const fill = pct => { const i = h('i'); i.style.width = `${pct}%`; return i; };
 const openCampaign = (/** @type {string} */ id) => { S.campaign = id; S.notice = null; void run(load); };
-const openSheet = (/** @type {any} */ d) => { S.sheet = M.newCampaign(d.choices); S.sheetError = ''; S.pending = null; render(); /** @type {HTMLElement | null} */ (document.getElementById('mk-name'))?.focus(); };
+const openSheet = (/** @type {any} */ d) => { S.sheet = M.newCampaign(d.choices); S.sheetError = ''; S.sheetFix = null; S.pending = null; render(); /** @type {HTMLElement | null} */ (document.getElementById('mk-name'))?.focus(); };
 const closeSheet = () => { S.sheet = null; S.sheetError = ''; render(); };
 
 function campaignList(/** @type {any} */ d) {
@@ -311,6 +392,11 @@ function campaignDetail(/** @type {any} */ d) {
   if (failed) out.push(h('div', { class: 'notice plain', role: 'alert' }, h('b', {}, `Chưa đọc được số đăng ký từ ${product}`), h('span', {}, M.readFailLine(d.read)),
     h('span', {}, button('↻ Thử lại', () => void act('campaign_refresh', { campaign_id: c.id }), 'btn sm out'))));
   out.push(head);
+  // The next step: links first (nothing can be tracked without them), then the first read of the numbers.
+  const noLinks = d.links_missing.length > 0, unread = !d.read;
+  out.push(h('div', { class: `notice ${noLinks ? 'plain warn' : 'plain'}`, role: 'status' }, h('b', {}, noLinks ? 'Cần làm' : 'Soot đang theo dõi'),
+    h('span', {}, noLinks ? 'Chưa đủ liên kết cho mọi kênh, nên lượt bấm và đăng ký của kênh thiếu chưa đếm được. Tạo lại liên kết.' : unread ? 'Soot đọc số lượt bấm và đăng ký mỗi sáng 07:00. Bấm Đọc số ngay nếu muốn xem liền.' : 'Soot đọc lại số mỗi sáng 07:00 và báo bạn khi dùng 80% token. Không cần làm gì.'),
+    button(noLinks ? 'Tạo lại liên kết' : '↻ Đọc số ngay', () => void (noLinks ? act('campaign_save', { campaign: { id: c.id, name: c.name, goal: { metric: c.goal.metric, target: c.goal.target }, channels: c.channel_ids, starts: M.localInput(c.starts).slice(0, 10), ends: M.localInput(c.ends).slice(0, 10), token_budget: c.token_budget } }) : act('campaign_refresh', { campaign_id: c.id })), 'btn sm primary')));
   const goal = c.goal, of = (/** @type {string} */ m) => (goal.metric === m ? ` / ${M.num(goal.target)}` : '');
   out.push(failed
     ? h('div', { class: 'kpis four' }, kpi('Đã đăng', n(t.published), null), kpi('Tiếp cận', n(t.reach), null), kpi('Lượt bấm', '—', 'chưa rõ'), kpi('Đăng ký', '—', 'chưa rõ'))
@@ -323,6 +409,10 @@ function campaignDetail(/** @type {any} */ d) {
   if (d.links_missing.length) out.push(h('div', { class: 'notice plain', role: 'status' }, h('b', {}, `Chưa có liên kết cho ${d.links_missing.join(', ')}`),
     h('span', {}, 'Bài trên kênh này chưa đếm được lượt bấm. Tạo lại khi api trả lời.'),
     h('span', {}, button('Tạo lại liên kết', () => void act('campaign_save', { campaign: { id: c.id, name: c.name, goal: { metric: goal.metric, target: goal.target }, channels: c.channel_ids, starts: M.localInput(c.starts).slice(0, 10), ends: M.localInput(c.ends).slice(0, 10), token_budget: c.token_budget } }), 'btn sm out'))));
+  // The links to use: one per channel, tagged so every click and signup is counted.
+  if (d.links.length) out.push(h('div', { class: 'card pad stack' }, h('h3', {}, 'Liên kết của chiến dịch'), h('small', { class: 'muted' }, 'Dán đúng liên kết của kênh vào bài; Writer tự gắn khi viết bài cho chiến dịch.'),
+    ...d.links.map((/** @type {any} */ l) => h('div', { class: 'line' }, h('b', {}, l.label), h('button', { class: 'link inline', type: 'button', title: l.url, onclick: () => bridge.open(l.url) }, l.url))),
+    d.writer && button('Nhờ Writer viết bài cho chiến dịch', () => bridge.open(M.campaignWriteLink(d.writer, c, d.links)), 'btn sm out')));
   out.push(h('p', { class: 'muted' }, `${M.tokenLine(c.tokens_used, c.token_budget)} Đăng ký tính theo nguồn đầu tiên (utm) khi tạo tài khoản.`));
   return out;
 }
@@ -370,7 +460,7 @@ function campaignSheet(/** @type {any} */ d) {
     h('aside', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'mk-sheet-title', onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeSheet(); } },
       h('header', {}, h('h2', { id: 'mk-sheet-title' }, 'Tạo chiến dịch'), h('button', { class: 'btn sm ghost', type: 'button', 'aria-label': 'Đóng', onclick: closeSheet }, '✕')),
       body,
-      h('footer', {}, h('span', { id: 'mk-hint', class: S.sheetError ? 'errline grow' : 'muted grow', role: 'status' }, S.sheetError || problem || ''),
+      h('footer', {}, h('span', { id: 'mk-hint', class: S.sheetError ? 'errline grow' : 'muted grow', role: 'status' }, S.sheetError || problem || ''), S.sheetError && S.sheetFix && button(S.sheetFix.label, () => bridge.open(/** @type {{link: string}} */ (S.sheetFix).link), 'btn primary'),
         button('Hủy', closeSheet, 'btn ghost'), h('button', { id: 'mk-create', class: 'btn primary', type: 'button', disabled: S.busy || !!problem, onclick: () => void saveCampaign() }, 'Tạo chiến dịch')))];
 }
 
@@ -385,7 +475,7 @@ async function saveCampaign() {
     if (!r.ok && r.error.code === 'no_response') { S.sheetError = S.t.unknown; return; }
     S.pending = null;
     let out;
-    try { out = M.output(r); } catch (e) { S.sheetError = M.errorText(S.t, e); return; }
+    try { out = M.output(r); } catch (e) { S.sheetError = M.errorText(S.t, e); S.sheetFix = e?.link ? { label: 'Mở Thiết lập', link: e.link } : null; return; }
     S.sheet = null;
     S.campaign = out.id;
     S.notice = out.links_error ? { kind: 'info', text: `Đã tạo chiến dịch. Chưa tạo được liên kết: ${out.links_error.message}` } : { kind: 'success', text: 'Đã tạo chiến dịch và liên kết cho từng kênh.' };
