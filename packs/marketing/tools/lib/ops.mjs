@@ -535,7 +535,9 @@ export async function failIntent(input, { store, now }) {
     return { state: 'uncertain' };
   }
   await store.update('publish_log', [eq('intent_id', row.intent_id)], { status, reason, at: iso(now) });
-  const retry = status === 'failed' ? now + HOUR : now;
+  // A retry the guard would refuse (quiet hours) is promised for when it can go, not for an hour from now.
+  const quiet = (await getSettings(store)).quiet_hours ?? DEFAULT_QUIET;
+  const retry = status === 'failed' ? nextSlot({ from: now + HOUR, cap: 1e6, quiet }) ?? now + HOUR : now;
   await store.update('queue', [eq('post', row.post), eq('intent_id', row.intent_id)], { intent_id: null, intent_at: null, verify: false, scheduled_at: iso(retry), wait_reason: reason });
   const state = unpub ? 'published' : 'failed';
   await store.update('posts', [eq('ref', row.post)], { state, reason });

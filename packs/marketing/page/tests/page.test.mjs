@@ -198,3 +198,20 @@ test('every campaign row says what Soot does next', () => {
   assert.match(M.campaignNextLine({ phase: 'ended' }), /kết thúc/);
   assert.ok(M.campaignNextLine({}).length > 10);
 });
+
+test('a failed publish reads in words, never the publisher code', () => {
+  assert.match(M.failWhy("git_failed: git fetch: fatal: couldn't find remote ref main"), /chưa có nhánh main/);
+  assert.match(M.failWhy('deploy_failed: x'), /blog chưa lên bài/);
+  assert.equal(M.failWhy('Bạn đã bỏ bài.'), 'Bạn đã bỏ bài.');
+  assert.doesNotMatch(M.failWhy('zzz_unknown'), /zzz/);
+  const line = M.nextLine({ code: 'failed_retry', at: '2026-11-08T16:40:00Z', channel: 'Blog', reason: 'git_failed: git fetch: fatal: x' }, {});
+  assert.doesNotMatch(line.text, /git_failed|fatal/);
+});
+
+test('a paused channel is the headline, not "Soot đang tự chạy"', () => {
+  const d = { channels: [{ id: 'blog-lohi', label: 'Blog', paused: true, paused_reason: 'person' }], items: [{ id: 'p1', channel_id: 'blog-lohi', channel: 'Blog', action: 'publish', state: 'scheduled', scheduled_at: '2026-11-09T01:00:00Z' }] };
+  const h = M.queueHeadline(d);
+  assert.equal(h.button.do, 'resume_channel');
+  assert.match(h.text, /Blog đang dừng/);
+  assert.doesNotMatch(h.text, /Không cần làm gì/);
+});

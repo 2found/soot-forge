@@ -12,8 +12,9 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDevOnly } from '../../scripts/archive.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const forge = resolve(here, '..', '..');
@@ -75,7 +76,10 @@ export function build(dir, { port = 7790, video = true, blogRemote, soot = 'soot
   mkdirSync(join(out, 'soots'), { recursive: true });
   for (const id of packs) {
     rmSync(join(out, 'packs', id), { recursive: true, force: true });
-    cpSync(join(forge, 'packs', id), join(out, 'packs', id), { recursive: true, filter: s => !/[\\/](tests|node_modules)([\\/]|$)/.test(s) });
+    // The release archive's own rule (scripts/archive.mjs): a copy with a test file the archive omits is no longer
+    // the Forge copy, so the runtime would not adopt it by digest and would ask a person to apply it.
+    const from = join(forge, 'packs', id);
+    cpSync(from, join(out, 'packs', id), { recursive: true, filter: s => !/[\\/]node_modules([\\/]|$)/.test(s) && !isDevOnly(relative(from, s).split(sep).join('/')) });
   }
   rmSync(join(out, 'packs', 'lohi-blog'), { recursive: true, force: true });
   cpSync(join(here, 'packs', 'lohi-blog'), join(out, 'packs', 'lohi-blog'), { recursive: true, filter: s => !/[\\/]tests([\\/]|$)/.test(s) });

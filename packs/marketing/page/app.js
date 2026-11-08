@@ -302,6 +302,21 @@ const SETUP_LINK = 'nest://settings/setup';
 /** Vietnamese names for the keys a page action may ask for. */
 const KEY_LABEL = { PRODUCT_ADMIN_KEY: 'Khoá quản trị Lohi' };
 
+/** A failed publish's reason in words: the publisher's own code never reaches the person. @param {any} reason */
+function failWhy(reason) {
+  const r = String(reason ?? '').trim();
+  if (!r) return '';
+  if (/[à-ỹ]/i.test(r)) return r;
+  if (/couldn't find remote ref|does not have any commits/i.test(r)) return 'kho git của blog chưa có nhánh main';
+  if (/git_failed/.test(r)) return 'Soot chưa lấy được kho git của blog';
+  if (/push_rejected/.test(r)) return 'kho blog vừa thay đổi nên chưa đẩy bài lên được';
+  if (/build_failed/.test(r)) return 'blog không dựng được với bài này';
+  if (/deploy_failed/.test(r)) return 'blog chưa lên bài sau khi đẩy lên kho';
+  if (/slug_taken/.test(r)) return 'đã có bài dùng đúng đường dẫn này';
+  if (/^claim_/.test(r)) return 'lượt đăng đã hết hạn';
+  return 'lỗi kỹ thuật, Soot đã ghi lại';
+}
+
 /**
  * The line a post shows for its next step: {text, tone, button?}. `button` is {do, label}: the one thing
  * the person can do now, or none when Soot is running it ("Không cần làm gì").
@@ -324,8 +339,8 @@ function nextLine(n, p = {}) {
     case 'published': return { text: `Đã đăng ${lc}${p.url ? `: ${shortUrl(p.url)}` : '. Chưa có liên kết, Soot sẽ ghi khi nền tảng trả về.'}`, tone: 'ok', button: p.url ? btn('open', 'Mở bài') : undefined };
     case 'uncertain': return { text: `Soot bấm đăng nhưng chưa chắc bài đã lên ${ch}. Mở ${ch} xem: nếu đã lên, dán liên kết; nếu chưa, chọn đăng lại. Soot không tự đăng lại.`, tone: 'err', button: btn('confirm', 'Kiểm tra và chọn') };
     case 'in_flight': return { text: 'Đang đăng. Vài phút nữa sẽ có liên kết. Không cần làm gì.', tone: 'plain' };
-    case 'failed_retry': return { text: `Lần đăng vừa rồi lỗi${n.reason ? ` (${n.reason})` : ''}. Soot tự thử lại ${lc}. Bấm Thử ngay nếu muốn sớm hơn.`, tone: 'warn', button: btn('retry', 'Thử ngay') };
-    case 'failed': return { text: `Đăng lỗi${n.reason ? `: ${n.reason}` : ''}. Soot không tự thử nữa: bấm Thử ngay, hoặc gỡ bài khỏi hàng đợi.`, tone: 'err', button: btn('retry', 'Thử ngay') };
+    case 'failed_retry': return { text: `Lần đăng vừa rồi lỗi${n.reason ? ` (${failWhy(n.reason)})` : ''}. Soot tự thử lại ${lc}. Bấm Thử ngay nếu muốn sớm hơn.`, tone: 'warn', button: btn('retry', 'Thử ngay') };
+    case 'failed': return { text: `Đăng lỗi${n.reason ? `: ${failWhy(n.reason)}` : ''}. Soot không tự thử nữa: bấm Thử ngay, hoặc gỡ bài khỏi hàng đợi.`, tone: 'err', button: btn('retry', 'Thử ngay') };
     case 'late': return { text: `Bài lỡ giờ (hẹn ${lc}). Soot không tự đăng bài đã quá hạn: chọn Đăng ngay, xếp lại giờ khác hoặc bỏ.`, tone: 'warn', button: btn('post_now', 'Đăng ngay') };
     case 'paused_all': return { text: `Bạn đang dừng đăng mọi kênh nên bài chưa đi. Bật lại để bài đăng ${lc || 'ở khung giờ trống đầu tiên'}.`, tone: 'warn', button: btn('resume_all', 'Bật lại mọi kênh') };
     case 'signed_out': return { text: `${ch} chưa đăng nhập nên bài chưa đi được. Đăng nhập ${ch}, rồi bài đăng ${lc}.`, tone: 'warn', button: btn('sign_in', `Đăng nhập ${ch}`) };
@@ -348,9 +363,13 @@ function queueHeadline(d) {
   if (late.length) return out('warn', `${late.length} bài lỡ giờ. Soot không tự đăng bài quá hạn: chọn Đăng ngay, Đổi giờ hoặc Bỏ cho từng bài.`, null);
   const out2 = (d.channels ?? []).find((/** @type {any} */ c) => c.paused_reason === 'signed_out' && c.waiting > 0);
   if (out2) return out('warn', `${out2.label} chưa đăng nhập nên ${out2.waiting} bài của kênh này chưa đi được. Đăng nhập ${out2.label} rồi Soot đăng tiếp.`, { do: 'sign_in', label: `Đăng nhập ${out2.label}`, channel: out2.id });
-  const live = items.filter((/** @type {any} */ q) => q.action === 'publish' && !['failed'].includes(q.state) && !q.in_flight && q.scheduled_at).sort((/** @type {any} */ a, /** @type {any} */ b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at));
+  // A channel the person paused holds its posts: they are not "next", the switch is.
+  const heldCh = (/** @type {any} */ q) => (d.channels ?? []).find((/** @type {any} */ c) => c.id === q.channel_id && c.paused);
+  const held = (d.channels ?? []).find((/** @type {any} */ c) => c.paused && c.paused_reason !== 'signed_out' && items.some((/** @type {any} */ q) => q.channel_id === c.id && q.action === 'publish'));
+  const live = items.filter((/** @type {any} */ q) => q.action === 'publish' && !['failed'].includes(q.state) && !q.in_flight && q.scheduled_at && !heldCh(q)).sort((/** @type {any} */ a, /** @type {any} */ b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at));
   const failed = items.find((/** @type {any} */ q) => q.state === 'failed');
   if (failed) return out('warn', `Một bài đăng lỗi${failed.retry_at ? `, Soot thử lại ${when(failed.retry_at).toLowerCase()}` : '. Bấm Thử ngay hoặc gỡ khỏi hàng đợi'}.`, null);
+  if (held && !live.length) return out('warn', `${held.label} đang dừng nên ${items.filter((/** @type {any} */ q) => q.channel_id === held.id && q.action === 'publish').length} bài chờ ở đây chưa đi. Bật ${held.label} để Soot đăng tiếp.`, { do: 'resume_channel', label: `Bật ${held.label}`, channel: held.id });
   if (live.length) return out('plain', `Không cần làm gì, Soot đang tự chạy. Bài kế tiếp: ${live[0].channel} ${when(live[0].scheduled_at).toLowerCase()}.`, null);
   if (items.some((/** @type {any} */ q) => q.in_flight)) return out('plain', 'Đang đăng. Vài phút nữa sẽ có liên kết bên dưới. Không cần làm gì.', null);
   return out('plain', 'Hàng đợi trống. Soot lên bài mới mỗi sáng 08:00; hoặc bạn nhờ Writer viết ngay.', d.writer ? { do: 'ask_writer', label: 'Nhờ viết bài' } : null);
@@ -431,7 +450,7 @@ function campaignNextLine(c) {
   if (c.phase === 'ended') return 'Chiến dịch đã kết thúc. Mở để xem kết quả.';
   return 'Mở để xem liên kết và kết quả.';
 }
-return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output, doneNotice, GOAL_FORM, GOAL_SHORT, slugOf, digits, dayRange, goalPct, goalLine, newCampaign, campaignProblem, campaignBody, readFailLine, tokenLine, signInLink, LOGIN_PAGE, reviseLink, SETUP_LINK, nextLine, queueHeadline, channelLine, mdBlocks, limitsBody, limitsAsk, campaignWriteLink, campaignNextLine };
+return { strings, num, pos, when, hm, shortUrl, spacing, writeLink, ruleLabel, localInput, fromLocalInput, postLine, metricLine, tone, holdTone, hookRows, viewBody, actionBody, errorText, output, doneNotice, GOAL_FORM, GOAL_SHORT, slugOf, digits, dayRange, goalPct, goalLine, newCampaign, campaignProblem, campaignBody, readFailLine, tokenLine, signInLink, LOGIN_PAGE, reviseLink, SETUP_LINK, failWhy, nextLine, queueHeadline, channelLine, mdBlocks, limitsBody, limitsAsk, campaignWriteLink, campaignNextLine };
 })();
 
 // ---- src/app.js ----
@@ -607,7 +626,7 @@ function postDetail(d) {
       d.writer && ['article', 'social'].includes(p.kind) && !['published', 'unpublishing'].includes(p.state) && button('Nhờ Writer sửa', () => bridge.open(/** @type {string} */ (M.reviseLink(d.writer, p)))),
       ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
   const left = h('div', { class: 'card pad stack' });
-  if (p.reason && ['failed', 'uncertain'].includes(p.state)) left.append(h('p', { class: 'errline', role: 'alert' }, p.reason));
+  if (p.reason && ['failed', 'uncertain'].includes(p.state)) left.append(h('p', { class: 'errline', role: 'alert' }, p.state === 'failed' ? M.failWhy(p.reason) : p.reason));
   if (p.state === 'uncertain') left.append(h('div', { class: 'line' }, ...uncertainActions(t, { id: p.id })));
   if (p.body) left.append(h('h3', {}, t.bodyHead), bodyView(p.body));
   if (d.brief.length) left.append(h('table', { class: 'table' }, h('tbody', {}, ...d.brief.map((/** @type {any} */ f) =>
@@ -733,7 +752,7 @@ function queueRow(d, q) {
   const { held, failed, badge: stateBadge, actions } = queueStatus(d, q, t.pull);
   const head = q.action === 'reply' ? `${t.replyTo} · ${q.channel}${q.reply_to ? ` · @${q.reply_to}` : ''}` : `${M.when(q.scheduled_at)} · ${q.channel}`;
   const sub = q.action === 'reply' ? `"${q.title}"` : q.text ? `"${q.text}"${q.has_link ? ` · ${t.hasLink}` : ''}` : q.title;
-  const line = failed ? `${t.notYet}: ${q.reason ?? ''}${q.retry_at ? ` ${t.retryAt(M.hm(q.retry_at))}` : ''}`
+  const line = failed ? `${t.notYet}: ${M.failWhy(q.reason)}${q.retry_at ? ` ${t.retryAt(M.hm(q.retry_at))}` : ''}`
     : q.state === 'uncertain' ? q.reason ?? '' : d.paused_all && held ? `${sub} — ${t.afterResume}` : sub;
   return h('li', { class: 'row' },
     h('div', { class: 'who' }, h('b', {}, failed || q.state === 'uncertain' ? `${head} · ${q.title}` : head), line && h('small', { class: q.state === 'uncertain' || (failed && !q.retry_at) ? 'errline' : 'muted' }, line),
@@ -760,7 +779,7 @@ function videoRow(/** @type {any} */ t, /** @type {any} */ q, /** @type {any} */
     h('div', { class: 'who stack' },
       h('b', {}, `${M.when(q.scheduled_at)} · ${q.channel} · ${t.videoLine(v.duration_s ?? null, !!v.captions?.length)}`),
       h('small', { class: 'muted' }, q.source_title ? t.fromPost(q.source_title) : q.title),
-      q.reason && h('small', { class: q.state === 'uncertain' || (failed && !q.retry_at) ? 'errline' : 'muted' }, failed ? `${t.notYet}: ${q.reason}${q.retry_at ? ` ${t.retryAt(M.hm(q.retry_at))}` : ''}` : q.reason),
+      q.reason && h('small', { class: q.state === 'uncertain' || (failed && !q.retry_at) ? 'errline' : 'muted' }, failed ? `${t.notYet}: ${M.failWhy(q.reason)}${q.retry_at ? ` ${t.retryAt(M.hm(q.retry_at))}` : ''}` : q.reason),
       hooks.length ? h('table', { class: 'table hooks' },
         h('thead', {}, h('tr', {}, h('th', {}, `${t.hooks} (${t.panel(v.pretest?.n ?? null)})`), h('th', { class: 'num' }, t.keepWatching))),
         h('tbody', {}, ...hooks.map(r => h('tr', {}, h('td', {}, r.chosen ? h('b', {}, r.text) : r.text, r.chosen ? ' ' : null, r.chosen ? h('span', { class: 'badge ok' }, t.chosen) : null), h('td', { class: 'num' }, r.score))))) : null,
