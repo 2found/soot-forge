@@ -66,6 +66,7 @@ test('content opportunities go by themselves (decision by soot) and queue a topi
   assert.equal(out.ask.summary, '1 cơ hội chờ bạn chọn');
   assert.match(out.ask.keys[0], /^company:proposals:/);
   assert.match(out.ask.missing, /trang Công ty/);
+  assert.match(out.ask.missing, /^nest:\/\/page\/cong-ty$/m, 'the card opens the page');
   assert.ok(out.ask.options.length >= 1);
   // The same waiting set is not asked twice.
   const again = await w.call('digest_save', { opportunities: [ITEM.product] });

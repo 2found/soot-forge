@@ -104,7 +104,7 @@ export async function digest_save(input, deps) {
       await setState(store, 'asked', key);
       out.ask = {
         keys: [`company:proposals:${key}`], summary: `${waiting.length} cơ hội chờ bạn chọn`,
-        missing: 'Mở trang Công ty ở thanh bên của Nest: mỗi cơ hội có nút Go, Để sau, Bỏ. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.',
+        missing: 'Mở trang Công ty ở thanh bên của Nest: mỗi cơ hội có nút Go, Để sau, Bỏ. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.\nnest://page/cong-ty',
         options: [{ label: 'Đã xem', recommended: true }],
       };
     }
