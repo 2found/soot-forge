@@ -5,13 +5,25 @@ import { inQuiet, localDayStart, DEFAULT_QUIET } from './time.mjs';
 
 const HOUR = 3_600_000, DAY = 24 * HOUR;
 
-// Channel defaults (§3.3, human pace). p2 creates only the blog channel.
+// Channel defaults (§3.3, human pace). A social channel is keyed by its
+// platform, alone (`x`) or with the account (`x-lohi`); both get that
+// platform's defaults and rules.
 export const CHANNEL_DEFAULTS = {
   'blog-lohi': { kind: 'blog', publisher: 'lohi-blog', cap_per_day: 1, spacing_min: 20 * 60, reply_cap_per_day: 0, rules: { internal_hosts: ['blog.lohi2.com', 'lohi2.com'], series: 'truyen-hay' } },
-  x: { kind: 'social', publisher: 'browser', cap_per_day: 4, spacing_min: 180, reply_cap_per_day: 10, rules: { max_chars: 280, link_chars: 23, reply_links: false } },
-  facebook: { kind: 'social', publisher: 'browser', cap_per_day: 2, spacing_min: 360, reply_cap_per_day: 10, rules: { page_only: true } },
-  reddit: { kind: 'social', publisher: 'browser', cap_per_day: 1, spacing_min: 24 * 60, reply_cap_per_day: 5, rules: { per_sub_per_week: 1, promo_ratio: 0.1 } },
+  x: { kind: 'social', publisher: 'browser', cap_per_day: 4, spacing_min: 180, reply_cap_per_day: 10, rules: { max_chars: 280, link_chars: 23, reply_links: false, reply_spacing_min: 10 } },
+  facebook: { kind: 'social', publisher: 'browser', cap_per_day: 2, spacing_min: 360, reply_cap_per_day: 10, rules: { page_only: true, reply_spacing_min: 10 } },
+  reddit: { kind: 'social', publisher: 'browser', cap_per_day: 1, spacing_min: 24 * 60, reply_cap_per_day: 5, rules: { per_sub_per_week: 1, promo_ratio: 0.1, reply_spacing_min: 30 } },
 };
+export const SOCIAL_PLATFORMS = ['x', 'facebook', 'reddit'];
+
+/** The platform a channel key names: `x-lohi` → `x`; a non-social key is itself. */
+export function platformOf(key) {
+  const k = String(key ?? '');
+  if (CHANNEL_DEFAULTS[k]) return k;
+  const head = k.split('-')[0];
+  return SOCIAL_PLATFORMS.includes(head) && /^[a-z]+-[a-z0-9-]{1,40}$/.test(k) ? head : null;
+}
+export const defaultsFor = key => CHANNEL_DEFAULTS[key] ?? CHANNEL_DEFAULTS[platformOf(key)] ?? null;
 
 export const fold = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 const digits = s => String(s).replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '');
@@ -95,8 +107,9 @@ export function checkPersonal(text, { replyTarget } = {}) {
   if (EMAIL.test(s)) hits.push('địa chỉ email');
   if (PHONE.test(s)) hits.push('số điện thoại');
   if (NATIONAL_ID.test(s.replace(PHONE, ''))) hits.push('số giống số giấy tờ');
-  const h = s.match(HANDLE);
-  if (h && h[1] !== replyTarget) hits.push(`tên tài khoản @${h[1]}`);
+  // Every handle counts: a reply may name its own reader, and no one else.
+  const other = [...s.matchAll(new RegExp(HANDLE.source, 'g'))].map(m => m[1]).find(h => h !== replyTarget);
+  if (other) hits.push(`tên tài khoản @${other}`);
   return hits.length === 0
     ? { rule: 'personal_data', ok: true, detail: 'Không dữ liệu cá nhân' }
     : { rule: 'personal_data', ok: false, code: 'personal_data', detail: `Có dữ liệu cá nhân: ${hits.join(', ')}` };
@@ -115,7 +128,7 @@ export function checkPlatform(post, channel) {
     if (len > rules.max_chars) return { rule: 'platform', ok: false, code: 'too_long', detail: `Dài ${len} ký tự; kênh cho tối đa ${rules.max_chars}.` };
   }
   if (post.kind === 'reply' && rules.reply_links === false && (/https?:\/\//.test(text) || post.link)) return { rule: 'platform', ok: false, code: 'reply_link', detail: 'Trả lời trên kênh này không được kèm liên kết.' };
-  if (channel?.key === 'facebook' && BAIT.test(text)) return { rule: 'platform', ok: false, code: 'engagement_bait', detail: 'Có câu kêu gọi tương tác kiểu câu like/share bị Facebook phạt.' };
+  if (platformOf(channel?.key) === 'facebook' && BAIT.test(text)) return { rule: 'platform', ok: false, code: 'engagement_bait', detail: 'Có câu kêu gọi tương tác kiểu câu like/share bị Facebook phạt.' };
   if (channel?.kind === 'blog' && post.kind === 'article') {
     const lint = briefLint(post, channel);
     if (lint.length) return { rule: 'platform', ok: false, code: 'brief_lint', detail: lint.map(l => l.message).join(' ') };
@@ -156,7 +169,7 @@ export function checkDuplicate(post, log, now) {
 /** The automatic rules 1, 2, 3 and 5. */
 export function autoChecks(post, { channel, facts, log, now }) {
   const text = [post.brief?.title, post.brief?.meta, post.body].filter(Boolean).join('\n');
-  return [checkFacts(text, facts, now), checkPersonal(text), checkPlatform(post, channel), checkDuplicate(post, log, now)];
+  return [checkFacts(text, facts, now), checkPersonal(text, { replyTarget: post.kind === 'reply' ? post.brief?.reply_to ?? undefined : undefined }), checkPlatform(post, channel), checkDuplicate(post, log, now)];
 }
 
 // ---------- rule 6: at claim time ----------
@@ -166,16 +179,20 @@ export function autoChecks(post, { channel, facts, log, now }) {
  * channel's publish_log rows (intents count, so two claims cannot share a slot).
  * null = clear; otherwise {code, reason} and the item keeps waiting.
  */
-export function claimWindow({ settings, channel, log, now }) {
+export function claimWindow({ settings, channel, log, now, action = 'publish' }) {
   if (settings.paused_all) return { code: 'paused', reason: 'Đang tạm dừng đăng mọi kênh.' };
   if (channel.paused) return { code: 'paused', reason: `Kênh đang tạm dừng${channel.paused_reason ? ` (${channel.paused_reason})` : ''}.` };
   const quiet = settings.quiet_hours ?? DEFAULT_QUIET;
   if (inQuiet(now, quiet)) return { code: 'quiet_hours', reason: `Đang giờ yên ${quiet.from}–${quiet.to}; sẽ đăng sau.` };
-  const live = log.filter(r => r.action === 'publish' && (r.status === 'published' || r.status === 'intent'));
+  // Replies have their own cap and spacing (§3.3); posts and replies never share a count.
+  const reply = action === 'reply';
+  const cap = reply ? channel.reply_cap_per_day ?? 0 : channel.cap_per_day ?? 1;
+  const spacing = reply ? channel.rules?.reply_spacing_min ?? 0 : channel.spacing_min ?? 0;
+  const live = log.filter(r => r.action === action && (r.status === 'published' || r.status === 'intent'));
   const start = localDayStart(now, quiet.tz || DEFAULT_QUIET.tz);
   const today = live.filter(r => Date.parse(r.at) >= start).length;
-  if (today >= (channel.cap_per_day ?? 1)) return { code: 'over_cap', reason: `Đã đủ ${channel.cap_per_day} bài hôm nay trên kênh này.` };
+  if (today >= cap) return { code: 'over_cap', reason: reply ? `Đã đủ ${cap} trả lời hôm nay trên kênh này.` : `Đã đủ ${cap} bài hôm nay trên kênh này.` };
   const last = Math.max(0, ...live.map(r => Date.parse(r.at)).filter(Number.isFinite));
-  if (channel.spacing_min && now - last < channel.spacing_min * 60_000) return { code: 'spacing', reason: `Cần cách bài trước ít nhất ${Math.round(channel.spacing_min / 60)} giờ.` };
+  if (spacing && now - last < spacing * 60_000) return { code: 'spacing', reason: spacing >= 60 ? `Cần cách bài trước ít nhất ${Math.round(spacing / 60)} giờ.` : `Cần cách lần trả lời trước ít nhất ${spacing} phút.` };
   return null;
 }

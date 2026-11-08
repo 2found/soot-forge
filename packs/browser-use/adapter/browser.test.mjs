@@ -62,3 +62,50 @@ test('state lives in the host-kept Pack state directory, not the working directo
   assert.equal(existsSync(join(cwd,'.browser')),false);
  }finally{rmSync(state,{recursive:true,force:true});rmSync(cwd,{recursive:true,force:true});}
 });
+
+import {persistentSoots} from './browser.mjs';
+import {lock} from './launch.mjs';
+test('a host-listed Soot keeps one profile across its conversations; other Soots stay per conversation (AC-T6-1)',()=>{
+ const root='/nest/packs.d/browser-use', listed=persistentSoots('lohi-editor, ,../x,other_soot');
+ assert.deepEqual([...listed],['lohi-editor','other_soot']);
+ const pub=c=>identity({...call,soot:'lohi-editor',event:{...call.event,subject:c}},root,listed);
+ const a=pub('conversation-1'),b=pub('conversation-2');
+ assert.deepEqual(a,b);assert.equal(a.persistent,true);
+ assert.ok(a.profile.endsWith('/soot-profiles/lohi-editor'));assert.ok(a.state.endsWith('/soot-sessions/lohi-editor'));
+ // Model input never selects it, and another Soot never reaches it.
+ assert.deepEqual(identity({...call,soot:'lohi-editor',input:{profile:'/tmp/x',session:'sootp-x'}},root,listed),a);
+ const other=identity({...call,soot:'helper'},root,listed);
+ assert.equal(other.persistent,false);assert.ok(other.profile.endsWith('/profiles/conversation-1'));
+ assert.notEqual(other.session,a.session);
+ assert.notEqual(identity({...call,soot:'helper',event:{...call.event,subject:'conversation-2'}},root,listed).profile,other.profile);
+ // A conversation id spelled like the Soot's never reaches its profile or daemon.
+ const spoof=identity({...call,soot:'helper',event:{...call.event,subject:'soot-lohi-editor'}},root,listed);
+ assert.notEqual(spoof.profile,a.profile);assert.notEqual(spoof.session,a.session);assert.notEqual(spoof.state,a.state);
+ // Unset or empty env: nothing is persistent.
+ assert.equal(identity({...call,soot:'lohi-editor'},root,persistentSoots(undefined)).persistent,false);
+ assert.equal(identity({...call,soot:'lohi-editor'},root,persistentSoots('')).persistent,false);
+});
+test('two conversations of a persistent Soot share one command lock on its profile',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'soot-browser-shared-'));
+ try {
+  const listed=persistentSoots('lohi-editor');
+  const a=identity({...call,soot:'lohi-editor'},dir,listed),b=identity({...call,soot:'lohi-editor',event:{...call.event,subject:'conversation-2'}},dir,listed);
+  const release=await lock(a.state);
+  await assert.rejects(lock(b.state,{attempts:2,busy:'busy'}),/busy/);
+  // A non-persistent Soot's conversation is not held up by it.
+  await (await lock(identity({...call,soot:'helper'},dir,listed).state,{attempts:2}))();
+  await release();
+  await (await lock(b.state,{attempts:2}))();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('view maps a persistent Soot to its kept session from any conversation',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'soot-browser-pview-'));
+ try {
+  const state=join(dir,'.browser','soot-sessions','lohi-editor');mkdirSync(state,{recursive:true});writeFileSync(join(state,'closed'),'closed');
+  const env={PATH:'/nonexistent',SOOT_PACK_STATE:dir,SOOT_BROWSER_PERSISTENT_SOOTS:'lohi-editor'};
+  const view=(soot,subject)=>JSON.parse(spawnSync(process.execPath,[fileURLToPath(new URL('./cli.mjs',import.meta.url)),'view'],{input:JSON.stringify({...call,soot,event:{...call.event,subject},input:{}}),env,encoding:'utf8'}).stdout);
+  assert.equal(view('lohi-editor','conversation-7').resource.state,'closed');
+  assert.equal(view('lohi-editor','conversation-7').session,'soot-lohi-editor');
+  assert.equal(view('helper','conversation-7').resource.state,'unavailable');
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

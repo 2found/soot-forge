@@ -13,11 +13,25 @@ import { createHash } from 'node:crypto';
 // SOOT_PACK_STATE runs the Pack from its install, which is then the root.
 // Installations never share profiles merely because they share this binary.
 const root = process.env.SOOT_PACK_STATE || process.cwd();
-export function identity(call, packRoot = root) {
-  const id = call?.event?.subject;
-  if (call?.api_version !== 'soot/v1' || call?.hook !== 'tool.call' || call?.event?.source !== 'conversation' || !/^[a-zA-Z0-9_-]{1,128}$/.test(id || '')) throw new Error('A host conversation context is required');
+const SAFE_ID = /^[a-zA-Z0-9_-]{1,128}$/;
+/** Soot ids the host lists in SOOT_BROWSER_PERSISTENT_SOOTS (comma separated). */
+export function persistentSoots(value = process.env.SOOT_BROWSER_PERSISTENT_SOOTS) {
+  return new Set(String(value ?? '').split(',').map(s => s.trim()).filter(s => SAFE_ID.test(s)));
+}
+// A Soot the host lists keeps one profile across all its conversations (a
+// Publisher signed in once); every other Soot keeps one per conversation.
+// Only host context decides: the model's input never names a profile.
+export function identity(call, packRoot = root, persistent = persistentSoots()) {
+  const conversation = call?.event?.subject;
+  if (call?.api_version !== 'soot/v1' || call?.hook !== 'tool.call' || call?.event?.source !== 'conversation' || !SAFE_ID.test(conversation || '')) throw new Error('A host conversation context is required');
   const scope = createHash('sha256').update(packRoot).digest('hex').slice(0,12);
-  return { session: `soot-${scope}-${id}`, profile: join(packRoot,'.browser','profiles',id), id };
+  // Persistent state has its own directories and daemon prefix, so no
+  // conversation id (whatever its spelling) can reach a Soot's profile.
+  if (typeof call.soot === 'string' && SAFE_ID.test(call.soot) && persistent.has(call.soot)) {
+    const id = call.soot;
+    return { session: `sootp-${scope}-${id}`, profile: join(packRoot,'.browser','soot-profiles',id), state: join(packRoot,'.browser','soot-sessions',id), id: `soot-${id}`, persistent: true };
+  }
+  return { session: `soot-${scope}-${conversation}`, profile: join(packRoot,'.browser','profiles',conversation), state: join(packRoot,'.browser','sessions',conversation), id: conversation, persistent: false };
 }
 // Input is data only. Restrict global launch/connection flags so a model cannot
 // change the host-selected browser, profile, executable, or daemon identity.
@@ -69,7 +83,7 @@ export async function main() {
   if(!['view','control'].includes(process.argv[2])||call.operation!==`browser-use_${process.argv[2]}`||typeof call.soot!=='string'||!call.soot)throw new Error('Invalid browser operation binding');
   if(!readonly)validateInput(input);
   else if(!input||Array.isArray(input)||typeof input!=='object'||Object.keys(input).length)throw new Error('View expects empty input');
-  const sessionDir=join(root,'.browser','sessions',ident.id);
+  const sessionDir=ident.state;
   // A viewer never takes the control lock: it must connect while an agent is
   // navigating/waiting, and it must never launch or resurrect a dead session.
   if (readonly) {

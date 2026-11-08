@@ -4,7 +4,7 @@
 // MARKETING_HUB is bound; nothing here reads it.
 import { randomBytes, createHash } from 'node:crypto';
 import { fail, eq, gte, isNull } from './store.mjs';
-import { autoChecks, briefLint, claimWindow, CHANNEL_DEFAULTS } from './guard.mjs';
+import { autoChecks, briefLint, claimWindow, defaultsFor, platformOf } from './guard.mjs';
 import { nextSlot, DEFAULT_QUIET } from './time.mjs';
 import { contentHash, signClaim, CLAIM_TTL_MS, INTENT_STALE_MS } from './claim.mjs';
 import { metricsRows } from './page.mjs';
@@ -16,6 +16,7 @@ const ref = () => 'P-' + randomBytes(5).toString('hex').toUpperCase();
 const intentID = () => 'I-' + randomBytes(8).toString('hex');
 
 // States a person reads (Bài viết tabs and badges).
+export const CLASS_LABEL = { safe: 'an toàn', complaint: 'phàn nàn', money: 'tiền', account: 'tài khoản', flagged: 'cần xem', spam: 'rác' };
 export const STATE_LABEL = {
   draft: 'Nháp', checking: 'Đang kiểm tra', refused: 'Bị từ chối', ready: 'Đã kiểm tra', scheduled: 'Chờ đăng', publishing: 'Đang đăng',
   published: 'Đã đăng', failed: 'Lỗi · thử lại', pulled: 'Đã kéo ra', unpublishing: 'Đang gỡ', removed: 'Đã gỡ', uncertain: 'Chưa rõ',
@@ -37,10 +38,10 @@ export async function setSetting(store, key, value) {
 export async function channel(store, key) {
   const row = await store.one('channels', [eq('key', key)]);
   if (row) return row;
-  const d = CHANNEL_DEFAULTS[key];
+  const d = defaultsFor(key);
   if (!d) fail('unknown_channel', `Không có kênh "${key}".`);
   // Social channels start paused until their first sign-in (p3).
-  const fresh = { key, ...d, paused: d.kind === 'social', paused_reason: d.kind === 'social' ? 'signed_out' : null, account: null };
+  const fresh = { key, ...d, platform: platformOf(key) ?? d.kind, paused: d.kind === 'social', paused_reason: d.kind === 'social' ? 'signed_out' : null, account: null };
   try { await store.insert('channels', fresh); } catch (e) { if (e.code !== 'conflict') throw e; }
   return (await store.one('channels', [eq('key', key)])) ?? fresh;
 }
@@ -69,7 +70,9 @@ export async function draft_save(input, { store, now, soot }) {
   if (!['article', 'social', 'video', 'reply'].includes(kind)) fail('invalid_request', 'kind is article, social, video or reply.');
   if (typeof body !== 'string' || !body.trim()) fail('invalid_request', 'body is required.');
   const ch = await channel(store, chKey);
-  const fields = { kind, channel: ch.key, campaign: campaign ?? null, parent: parent ?? null, brief: brief ?? null, title: brief?.title ?? null, body, link: link ?? null, asset_ids: asset_ids ?? null };
+  // A reply answers one saved reader reply; its target comes from that row, never from the model.
+  const target = kind === 'reply' ? await answerable(store, parent, ch, body) : null;
+  const fields = { kind, channel: ch.key, campaign: campaign ?? null, parent: parent ?? null, brief: target ?? brief ?? null, title: brief?.title ?? null, body, link: link ?? null, asset_ids: asset_ids ?? null };
   const lint = briefLint(fields, ch);
   if (!id) {
     if (request_id) {
@@ -90,6 +93,22 @@ export async function draft_save(input, { store, now, soot }) {
   return { id, revision, content_hash: hashOf(fields), state: 'draft', lint };
 }
 
+/** The reply row a `kind:"reply"` post answers, or a refusal: only `safe`
+ * replies are answered; an `account` reply gets exactly the channel's fixed
+ * pointer (`rules.support_reply`); complaint, money and flagged never. */
+export async function answerable(store, parent, ch, body) {
+  if (typeof parent !== 'string' || !parent) fail('invalid_request', 'A reply names the saved reply it answers in parent (R-…).');
+  const r = await store.one('replies', [eq('ref', parent)]);
+  if (!r || r.channel !== ch.key) fail('not_found', `Không có phản hồi ${parent} trên kênh này.`);
+  const pointer = ch.rules?.support_reply;
+  if (r.class === 'account') {
+    if (!pointer || String(body).trim() !== pointer.trim()) fail('not_answerable', 'Câu hỏi tài khoản chỉ được trả lời bằng câu chỉ đường Hỗ trợ Lohi cố định.');
+  } else if (r.class !== 'safe') {
+    fail('not_answerable', `Soot không tự trả lời phản hồi loại ${CLASS_LABEL[r.class] ?? r.class}; việc này nằm ở Cần bạn.`);
+  }
+  return { reply_to: r.author_handle ?? null, reply_url: r.reply_url ?? null, thread_url: r.thread_url ?? null };
+}
+
 export async function check(input, { store, now, soot }) {
   const p = await post(store, input.id);
   if (input.revision !== p.revision) fail('revision_conflict', `Bài đang ở bản ${p.revision}.`);
@@ -105,14 +124,14 @@ export async function check(input, { store, now, soot }) {
   return { verdict, auto: auto.map(({ rule, ok, detail }) => ({ rule, ok, detail })), ...(reason ? { reason } : {}) };
 }
 
-async function takenTimes(store, chKey, now, own) {
+async function takenTimes(store, chKey, now, own, action = 'publish') {
   const [queued, log] = await Promise.all([
     store.query('queue', [eq('channel', chKey)], { order: 'scheduled_at', limit: 500 }),
     store.query('publish_log', [eq('channel', chKey), gte('at', iso(now - 7 * DAY))], { order: 'at', limit: 500 }),
   ]);
   const times = [
-    ...queued.filter(q => q.action !== 'unpublish' && q.post !== own).map(q => ms(q.scheduled_at)),
-    ...log.filter(r => r.action === 'publish' && ['published', 'intent'].includes(r.status)).map(r => ms(r.at)),
+    ...queued.filter(q => (q.action ?? 'publish') === action && q.post !== own).map(q => ms(q.scheduled_at)),
+    ...log.filter(r => r.action === action && ['published', 'intent'].includes(r.status)).map(r => ms(r.at)),
   ];
   return { mine: queued.find(q => q.post === own) ?? null, times };
 }
@@ -126,7 +145,8 @@ export async function schedule(input, { store, now }) {
   }
   const ch = await channel(store, p.channel);
   const settings = await getSettings(store);
-  const { mine, times } = await takenTimes(store, ch.key, now, p.ref);
+  const action = p.kind === 'reply' ? 'reply' : 'publish';
+  const { mine, times } = await takenTimes(store, ch.key, now, p.ref, action);
   if (mine?.intent_id) fail('conflict', 'Bài đang được đăng.');
   let at;
   if (input.scheduled_at) {
@@ -134,12 +154,15 @@ export async function schedule(input, { store, now }) {
     if (!Number.isFinite(at)) fail('invalid_request', 'scheduled_at is an RFC 3339 time.');
   } else {
     const jitter = parseInt(createHash('sha256').update(p.ref).digest('hex').slice(0, 2), 16) % 10;
-    at = nextSlot({ from: now, taken: times, cap: ch.cap_per_day ?? 1, spacingMin: ch.spacing_min ?? 0, quiet: settings.quiet_hours, jitterMin: jitter });
+    at = action === 'reply'
+      ? nextSlot({ from: now, taken: times, cap: ch.reply_cap_per_day ?? 0, spacingMin: ch.rules?.reply_spacing_min ?? 0, quiet: settings.quiet_hours, jitterMin: jitter % 3 })
+      : nextSlot({ from: now, taken: times, cap: ch.cap_per_day ?? 1, spacingMin: ch.spacing_min ?? 0, quiet: settings.quiet_hours, jitterMin: jitter });
     if (at == null) fail('no_slot', 'Không còn khung giờ trống trong 30 ngày.');
   }
-  if (mine) await store.update('queue', [eq('post', p.ref)], { scheduled_at: iso(at), action: 'publish', wait_reason: null });
-  else await store.insert('queue', { post: p.ref, channel: ch.key, action: 'publish', scheduled_at: iso(at), intent_id: null, intent_at: null, attempts: 0, wait_reason: null });
+  if (mine) await store.update('queue', [eq('post', p.ref)], { scheduled_at: iso(at), action, wait_reason: null });
+  else await store.insert('queue', { post: p.ref, channel: ch.key, action, scheduled_at: iso(at), intent_id: null, intent_at: null, attempts: 0, wait_reason: null });
   await store.update('posts', [eq('ref', p.ref)], { state: 'scheduled', reason: null });
+  await clearAttention(store, 'late', p.ref);
   return { id: p.ref, scheduled_at: iso(at) };
 }
 
@@ -149,25 +172,75 @@ async function latestCheck(store, p) {
 
 // ---------- the dispatcher's read ----------
 
-export async function due(_input, { store, now }) {
+// Cần bạn items (design §5): the dispatcher lists them, the woken Publisher
+// files one report_blocker each and marks it with `raised`, so a schedule
+// wakes once per item, not every 10 minutes.
+export const NEED_LABEL = {
+  signed_out: 'Đăng nhập lại', layout_changed: 'Giao diện nền tảng đổi', captcha: 'Nền tảng hỏi captcha',
+  late: 'Bài lỡ giờ', uncertain: 'Không chắc đã đăng chưa',
+  complaint: 'Phàn nàn', money: 'Tiền', account: 'Chuyển Hỗ trợ', flagged: 'Cần xem',
+};
+export const PAUSE_REASONS = ['signed_out', 'layout_changed', 'captcha'];
+const needKey = n => `${n.kind}:${n.id}:${n.reason}`;
+
+export async function clearAttention(store, kind, ref) {
+  await store.remove('attention', [eq('kind', kind), eq('ref', ref)]);
+}
+
+export async function due(input, { store, now }) {
   const settings = await getSettings(store);
   const rows = await store.query('queue', [{ column: 'scheduled_at', op: 'lte', value: iso(now) }], { order: 'scheduled_at', desc: false, limit: 200 });
-  const channels = await store.query('channels', [], { limit: 50 });
+  const [channels, raised, held, open] = await Promise.all([
+    store.query('channels', [], { limit: 50 }),
+    store.query('attention', [], { limit: 500 }),
+    store.query('posts', [eq('state', 'uncertain')], { limit: 50 }),
+    store.query('replies', [eq('state', 'needs_person')], { limit: 50 }),
+  ]);
   const byKey = Object.fromEntries(channels.map(c => [c.key, c]));
-  const out = { wake: false, publish: [], unpublish: [], late: [], needs_person: [] };
-  for (const c of channels) if (c.paused && c.paused_reason && c.paused_reason !== 'person') out.needs_person.push({ id: c.key, channel: c.key, reason: c.paused_reason });
+  const seen = new Set(raised.map(r => r.key));
+  const out = { wake: false, publish: [], unpublish: [], reply: [], late: [], needs_person: [], needs: [] };
+  const need = n => out.needs.push({ ...n, key: needKey(n), label: n.label ?? NEED_LABEL[n.reason] ?? n.reason, raised: seen.has(needKey(n)) });
+  for (const c of channels) {
+    if (!c.paused || !c.paused_reason || c.paused_reason === 'person') continue;
+    out.needs_person.push({ id: c.key, channel: c.key, reason: c.paused_reason });
+    need({ kind: 'channel', id: c.key, channel: c.key, platform: c.platform ?? platformOf(c.key), reason: c.paused_reason });
+  }
+  // An uncertain post may be live: never claimed again until a person answers.
+  const uncertain = new Set(held.map(p => p.ref));
+  for (const p of held) need({ kind: 'uncertain', id: p.ref, channel: p.channel, reason: 'uncertain', url: p.url ?? null });
+  // An account question is a handoff to the product's support, under the channel's own label.
+  for (const r of open) need({ kind: 'reply', id: r.ref, channel: r.channel, reason: r.class, thread_url: r.thread_url, reply_url: r.reply_url ?? null,
+    ...(r.class === 'account' && byKey[r.channel]?.rules?.support_label ? { label: byKey[r.channel].rules.support_label } : {}) });
   for (const q of rows) {
+    if (uncertain.has(q.post)) continue;
     const ch = byKey[q.channel];
     const stuck = q.intent_id && now - ms(q.intent_at) > INTENT_STALE_MS;
     if (q.intent_id && !stuck) continue;
     if (q.action === 'unpublish') { out.unpublish.push(q.post); continue; }
-    if (now - ms(q.scheduled_at) > settings.stale_after_h * HOUR) out.late.push(q.post);
+    // A stale item is never posted on its own (a stuck intent is only verified, never re-posted).
+    if (!q.intent_id && now - ms(q.scheduled_at) >= settings.stale_after_h * HOUR) {
+      out.late.push(q.post);
+      need({ kind: 'late', id: q.post, channel: q.channel, reason: 'late', scheduled_at: q.scheduled_at });
+      continue;
+    }
     if (settings.paused_all || ch?.paused) continue;
-    out.publish.push(q.post);
+    (q.action === 'reply' ? out.reply : out.publish).push(q.post);
   }
   // The runtime's wake_when matches the boolean `notify` (or a string at a path), so both say the same.
-  out.wake = out.notify = out.publish.length + out.unpublish.length > 0;
+  out.wake = out.notify = out.publish.length + out.unpublish.length + out.reply.length > 0 || out.needs.some(n => !n.raised);
   return out;
+}
+
+/** The Publisher filed these Cần bạn items (`due.needs[].key`). */
+export async function raised(input, { store, now }) {
+  const keys = Array.isArray(input.keys) ? input.keys : [];
+  if (!keys.length || keys.length > 50 || keys.some(k => typeof k !== 'string' || !/^(channel|uncertain|late|reply):[A-Za-z0-9-]{1,64}:[a-z_]{1,32}$/.test(k))) fail('invalid_request', 'keys are 1–50 due.needs keys.');
+  let n = 0;
+  for (const key of keys) {
+    const [kind, ref, reason] = key.split(':');
+    try { await store.insert('attention', { key, kind, ref, reason, raised_at: iso(now) }); n++; } catch (e) { if (e.code !== 'conflict') throw e; }
+  }
+  return { raised: n };
 }
 
 // ---------- claim → publish → record / fail ----------
@@ -179,6 +252,9 @@ function claimBody(p, ch, action, intent, now) {
     title: b.title ?? '', meta: b.meta ?? '', slug: b.slug ?? '', body: p.body ?? '', link: p.link ?? '',
     series: b.series ?? ch.rules?.series ?? null, date: new Date(now).toISOString().slice(0, 10),
     url: action === 'unpublish' ? p.url ?? null : null, expires_at: iso(now + CLAIM_TTL_MS),
+    // Browser publishers: which platform and account to drive, and for a reply its target.
+    ...(ch.publisher === 'browser' ? { platform: ch.platform ?? platformOf(ch.key), account: ch.account ?? null, subreddit: b.subreddit ?? null } : {}),
+    ...(action === 'reply' ? { reply_url: b.reply_url ?? null, thread_url: b.thread_url ?? null } : {}),
   };
 }
 
@@ -195,37 +271,43 @@ async function refuse(store, p, code, reason, { refusePost = false } = {}) {
 export async function claim(input, { store, now, env }) {
   const action = input.action ?? 'publish';
   if (!['publish', 'unpublish', 'reply'].includes(action)) fail('invalid_request', 'action is publish, unpublish or reply.');
-  if (action === 'reply') return { refused: { code: 'not_available', reason: 'Trả lời bình luận chưa có ở bản này.' } };
   const key = env.MARKETING_CLAIM_KEY;
   if (!key) return { refused: { code: 'claim_key_missing', reason: 'Soot chưa có khoá MARKETING_CLAIM_KEY.' } };
   const p = await post(store, input.id);
   const q = await store.one('queue', [eq('post', p.ref)]);
-  if (!q || q.action !== action) return { refused: { code: 'not_queued', reason: action === 'publish' ? 'Bài không có trong hàng đợi.' : 'Bài không chờ gỡ.' } };
+  if (!q || (q.action ?? 'publish') !== action) return { refused: { code: 'not_queued', reason: action === 'unpublish' ? 'Bài không chờ gỡ.' : 'Bài không có trong hàng đợi.' } };
+  if ((action === 'reply') !== (p.kind === 'reply')) return { refused: { code: 'invalid_action', reason: 'Trả lời dùng action reply; bài đăng dùng publish.' } };
   const ch = await channel(store, p.channel);
   const settings = await getSettings(store);
+  const send = action !== 'unpublish';
 
   // An open intent: the last attempt may have gone out. Re-issue the same
   // intent and make the publisher look before it acts (crash recovery).
   if (q.intent_id) {
     if (now - ms(q.intent_at) <= INTENT_STALE_MS) return { refused: { code: 'open_intent', reason: 'Bài đang được đăng ở lượt khác.' } };
-    if (action === 'publish' && (settings.paused_all || ch.paused)) return refuse(store, p, 'paused', 'Đang tạm dừng đăng.');
-    await store.update('queue', [eq('post', p.ref), eq('intent_id', q.intent_id)], { intent_at: iso(now) });
+    if (send && (settings.paused_all || ch.paused)) return refuse(store, p, 'paused', 'Đang tạm dừng đăng.');
+    // From here the publisher only looks; a failure keeps the intent (never a second post).
+    await store.update('queue', [eq('post', p.ref), eq('intent_id', q.intent_id)], { intent_at: iso(now), verify: true });
     if (!(await store.one('publish_log', [eq('intent_id', q.intent_id)]))) {
       await store.insert('publish_log', { post: p.ref, channel: ch.key, action, intent_id: q.intent_id, status: 'intent', body: p.body, link: p.link ?? null, url: p.url ?? null, platform_id: null, reason: null, at: iso(q.intent_at ?? now) });
     }
     return { claim: signClaim(claimBody(p, ch, action, q.intent_id, now), key), verify_first: true };
   }
 
-  if (action === 'publish') {
+  if (send) {
     if (!['scheduled', 'failed'].includes(p.state)) return { refused: { code: 'not_ready', reason: `Bài đang ${STATE_LABEL[p.state]}.` } };
     if (ms(q.scheduled_at) > now) return { refused: { code: 'not_due', reason: 'Chưa tới giờ đăng.' } };
+    if (now - ms(q.scheduled_at) >= settings.stale_after_h * HOUR) return refuse(store, p, 'late', `Bài lỡ giờ: quá ${settings.stale_after_h} giờ so với lịch; Soot không tự đăng bài lỡ giờ.`);
+    if (p.kind === 'reply') {
+      try { await answerable(store, p.parent, ch, p.body); } catch (e) { return refuse(store, p, e.code, e.message, { refusePost: true }); }
+    }
     if (p.content_hash !== hashOf(p)) return refuse(store, p, 'hash_mismatch', 'Nội dung đổi sau khi kiểm tra.', { refusePost: true });
     const gi = await guardInputs(store, p, now);
     const failed = autoChecks(p, gi).filter(a => !a.ok);
     if (failed.length) return refuse(store, p, failed[0].code, failed.map(a => a.detail).join(' · '), { refusePost: true });
     const last = await latestCheck(store, p);
     if (!last || last.verdict !== 'pass' || last.content_hash !== p.content_hash) return refuse(store, p, 'not_checked', 'Editor chưa duyệt đúng bản này.', { refusePost: true });
-    const wait = claimWindow({ settings, channel: ch, log: gi.log.filter(r => r.channel === ch.key), now });
+    const wait = claimWindow({ settings, channel: ch, log: gi.log.filter(r => r.channel === ch.key), now, action });
     if (wait) return refuse(store, p, wait.code, wait.reason);
   } else if (p.state !== 'published' && p.state !== 'unpublishing') {
     return { refused: { code: 'not_published', reason: 'Bài chưa đăng.' } };
@@ -233,11 +315,11 @@ export async function claim(input, { store, now, env }) {
 
   // Compare-and-set: only one caller turns the open slot into an intent.
   const intent = intentID();
-  const won = await store.update('queue', [eq('post', p.ref), isNull('intent_id')], { intent_id: intent, intent_at: iso(now), attempts: (q.attempts ?? 0) + 1, wait_reason: null });
+  const won = await store.update('queue', [eq('post', p.ref), isNull('intent_id')], { intent_id: intent, intent_at: iso(now), attempts: (q.attempts ?? 0) + 1, wait_reason: null, verify: false });
   if (!won) return { refused: { code: 'open_intent', reason: 'Bài đang được đăng ở lượt khác.' } };
   // The intent row is written before anything goes out.
   await store.insert('publish_log', { post: p.ref, channel: ch.key, action, intent_id: intent, status: 'intent', body: p.body, link: p.link ?? null, url: p.url ?? null, platform_id: null, reason: null, at: iso(now) });
-  await store.update('posts', [eq('ref', p.ref)], { state: action === 'publish' ? 'publishing' : 'unpublishing', reason: null });
+  await store.update('posts', [eq('ref', p.ref)], { state: send ? 'publishing' : 'unpublishing', reason: null });
   return { claim: signClaim(claimBody(p, ch, action, intent, now), key) };
 }
 
@@ -251,13 +333,20 @@ async function intentRow(store, intent_id) {
 export async function record(input, { store, now }) {
   const row = await intentRow(store, input.intent_id);
   const done = row.action === 'unpublish' ? 'removed' : 'published';
-  if (row.status === done) return { state: done, ...(done === 'published' ? { outcome: { id: 'post_published', ref: row.url } } : {}), replayed: true };
+  // Only a post is the post_published outcome; a reply is not.
+  const outcome = url => (row.action === 'publish' ? { outcome: { id: 'post_published', ref: url } } : {});
+  if (row.status === done) return { state: done, ...(done === 'published' ? outcome(row.url) : {}), replayed: true };
   if (done === 'published' && (typeof input.url !== 'string' || !/^https?:\/\//.test(input.url))) fail('invalid_request', 'url is required.');
   const url = done === 'published' ? input.url : row.url;
   await store.update('publish_log', [eq('intent_id', row.intent_id)], { status: done, url, platform_id: input.platform_id ?? null, at: iso(now) });
   await store.update('posts', [eq('ref', row.post)], done === 'published' ? { state: 'published', url, platform_id: input.platform_id ?? null, reason: null } : { state: 'removed', reason: null });
   await store.remove('queue', [eq('post', row.post), eq('intent_id', row.intent_id)]);
-  return { state: done, ...(done === 'published' ? { outcome: { id: 'post_published', ref: url } } : {}) };
+  await clearAttention(store, 'uncertain', row.post);
+  if (row.action === 'reply') {
+    const p = await store.one('posts', [eq('ref', row.post)]);
+    if (p?.parent) await store.update('replies', [eq('ref', p.parent)], { state: 'answered', reply_post: p.ref });
+  }
+  return { state: done, ...(done === 'published' ? outcome(url) : {}) };
 }
 
 export async function failIntent(input, { store, now }) {
@@ -266,19 +355,23 @@ export async function failIntent(input, { store, now }) {
   if (!['failed', 'needs_person', 'uncertain'].includes(status)) fail('invalid_request', 'status is failed, needs_person or uncertain.');
   const reason = String(input.reason ?? '').slice(0, 500) || 'Không rõ lý do.';
   if (row.status !== 'intent') return { state: (await post(store, row.post)).state, replayed: true };
-  await store.update('publish_log', [eq('intent_id', row.intent_id)], { status, reason, at: iso(now) });
   const unpub = row.action === 'unpublish';
-  if (status === 'uncertain') {
-    // Keep the intent: the next claim re-issues it with verify_first.
+  const q = await store.one('queue', [eq('post', row.post), eq('intent_id', row.intent_id)]);
+  if (status === 'needs_person') {
+    // Only that channel pauses; the reason is the platform code Cần bạn names.
+    const code = PAUSE_REASONS.find(c => reason.startsWith(c)) ?? 'signed_out';
+    await store.update('channels', [eq('key', row.channel)], { paused: true, paused_reason: code });
+  }
+  // An earlier attempt may have gone out (verify_first) and the publisher could
+  // not look: keep the intent and ask a person, never free it for a second post.
+  if (status === 'uncertain' || (q?.verify && !unpub)) {
     await store.update('posts', [eq('ref', row.post)], { state: 'uncertain', reason });
     await store.update('publish_log', [eq('intent_id', row.intent_id)], { status: 'intent', reason });
     return { state: 'uncertain' };
   }
-  if (status === 'needs_person') {
-    await store.update('channels', [eq('key', row.channel)], { paused: true, paused_reason: reason });
-  }
+  await store.update('publish_log', [eq('intent_id', row.intent_id)], { status, reason, at: iso(now) });
   const retry = status === 'failed' ? now + HOUR : now;
-  await store.update('queue', [eq('post', row.post), eq('intent_id', row.intent_id)], { intent_id: null, intent_at: null, scheduled_at: iso(retry), wait_reason: reason });
+  await store.update('queue', [eq('post', row.post), eq('intent_id', row.intent_id)], { intent_id: null, intent_at: null, verify: false, scheduled_at: iso(retry), wait_reason: reason });
   const state = unpub ? 'published' : 'failed';
   await store.update('posts', [eq('ref', row.post)], { state, reason });
   return { state };
@@ -289,6 +382,8 @@ export async function pause(input, { store, now }) {
   if (input.channel) {
     await channel(store, input.channel);
     await store.update('channels', [eq('key', input.channel)], { paused: input.paused, paused_reason: input.paused ? 'person' : null });
+    // Resuming ends that episode: a later sign-out is a new Cần bạn item.
+    if (!input.paused) await clearAttention(store, 'channel', input.channel);
   } else {
     await setSetting(store, 'paused_all', input.paused);
     await setSetting(store, 'paused_at', input.paused ? iso(now) : null);
@@ -432,3 +527,165 @@ export async function seo_brief(_input, { store, now }) {
   };
 }
 
+
+// ---------- channels (recipe seed, p3) ----------
+
+const CHANNEL_FIELDS = ['cap_per_day', 'spacing_min', 'reply_cap_per_day'];
+
+/** Create missing channels (social ones paused until their first sign-in) and
+ * fill only unset values; a founder's edit or pause is never overwritten. */
+export async function channels_setup(input, { store }) {
+  const list = Array.isArray(input.channels) ? input.channels : [];
+  if (list.length > 20) fail('invalid_request', 'At most 20 channels.');
+  const out = [];
+  for (const c of list) {
+    if (!c || typeof c.id !== 'string' || !defaultsFor(c.id)) fail('unknown_channel', `Không có kênh "${c?.id}".`);
+    const existed = !!(await store.one('channels', [eq('key', c.id)]));
+    const row = await channel(store, c.id);
+    const set = {};
+    for (const f of CHANNEL_FIELDS) if (Number.isInteger(c[f]) && c[f] >= 0 && row[f] == null) set[f] = c[f];
+    if (typeof c.account === 'string' && c.account && !row.account) set.account = c.account.slice(0, 200);
+    if (c.rules && typeof c.rules === 'object' && !Array.isArray(c.rules)) {
+      const rules = { ...(row.rules ?? {}) };
+      for (const [k, v] of Object.entries(c.rules)) if (rules[k] === undefined) rules[k] = v;
+      if (JSON.stringify(rules) !== JSON.stringify(row.rules ?? {})) set.rules = rules;
+    }
+    if (Object.keys(set).length) await store.update('channels', [eq('key', row.key)], set);
+    out.push({ id: row.key, platform: row.platform ?? platformOf(row.key), paused: !!row.paused, paused_reason: row.paused_reason ?? null, created: !existed });
+  }
+  const settings = await getSettings(store);
+  if (input.quiet_hours && !(await store.one('settings', [eq('key', 'quiet_hours')]))) {
+    const q = input.quiet_hours;
+    if (!/^\d{2}:\d{2}$/.test(q.from ?? '') || !/^\d{2}:\d{2}$/.test(q.to ?? '') || typeof q.tz !== 'string') fail('invalid_request', 'quiet_hours is {from:"HH:MM", to:"HH:MM", tz}.');
+    await setSetting(store, 'quiet_hours', { from: q.from, to: q.to, tz: q.tz });
+  }
+  if (Number.isInteger(input.stale_after_h) && !(await store.one('settings', [eq('key', 'stale_after_h')]))) await setSetting(store, 'stale_after_h', input.stale_after_h);
+  return { channels: out, quiet_hours: (await getSettings(store)).quiet_hours ?? settings.quiet_hours };
+}
+
+// ---------- replies (AC6, design §5) ----------
+
+export const REPLY_CLASSES = ['safe', 'complaint', 'money', 'account', 'flagged', 'spam'];
+const replyRef = (channelKey, url) => 'R-' + createHash('sha256').update(`${channelKey}|${url}`).digest('hex').slice(0, 10).toUpperCase();
+const READ_EVERY_MS = 2 * HOUR;
+const HANDLE_TTL_MS = 30 * DAY;
+
+const decode = s => String(s ?? '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&');
+// Atom carries the comment as escaped HTML: unescape the XML, drop the tags, then unescape the HTML text.
+const strip = html => decode(decode(html).replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+
+/** Comments of a Reddit thread's Atom feed (`<thread>.rss`), newest first; the post itself (t3_) is left out. */
+export function redditComments(xml) {
+  const out = [];
+  for (const m of String(xml).matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
+    const e = m[1];
+    const id = decode(e.match(/<id>([\s\S]*?)<\/id>/)?.[1] ?? '').trim();
+    if (!id.startsWith('t1_')) continue;
+    const link = e.match(/<link[^>]*href="([^"]+)"/)?.[1];
+    const author = decode(e.match(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>/)?.[1] ?? '').trim().replace(/^\/?u\//, '');
+    const text = strip(e.match(/<content[^>]*>([\s\S]*?)<\/content>/)?.[1] ?? '').replace(/^submitted by .*$/, '').slice(0, 2000);
+    if (link) out.push({ reply_url: decode(link), author_handle: author || null, text, platform_id: id });
+  }
+  return out;
+}
+
+async function watchedThreads(store, now) {
+  const [sources, posts] = await Promise.all([
+    store.query('sources', [eq('kind', 'reddit_thread')], { limit: 50 }),
+    store.query('posts', [eq('state', 'published')], { order: 'updated_at', limit: 200 }),
+  ]);
+  const threads = new Map(sources.map(s => [s.url, { url: s.url, channel: s.key.split('|')[1] ?? null, parent_post: null, source: s }]));
+  for (const p of posts) {
+    if (platformOf(p.channel) !== 'reddit' || !p.url || now - ms(p.updated_at) > 30 * DAY) continue;
+    if (!threads.has(p.url)) threads.set(p.url, { url: p.url, channel: p.channel, parent_post: p.ref, source: null });
+    else threads.get(p.url).parent_post = p.ref;
+  }
+  return [...threads.values()];
+}
+
+/** Tool-only schedule (every 2 h): read Reddit threads by RSS, drop reader
+ * handles after 30 days, and wake the Publisher only for replies to classify
+ * or browser channels whose notifications were last read over 2 h ago. */
+export async function replies_sync(_input, { store, now, fetch }) {
+  // Person-derived data never outlives 30 days.
+  const old = await store.query('replies', [{ column: 'created_at', op: 'lte', value: iso(now - HANDLE_TTL_MS) }, { column: 'author_handle', op: 'not_null' }], { limit: 500 });
+  for (const r of old) await store.update('replies', [eq('ref', r.ref)], { author_handle: null });
+  const channels = await store.query('channels', [], { limit: 50 });
+  const redditKey = channels.find(c => platformOf(c.key) === 'reddit')?.key ?? null;
+  let saved = 0;
+  const errors = [];
+  for (const t of await watchedThreads(store, now)) {
+    const ch = channels.find(c => c.key === (t.channel ?? redditKey));
+    if (!ch) continue;
+    let xml;
+    try {
+      const res = await fetch(t.url.replace(/\/?(\?.*)?$/, '/.rss'), { headers: { Accept: 'application/atom+xml', 'User-Agent': 'soot-marketing/1.0' } });
+      if (!res.ok) throw new Error(`answered ${res.status}`);
+      xml = await res.text();
+    } catch (e) {
+      errors.push({ thread_url: t.url, error: String(e.message).slice(0, 200) });
+      if (t.source) await store.update('sources', [eq('key', t.source.key)], { last_error: String(e.message).slice(0, 200) });
+      continue;
+    }
+    const own = String(ch.account ?? '').replace(/^.*\/(u|user)\//, '').replace(/\/.*$/, '').toLowerCase();
+    for (const c of redditComments(xml)) {
+      if (own && c.author_handle?.toLowerCase() === own) continue;
+      const ref = replyRef(ch.key, c.reply_url);
+      if (await store.one('replies', [eq('ref', ref)])) continue;
+      await store.insert('replies', { ref, channel: ch.key, thread_url: t.url, reply_url: c.reply_url, parent_post: t.parent_post, author_handle: c.author_handle, text: c.text, class: null, state: 'new', reply_post: null });
+      saved++;
+    }
+    if (t.source) await store.update('sources', [eq('key', t.source.key)], { last_read_at: iso(now), last_error: null });
+  }
+  // X and Facebook are read in the browser by the woken Publisher.
+  const reads = await store.query('sources', [eq('kind', 'notifications')], { limit: 50 });
+  const lastRead = Object.fromEntries(reads.map(r => [r.key, ms(r.last_read_at)]));
+  const published = await store.query('posts', [eq('state', 'published')], { order: 'updated_at', limit: 200 });
+  const read = channels.filter(c => ['x', 'facebook'].includes(platformOf(c.key)) && !c.paused && published.some(p => p.channel === c.key)
+    && !(now - (lastRead[`notifications|${c.key}`] ?? 0) < READ_EVERY_MS)).map(c => c.key);
+  const classify = (await store.query('replies', [eq('state', 'new')], { limit: 50 })).map(r => ({ id: r.ref, channel: r.channel, thread_url: r.thread_url, reply_url: r.reply_url, text: r.text }));
+  const wake = read.length > 0 || classify.length > 0;
+  return { wake, notify: wake, read, classify, saved, purged: old.length, errors };
+}
+
+/** Save what the Publisher read and classified. `safe` replies are answered
+ * through draft_save {kind:"reply", parent} → check → schedule → claim; the
+ * others are never answered and become one Cần bạn item each (due.needs).
+ * An `account` reply also gets the channel's fixed pointer as a draft. */
+export async function reply_save(input, { store, now, soot }) {
+  const ch = await channel(store, input.channel);
+  if (ch.kind !== 'social') fail('invalid_request', 'Replies are read on social channels.');
+  const list = Array.isArray(input.items) ? input.items : [];
+  if (list.length > 50) fail('invalid_request', 'At most 50 replies per call.');
+  const saved = [], drafts = [];
+  for (const it of list) {
+    if (!REPLY_CLASSES.includes(it?.class)) fail('invalid_request', `class is ${REPLY_CLASSES.join(', ')}.`);
+    let row = it.id ? await store.one('replies', [eq('ref', it.id)]) : null;
+    if (it.id && (!row || row.channel !== ch.key)) fail('not_found', `Không có phản hồi ${it.id} trên kênh này.`);
+    if (!row) {
+      if (typeof it.reply_url !== 'string' || !/^https:\/\//.test(it.reply_url)) fail('invalid_request', 'A new reply needs its https reply_url.');
+      const ref = replyRef(ch.key, it.reply_url);
+      row = await store.one('replies', [eq('ref', ref)]);
+      if (!row) {
+        row = { ref, channel: ch.key, thread_url: typeof it.thread_url === 'string' ? it.thread_url.slice(0, 2000) : null, reply_url: it.reply_url.slice(0, 2000), parent_post: typeof it.parent_post === 'string' ? it.parent_post : null,
+          author_handle: typeof it.author_handle === 'string' ? it.author_handle.replace(/^@/, '').slice(0, 64) : null, text: String(it.text ?? '').slice(0, 2000), class: null, state: 'new', reply_post: null };
+        await store.insert('replies', row);
+      }
+    }
+    // A reply already handled keeps its outcome; a replay changes nothing.
+    if (row.state !== 'new') { saved.push({ id: row.ref, class: row.class, state: row.state, replayed: true }); continue; }
+    const state = it.class === 'safe' ? 'open' : it.class === 'spam' ? 'ignored' : 'needs_person';
+    await store.update('replies', [eq('ref', row.ref)], { class: it.class, state });
+    saved.push({ id: row.ref, class: it.class, state, ...(state === 'needs_person' ? { label: (it.class === 'account' && ch.rules?.support_label) || NEED_LABEL[it.class] } : {}) });
+    if (it.class === 'account' && ch.rules?.support_reply) {
+      const d = await draft_save({ request_id: `pointer-${row.ref}`, kind: 'reply', channel: ch.key, parent: row.ref, body: ch.rules.support_reply }, { store, now, soot });
+      drafts.push({ reply: row.ref, post: d.id, revision: d.revision });
+    }
+  }
+  if (['x', 'facebook'].includes(platformOf(ch.key))) {
+    const key = `notifications|${ch.key}`;
+    if (!(await store.update('sources', [eq('key', key)], { last_read_at: iso(now) }))) await store.insert('sources', { key, kind: 'notifications', url: null, last_read_at: iso(now), last_error: null });
+  }
+  return { saved, drafts };
+}

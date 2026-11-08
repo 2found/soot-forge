@@ -64,23 +64,37 @@ what you held back and why.
 ## Without a hub: claim, publish, record
 
 The queue publishes on its own pace: a tool-only schedule runs
-`marketing_due` and wakes you only when something is due.
+`marketing_due` and wakes you only when something is due or a person is
+needed.
 
-1. For each id in `publish`: `marketing_claim {id, action: "publish"}`. The
-   claim re-runs the guard, checks pause, caps, spacing, quiet hours and the
-   editor's verdict on this exact content, and writes the intent before
-   anything goes out. A `refused` answer is final for this turn; its reason is
-   already on the post.
-2. Give the signed claim to the channel's publisher (its pack's `publish` tool,
-   or the posting skill). With `verify_first: true`, call the publisher's
-   `find` first and record what it finds instead of posting again.
+1. For each id in `publish`: `marketing_claim {id, action: "publish"}`; for
+   each id in `reply`: `action: "reply"`. The claim re-runs the guard, checks
+   pause, caps, spacing, quiet hours, staleness and the editor's verdict on
+   this exact content, and writes the intent before anything goes out. A
+   `refused` answer is final for this turn; its reason is already on the post.
+2. Give the signed claim to the channel's publisher: its pack's `publish`
+   tool (the blog), or the `marketing-browser-post` skill for a `browser`
+   channel (X, a Facebook Page, Reddit). With `verify_first: true`, only look
+   (`find`) and record what it finds; never post again.
 3. `published` → `marketing_record {intent_id, url, platform_id}` and report
    the `post_published` outcome it returns. `failed` →
-   `marketing_fail {intent_id, status: "failed", reason}`; a sign-in or layout
-   problem → `status: "needs_person"` (the channel pauses); not knowing whether
-   it went out → `status: "uncertain"`. Never call the publisher twice for one
-   claim.
+   `marketing_fail {intent_id, status: "failed", reason}`; a sign-in, captcha
+   or layout problem → `status: "needs_person"` with `reason` `signed_out`,
+   `captcha` or `layout_changed` (only that channel pauses); not knowing
+   whether it went out → `status: "uncertain"`. Never call the publisher twice
+   for one claim.
 4. `unpublish` ids follow the same steps with `action: "unpublish"`.
+5. `late` items are never posted on their own: they are in `needs` as "Bài lỡ
+   giờ".
+6. For each item in `needs` that is not `raised`, file one `report_blocker`
+   naming the platform and what the person does: sign in in Nest's browser
+   panel and choose resume, look at a changed page, answer "Không chắc đã
+   đăng chưa" (live → paste the link; not live → post again; or drop it),
+   or post a late item now, reschedule or drop it. Then call
+   `marketing_raised {keys}` with their keys so the schedule does not wake
+   for them again. The person's answers are Hàng đợi page actions
+   (`resume`, `confirm_posted`, `confirm_not_posted`, `post_now`, `restore`,
+   `drop`).
 
 `marketing_pause {paused: true}` stops every channel at once; writing and
 checking go on.

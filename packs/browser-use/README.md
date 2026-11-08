@@ -52,6 +52,16 @@ directory; deployment path namespaces the daemon name. Persistent cookies and
 storage survive browser close; session cookies follow the site/browser lifetime. Live tabs survive sidebar close and conversation
 switches. Sessions stay alive until explicitly closed; terminate the exact
 `soot-<deployment hash>-<conversation ID>` session during operator cleanup.
+A Soot the host lists in `SOOT_BROWSER_PERSISTENT_SOOTS` (comma-separated
+Soot IDs, an inherited `needs.env` name) instead keeps one profile for all its
+conversations: `.browser/soot-profiles/<soot ID>`, daemon
+`sootp-<deployment hash>-<soot ID>`. Its conversations share one command lock,
+so they never drive the profile at once; `view` from any of its conversations
+shows the same browser, so the person signs in once. The Soot ID comes only from
+the host envelope; input never selects a profile. Unlisted Soots, and every Soot
+when the variable is unset, keep one profile per conversation. `soot service`
+passes only `SOOT_HOME` and `PATH` to runtimes, so set it in the shell that
+starts Soot or with `launchctl setenv`.
 Never use global close-all. Keep `.browser/` private and out of backups/archives
 shared with others: profiles contain website credentials.
 

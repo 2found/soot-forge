@@ -13,7 +13,7 @@ command-boundary checks (for source development, first run `npm ci --ignore-scri
 `soot-browser control|view` consumes the soot/v1 envelope on stdin, emits JSON,
 and derives session identity only from host conversation context plus pack cwd.
 The pack launches it with fixed argv. Model arguments never become shell text.
-The adapter serializes agent commands per conversation. The authenticated host
+The adapter serializes agent commands per conversation, or per Soot for a Soot listed in `SOOT_BROWSER_PERSISTENT_SOOTS` (one shared profile, `.browser/soot-profiles/<id>`). The authenticated host
 sets `interaction: true` only for human interface calls; mouse/keyboard input
 then uses the live WebSocket input channel, independently of agent waits.
 

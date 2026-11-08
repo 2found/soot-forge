@@ -121,6 +121,7 @@ function strings(locale) {
     brief: 'Bản tóm tắt SEO', editorCheck: 'Kiểm tra của Editor', noCheck: 'Editor chưa kiểm tra bản này.', stale: 'Kiểm tra cho bản cũ',
     refused: 'Không đăng', pausedAll: 'Đang tạm dừng đăng mọi kênh', pausedHelp: 'Soot vẫn viết và kiểm tra; không gì được đăng cho tới khi bạn bật lại.',
     pauseAll: 'Tạm dừng mọi kênh', resumeAll: 'Bật lại', pauseOne: 'Dừng', resumeOne: 'Bật',
+    today: 'Hôm nay', replies: 'trả lời', pausedAs: (/** @type {string} */ why) => `đang dừng: ${why}`, notPosted: 'Chưa lên — đăng lại', drop: 'Bỏ', postNow: 'Đăng ngay',
     emptyQueue: 'Không có gì chờ đăng', emptyHelp: 'Editor xếp bài vào đây sau khi kiểm tra.', recent: 'Vừa xong', inFlight: 'Đang đăng',
     perDay: (/** @type {number} */ n, /** @type {number} */ h) => `${n} bài/ngày, cách nhau ít nhất ${h} giờ`, quiet: (/** @type {string} */ f, /** @type {string} */ t) => `giờ yên ${f}–${t}`,
     unknown: 'Chưa rõ kết quả — tải lại để xem bài đã đổi chưa.', done: 'Đã lưu.', failed: 'Không làm được: ',
@@ -297,6 +298,12 @@ function queue(d) {
       button(c.paused ? t.resumeOne : t.pauseOne, () => void act(c.paused ? 'resume' : 'pause', { channel: c.id }))))),
     d.paused_all ? button(t.resumeAll, () => void act('resume'), 'btn sm primary') : button(t.pauseAll, () => void act('pause'), 'btn sm')));
   if (blog) out.push(h('p', { class: 'muted' }, `${blog.label}: ${t.perDay(blog.cap_per_day, Math.round(blog.spacing_min / 60))} · ${t.quiet(d.quiet_hours.from, d.quiet_hours.to)}`));
+  // Today's use of each cap: "X 2/4 · Facebook 0/2 (đang dừng: chưa đăng nhập) · trả lời X 3/10".
+  const social = d.channels.filter((/** @type {any} */ c) => c.id !== 'blog-lohi' && c.posts_today !== undefined);
+  if (social.length) out.push(h('p', { class: 'muted' }, `${t.today}: ${[
+    ...social.map((/** @type {any} */ c) => `${c.label} ${c.posts_today}/${c.cap_per_day}${c.paused_label ? ` (${t.pausedAs(c.paused_label)})` : ''}`),
+    ...social.filter((/** @type {any} */ c) => c.reply_cap_per_day).map((/** @type {any} */ c) => `${t.replies} ${c.label} ${c.replies_today}/${c.reply_cap_per_day}`),
+  ].join(' · ')}`));
   if (d.empty) out.push(h('div', { class: 'empty card pad' }, h('b', {}, t.emptyQueue), h('span', { class: 'muted' }, t.emptyHelp)));
   else out.push(h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ q) => {
     const err = ['failed', 'uncertain'].includes(q.state);
@@ -304,7 +311,10 @@ function queue(d) {
     return h('li', { class: 'row' },
       h('div', { class: 'who' }, h('b', {}, `${M.when(q.scheduled_at)} · ${q.channel} · ${q.title}`), q.reason && h('small', { class: err ? 'errline' : 'muted' }, q.reason)),
       badge(state, d.paused_all ? 'uncertain' : q.state),
-      !q.in_flight && q.action === 'publish' && button(t.pull, () => void act('pull', { id: q.id })));
+      // The person's answers: a late item and an uncertain one are never sent on their own.
+      ...(q.state === 'uncertain' ? [button(t.notPosted, () => void act('confirm_not_posted', { id: q.id })), button(t.drop, () => void act('drop', { id: q.id }))]
+        : q.late ? [button(t.postNow, () => void act('post_now', { id: q.id })), button(t.restore, () => void act('restore', { id: q.id })), button(t.drop, () => void act('drop', { id: q.id }))]
+        : [!q.in_flight && q.action === 'publish' && button(t.pull, () => void act('pull', { id: q.id }))]));
   })));
   if (d.recent.length) out.push(h('h3', {}, t.recent), h('ul', { class: 'list card' }, ...d.recent.map((/** @type {any} */ r) =>
     h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.url ?? r.title}`), r.reason && h('small', { class: 'errline' }, r.reason)),

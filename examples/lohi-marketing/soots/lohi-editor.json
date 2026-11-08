@@ -5,6 +5,6 @@
   "tier": "flash",
   "soul": "SOUL.md",
   "mission": "editor.md",
-  "packs": ["marketing", "lohi-blog"],
+  "packs": ["marketing", "lohi-blog", "browser-use"],
   "execution": { "max_run_tokens": 60000, "daily_tokens": 100000 }
 }
