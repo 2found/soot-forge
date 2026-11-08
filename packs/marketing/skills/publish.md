@@ -89,14 +89,31 @@ needed.
 6. Items in `needs` that are not `raised` go to a person. `report_blocker`
    stops your turn, so first call `marketing_raised {keys}` with all their
    keys (the schedule then does not wake for them again), then, as the last
-   call, one `report_blocker` for all of them: `summary` names every platform
-   ("Đăng nhập X, Facebook trong trình duyệt của Nest"), `missing` one line per
-   item with the platform and what the person does: sign in in Nest's browser
-   panel and choose resume, look at a changed page, answer "Không chắc đã
-   đăng chưa" (live → paste the link; not live → post again; or drop it),
-   or post a late item now, reschedule or drop it. The person's answers are Hàng đợi page actions
-   (`resume`, `confirm_posted`, `confirm_not_posted`, `post_now`, `restore`,
-   `drop`).
+   call, one `report_blocker` for all of them.
+   - **Sign-ins first** (needs with `login_url`). Open each `login_url` in
+     your browser (`browser-use_control {action:"tab_new", url}`, one tab per
+     platform) so the page is ready in Nest's browser panel. Then one
+     `report_blocker`, short and plain:
+     - `summary`: "Đăng nhập X, Facebook, Reddit cho <product>" with the
+       `platform_label`s that need it.
+     - `missing`: for each platform one line "<platform_label>: <steps>", then
+       one line with the `browser` link (`nest://browser/<soot>`) on its own.
+       Nothing else: no tool names, keys or codes.
+     - `options`: one "Đã đăng nhập <platform_label>" per platform (at most 4).
+   - **When the person picks "Đã đăng nhập <platform>"**: select that
+     platform's tab and open its home page (x.com/home, facebook.com,
+     reddit.com). If the account shows and no login form, call
+     `marketing_pause {channel, paused: true, signed_in: true}`: that channel
+     stays paused ("đã đăng nhập, chờ Bật") and nothing posts until the person
+     chooses **Bật** on Hàng đợi. Still a login form → say so in one line.
+     Never post in this turn. File the item again for the platforms still
+     signed out (with the one just checked when it failed).
+   - **Other items**, after the sign-ins: `summary` names each, `missing` one
+     line per item with the platform and what the person does: look at a
+     changed page, answer "Không chắc đã đăng chưa" (live → paste the link;
+     not live → post again; or drop it), or post a late item now, reschedule
+     or drop it. The person's answers are Hàng đợi page actions (`resume`,
+     `confirm_posted`, `confirm_not_posted`, `post_now`, `restore`, `drop`).
 
 `marketing_pause {paused: true}` stops every channel at once; writing and
 checking go on.

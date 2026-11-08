@@ -184,13 +184,17 @@ export const NEED_LABEL = {
   complaint: 'Phàn nàn', money: 'Tiền', account: 'Chuyển Hỗ trợ', flagged: 'Cần xem',
 };
 export const PAUSE_REASONS = ['signed_out', 'layout_changed', 'captcha'];
+/** Where the person signs in, in the Soot's own browser (Nest opens it with nest://browser/<soot>). */
+export const LOGIN_URL = { x: 'https://x.com/i/flow/login', facebook: 'https://www.facebook.com/login', reddit: 'https://www.reddit.com/login' };
+const PLATFORM_LABEL = { x: 'X', facebook: 'Facebook', reddit: 'Reddit' };
+export const SIGN_IN_STEPS = 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập';
 const needKey = n => `${n.kind}:${n.id}:${n.reason}`;
 
 export async function clearAttention(store, kind, ref) {
   await store.remove('attention', [eq('kind', kind), eq('ref', ref)]);
 }
 
-export async function due(input, { store, now }) {
+export async function due(input, { store, now, soot }) {
   const settings = await getSettings(store);
   const rows = await store.query('queue', [{ column: 'scheduled_at', op: 'lte', value: iso(now) }], { order: 'scheduled_at', desc: false, limit: 200 });
   const [channels, raised, held, open] = await Promise.all([
@@ -204,9 +208,14 @@ export async function due(input, { store, now }) {
   const out = { wake: false, publish: [], unpublish: [], reply: [], late: [], needs_person: [], needs: [] };
   const need = n => out.needs.push({ ...n, key: needKey(n), label: n.label ?? NEED_LABEL[n.reason] ?? n.reason, raised: seen.has(needKey(n)) });
   for (const c of channels) {
-    if (!c.paused || !c.paused_reason || c.paused_reason === 'person') continue;
+    if (!c.paused || !c.paused_reason || c.paused_reason === 'person' || c.paused_reason === 'signed_in') continue;
     out.needs_person.push({ id: c.key, channel: c.key, reason: c.paused_reason });
-    need({ kind: 'channel', id: c.key, channel: c.key, platform: c.platform ?? platformOf(c.key), reason: c.paused_reason });
+    const platform = c.platform ?? platformOf(c.key);
+    // A sign-in names the page to open in the Soot's browser and the Nest link to that browser.
+    const label = PLATFORM_LABEL[platform] ?? platform;
+    const signIn = c.paused_reason === 'signed_out' && LOGIN_URL[platform]
+      ? { login_url: LOGIN_URL[platform], title: `Đăng nhập ${label}`, steps: SIGN_IN_STEPS, ...(soot ? { browser: `nest://browser/${soot}` } : {}) } : {};
+    need({ kind: 'channel', id: c.key, channel: c.key, platform, platform_label: label, reason: c.paused_reason, account: c.account ?? null, ...signIn });
   }
   // An uncertain post may be live: never claimed again until a person answers.
   const uncertain = new Set(held.map(p => p.ref));
@@ -386,9 +395,13 @@ export async function failIntent(input, { store, now }) {
 
 export async function pause(input, { store, now }) {
   if (typeof input.paused !== 'boolean') fail('invalid_request', 'paused is true or false.');
+  if (input.signed_in !== undefined && (input.signed_in !== true || !input.channel || input.paused !== true)) fail('invalid_request', 'signed_in is true, with channel and paused: true.');
   if (input.channel) {
-    await channel(store, input.channel);
-    await store.update('channels', [eq('key', input.channel)], { paused: input.paused, paused_reason: input.paused ? 'person' : null });
+    const ch = await channel(store, input.channel);
+    // The Soot saw the person's session: the sign-in item ends and the channel stays paused until the person's Bật.
+    if (input.signed_in && !(ch.paused && ch.paused_reason === 'signed_out')) fail('conflict', `Kênh ${ch.key} không chờ đăng nhập.`);
+    await store.update('channels', [eq('key', input.channel)], { paused: input.paused, paused_reason: input.paused ? (input.signed_in ? 'signed_in' : 'person') : null });
+    if (input.signed_in) await clearAttention(store, 'channel', input.channel);
     // Resuming ends that episode: a later sign-out is a new Cần bạn item.
     if (!input.paused) await clearAttention(store, 'channel', input.channel);
   } else {

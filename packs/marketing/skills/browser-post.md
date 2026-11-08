@@ -4,7 +4,7 @@ Use this for a channel whose publisher is `browser` (X, a Facebook Page,
 Reddit). You drive the `browser-use_control` tool. The host keeps this Soot
 signed in to one browser profile when it lists the Soot in
 `SOOT_BROWSER_PERSISTENT_SOOTS`. The person signs in once, in Nest's docked
-browser panel. You never sign in, type a password or a 2FA code, solve a
+browser panel, on the login page you opened. You never sign in, type a password or a 2FA code, solve a
 captcha or switch accounts.
 
 Every action starts from a signed claim from `marketing_claim`. The claim
@@ -46,9 +46,10 @@ Use `snapshot -i`. Classify the page with these checks, in this order:
 
 `needs_person` pauses only that channel. Nothing was posted. The other
 channels go on. The person hears of it in the one `report_blocker` that ends
-your turn (marketing-publish step 6), one line per platform, naming it:
-"Đăng nhập X trong trình duyệt của Nest", "X đổi giao diện: không tìm thấy ô
-soạn bài", or "X hỏi captcha".
+your turn (marketing-publish step 6). For a sign-in you open the platform's
+login page in your own browser and the item links to it; the person signs in
+there and picks "Đã đăng nhập <platform>". Other lines name the platform:
+"X đổi giao diện: không tìm thấy ô soạn bài", or "X hỏi captcha".
 
 ## Platforms
 

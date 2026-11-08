@@ -417,3 +417,40 @@ test('AC6: replies_sync reads no Reddit thread for a channel whose account is un
   const out = await w.call('replies_sync', {});
   assert.deepEqual([fetched, out.saved], [0, 0]);
 });
+
+test('AC11: the Hàng đợi view on a fresh workspace never writes (its storage token is read-only)', async () => {
+  const w = world();
+  await w.call('channels_setup', { channels: CHANNELS });
+  const store = w.store, ro = { ...store };
+  for (const m of ['insert', 'update', 'remove']) ro[m] = async () => { const e = new Error('this storage token is read-only'); e.code = 'scope_forbidden'; throw e; };
+  const v = await run('page_view', { input: {}, page: { page: 'hang-doi' } }, { store: ro, now: w.now, env: w.env });
+  assert.deepEqual(v.channels.map(c => [c.id, c.paused]).sort(), [['blog-lohi', false], ['facebook-lohi', true], ['reddit-lohi', true], ['x-lohi', true]]);
+  assert.equal(store.data.channels.some(c => c.key === 'blog-lohi'), false);
+});
+
+test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest browser; "Đã đăng nhập" keeps that channel paused until Bật', async () => {
+  const w = world();
+  await w.call('channels_setup', { channels: CHANNELS });
+  const due = await w.call('due', {}, { soot: 'lohi-editor' });
+  const x = due.needs.find(n => n.channel === 'x-lohi');
+  assert.deepEqual([x.platform_label, x.title, x.login_url, x.browser, x.account], ['X', 'Đăng nhập X', 'https://x.com/i/flow/login', 'nest://browser/lohi-editor', 'lohi2com']);
+  assert.equal(x.steps, 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập');
+  assert.deepEqual(due.needs.map(n => n.login_url).sort(), ['https://www.facebook.com/login', 'https://www.reddit.com/login', 'https://x.com/i/flow/login']);
+  await w.call('raised', { keys: due.needs.map(n => n.key) });
+  // The Soot saw the X account: only X leaves the sign-in item; it stays paused, nothing is due.
+  await assert.rejects(w.call('pause', { channel: 'x-lohi', paused: false, signed_in: true }), { code: 'invalid_request' });
+  const out = await w.call('pause', { channel: 'x-lohi', paused: true, signed_in: true });
+  assert.deepEqual(out.channels.find(c => c.id === 'x-lohi'), { id: 'x-lohi', paused: true });
+  assert.deepEqual([w.ch('x-lohi').paused_reason, w.ch('facebook-lohi').paused_reason], ['signed_in', 'signed_out']);
+  const after = await w.call('due', {});
+  assert.deepEqual(after.needs.map(n => n.channel).sort(), ['facebook-lohi', 'reddit-lohi']);
+  assert.equal(after.notify, false, 'the platforms left stay raised');
+  const view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  assert.equal(view.channels.find(c => c.id === 'x-lohi').paused_label, 'đã đăng nhập, chờ Bật');
+  // Never resumes a channel the person paused, or one already checked.
+  await assert.rejects(w.call('pause', { channel: 'x-lohi', paused: true, signed_in: true }), { code: 'conflict' });
+  await w.page('resume', { channel: 'x-lohi' });
+  assert.deepEqual([w.ch('x-lohi').paused, w.ch('x-lohi').paused_reason], [false, null]);
+  await w.page('pause', { channel: 'reddit-lohi' });
+  await assert.rejects(w.call('pause', { channel: 'reddit-lohi', paused: true, signed_in: true }), { code: 'conflict' });
+});

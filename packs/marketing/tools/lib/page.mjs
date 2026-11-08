@@ -1,7 +1,7 @@
 // Bài viết and Hàng đợi page models (page_view) and their actions
 // (page_action). Page tools are never approval-gated: pages refuse those.
 import { fail, eq, gte } from './store.mjs';
-import { briefLint, platformOf } from './guard.mjs';
+import { briefLint, platformOf, defaultsFor } from './guard.mjs';
 import { STATE_LABEL, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
 import { localDayStart, DEFAULT_QUIET } from './time.mjs';
 
@@ -15,7 +15,7 @@ export const TABS = {
   removed: ['pulled', 'removed'],
 };
 const CHANNEL_LABEL = { 'blog-lohi': 'Blog', x: 'X', facebook: 'Facebook', reddit: 'Reddit', hub: 'Hub' };
-export const PAUSED_LABEL = { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha', person: 'bạn dừng' };
+export const PAUSED_LABEL = { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha', person: 'bạn dừng', signed_in: 'đã đăng nhập, chờ Bật' };
 const channelLabel = key => CHANNEL_LABEL[key] ?? CHANNEL_LABEL[platformOf(key)] ?? key;
 const title = p => p.brief?.title ?? p.title ?? String(p.body ?? '').slice(0, 80);
 
@@ -85,12 +85,13 @@ async function postDetail(id, { store, now }) {
 
 async function queueView({ store, now }) {
   const settings = await getSettings(store);
-  await channel(store, 'blog-lohi');
-  const [channels, queue, log] = await Promise.all([
+  // A view never writes (its storage token is read-only): an unset blog channel shows its defaults.
+  const [stored, queue, log] = await Promise.all([
     store.query('channels', [], { limit: 50 }),
     store.query('queue', [], { order: 'scheduled_at', desc: false, limit: 200 }),
     store.query('publish_log', [gte('at', new Date(now - 7 * DAY).toISOString())], { order: 'at', limit: 20 }),
   ]);
+  const channels = stored.some(c => c.key === 'blog-lohi') ? stored : [{ key: 'blog-lohi', ...defaultsFor('blog-lohi'), paused: false, paused_reason: null }, ...stored];
   // Today's use of each cap (posts and replies), the "X 2/4 · trả lời X 3/10" line.
   const start = new Date(localDayStart(now, settings.quiet_hours?.tz || DEFAULT_QUIET.tz)).toISOString();
   const today = await store.query('publish_log', [gte('at', start)], { limit: 500 });

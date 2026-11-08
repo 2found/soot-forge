@@ -97,9 +97,16 @@ every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-rep
      sign-ins do not carry over.
 6. Check the accounts in the `marketing-channels` schedule: the X handle, the
    Facebook Page URL and the Reddit user. Run the schedule once from Nest to
-   create the channels. Cần bạn then asks for each sign-in ("Đăng nhập X trong
-   trình duyệt của Nest"). Sign in in the Editor's browser panel, then choose
-   **Bật** for that channel on the Hàng đợi page (`resume`).
+   create the channels. The Editor opens each login page in its own browser,
+   and Cần bạn shows one item, "Đăng nhập X, Facebook, Reddit cho Lohi". For
+   each platform:
+   1. Bấm **Mở trình duyệt**.
+   2. Đăng nhập trong khung bên phải.
+   3. Bấm **Đã đăng nhập <X|Facebook|Reddit>**.
+
+   The Editor checks that account and the channel shows "đã đăng nhập, chờ
+   Bật". Nothing posts until you choose **Bật** for the channel on the Hàng
+   đợi page (`resume`). You never give Soot a password.
 
 To stop publishing, choose **Tạm dừng mọi kênh** on the Hàng đợi page, or call
 `marketing_pause {paused: true}`. Writing and checking go on. To take a post
