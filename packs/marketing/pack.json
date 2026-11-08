@@ -576,7 +576,7 @@
           "request_id": {"type":"string","maxLength":64},
           "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
           "expected_revision": {"type":"integer","minimum":1},
-          "kind": {"enum":["article","social","video","reply"]},
+          "kind": {"type":"string","enum":["article","social","video","reply"]},
           "channel": {"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},
           "campaign": {"type":"string","maxLength":64},
           "parent": {
@@ -622,8 +622,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "state": {
-            "enum": [
+          "state": {"type":"string","enum": [
               "draft",
               "checking",
               "refused",
@@ -664,7 +663,7 @@
         "properties": {
           "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
           "revision": {"type":"integer","minimum":1},
-          "verdict": {"enum":["pass","fail"]},
+          "verdict": {"type":"string","enum":["pass","fail"]},
           "reasons": {"type":"array","maxItems":20,"items":{"type":"string","maxLength":300}}
         },
         "required": ["id","revision","verdict"],
@@ -723,7 +722,7 @@
         "type": "object",
         "properties": {
           "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
-          "action": {"enum":["publish","unpublish","reply"]}
+          "action": {"type":"string","enum":["publish","unpublish","reply"]}
         },
         "required": ["id","action"],
         "additionalProperties": false
@@ -770,7 +769,7 @@
         "type": "object",
         "properties": {
           "intent_id": {"type":"string","maxLength":40},
-          "status": {"enum":["failed","needs_person","uncertain"]},
+          "status": {"type":"string","enum":["failed","needs_person","uncertain"]},
           "reason": {"type":"string","maxLength":500},
           "platform": {"type":"string","maxLength":32}
         },
@@ -816,8 +815,8 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "page": {"enum":["bai-viet","hang-doi"]},
-          "filter": {"enum":["all","draft","waiting","published","refused","removed"]},
+          "page": {"type":"string","enum":["bai-viet","hang-doi"]},
+          "filter": {"type":"string","enum":["all","draft","waiting","published","refused","removed"]},
           "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"}
         },
         "required": [],
@@ -839,8 +838,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "op": {
-            "enum": [
+          "op": {"type":"string","enum": [
               "pull",
               "restore",
               "reschedule",
@@ -1030,7 +1028,7 @@
                 "parent_post": {"type":"string","maxLength":16},
                 "author_handle": {"type":"string","maxLength":64},
                 "text": {"type":"string","maxLength":2000},
-                "class": {"enum":["safe","complaint","money","account","flagged","spam"]}
+                "class": {"type":"string","enum":["safe","complaint","money","account","flagged","spam"]}
               },
               "required": ["class"],
               "additionalProperties": false
