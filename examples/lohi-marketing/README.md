@@ -190,7 +190,8 @@ What only a person can do, each one Cần bạn card or one command:
    that list changes.
 4. **Campaigns (optional):** an API key with role `agent_mod` from Lohi's
    admin UI, stored in Nest as `PRODUCT_ADMIN_KEY`.
-5. **Videos (optional):** `soot add 2found/soot-forge/packs/2build` and
+5. **Videos (optional):** `soot add 2found/soot-forge/packs/2build`, run
+   setup again (it adds the Video Soot once the pack is there), and
    `python3 packs/2build/marketing-video/tools/mvf.py doctor` until READY, then
    `soot grant marketing` and `soot grant browser-use`.
 

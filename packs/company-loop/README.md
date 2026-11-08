@@ -27,6 +27,7 @@ Outcomes: `opportunity_found`, `requirement_shipped`.
 | `SCOREBOARD_URL` | env | the product's scoreboard endpoint |
 | `CS_RUNTIME_URL`, `CS_RUNTIME_TOKEN` | env, credential, optional | support knowledge gaps and the feedback desk (`GET /v1/sessions?source=event`, desk Soot notes: counts by kind plus up to 5 scrubbed samples each, ≤ 1 KiB) for the digest |
 | `SUPPORT_QUEUE_URL` | env, optional | where a person answers waiting readers; named in the daily Cần bạn card (`waiting_human` ≥ 5, once per count bucket 5/10/20/50, closed with `resolves_need` below 5) |
+| `RELEASE_TAGS` | env, optional | git tag patterns of a release in `PRODUCT_REPO` (comma separated, default `v*,*-v*`); the week's count goes to the company baseline as `--releases`, the shipping cadence §7 holds the loop to |
 | `PRODUCT_REPO` | env, no default | absolute path of the product checkout that receives requirement files |
 | `BBS_BIN` | env, optional | the `bbs` binary (default: PATH, then `~/.local/bin/bbs`) |
 

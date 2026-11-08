@@ -4,8 +4,11 @@
 // (host settings in `env` once the runtime supports it), generates the claim
 // key. What is left for a person is printed at the end.
 //
-//   node examples/lohi-marketing/setup.mjs <workspace-dir> [--port 7790] [--no-video] [--blog-remote <git url>]
+//   node examples/lohi-marketing/setup.mjs <workspace-dir> [--port 7790] [--video|--no-video] [--blog-remote <git url>]
 //                                       [--product-repo <abs path>] [--cs-runtime-url <url>]
+//
+// The Video Soot is added when the workspace already has the 2build pack
+// (--video insists, --no-video leaves it out).
 //
 // Safe to run again: existing files are replaced from the recipe, the claim key
 // and any credential already stored are never touched, no secret is printed.
@@ -88,8 +91,14 @@ export function installPack(forgeDir, out, id) {
   return 'copied';
 }
 
-export function build(dir, { port = 7790, video = true, blogRemote, productRepo, csRuntimeUrl, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
+export function build(dir, { port = 7790, video, blogRemote, productRepo, csRuntimeUrl, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
   const out = resolve(dir);
+  // The Video Soot selects the 2build pack, which comes from 2found/2build, not
+  // from this setup. Without it the whole workspace would fail to load, so the
+  // Soot is added only when the pack is there (asked for, or by default).
+  const has2build = existsSync(join(out, 'packs', '2build', 'pack.json'));
+  if (video && !has2build) throw new Error('Video Soot cần pack 2build: chạy `soot add 2found/soot-forge/packs/2build` trong workspace rồi chạy lại setup (hoặc bỏ --video).');
+  video ??= has2build;
   const host = JSON.parse(readFileSync(join(here, 'deployment.example.json'), 'utf8'));
   host.listen = `127.0.0.1:${port}`;
   if (!video) {
@@ -108,22 +117,22 @@ export function build(dir, { port = 7790, video = true, blogRemote, productRepo,
   for (const f of ['SOUL.md', 'writer.md', 'editor.md', ...(video ? ['video.md'] : [])]) cpSync(join(here, 'soots', f), join(out, 'soots', f));
   writeFileSync(join(out, 'deployment.json'), JSON.stringify(host, null, 2) + '\n');
   const key = claimKeyFile('lohi-editor', { home, credentialsDir: host.credentials_dir });
-  return { out, packs, env, hostEnv, connection: Boolean(connection), keyMade: ensureClaimKey(key), key };
+  return { out, packs, video, env, hostEnv, connection: Boolean(connection), keyMade: ensureClaimKey(key), key };
 }
 
-export const PERSON_STEPS = [
+export const personSteps = ({ productRepo } = {}) => [
   'Đăng nhập X, Facebook, Reddit trong Nest khi Cần bạn hiện thẻ (mỗi nền tảng một lần bấm).',
   'Đăng nhập Google trong Nest cho Search Console (tuỳ chọn; không có thì chọn chủ đề theo danh mục).',
   'Đăng blog: máy cần git qua SSH tới kho kiem-lai, go, 2server, gcloud đã đăng nhập; thiếu gì Soot báo đúng một thẻ Cần bạn.',
   'Chiến dịch và bảng số công ty (tuỳ chọn): khoá API vai trò agent_mod của Lohi, nhập PRODUCT_ADMIN_KEY trong Nest.',
-  'Vòng lặp công ty: mở trang Công ty, bấm Go / Để sau / Bỏ cho từng cơ hội sản phẩm (nội dung thì Soot tự chạy). Muốn Soot mở đội bbs:team thì chạy setup với --product-repo; đội cần bbs và Orca trên máy này.',
+  'Vòng lặp công ty: mở trang Công ty, bấm Go / Để sau / Bỏ cho từng cơ hội sản phẩm (nội dung thì Soot tự chạy). ' + (productRepo ? 'Bấm Go thì Soot mở đội bbs:team; đội cần bbs và Orca trên máy này.' : 'Muốn Soot mở đội bbs:team thì chạy setup với --product-repo; đội cần bbs và Orca trên máy này.'),
 ];
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   const flagValue = name => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
   const dir = args.find((a, i) => !a.startsWith('--') && !['--port', '--blog-remote', '--product-repo', '--cs-runtime-url'].includes(args[i - 1]));
-  if (!dir) { console.error('usage: node setup.mjs <workspace-dir> [--port 7790] [--no-video] [--blog-remote <git url>] [--product-repo <abs path>] [--cs-runtime-url <url>]'); process.exit(2); }
+  if (!dir) { console.error('usage: node setup.mjs <workspace-dir> [--port 7790] [--video|--no-video] [--blog-remote <git url>] [--product-repo <abs path>] [--cs-runtime-url <url>]'); process.exit(2); }
   for (const f of ['--product-repo', '--cs-runtime-url']) {
     const v = flagValue(f);
     if (args.includes(f) && (!v || v.startsWith('--'))) { console.error(`${f} needs a value.`); process.exit(2); }
@@ -134,15 +143,20 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const blogRemote = flagValue('--blog-remote');
   if (args.includes('--blog-remote') && (!blogRemote || blogRemote.startsWith('--'))) { console.error('--blog-remote needs a git address.'); process.exit(2); }
   const port = Number(args[args.indexOf('--port') + 1]) || 7790;
-  const r = build(dir, { port, video: !args.includes('--no-video'), blogRemote, productRepo, csRuntimeUrl });
+  if (args.includes('--video') && args.includes('--no-video')) { console.error('Chọn một: --video hoặc --no-video.'); process.exit(2); }
+  let r;
+  try {
+    r = build(dir, { port, video: args.includes('--no-video') ? false : args.includes('--video') || undefined, blogRemote, productRepo, csRuntimeUrl });
+  } catch (e) { console.error(e.message); process.exit(2); }
   console.log(`Workspace: ${r.out}`);
   console.log(`Packs: ${r.packs.join(', ')}, lohi-blog (kèm ${r.keyMade ? 'khoá ký lượt đăng vừa tự sinh' : 'khoá ký lượt đăng đã có'}, không in ra).`);
   if (!r.env) console.log(`Runtime chưa có \`env\`: khởi động với ${Object.entries(r.hostEnv).map(([k, v]) => `${k}=${v}`).join(' ')}`);
-  if (args.includes('--no-video')) console.log('Không có Video Soot (--no-video).');
-  else console.log('Video: cài thêm `soot add 2found/soot-forge/packs/2build` khi cần làm video.');
+  if (r.video) console.log('Video Soot: có (pack 2build đã cài).');
+  else if (args.includes('--no-video')) console.log('Không có Video Soot (--no-video).');
+  else console.log('Video Soot: chưa thêm vì workspace chưa có pack 2build. Muốn làm video: `soot add 2found/soot-forge/packs/2build` rồi chạy lại setup.');
   console.log(r.connection ? 'Kết nối 2server: đã tìm thấy và ghi vào env (LOHI_CONNECTION).' : 'Kết nối 2server: chưa thấy .2server/connection.yaml; blog-ready sẽ báo một thẻ Cần bạn.');
   console.log(blogRemote ? 'Kho đăng blog: đã ghi LOHI_BLOG_REMOTE theo --blog-remote.' : 'Kho đăng blog: chưa chọn (không có --blog-remote); Soot sẽ không đăng blog và blog-ready báo một thẻ Cần bạn.');
   console.log(productRepo ? 'Kho sản phẩm: đã ghi PRODUCT_REPO theo --product-repo (Soot ghi yêu cầu vào docs/requirements/ và mở đội bbs:team khi bạn bấm Go).' : 'Kho sản phẩm: chưa chọn (không có --product-repo); bấm Go cho cơ hội sản phẩm sẽ báo chưa có kho và không mở đội.');
   console.log('Việc chỉ người làm được:');
-  PERSON_STEPS.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
+  personSteps({ productRepo }).forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
 }

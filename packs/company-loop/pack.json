@@ -33,6 +33,7 @@
       "BBS_TEAM_AGENT",
       "CS_RUNTIME_URL",
       "SUPPORT_QUEUE_URL",
+      "RELEASE_TAGS",
       "PATH",
       "HOME"
     ],
@@ -45,7 +46,7 @@
       },
       "CS_RUNTIME_TOKEN": {
         "title": "Khoá runtime Hỗ trợ",
-        "description": "Khoá vận hành của runtime Hỗ trợ (CS_RUNTIME_URL) để đọc những câu khách hỏi mà kho kiến thức chưa trả lời được. Tuỳ chọn: không có thì bản tin bỏ phần này. Nhập trong Nest, không nhập trong chat.",
+        "description": "Khoá vận hành của runtime Hỗ trợ (CS_RUNTIME_URL) để đọc những câu khách hỏi mà kho kiến thức chưa trả lời được và những điều bạn đọc muốn có (bàn ghi nhận). Tuỳ chọn: không có thì bản tin bỏ phần này. Nhập trong Nest, không nhập trong chat.",
         "from": "operator",
         "optional": true
       }
