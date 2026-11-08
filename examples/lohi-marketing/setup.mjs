@@ -100,6 +100,7 @@ export function installLocalPack(out, id, host, from = join(here, 'packs', id)) 
   if (!existsSync(file)) return { installed: true };
   const frag = JSON.parse(readFileSync(file, 'utf8'));
   host.pack_grants = { ...host.pack_grants, ...(frag.pack_grants ?? {}) };
+  host.approvals = { ...host.approvals, ...(frag.approvals ?? {}) };
   const have = new Set(host.schedules.map(x => x.id));
   host.schedules = [...host.schedules.filter(x => !(frag.replace_schedules ?? []).includes(x.id)), ...(frag.schedules ?? []).filter(x => !have.has(x.id) || (frag.replace_schedules ?? []).includes(x.id))];
   return { installed: true, soot_packs: frag.soot_packs };
@@ -133,6 +134,15 @@ export function build(dir, { port = 7790, video, blogRemote, productRepo, csRunt
   // and its optional deployment.fragment.json ({pack_grants, soot_packs: {<soot>: [refs]}, schedules}) is merged in. Absent: nothing changes.
   const ops = installLocalPack(out, 'lohi-ops', host);
   for (const f of host.soots) cpSync(join(here, f), join(out, f));
+  // A local pack may bring its own Soots (packs/<id>/soots/*.json + mission files): they join the workspace's soots/.
+  const packSoots = join(out, 'packs', 'lohi-ops', 'soots');
+  if (ops.installed && existsSync(packSoots)) {
+    for (const f of readdirSync(packSoots)) {
+      cpSync(join(packSoots, f), join(out, 'soots', f));
+      if (f.endsWith('.json') && !host.soots.includes(`soots/${f}`)) host.soots.push(`soots/${f}`);
+    }
+    rmSync(packSoots, { recursive: true, force: true });
+  }
   if (ops.soot_packs) for (const [id, refs] of Object.entries(ops.soot_packs)) {
     const file = join(out, 'soots', `${id}.json`);
     const soot = JSON.parse(readFileSync(file, 'utf8'));

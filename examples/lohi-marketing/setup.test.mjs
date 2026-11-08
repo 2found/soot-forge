@@ -95,11 +95,16 @@ test('build: the lean team (Ops, Writer, Analyst, Radar) is installed with its m
   const { readFileSync, existsSync } = await import('node:fs');
   const r = build(tmp(), { env: true, video: false, connection: null, home: tmp() });
   const host = JSON.parse(readFileSync(join(r.out, 'deployment.json'), 'utf8'));
-  assert.deepEqual(host.soots.sort(), ['soots/lohi-analyst.json', 'soots/lohi-editor.json', 'soots/lohi-finance.json', 'soots/lohi-radar.json', 'soots/lohi-writer.json']);
-  for (const f of ['analyst.md', 'radar.md', 'editor.md', 'writer.md', 'SOUL.md']) assert.ok(existsSync(join(r.out, 'soots', f)), f);
+  assert.deepEqual(host.soots.sort(), ['soots/lohi-analyst.json', 'soots/lohi-catalog.json', 'soots/lohi-editor.json', 'soots/lohi-finance.json', 'soots/lohi-radar.json', 'soots/lohi-writer.json']);
+  for (const f of ['analyst.md', 'radar.md', 'editor.md', 'writer.md', 'SOUL.md', 'catalog.md']) assert.ok(existsSync(join(r.out, 'soots', f)), f);
+  // The op-catalog Soot comes from the lohi-ops pack: its files leave the pack dir, its approvals reach the host.
+  assert.ok(!existsSync(join(r.out, 'packs', 'lohi-ops', 'soots')));
+  assert.equal(host.approvals['lohi-ops_appstore_post'], 'operator');
+  assert.equal(host.approvals['lohi-ops_comments_resolve'], 'operator');
   assert.equal(host.env.LOOP_SOOT_CONFIG, join(r.out, 'deployment.json'));
   assert.equal(host.env.LOOP_SOOT_BIN, undefined, 'no machine path baked in: the CLI is found on PATH');
-  assert.ok(!existsSync(join(r.out, 'packs', 'lohi-ops')), 'no ops pack in the recipe yet: nothing is invented');
+  assert.ok(existsSync(join(r.out, 'packs', 'lohi-ops', 'pack.json')), 'the recipe ships lohi-ops: it is installed');
+  assert.ok(r.packs.includes('lohi-ops'));
   assert.ok(!host.tool_hosts['lohi-video']);
   assert.ok(host.schedules.every(s => host.soots.includes(`soots/${s.soot}.json`)), 'no schedule points at a left-out Soot');
 });
