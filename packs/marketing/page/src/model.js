@@ -15,7 +15,8 @@ export function strings(locale) {
     refused: 'Không đăng', pausedAll: 'Đang tạm dừng đăng mọi kênh', pausedHelp: 'Soot vẫn viết và kiểm tra; không gì được đăng cho tới khi bạn bật lại.',
     pauseAll: 'Tạm dừng mọi kênh', resumeAll: 'Bật lại', pauseOne: 'Dừng', resumeOne: 'Bật',
     today: 'Hôm nay', replies: 'trả lời', pausedAs: (/** @type {string} */ why) => `đang dừng: ${why}`, posted: 'Đã lên', postedUrl: 'Liên kết bài đã lên', notPosted: 'Chưa lên — đăng lại', drop: 'Bỏ', postNow: 'Đăng ngay',
-    emptyQueue: 'Không có gì chờ đăng', emptyHelp: 'Editor xếp bài vào đây sau khi kiểm tra.', recent: 'Vừa xong', inFlight: 'Đang đăng',
+    emptyQueue: 'Không có gì chờ đăng', emptyHelp: 'Editor xếp bài vào đây sau khi kiểm tra.', recent: 'Vừa đăng', inFlight: 'Đang đăng', waitSignIn: 'Chờ đăng nhập', keep: 'Giữ lại', unpublishAsk: (/** @type {string} */ ch) => `Gỡ bài trên ${ch}?`,
+    unpublishHelp: 'Bài và lượt thích, trả lời của nó sẽ mất trên nền tảng. Bài vẫn còn trong Bài viết để đăng lại.',
     perDay: (/** @type {number} */ n, /** @type {number} */ h) => `${n} bài/ngày, cách nhau ít nhất ${h} giờ`, quiet: (/** @type {string} */ f, /** @type {string} */ t) => `giờ yên ${f}–${t}`,
     unknown: 'Chưa rõ kết quả — tải lại để xem bài đã đổi chưa.', done: 'Đã lưu.', failed: 'Không làm được: ',
   };

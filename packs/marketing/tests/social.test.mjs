@@ -101,6 +101,8 @@ for (const reason of ['signed_out', 'layout_changed', 'captcha']) {
     assert.deepEqual([w.ch('x-lohi').paused, w.ch('x-lohi').paused_reason], [true, reason]);
     assert.equal(w.ch('facebook-lohi').paused, false, 'the other channels go on');
     assert.equal(w.store.data.publish_log[0].status, 'needs_person');
+    const view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+    assert.deepEqual([view.recent[0].status, view.recent[0].reason], ['needs_person', { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha' }[reason]], 'the queue names the reason, not its code');
     const due = await w.call('due', {});
     assert.deepEqual(due.publish, [fb], 'X waits; Facebook still posts');
     assert.deepEqual(due.needs.filter(x => x.channel === 'x-lohi').map(x => [x.kind, x.reason, x.platform, x.raised]), [['channel', reason, 'x', false]]);

@@ -122,7 +122,8 @@ function strings(locale) {
     refused: 'Không đăng', pausedAll: 'Đang tạm dừng đăng mọi kênh', pausedHelp: 'Soot vẫn viết và kiểm tra; không gì được đăng cho tới khi bạn bật lại.',
     pauseAll: 'Tạm dừng mọi kênh', resumeAll: 'Bật lại', pauseOne: 'Dừng', resumeOne: 'Bật',
     today: 'Hôm nay', replies: 'trả lời', pausedAs: (/** @type {string} */ why) => `đang dừng: ${why}`, posted: 'Đã lên', postedUrl: 'Liên kết bài đã lên', notPosted: 'Chưa lên — đăng lại', drop: 'Bỏ', postNow: 'Đăng ngay',
-    emptyQueue: 'Không có gì chờ đăng', emptyHelp: 'Editor xếp bài vào đây sau khi kiểm tra.', recent: 'Vừa xong', inFlight: 'Đang đăng',
+    emptyQueue: 'Không có gì chờ đăng', emptyHelp: 'Editor xếp bài vào đây sau khi kiểm tra.', recent: 'Vừa đăng', inFlight: 'Đang đăng', waitSignIn: 'Chờ đăng nhập', keep: 'Giữ lại', unpublishAsk: (/** @type {string} */ ch) => `Gỡ bài trên ${ch}?`,
+    unpublishHelp: 'Bài và lượt thích, trả lời của nó sẽ mất trên nền tảng. Bài vẫn còn trong Bài viết để đăng lại.',
     perDay: (/** @type {number} */ n, /** @type {number} */ h) => `${n} bài/ngày, cách nhau ít nhất ${h} giờ`, quiet: (/** @type {string} */ f, /** @type {string} */ t) => `giờ yên ${f}–${t}`,
     unknown: 'Chưa rõ kết quả — tải lại để xem bài đã đổi chưa.', done: 'Đã lưu.', failed: 'Không làm được: ',
   };
@@ -193,6 +194,7 @@ const S = {
   /** @type {any} */ data: null, loadError: '',
   /** @type {{ request_id: string, op: string, rest: object } | null} */ pending: null,
   /** @type {{ kind: 'info' | 'success', text: string } | null} */ notice: null,
+  /** @type {{ title: string, run: () => void } | null} */ confirm: null,
 };
 
 const bridge = createBridge({
@@ -214,7 +216,7 @@ function h(tag, attrs = {}, ...kids) {
   for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(typeof kid === 'string' ? document.createTextNode(kid) : kid);
   return el;
 }
-const button = (/** @type {string} */ text, /** @type {() => void} */ fn, cls = 'btn sm ghost') => h('button', { class: cls, type: 'button', disabled: S.busy, onclick: fn }, text);
+const button = (/** @type {string} */ text, /** @type {() => void} */ fn, cls = 'btn sm ghost', more = {}) => h('button', { class: cls, type: 'button', disabled: S.busy, onclick: fn, ...more }, text);
 const badge = (/** @type {string} */ text, /** @type {string} */ state) => h('span', { class: `badge ${M.tone(state)}` }, text);
 
 async function load() {
@@ -253,7 +255,7 @@ function postList(d) {
         h('small', { class: p.reason && ['refused', 'failed'].includes(p.state) ? 'errline' : 'muted' }, p.reason && ['refused', 'failed'].includes(p.state) ? `${t.refused}: ${p.reason}` : sub)),
       badge(p.label, p.state),
       p.url && button(t.open, () => bridge.open(p.url)),
-      p.state === 'published' && button(t.unpublish, () => void act('unpublish', { id: p.id }), 'btn sm danger'),
+      p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger'),
       ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })),
       p.state === 'pulled' && button(t.restore, () => void act('restore', { id: p.id })));
   }))];
@@ -275,7 +277,7 @@ function metrics(sc) {
 function postDetail(d) {
   const t = S.t, p = d.post;
   const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.label, p.state), h('h2', {}, p.title)),
-    h('div', { class: 'line' }, p.url && button(t.open, () => bridge.open(p.url)), p.state === 'published' && button(t.unpublish, () => void act('unpublish', { id: p.id }), 'btn sm danger')));
+    h('div', { class: 'line' }, p.url && button(t.open, () => bridge.open(p.url)), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
   const left = h('div', { class: 'card pad stack' });
   if (p.reason && ['refused', 'failed', 'uncertain'].includes(p.state)) left.append(h('div', { class: 'notice err', role: 'alert' }, h('b', {}, `${t.refused}:`), ' ', p.reason));
   if (d.brief.length) left.append(h('h3', {}, t.brief), h('table', { class: 'table' }, h('tbody', {}, ...d.brief.map((/** @type {any} */ f) =>
@@ -307,10 +309,13 @@ function queue(d) {
   if (d.empty) out.push(h('div', { class: 'empty card pad' }, h('b', {}, t.emptyQueue), h('span', { class: 'muted' }, t.emptyHelp)));
   else out.push(h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ q) => {
     const err = ['failed', 'uncertain'].includes(q.state);
-    const state = d.paused_all && !q.in_flight ? 'Đang dừng' : q.in_flight ? t.inFlight : q.action === 'unpublish' ? 'Chờ gỡ' : q.label;
+    // A channel the person or a sign-in paused holds its items: say so instead of "Chờ đăng".
+    const ch = d.channels.find((/** @type {any} */ c) => c.label === q.channel);
+    const held = !q.in_flight && (d.paused_all || ch?.paused);
+    const state = held ? (!d.paused_all && ch?.paused_reason === 'signed_out' ? t.waitSignIn : 'Đang dừng') : q.in_flight ? t.inFlight : q.action === 'unpublish' ? 'Chờ gỡ' : q.label;
     return h('li', { class: 'row' },
       h('div', { class: 'who' }, h('b', {}, `${M.when(q.scheduled_at)} · ${q.channel} · ${q.title}`), q.reason && h('small', { class: err ? 'errline' : 'muted' }, q.reason)),
-      badge(state, d.paused_all ? 'uncertain' : q.state),
+      badge(state, held ? 'uncertain' : q.state),
       // The person's answers: a late item and an uncertain one are never sent on their own.
       ...(q.state === 'uncertain' ? uncertainActions(t, q)
         : q.late ? [button(t.postNow, () => void act('post_now', { id: q.id })), button(t.restore, () => void act('restore', { id: q.id })), button(t.drop, () => void act('drop', { id: q.id }))]
@@ -318,7 +323,10 @@ function queue(d) {
   })));
   if (d.recent.length) out.push(h('h3', {}, t.recent), h('ul', { class: 'list card' }, ...d.recent.map((/** @type {any} */ r) =>
     h('li', { class: 'row' }, h('div', { class: 'who' }, h('b', {}, `${M.when(r.at)} · ${r.channel} · ${r.url ?? r.title}`), r.reason && h('small', { class: 'errline' }, r.reason)),
-      badge(r.status === 'published' ? 'Đã đăng' : r.status === 'removed' ? 'Đã gỡ' : 'Lỗi', r.status === 'published' ? 'published' : r.status === 'removed' ? '' : 'failed')))));
+      badge(r.status === 'published' ? 'Đã đăng' : r.status === 'removed' ? 'Đã gỡ' : r.status === 'needs_person' ? 'Cần bạn' : 'Lỗi',
+        r.status === 'published' ? 'published' : r.status === 'removed' ? '' : r.status === 'needs_person' ? 'uncertain' : 'failed'),
+      r.status === 'published' && r.url && button(t.open, () => bridge.open(r.url)),
+      r.status === 'published' && r.action === 'publish' && button(t.unpublish, () => askUnpublish(r), 'btn sm danger')))));
   return out;
 }
 
@@ -327,6 +335,13 @@ function uncertainActions(/** @type {any} */ t, /** @type {any} */ q) {
   const url = h('input', { type: 'url', class: 'input sm', placeholder: 'https://…', 'aria-label': t.postedUrl, disabled: S.busy });
   return [url, button(t.posted, () => void act('confirm_posted', { id: q.id, url: /** @type {HTMLInputElement} */ (url).value.trim() })),
     button(t.notPosted, () => void act('confirm_not_posted', { id: q.id })), button(t.drop, () => void act('drop', { id: q.id }))];
+}
+
+/** "Gỡ bài trên X?": removing a live post loses its likes and replies, so it asks first; Giữ lại is focused. */
+function askUnpublish(/** @type {any} */ p) {
+  S.confirm = { title: S.t.unpublishAsk(p.channel), run: () => void act('unpublish', { id: p.id }) };
+  render();
+  /** @type {HTMLElement | null} */ (document.querySelector('[data-keep]'))?.focus();
 }
 
 function render() {
@@ -338,6 +353,10 @@ function render() {
   else if (!d) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
   else if (d.page === 'hang-doi') out.push(...queue(d));
   else out.push(...(d.post ? postDetail(d) : postList(d)));
+  const c = S.confirm;
+  if (c) out.push(h('div', { class: 'notice confirm', role: 'alertdialog', 'aria-label': c.title }, h('b', {}, c.title), h('span', { class: 'muted' }, S.t.unpublishHelp),
+    h('span', { class: 'line' }, button(S.t.keep, () => { S.confirm = null; render(); }, 'btn sm', { 'data-keep': '' }),
+      button(c.title.replace(/\?$/, ''), () => { S.confirm = null; c.run(); }, 'btn sm danger'))));
   if (S.notice) out.push(h('p', { class: `notice ${S.notice.kind}`, role: 'status' }, S.notice.text));
   root.replaceChildren(...out);
 }
