@@ -6,6 +6,10 @@ share the [marketing pack](../../packs/marketing/README.md)'s own storage. The
 [Lohi blog publisher](packs/lohi-blog/README.md), a local pack that ships with
 this recipe, puts posts on `blog.lohi2.com`.
 
+**Needs Soot 0.13.12 or later.** The recipe uses the workspace `env` field, the
+`marketing:tools=` pack selector and schedule catch-up; an older runtime refuses
+the deployment.
+
 ```text
 08:00       marketing_plan ──(a blog slot is free, once a day)──▶ Writer: plan {} brief ─▶ draft_save ─▶ check ─▶ schedule
             (also keeps the guard's price facts fresh; zero model calls when no slot is free)

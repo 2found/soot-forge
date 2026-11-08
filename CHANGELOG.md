@@ -3,6 +3,27 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.10
+
+Baseline: v0.11.9 (51a5b3f). Needs Soot 0.13.12 or later for the Lohi recipe (workspace `env`, the `pack:tools=` selector, schedule catch-up).
+
+### Added
+
+- **`marketing_plan`, a daily content plan with no model call.** A tool-only schedule call (`{wake:true, channel, facts_url, catalog, depth}`) wakes the Writer only when a blog slot is free (and refreshes the guard's price facts, so the separate facts schedule is gone). It stays quiet with a named code (`paused_all`, `draft_open`, `queued`, `refused_streak`, `no_slot`, `planned_today`) and wakes at most once a day. The woken Writer calls `marketing_plan {}` for the brief: topic, keyword, angle, source (a Search Console query first, else genre x three angles, skipping written keywords), real novels (title, author, chapters, status, words, summary, url), internal links and what to avoid.
+- **Real-catalog briefs.** The plan reads Lohi's public catalog endpoints (discovery feed, genres, search), so a post links novels that exist.
+- **Dead-link check.** `check` gains the rule `links`: a lohi2.com or blog link that answers 404/410 fails (`dead_link`); a network error passes as "not checked".
+- **Lohi blog publisher.** It clones `LOHI_BLOG_REMOTE` into its own state directory (no `LOHI_REPO` needed; `LOHI_REPO` stays an override), gains a `catalog` read tool, and a `ready` tool with a 06:30 `blog-ready` schedule that names every missing prerequisite in one Cần bạn item, quiet until the list changes.
+- **Recipe `setup.mjs`.** `examples/lohi-marketing/setup.mjs <dir> [--port] [--no-video]` builds the workspace and generates `MARKETING_CLAIM_KEY` once (mode 0600, never printed, never overwritten); it writes `env` into `deployment.json` when the runtime's schema lists it. The README lists only what a person does.
+- **Writer gets only the tools it writes with**: `marketing:tools=...` in `lohi-writer.json` (needs Soot 0.13.12), cutting its per-turn tool schemas.
+
+### Changed
+
+- **Wake hygiene.** `marketing_due` records `woke:<need>` attention rows and wakes the Editor only for a need not already raised or woken; signing in clears the episode. The dispatch schedule is `*/10 7-22 * * *` Asia/Ho_Chi_Minh.
+- **`draft_save` of identical content is idempotent** instead of returning a refused duplicate.
+- **Recipe slimmed to three Soots and seven schedules**: the Radar Soot and the facts schedule are removed; the Writer is `["marketing"]` only with a 200k run / 250k daily token budget.
+- **Marketing page vocabulary and fixes.** One set of states (Nháp, Đã kiểm tra, Chờ đăng, Đã đăng, Bị từ chối); "Đã kiểm tra" is its own tab and no longer counts as waiting; switches read "Bật là đang đăng, tắt là dừng"; post detail shows the body, "Xếp lịch" and "Gỡ khỏi hàng đợi"; link summaries no longer render `lohi2.com//...`. The Editor answers in plain Vietnamese with a four-line "today" summary.
+- `facts_sync` takes its URL from a setting (`facts_url`); without one it says to write without prices.
+
 ## 0.11.9
 
 ### Added
