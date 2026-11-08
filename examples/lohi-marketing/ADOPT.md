@@ -55,10 +55,19 @@ soot company adopt lohi.company.json --config <ws>/deployment.json
 
 ## 5. Verify
 
+The runtime applies an adopted file only when it runs with `soot serve --watch` (the live Lohi runtime does).
+A runtime started without `--watch` keeps serving the old configuration and `soot teams health` prints no teams.
+
 ```bash
 soot check --config <ws>/deployment.json                    # expect: Valid, all Soots
 soot teams health --config <ws>/deployment.json             # needs the runtime running; a remote team is skipped
 ```
+
+## Left behind
+
+The old writer's private `content` table (`soot:lohi-writer`, one row on live, the same post as `posts` P-FEB01D22D1)
+stays in the workspace database. Nothing reads it any more and no CLI drops a Soot-scope table; leaving it is safe.
+Everything the Writer saves goes to the marketing `posts` table now.
 
 ## Rollback
 
