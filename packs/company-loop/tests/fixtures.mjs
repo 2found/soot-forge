@@ -67,12 +67,15 @@ fs.appendFileSync(path.join(dir, 'log'), JSON.stringify({ argv: process.argv.sli
 const a = process.argv.slice(2);
 if (a[0] === 'team' && a[1] === 'spawn') { if (fs.existsSync(path.join(dir, 'fail-spawn'))) { console.error('orca: not running'); process.exit(1); } console.log('spawned ' + a[2]); }
 else if (a[0] === 'team' && a[1] === 'snapshot') { const f = path.join(dir, 'snapshot'); if (fs.existsSync(path.join(dir, 'fail-snapshot'))) { console.error('open index.json: no such file'); process.exit(1); } console.log(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : JSON.stringify({ schema_version: 2, ok: true, data: { phases: [] } })); }
+else if (a[0] === 'ticket' && a[1] === 'find') { const f = path.join(dir, 'tickets'); console.log(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '[]'); }
+else if (a[0] === 'team' && a[1] === 'next') { const f = path.join(dir, 'next'); console.log(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : JSON.stringify({ schema_version: 2, ok: true, data: { ticket: a[2], steps: [] } })); }
 else if (a[0] === 'company') { if (fs.existsSync(path.join(dir, 'fail-company'))) { console.error('company: invalid product'); process.exit(2); } console.log('scoreboard: recorded'); }
 `);
   chmodSync(bin, 0o755);
   return {
     dir, bin,
     calls: () => (existsSync(join(dir, 'log')) ? readFileSync(join(dir, 'log'), 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) : []),
+    tickets: rows => writeFileSync(join(dir, 'tickets'), JSON.stringify(rows)),
     snapshot: data => writeFileSync(join(dir, 'snapshot'), JSON.stringify({ schema_version: 2, ok: true, data })),
     failSpawn: on => (on ? writeFileSync(join(dir, 'fail-spawn'), '') : execFileSync('rm', ['-f', join(dir, 'fail-spawn')])),
     failCompany: on => (on ? writeFileSync(join(dir, 'fail-company'), '') : execFileSync('rm', ['-f', join(dir, 'fail-company')])),

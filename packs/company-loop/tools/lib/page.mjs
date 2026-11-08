@@ -21,7 +21,7 @@ export function nextStep({ setup, sync, proposals, handoffs, topics }) {
   if (draft) return { code: draft.state, ref: draft.opportunity };
   const delivered = handoffs.find(h => h.state === 'delivered');
   if (delivered) return { code: 'release_go', ref: delivered.opportunity };
-  if (handoffs.some(h => ['spawned', 'building', 'blocked'].includes(h.state))) return { code: 'building' };
+  if (handoffs.some(h => ['spawned', 'starting', 'building', 'blocked'].includes(h.state))) return { code: 'building' };
   if (topics) return { code: 'topics', n: topics };
   return { code: 'idle' };
 }

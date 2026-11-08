@@ -618,7 +618,7 @@
     {
       "name": "team_watch",
       "title": "Theo dõi đội dựng",
-      "description": "Read bbs team snapshot for each open handoff with no model. A released team returns outcomes requirement_shipped to record and queues one launch topic; nothing changed answers {done: true}.",
+      "description": "Read bbs team snapshot for each open handoff with no model; the parent ticket is found from the team id (bbs ticket find), `starting` until the kickoff creates it. A handover waiting for the release go returns one ask (Cần bạn card) once. A released team returns outcomes requirement_shipped to record and queues one launch topic; nothing changed answers {done: true}.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -691,7 +691,7 @@
     {
       "name": "page_action",
       "title": "Đổi trang Công ty",
-      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval), retry_handoff, link_ticket (the bbs:team parent ticket id) or sync. Needs a request_id.",
+      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval), retry_handoff, link_ticket (hidden manual override of the parent ticket id) or sync. Needs a request_id.",
       "parameters": {
         "type": "object",
         "properties": {

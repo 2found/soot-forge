@@ -3,7 +3,8 @@
 // review (hit rate, §7).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, realpathSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { world, ITEM, T0, DAY } from './world.mjs';
 import { startBoardApi, fakeBbs, scratchRepo, KEY } from './fixtures.mjs';
@@ -214,12 +215,19 @@ test('in a chain topic_next is only the query (it merges into marketing plan) an
 
 // ---------- team_watch ----------
 const phase = (id, state, release = 'auto') => ({ id, title: id, release, state });
+/** What `bbs ticket find --json` lists once the kickoff created the parent ticket (assignee = the team id). */
+const kickoff = (w, b, id = 'bs-parent01') => b.tickets([
+  { id: 'bs-other0001', assignee: null, parent: '', title: 'unrelated' },
+  { id: 'bs-child0001', assignee: w.rows('handoffs')[0].team_id, parent: id, title: 'child of the project' },
+  { id, assignee: w.rows('handoffs')[0].team_id, parent: '', title: 'the project' },
+]);
 
 test('team_watch: nothing open, or nothing changed, is {done: true}; a snapshot that cannot be read changes nothing', async () => {
   const { w, b } = await ready();
   assert.deepEqual(await w.call('team_watch'), { done: true });
   await w.call('digest_save', { opportunities: [ITEM.product] });
   await w.call('decide', { id: refOf(w, 'product'), decision: 'go' });
+  kickoff(w, b);
   b.failSnapshot(true);
   assert.deepEqual(await w.call('team_watch'), { done: true });
   assert.match(w.rows('handoffs')[0].detail, /Chưa đọc được trạng thái đội/);
@@ -236,6 +244,7 @@ test('team_watch: delivered waits for the founder; released records requirement_
   await w.call('digest_save', { opportunities: [ITEM.product] });
   const ref = refOf(w, 'product');
   await w.call('decide', { id: ref, decision: 'go' });
+  kickoff(w, b);
   b.snapshot({ phases: [phase('p1', 'released'), phase('p2', 'building')] });
   assert.match((await w.call('team_watch')).changed[0].state, /building/);
   assert.equal(w.rows('handoffs')[0].detail, 'Xong 1/2 giai đoạn.');
@@ -261,10 +270,78 @@ test('team_watch: a failed release is blocked, and bbs missing is {done} (nothin
   const { w, b } = await ready();
   await w.call('digest_save', { opportunities: [ITEM.product] });
   await w.call('decide', { id: refOf(w, 'product'), decision: 'go' });
+  kickoff(w, b);
   b.snapshot({ phases: [phase('p1', 'release_failed')] });
   assert.equal((await w.call('team_watch')).changed[0].state, 'blocked');
   w.env.BBS_BIN = '/nonexistent/bbs'; w.env.PATH = '/nonexistent';
   assert.equal((await w.call('team_watch')).done, true);
+});
+
+test('team_watch finds the parent ticket from the team id (assignee, no parent); a snapshot is read of that ticket in the product repo', async () => {
+  const { w, b, dir } = await ready();
+  await w.call('digest_save', { opportunities: [ITEM.product] });
+  await w.call('decide', { id: refOf(w, 'product'), decision: 'go' });
+  kickoff(w, b, 'bs-parent77');
+  b.snapshot({ phases: [phase('p1', 'building')] });
+  await w.call('team_watch');
+  const snap = b.calls().filter(c => c.argv[1] === 'snapshot').at(-1);
+  assert.deepEqual(snap.argv, ['team', 'snapshot', 'bs-parent77', '--json']);
+  assert.equal(snap.cwd, realpathSync(dir));
+  assert.equal(w.rows('handoffs')[0].ticket, 'bs-parent77', 'remembered, so the next read skips the lookup');
+  assert.equal(b.calls().filter(c => c.argv[0] === 'ticket').length, 1);
+});
+
+test('team_watch: the parent is not created yet (kickoff still clarifying) is starting with a plain next step, never an error', async () => {
+  const { w, b } = await ready();
+  await w.call('digest_save', { opportunities: [ITEM.product] });
+  await w.call('decide', { id: refOf(w, 'product'), decision: 'go' });
+  b.tickets([{ id: 'bs-other0001', assignee: 'someone-else', parent: '' }]);
+  const out = await w.call('team_watch');
+  assert.deepEqual(out.changed.map(c => c.state), ['starting']);
+  assert.equal(out.notify, false);
+  assert.equal(w.rows('handoffs')[0].detail, 'Đội đang đọc yêu cầu — chưa có việc cần bạn.');
+  assert.equal(b.calls().filter(c => c.argv[1] === 'snapshot').length, 0);
+  assert.deepEqual(await w.call('team_watch'), { done: true });
+  assert.equal((await w.call('page_view', {}, { page: 'cong-ty' })).next.code, 'building');
+  kickoff(w, b);
+  b.snapshot({ phases: [] });
+  assert.equal((await w.call('team_watch')).changed[0].state, 'building');
+});
+
+test('team_watch falls back to the ticket files when bbs ticket find has no answer', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'babysit-home-'));
+  const { w, b } = await ready();
+  w.env.BABYSIT_HOME = home;
+  await w.call('digest_save', { opportunities: [ITEM.product] });
+  await w.call('decide', { id: refOf(w, 'product'), decision: 'go' });
+  const teamId = w.rows('handoffs')[0].team_id;
+  mkdirSync(join(home, 'projects', 'p', 'tickets', 'bs-file0001'), { recursive: true });
+  writeFileSync(join(home, 'projects', 'p', 'tickets', 'bs-file0001', 'index.json'), JSON.stringify({ id: 'bs-file0001', assignee: teamId, parent: null }));
+  b.snapshot({ phases: [phase('p1', 'building')] });
+  await w.call('team_watch');
+  assert.deepEqual(b.calls().filter(c => c.argv[1] === 'snapshot').at(-1).argv, ['team', 'snapshot', 'bs-file0001', '--json']);
+});
+
+test('team_watch: a handover waiting for the release go files ONE Cần bạn need with the place and command, not again', async () => {
+  const { w, b } = await ready();
+  await w.call('digest_save', { opportunities: [ITEM.product] });
+  const ref = refOf(w, 'product');
+  await w.call('decide', { id: ref, decision: 'go' });
+  kickoff(w, b);
+  b.snapshot({ phases: [phase('p1', 'released'), { ...phase('p2', 'delivered', 'ask'), ticket: 'bs-phase002' }] });
+  const first = await w.call('team_watch');
+  assert.deepEqual(first.changed, [{ ref, state: 'delivered' }]);
+  assert.equal(first.ask.summary, `Bản bàn giao ${ITEM.product.title} chờ bạn duyệt phát hành`);
+  assert.match(first.ask.missing, /BABYSIT_TICKET=bs-phase002 bbs ticket approval resolve --action approve/);
+  assert.match(first.ask.missing, new RegExp(w.rows('handoffs')[0].team_id));
+  assert.deepEqual([first.notify, first.wake], [true, true]);
+  for (let i = 0; i < 3; i++) { w.now += 30 * 60_000; assert.deepEqual(await w.call('team_watch'), { done: true }, 'every 30 minutes stays quiet'); }
+  assert.equal((await w.call('page_view', {}, { page: 'cong-ty' })).next.code, 'release_go');
+  // The go is given; the release lands: the outcome and the launch topic, no second need.
+  b.snapshot({ phases: [phase('p1', 'released'), phase('p2', 'released', 'ask')] });
+  const out = await w.call('team_watch');
+  assert.deepEqual([out.changed[0].state, out.outcomes[0].id, out.ask], ['released', 'requirement_shipped', undefined]);
+  assert.equal(w.rows('topics').filter(t => t.kind === 'launch').length, 1);
 });
 
 test('team_watch uses the linked ticket when the page links one, in the product repo', async () => {
@@ -325,6 +402,7 @@ test('a product decision is measured from its release, not from the Go', async (
   await w.call('decide', { id: ref, decision: 'go' });
   w.now += 40 * DAY; // past 30 days, but nothing shipped yet
   assert.equal((await w.call('review')).waiting, 1);
+  kickoff(w, b);
   b.snapshot({ phases: [phase('p1', 'released')] });
   await w.call('team_watch');
   assert.equal((await w.call('review')).waiting, 1, 'the clock starts at the release');

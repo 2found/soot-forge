@@ -1,11 +1,19 @@
-// team_watch: read `bbs team snapshot <id> --json` for every open handoff with no model.
+// team_watch: read `bbs team snapshot <parent> --json` for every open handoff with no model.
+// The parent ticket is found from the team id, never typed by a person: the /bbs:team kickoff
+// creates it and claims it (`assignee` = team id, no `parent`), so the same row names it. Order:
+// `bbs ticket find --json` (2build ticket_find.go) in the product repo, then `--all-projects`,
+// then the ticket files under $BABYSIT_HOME/projects/*/tickets/*/index.json. `link_ticket` stays
+// a hidden manual override. No parent yet is `starting`, never an error.
 // A released team is the outcome `requirement_shipped` (the Lead records it) and one
 // `launch` topic for the marketing plan (CL3). Nothing changed answers {done: true}.
-import { eq, inList, iso, short } from './base.mjs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { eq, getState, inList, iso, setState, short } from './base.mjs';
 import { runBbs } from './bbs.mjs';
 import { queueTopic } from './opportunities.mjs';
 
-const OPEN = ['spawned', 'building', 'blocked', 'delivered'];
+const OPEN = ['spawned', 'starting', 'building', 'blocked', 'delivered'];
+export const STARTING = 'Đội đang đọc yêu cầu — chưa có việc cần bạn.';
 
 /** The team's state from a snapshot: {state, detail}. */
 export function summarize(data) {
@@ -20,7 +28,71 @@ export function summarize(data) {
       ? { state: 'released', detail: `Đã phát hành ${phases.length}/${phases.length} giai đoạn.` }
       : { state: 'delivered', detail: 'Đã dựng xong: bạn duyệt bản giao rồi bấm phát hành trong bbs:team.' };
   }
+  // A phase that is landed and verified but needs the founder's release go is the handover.
+  const awaiting = phases.filter(p => p.state === 'delivered' && p.release !== 'none');
+  if (awaiting.length && phases.every(p => settled(p) || awaiting.includes(p))) {
+    return { state: 'delivered', detail: 'Bản bàn giao đã sẵn sàng: đang chờ bạn duyệt rồi cho phép phát hành.', awaiting };
+  }
   return { state: 'building', detail: `Xong ${done}/${phases.length} giai đoạn.` };
+}
+
+const parseJson = text => { try { return JSON.parse(text); } catch { return null; } };
+const isTicketId = v => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$/.test(v);
+
+/** The parent ticket the team's kickoff created: assignee is the team id and it has no parent. */
+const parentOf = (rows, teamId) => {
+  const mine = (Array.isArray(rows) ? rows : []).filter(r => r && r.assignee === teamId && !r.parent && isTicketId(r.id));
+  mine.sort((x, y) => String(y.updated_at ?? y.created_at ?? '').localeCompare(String(x.updated_at ?? x.created_at ?? '')));
+  return mine[0]?.id ?? null;
+};
+
+/** The ticket files, when the CLI cannot answer (older bbs, another project home). */
+function parentFromFiles(env, teamId) {
+  const home = env.BABYSIT_HOME || (env.HOME ? join(env.HOME, '.babysit') : null);
+  if (!home) return null;
+  const rows = [];
+  try {
+    for (const proj of readdirSync(join(home, 'projects'))) {
+      let ids = [];
+      try { ids = readdirSync(join(home, 'projects', proj, 'tickets')); } catch { continue; }
+      for (const id of ids) {
+        const doc = parseJson((() => { try { return readFileSync(join(home, 'projects', proj, 'tickets', id, 'index.json'), 'utf8'); } catch { return ''; } })());
+        if (doc?.assignee === teamId) rows.push({ id: doc.id ?? id, assignee: doc.assignee, parent: doc.parent, updated_at: doc.updated_at, created_at: doc.created_at });
+      }
+    }
+  } catch { return null; }
+  return parentOf(rows, teamId);
+}
+
+/** {ticket} | {missing} | {} (not created yet). */
+async function resolveParent(h, env) {
+  if (h.ticket) return { ticket: h.ticket };
+  if (!h.team_id) return {};
+  for (const extra of [[], ['--all-projects']]) {
+    const r = await runBbs(env, ['ticket', 'find', ...extra, '--json'], { cwd: h.repo || undefined, timeoutMs: 30_000 });
+    if (r.missing) return { missing: true };
+    if (!r.ok) continue;
+    const body = parseJson(r.stdout);
+    const t = parentOf(Array.isArray(body) ? body : body?.data, h.team_id);
+    if (t) return { ticket: t };
+  }
+  const t = parentFromFiles(env, h.team_id);
+  return t ? { ticket: t } : {};
+}
+
+/** The go the founder owes: one Cần bạn card per handover, naming where to give it. */
+async function handoverAsk(h, title, parent, awaiting, store) {
+  const key = `handover:${h.opportunity}:${awaiting.map(p => p.id).sort().join(',')}`;
+  if ((await getState(store, 'asked_go')) === key || (await getState(store, key))) return null;
+  await setState(store, key, '1');
+  await setState(store, 'asked_go', key);
+  const phase = awaiting[0];
+  const where = phase.ticket ? `ticket giai đoạn ${phase.ticket}` : `ticket cha ${parent}`;
+  return {
+    keys: [`company:handover:${h.opportunity}`], summary: `Bản bàn giao ${title} chờ bạn duyệt phát hành`,
+    missing: `Mở terminal của đội ${h.team_id} trong Orca (bbs team list) và đọc bản bàn giao: ${parent}/recap.html trong ~/.babysit. Hài lòng thì cho phép phát hành ở phê duyệt "release" của ${where}: ${phase.ticket ? `BABYSIT_TICKET=${phase.ticket} ` : ''}bbs ticket approval resolve --action approve. Chưa ổn thì --action redirect --note "<góp ý>"; đội tự sửa. Đây là lần bấm cuối cùng của bạn.`,
+    options: [{ label: 'Đã xem', recommended: true }],
+  };
 }
 
 export async function team_watch(input, deps) {
@@ -28,17 +100,32 @@ export async function team_watch(input, deps) {
   const open = await store.query('handoffs', [inList('state', OPEN)], { order: 'updated_at', limit: 50 });
   if (!open.length) return { done: true };
   const changed = [], outcomes = [];
+  let ask = null;
   for (const h of open) {
-    const r = await runBbs(env, ['team', 'snapshot', h.ticket || h.team_id, '--json'], { cwd: h.repo || undefined, timeoutMs: 30_000 });
-    if (r.missing) return { done: true, note: 'bbs_missing' };
-    let data = null;
-    try { const body = JSON.parse(r.stdout); data = body?.ok === false ? null : (body?.data ?? body); } catch { /* unreadable below */ }
-    if (!r.ok || !data) {
-      const detail = `Chưa đọc được trạng thái đội (${short(r.stderr || r.stdout, 100) || 'không có trả lời'}).`;
-      if (detail !== h.detail) await store.update('handoffs', h.id, { detail });
-      continue;
+    const found = await resolveParent(h, env);
+    if (found.missing) return { done: true, note: 'bbs_missing' };
+    let s;
+    let parent = found.ticket;
+    if (!parent) {
+      s = { state: 'starting', detail: STARTING };
+    } else {
+      if (!h.ticket) await store.update('handoffs', h.id, { ticket: parent });
+      const r = await runBbs(env, ['team', 'snapshot', parent, '--json'], { cwd: h.repo || undefined, timeoutMs: 30_000 });
+      if (r.missing) return { done: true, note: 'bbs_missing' };
+      let data = null;
+      const body = parseJson(r.stdout);
+      if (body) data = body.ok === false ? null : (body.data ?? body);
+      if (!r.ok || !data) {
+        const detail = `Chưa đọc được trạng thái đội (${short(r.stderr || r.stdout, 100) || 'không có trả lời'}).`;
+        if (detail !== h.detail) await store.update('handoffs', h.id, { detail });
+        continue;
+      }
+      s = summarize(data);
     }
-    const s = summarize(data);
+    if (s.awaiting && !ask) {
+      const opp = await store.one('opportunities', [eq('ref', h.opportunity)]);
+      ask = await handoverAsk(h, opp?.title ?? h.opportunity, parent, s.awaiting, store);
+    }
     if (s.state === h.state && s.detail === h.detail) continue;
     const set = { state: s.state, detail: s.detail, ...(s.state === 'released' ? { released_at: iso(now) } : {}) };
     await store.update('handoffs', h.id, set);
@@ -49,6 +136,7 @@ export async function team_watch(input, deps) {
       outcomes.push({ id: 'requirement_shipped', count: 1, ref: `req:${h.opportunity}` });
     }
   }
-  if (!changed.length) return { done: true };
-  return { changed, ...(outcomes.length ? { outcomes } : {}), notify: outcomes.length > 0, wake: outcomes.length > 0 };
+  if (!changed.length && !ask) return { done: true };
+  const loud = outcomes.length > 0 || !!ask;
+  return { changed, ...(outcomes.length ? { outcomes } : {}), ...(ask ? { ask } : {}), notify: loud, wake: loud };
 }

@@ -50,6 +50,7 @@ const STATE = { proposed: ['Chờ bạn chọn', 'warn'], go: ['Đã Go', 'ok'],
 const KIND = { content: 'Nội dung', product: 'Sản phẩm' };
 const HAND = {
   spawned: ['Đội đã mở', 'ok', 'Đội bbs:team đang làm rõ yêu cầu. Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
+  starting: ['Đội đang đọc yêu cầu', 'ok', 'Đội đang đọc yêu cầu — chưa có việc cần bạn.'],
   building: ['Đang dựng', 'ok', 'Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
   blocked: ['Vướng khi phát hành', 'bad', 'Đội đang xử lý; mở terminal của đội trong Orca nếu cần xem.'],
   delivered: ['Chờ bạn duyệt', 'warn', 'Duyệt bản giao rồi bấm phát hành trong bbs:team. Soot không phát hành thay bạn.'],
@@ -141,9 +142,9 @@ function handoffCard(x) {
     x.requirement_path && h('p', { class: 'muted' }, `Yêu cầu: ${x.requirement_path}`),
     x.command && fix && h('code', { class: 'cmd' }, x.command),
     fix && h('div', { class: 'line' }, btn('Chạy lại', () => act('retry_handoff', { id: x.opportunity }))),
-    ['spawned', 'building'].includes(x.state) && h('div', { class: 'line' },
+    ['spawned', 'starting', 'building'].includes(x.state) && h('details', { class: 'muted' }, h('summary', {}, 'Gắn tay ticket cha'), h('div', { class: 'line' },
       h('input', { class: 'input', id: `t-${x.opportunity}`, placeholder: x.ticket ? `Ticket cha: ${x.ticket}` : 'Mã ticket cha của dự án (nếu Soot chưa đọc được)', 'aria-label': 'Mã ticket cha' }),
-      btn('Gắn', () => { const v = document.getElementById(`t-${x.opportunity}`)?.value.trim(); if (v) act('link_ticket', { id: x.opportunity, ticket: v }); }, 'btn ghost')));
+      btn('Gắn', () => { const v = document.getElementById(`t-${x.opportunity}`)?.value.trim(); if (v) act('link_ticket', { id: x.opportunity, ticket: v }); }, 'btn ghost'))));
 }
 function log(d) {
   const r = d.hit_rate;
