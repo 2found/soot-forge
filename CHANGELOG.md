@@ -3,6 +3,21 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.13
+
+Baseline: v0.11.12 (4a629bc). Needs Soot 0.13.14 or later, as 0.11.12 did (marketing storage version 4); nothing in this release needs Soot 0.13.15. Friction round 4: a failed post says why in plain words. Commits since v0.11.12: 74b3a41 (Nest flows N5, merge a3862dd) and this release commit.
+
+### Changed
+
+- **Marketing: failed posts read in words.** The publisher's own code (`git_failed`, `push_rejected`, `build_failed`, `deploy_failed`, `slug_taken`, `claim_*`, a missing `main` branch) no longer reaches the person on a post, in the queue or on a video row; each reads as a sentence. A reason already in Vietnamese is shown as written.
+- **Marketing: a retry is promised for when it can go.** After a failed publish the queue time moves to the first slot outside quiet hours, not an hour from now, so the shown "Soot thử lại lúc ..." is true.
+- **Marketing: paused channel headline.** A channel the person paused holds its posts; the queue headline names the switch ("Bật <channel>") instead of promising a next post that cannot go.
+- **Lohi recipe `setup.mjs` copies exactly the release file set** (the rule of `scripts/archive.mjs`, tests omitted). A workspace copy then equals the Forge archive, so the runtime adopts it by digest instead of asking a person to apply an update.
+
+### Concern
+
+- `packs/marketing/pack.json` is still 65,184 B of the 65,536 B size limit (352 B left; unchanged). The next addition to it needs trimming first.
+
 ## 0.11.12
 
 Baseline: v0.11.11 (1f480dd). **Needs Soot 0.13.14 or later**: the marketing pack's storage version 4 declares table `description`s, which Soot 0.13.13 refuses in `pack.json` (update Soot before the pack). The Lohi recipe needs 0.13.14 too.
