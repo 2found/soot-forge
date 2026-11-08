@@ -45,7 +45,7 @@ test('the manifest is a valid pack model and every tool has an implementation', 
 // ---------- catalog_health ----------
 const staleItem = { novel_slug: 'a', title: 'A', last_chapter_number: 9, last_chapter_at: '2026-09-01T00:00:00Z', days_since_last_chapter: 70 };
 const catalogRoutes = (over = {}) => ({
-  [`GET api.test/novel/admin/catalog-health`]: u => {
+  [`GET api.test/admin/analysis/catalog-health`]: u => {
     const c = u.searchParams.get('check');
     const body = { version: 1, check: c, scanned: 25, items: [], next_cursor: null, truncated: false };
     if (c === 'stale') body.items = [staleItem, { ...staleItem, novel_slug: 'b', days_since_last_chapter: 16 }];
@@ -68,13 +68,13 @@ test('catalog_health: findings table, one card for the actionable ones only, and
   assert.equal(again.wake, false);
   assert.equal(store.data.findings.length, 3, 'upsert, not duplicates');
   // Everything clears: the need resolves.
-  const clean = await go('catalog_health', {}, { store, fetchImpl: router({ 'GET api.test/novel/admin/catalog-health': res({ version: 1, check: 'x', scanned: 1, items: [], next_cursor: null, truncated: false }) }) });
+  const clean = await go('catalog_health', {}, { store, fetchImpl: router({ 'GET api.test/admin/analysis/catalog-health': res({ version: 1, check: 'x', scanned: 1, items: [], next_cursor: null, truncated: false }) }) });
   assert.equal(clean.resolves_need, true);
 });
 
 test('catalog_health: pages through the cursor and stops at the page budget', async () => {
   let n = 0;
-  const fetch = router({ 'GET api.test/novel/admin/catalog-health': () => res({ version: 1, check: 'stale', scanned: 25, items: [], next_cursor: `c${++n}`, truncated: false }) });
+  const fetch = router({ 'GET api.test/admin/analysis/catalog-health': () => res({ version: 1, check: 'stale', scanned: 25, items: [], next_cursor: `c${++n}`, truncated: false }) });
   const out = await go('catalog_health', { checks: ['stale'], pages: 2 }, { fetchImpl: fetch });
   assert.equal(fetch.calls.length, 2);
   assert.equal(out.scanned.stale.more, true);
@@ -84,7 +84,7 @@ test('catalog_health: no key is a quiet skip, a 403 is a named error, a bad chec
   const skip = await go('catalog_health', {}, { env: { PRODUCT_API_URL: API }, fetchImpl: router({}) });
   assert.equal(skip.skipped, true);
   assert.equal(skip.key, 'PRODUCT_ADMIN_KEY');
-  const f = router({ 'GET api.test/novel/admin/catalog-health': res({}, 403) });
+  const f = router({ 'GET api.test/admin/analysis/catalog-health': res({}, 403) });
   const denied = await go('catalog_health', {}, { fetchImpl: f });
   assert.equal(denied.ok, false);
   assert.equal(denied.error.code, 'forbidden');
@@ -156,6 +156,7 @@ test('comments: pull stores pending, decide hides only the confident bad, keeps 
   const store = fakeStore({ clock: () => NOW }), fetch = modApi();
   const pulled = await go('comments_pull', {}, { store, fetchImpl: fetch });
   assert.equal(pulled.count, 3);
+  assert.equal(pulled.notify, true);
   assert.equal(store.data.comments.length, 3);
   const out = await go('comments_decide', { verdicts: [
     { id: ID1, verdict: 'spam', confidence: 0.97, why: 'lure' },
@@ -172,6 +173,7 @@ test('comments: pull stores pending, decide hides only the confident bad, keeps 
   // Pulled again: decided ones are not offered twice.
   const second = await go('comments_pull', {}, { store, fetchImpl: fetch });
   assert.equal(second.count, 0);
+  assert.equal(second.notify, false);
   // A person resolves the escalated one; the need clears.
   const r = await go('comments_resolve', { id: ID3, action: 'hide', reason: 'abuse' }, { store, fetchImpl: fetch });
   assert.equal(r.state, 'hidden');
@@ -217,12 +219,12 @@ test('appstore_sync: stores new reviews without the reviewer, dedupes, lists the
   const a = await go('appstore_sync', { pages: 3 }, { store, fetchImpl });
   assert.equal(a.new_count, 2);
   assert.equal(a.needs_reply.length, 1);
-  assert.equal(a.wake, true);
+  assert.equal(a.notify, true);
   assert.equal(a.average_rating, 3.5);
   assert.ok(!JSON.stringify(store.data.reviews).includes('Someone Private'));
   const b = await go('appstore_sync', { pages: 3 }, { store, fetchImpl });
   assert.equal(b.new_count, 0);
-  assert.equal(b.wake, false);
+  assert.equal(b.notify, false);
   assert.equal(store.data.reviews.length, 2);
   const empty = await go('appstore_sync', {}, { fetchImpl: router({ [`GET ${FEED_PATH}`]: res('') }) });
   assert.equal(empty.ok, true);

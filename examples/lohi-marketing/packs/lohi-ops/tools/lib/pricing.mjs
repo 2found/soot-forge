@@ -46,5 +46,5 @@ export async function pricing_report(input, deps) {
   const r = await lohiApi(deps, 'GET', '/admin/analysis/scoreboard', { query: { from, to } });
   if (r.skipped) return skippedFor(r.skipped);
   if (r.error) return { ok: false, error: { code: r.error.code, message: r.error.message } };
-  return { ok: true, range: { from, to }, ...analyze(r.out), read_only: true, summary: short(`Kỳ ${from} đến ${to}`, 60) };
+  return { ok: true, range: { from, to }, ...analyze(r.out), read_only: true, notify: true, summary: short(`Kỳ ${from} đến ${to}`, 60) };
 }

@@ -38,6 +38,8 @@ export async function comments_pull(input, deps) {
   }
   return {
     ok: true, count: batch.length, skipped_known: skippedKnown, items: batch,
+    // The schedule wakes the model (wake_when notify) only when there is something to judge.
+    notify: batch.length > 0,
     rules: `Phân loại từng bình luận: spam, abuse, scam, ok hoặc unsure. Chỉ spam/abuse/scam rõ ràng (độ tin cậy >= ${HIDE_MIN}) mới bị ẩn; ok chắc chắn (>= ${KEEP_MIN}) thì giữ; còn lại là unsure để người quyết.`,
   };
 }

@@ -56,8 +56,8 @@ export async function appstore_sync(input, deps) {
     needs_reply: needReply.map(r => ({ rid: r.rid, rating: r.rating, title: r.title, body: short(r.body, 400), state: r.state, draft: r.reply_draft ?? null })),
     average_rating: rated.length ? Math.round((rated.reduce((s, r) => s + r.rating, 0) / rated.length) * 100) / 100 : null,
     stored: open.length,
-    // New reviews wake the model once, with the batch to draft replies for.
-    wake: fresh.length > 0, notify: false,
+    // New reviews wake the model once (schedule wake_when notify), with the batch to draft replies for.
+    notify: fresh.length > 0,
   };
 }
 

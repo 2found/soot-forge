@@ -5,7 +5,7 @@ Everything reads aggregate or public data; no tool changes a price, a plan or a 
 
 | Job | Tools | Source | Acts? |
 | --- | --- | --- | --- |
-| Catalog health | `catalog_health` | api `GET /novel/admin/catalog-health` | Findings table; one Cần bạn card for stale >= 30 days, gaps >= 5 chapters, empty chapters, >= 50% untranslated |
+| Catalog health | `catalog_health` | api `GET /admin/analysis/catalog-health` | Findings table; one Cần bạn card for stale >= 30 days, gaps >= 5 chapters, empty chapters, >= 50% untranslated |
 | Crawl watch | `crawl_watch` | the cli SQLite (`CLI_CATALOG_DB`), opened read-only | Card for stuck, repeated failures, stalled sources |
 | Comment moderation | `comments_pull`, `comments_decide`, `comments_resolve` | api `/admin/moderation/replies` | Hides only spam/abuse/scam at confidence >= 0.9 (max 15 per call); the unsure go to a person |
 | App Store reviews | `appstore_sync`, `appstore_draft`, `appstore_post` | Apple's public feed; posting needs the founder's `ASC_API_KEY` | Drafts; posting without the key answers `needs_credential` |

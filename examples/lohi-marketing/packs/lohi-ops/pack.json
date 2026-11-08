@@ -343,7 +343,7 @@
     {
       "name": "appstore_sync",
       "title": "Đọc đánh giá App Store",
-      "description": "Read the Lohi app public reviews from Apple's customer-reviews feed (APPSTORE_APP_ID, APPSTORE_COUNTRY; no sign-in), store the new ones (no reviewer name) and list the 1-3 star reviews that still need a reply. wake: true when there are new reviews.",
+      "description": "Read the Lohi app public reviews from Apple's customer-reviews feed (APPSTORE_APP_ID, APPSTORE_COUNTRY; no sign-in), store the new ones (no reviewer name) and list the 1-3 star reviews that still need a reply. notify: true when there are new reviews.",
       "parameters": {
         "type": "object",
         "properties": {

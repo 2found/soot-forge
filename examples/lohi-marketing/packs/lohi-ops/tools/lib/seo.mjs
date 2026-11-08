@@ -118,5 +118,5 @@ export async function seo_report(input, deps) {
     signal_count: p.top_queries.length, est_effort: 'S', est_value: p.impressions >= 1000 ? 'high' : 'medium', confidence: 0.4,
     target_outcome: 'signups', expected_delta: 1, check_after_days: 28,
   }));
-  return { ok: true, site, window: { from: start, to: end }, pages_seen: pages.rows.length, flagged: candidates.length, pages: report, opportunities };
+  return { ok: true, site, window: { from: start, to: end }, pages_seen: pages.rows.length, flagged: candidates.length, pages: report, opportunities, notify: report.length > 0 };
 }

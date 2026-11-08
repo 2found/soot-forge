@@ -1,4 +1,4 @@
-// catalog_health: the api's catalog-health endpoint (GET {PRODUCT_API_URL}/novel/admin/catalog-health)
+// catalog_health: the api's catalog-health endpoint (GET {PRODUCT_API_URL}/admin/analysis/catalog-health)
 // read check by check, turned into a findings table, and a Cần bạn need only for what a person must act on.
 import { fail, skippedFor, lohiApi, upsert, needCard, iso, short } from './base.mjs';
 
@@ -34,7 +34,7 @@ async function scan(deps, check, { days, limit, pages }) {
   const items = [];
   let cursor, scanned = 0, truncated = false;
   for (let p = 0; p < pages; p++) {
-    const r = await lohiApi(deps, 'GET', '/novel/admin/catalog-health', { query: { check, days, limit, cursor } });
+    const r = await lohiApi(deps, 'GET', '/admin/analysis/catalog-health', { query: { check, days, limit, cursor } });
     if (r.skipped) return { skipped: r.skipped };
     if (r.error) return { error: r.error };
     items.push(...(r.out.items ?? []));
