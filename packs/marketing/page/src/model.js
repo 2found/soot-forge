@@ -195,6 +195,21 @@ export const SETUP_LINK = 'nest://settings/setup';
 /** Vietnamese names for the keys a page action may ask for. */
 const KEY_LABEL = { PRODUCT_ADMIN_KEY: 'Khoá quản trị Lohi' };
 
+/** A failed publish's reason in words: the publisher's own code never reaches the person. @param {any} reason */
+export function failWhy(reason) {
+  const r = String(reason ?? '').trim();
+  if (!r) return '';
+  if (/[à-ỹ]/i.test(r)) return r;
+  if (/couldn't find remote ref|does not have any commits/i.test(r)) return 'kho git của blog chưa có nhánh main';
+  if (/git_failed/.test(r)) return 'Soot chưa lấy được kho git của blog';
+  if (/push_rejected/.test(r)) return 'kho blog vừa thay đổi nên chưa đẩy bài lên được';
+  if (/build_failed/.test(r)) return 'blog không dựng được với bài này';
+  if (/deploy_failed/.test(r)) return 'blog chưa lên bài sau khi đẩy lên kho';
+  if (/slug_taken/.test(r)) return 'đã có bài dùng đúng đường dẫn này';
+  if (/^claim_/.test(r)) return 'lượt đăng đã hết hạn';
+  return 'lỗi kỹ thuật, Soot đã ghi lại';
+}
+
 /**
  * The line a post shows for its next step: {text, tone, button?}. `button` is {do, label}: the one thing
  * the person can do now, or none when Soot is running it ("Không cần làm gì").
@@ -217,8 +232,8 @@ export function nextLine(n, p = {}) {
     case 'published': return { text: `Đã đăng ${lc}${p.url ? `: ${shortUrl(p.url)}` : '. Chưa có liên kết, Soot sẽ ghi khi nền tảng trả về.'}`, tone: 'ok', button: p.url ? btn('open', 'Mở bài') : undefined };
     case 'uncertain': return { text: `Soot bấm đăng nhưng chưa chắc bài đã lên ${ch}. Mở ${ch} xem: nếu đã lên, dán liên kết; nếu chưa, chọn đăng lại. Soot không tự đăng lại.`, tone: 'err', button: btn('confirm', 'Kiểm tra và chọn') };
     case 'in_flight': return { text: 'Đang đăng. Vài phút nữa sẽ có liên kết. Không cần làm gì.', tone: 'plain' };
-    case 'failed_retry': return { text: `Lần đăng vừa rồi lỗi${n.reason ? ` (${n.reason})` : ''}. Soot tự thử lại ${lc}. Bấm Thử ngay nếu muốn sớm hơn.`, tone: 'warn', button: btn('retry', 'Thử ngay') };
-    case 'failed': return { text: `Đăng lỗi${n.reason ? `: ${n.reason}` : ''}. Soot không tự thử nữa: bấm Thử ngay, hoặc gỡ bài khỏi hàng đợi.`, tone: 'err', button: btn('retry', 'Thử ngay') };
+    case 'failed_retry': return { text: `Lần đăng vừa rồi lỗi${n.reason ? ` (${failWhy(n.reason)})` : ''}. Soot tự thử lại ${lc}. Bấm Thử ngay nếu muốn sớm hơn.`, tone: 'warn', button: btn('retry', 'Thử ngay') };
+    case 'failed': return { text: `Đăng lỗi${n.reason ? `: ${failWhy(n.reason)}` : ''}. Soot không tự thử nữa: bấm Thử ngay, hoặc gỡ bài khỏi hàng đợi.`, tone: 'err', button: btn('retry', 'Thử ngay') };
     case 'late': return { text: `Bài lỡ giờ (hẹn ${lc}). Soot không tự đăng bài đã quá hạn: chọn Đăng ngay, xếp lại giờ khác hoặc bỏ.`, tone: 'warn', button: btn('post_now', 'Đăng ngay') };
     case 'paused_all': return { text: `Bạn đang dừng đăng mọi kênh nên bài chưa đi. Bật lại để bài đăng ${lc || 'ở khung giờ trống đầu tiên'}.`, tone: 'warn', button: btn('resume_all', 'Bật lại mọi kênh') };
     case 'signed_out': return { text: `${ch} chưa đăng nhập nên bài chưa đi được. Đăng nhập ${ch}, rồi bài đăng ${lc}.`, tone: 'warn', button: btn('sign_in', `Đăng nhập ${ch}`) };
@@ -241,9 +256,13 @@ export function queueHeadline(d) {
   if (late.length) return out('warn', `${late.length} bài lỡ giờ. Soot không tự đăng bài quá hạn: chọn Đăng ngay, Đổi giờ hoặc Bỏ cho từng bài.`, null);
   const out2 = (d.channels ?? []).find((/** @type {any} */ c) => c.paused_reason === 'signed_out' && c.waiting > 0);
   if (out2) return out('warn', `${out2.label} chưa đăng nhập nên ${out2.waiting} bài của kênh này chưa đi được. Đăng nhập ${out2.label} rồi Soot đăng tiếp.`, { do: 'sign_in', label: `Đăng nhập ${out2.label}`, channel: out2.id });
-  const live = items.filter((/** @type {any} */ q) => q.action === 'publish' && !['failed'].includes(q.state) && !q.in_flight && q.scheduled_at).sort((/** @type {any} */ a, /** @type {any} */ b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at));
+  // A channel the person paused holds its posts: they are not "next", the switch is.
+  const heldCh = (/** @type {any} */ q) => (d.channels ?? []).find((/** @type {any} */ c) => c.id === q.channel_id && c.paused);
+  const held = (d.channels ?? []).find((/** @type {any} */ c) => c.paused && c.paused_reason !== 'signed_out' && items.some((/** @type {any} */ q) => q.channel_id === c.id && q.action === 'publish'));
+  const live = items.filter((/** @type {any} */ q) => q.action === 'publish' && !['failed'].includes(q.state) && !q.in_flight && q.scheduled_at && !heldCh(q)).sort((/** @type {any} */ a, /** @type {any} */ b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at));
   const failed = items.find((/** @type {any} */ q) => q.state === 'failed');
   if (failed) return out('warn', `Một bài đăng lỗi${failed.retry_at ? `, Soot thử lại ${when(failed.retry_at).toLowerCase()}` : '. Bấm Thử ngay hoặc gỡ khỏi hàng đợi'}.`, null);
+  if (held && !live.length) return out('warn', `${held.label} đang dừng nên ${items.filter((/** @type {any} */ q) => q.channel_id === held.id && q.action === 'publish').length} bài chờ ở đây chưa đi. Bật ${held.label} để Soot đăng tiếp.`, { do: 'resume_channel', label: `Bật ${held.label}`, channel: held.id });
   if (live.length) return out('plain', `Không cần làm gì, Soot đang tự chạy. Bài kế tiếp: ${live[0].channel} ${when(live[0].scheduled_at).toLowerCase()}.`, null);
   if (items.some((/** @type {any} */ q) => q.in_flight)) return out('plain', 'Đang đăng. Vài phút nữa sẽ có liên kết bên dưới. Không cần làm gì.', null);
   return out('plain', 'Hàng đợi trống. Soot lên bài mới mỗi sáng 08:00; hoặc bạn nhờ Writer viết ngay.', d.writer ? { do: 'ask_writer', label: 'Nhờ viết bài' } : null);

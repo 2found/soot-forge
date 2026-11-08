@@ -11,6 +11,7 @@ import { fakeStore } from './fake-store.mjs';
 import { checkFacts, checkPersonal, checkPlatform, checkDuplicate, claimWindow, factClaims, CHANNEL_DEFAULTS } from '../tools/lib/guard.mjs';
 import { verifyClaim as publisherVerify, contentHash as publisherHash } from '../../../examples/lohi-marketing/packs/lohi-blog/tools/blog.mjs';
 import { verifyClaim, contentHash, signClaim } from '../tools/lib/claim.mjs';
+import { inQuiet } from '../tools/lib/time.mjs';
 
 const KEY = 'k'.repeat(32);
 const T0 = Date.parse('2026-11-10T03:00:00Z'); // 10:00 in Asia/Ho_Chi_Minh
@@ -256,6 +257,20 @@ test('a crash between post and record never posts twice: the same intent comes b
   assert.equal(w.store.data.publish_log.length, 1);
   await w.call('record', { intent_id: first.intent_id, url: 'https://blog.lohi2.com/x/y/vi/' });
   assert.equal(w.store.data.posts[0].state, 'published');
+});
+
+test('fail: a retry is never promised inside quiet hours', async () => {
+  const w = world();
+  const d = await scheduledNow(w);
+  const c = (await w.call('claim', { id: d.id, action: 'publish' })).claim;
+  // 22:20 local (UTC+7): an hour later is 23:20, inside the 23:00-07:00 quiet hours.
+  const local = new Date(w.now + 7 * 3600e3);
+  const target = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), 22, 20) - 7 * 3600e3;
+  w.now = target > w.now - 1 ? target : target + 24 * 3600e3;
+  await w.call('fail', { intent_id: c.intent_id, status: 'failed', reason: 'deploy_failed' });
+  const at = Date.parse(w.store.data.queue[0].scheduled_at);
+  assert.ok(!inQuiet(at), 'the retry time is outside quiet hours');
+  assert.ok(at >= w.now + 3600e3, 'and no earlier than an hour on');
 });
 
 test('fail: failed retries later, needs_person pauses the channel, uncertain keeps the intent', async () => {

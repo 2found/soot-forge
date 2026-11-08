@@ -29,3 +29,15 @@ test('build: no default blog remote, --blog-remote writes only what it is given'
   const set = build(tmp(), { env: true, video: false, connection: null, home: tmp(), blogRemote: '/tmp/scratch.git' });
   assert.equal(JSON.parse(readFileSync(join(set.out, 'deployment.json'), 'utf8')).env.LOHI_BLOG_REMOTE, '/tmp/scratch.git');
 });
+
+test('build: the Forge packs are copied exactly as the release archive ships them (so the runtime adopts them by digest)', async () => {
+  const { build } = await import('./setup.mjs');
+  const { packFiles } = await import('../../scripts/archive.mjs');
+  const { join: j, resolve: r } = await import('node:path');
+  const out = build(tmp(), { env: true, video: false, connection: null, home: tmp() }).out;
+  for (const id of ['marketing', 'browser-use']) {
+    const want = (await packFiles(r(import.meta.dirname, '..', '..', 'packs', id))).sort();
+    const got = (await packFiles(j(out, 'packs', id), { slim: false })).sort();
+    assert.deepEqual(got, want, `${id}: installed files differ from the release archive's`);
+  }
+});
