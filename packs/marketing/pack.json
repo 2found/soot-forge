@@ -251,7 +251,7 @@
     {
       "name": "cms_save",
       "title": "Lưu bản nháp CMS",
-      "description": "Save a CMS draft revision; it never goes live (a publisher does that with cms_publish after reviewing it). New post: expected_revision 0. Edit: the revision cms_read returned. Body is Markdown, at most 40000 bytes. Returns preview_url for the reviewer.",
+      "description": "Save a CMS draft revision; it never goes live (cms_publish does that). New post: expected_revision 0. Edit: the revision cms_read returned. Body is Markdown, at most 40000 bytes.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -325,7 +325,7 @@
     {
       "name": "social_queue",
       "title": "Tạo bản nháp mạng xã hội",
-      "description": "Queue a social post draft for one channel. Length is checked the way the platform counts it (X: 280, a link counts 23, Vietnamese accented letters count 2). TikTok is a video: text is the caption and media_note the shot list and voice-over script.",
+      "description": "Queue a social post draft for one channel. Length is checked as the platform counts it (X: 280, link 23, accented letters 2). TikTok is a video: text is the caption and media_note the shot list and voice-over script.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -381,7 +381,7 @@
     {
       "name": "social_list",
       "title": "Xem bản nháp mạng xã hội",
-      "description": "List social posts, newest first, optionally by channel or status. Uncertain Facebook posts are looked up on the Page first and come back published when they landed. approved means released for X and waiting for the browser poster on the operator's computer. approval_asked_at is set on a draft whose current revision waits for an operator's decision in Nest (only when the publish tool is approval-gated).",
+      "description": "List social posts, newest first, optionally by channel or status. Uncertain Facebook posts are looked up on the Page first. approved means released for X and waiting for the browser poster on the operator's computer. approval_asked_at is set on a draft whose revision waits for an operator's decision in Nest.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -713,7 +713,7 @@
     {
       "name": "due",
       "title": "Việc đến hạn",
-      "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised; resolves_need when no need is left. The dispatch schedule passes schedule: true (remembers whom it woke for) and skip: channels a tool chain publishes. With channel it is the chain's first step: {id, action} of the one due publish on that channel for marketing_claim, or {done: true}.",
+      "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised; resolves_need when none is left. The dispatch schedule passes schedule: true and skip: channels a tool chain publishes. With channel: {id, action} of the one due publish there for marketing_claim, or {done: true}.",
       "parameters": {"type":"object","properties":{"refile":{"type":"boolean"},"schedule":{"type":"boolean"},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"skip":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":32}}},"required":[],"additionalProperties":false},
       "run": {
         "program": "node",
@@ -727,7 +727,7 @@
     {
       "name": "claim",
       "title": "Nhận lượt đăng",
-      "description": "Claim one due post (publish), reply (reply) or removal (unpublish) for its publisher. Re-runs the guard, checks pause, cap, spacing, quiet hours, staleness and the Editor's verdict on this exact content, writes the intent record, then returns a signed claim; otherwise a refusal with its reason (done: true, so a tool chain stops quietly). With verify_first the publisher must look for an earlier post (find) and never post again.",
+      "description": "Claim one due post (publish), reply (reply) or removal (unpublish) for its publisher. Re-runs the guard, checks pause, cap, spacing, quiet hours, staleness and the Editor's verdict on this exact content, writes the intent record, then returns a signed claim; otherwise a refusal with its reason (done: true). With verify_first the publisher must look for an earlier post (find) and never post again.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -751,7 +751,7 @@
     {
       "name": "record",
       "title": "Ghi đã đăng",
-      "description": "Record the publisher's result for a claim: the live URL. A tool chain passes the publisher's answer as is. A post returns the outcome {id: post_published, ref: url} for the Soot to report; a reply or removal returns none.",
+      "description": "Record the publisher's result for a claim: the live URL. A tool chain passes the publisher's answer as is. A post returns the outcome {id: post_published, ref: url}; a reply or removal returns none.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -776,7 +776,7 @@
     {
       "name": "fail",
       "title": "Ghi đăng lỗi",
-      "description": "Record that a claimed action did not happen (failed: retried later), needs a person (reason signed_out, layout_changed or captcha: pauses only that channel) or is uncertain (never claimed again until a person answers). After verify_first any failure keeps the post uncertain.",
+      "description": "Record that a claimed action did not happen (failed: retried later), needs a person (reason signed_out, layout_changed or captcha: pauses only that channel) or is uncertain (never claimed again until a person answers).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -847,7 +847,7 @@
     {
       "name": "page_action",
       "title": "Đổi trang marketing",
-      "description": "Bài viết / Hàng đợi / Chiến dịch page action: pull, restore, reschedule, unpublish, set_limits (a channel's caps), pause, resume, campaign_save or campaign_refresh. Needs a request_id. Only the campaign ops need PRODUCT_ADMIN_KEY (optional; absent answers needs_credential).",
+      "description": "Bài viết / Hàng đợi / Chiến dịch page action: pull, restore, reschedule, unpublish, set_limits (a channel's caps), pause, resume, campaign_save or campaign_refresh. Needs a request_id. Only campaign ops need PRODUCT_ADMIN_KEY (optional).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -950,7 +950,7 @@
     {
       "name": "plan",
       "title": "Kế hoạch bài hôm nay",
-      "description": "The daily content plan. wake: true is the schedule, tool-only: it queues a checked draft nobody scheduled, and wakes the Writer only for a free blog slot or a published post still to share on a signed-in social channel. Without wake it is the Writer's ready brief (query: a subject asked for): topic (ranked by how published posts did), keyword, angle, real novels with links, internal_links, titles to avoid, social (posts to share per channel). Saves the catalog it was given.",
+      "description": "The daily content plan. wake: true is the schedule, tool-only: it queues a checked draft nobody scheduled, and wakes the Writer only for a free blog slot or a published post still to share on a signed-in social channel. Without wake it is the Writer's ready brief (query: a subject asked for): topic, keyword, angle, real novels with links, internal_links, titles to avoid, social (posts to share per channel). Saves the catalog it was given.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -987,7 +987,7 @@
     {
       "name": "channels_probe",
       "title": "Kiểm tra đăng nhập kênh",
-      "description": "For a tool chain around the Editor's browser: with no result it names the next paused social channel's check page ({action: navigate, url}, the browser-use_control input) or {done: true}; with the page's result it decides signed in or out from the page text, unpauses only a channel the person confirmed and that is really signed in, and sends a confirmed-but-signed-out channel back to its sign-in card. Unsure changes nothing.",
+      "description": "For a tool chain around the Editor's browser: with no result it names the next paused social channel's check page ({action: navigate, url}, the browser-use_control input) or {done: true}; with the page's result it decides signed in or out from the page text, unpauses only a channel the person confirmed that is really signed in, and sends a confirmed-but-signed-out one back to its sign-in card.",
       "parameters": {"type":"object","properties":{"session":{"type":"string","maxLength":200},"result":{},"resource":{"type":"object"}},"required":[],"additionalProperties":false},
       "run": {
         "program": "node",
@@ -1162,7 +1162,7 @@
     {
       "name": "video_import",
       "title": "Nhận video từ mvf",
-      "description": "Read a finished 2build marketing-video (mvf) campaign folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook) with its assets. A render failure (pass error) or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes.",
+      "description": "Read a finished 2build marketing-video (mvf) folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook) with its assets. A render failure or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1242,7 +1242,8 @@
         "max_output_bytes": 65536,
         "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}
       }
-    }
+    },
+    {"name":"campaign_verify","title":"Kiểm tra khoá chiến dịch","description":"Check the saved admin key with one read-only request: state ok, wrong_key or no_role.","parameters":{"type":"object","properties":{},"additionalProperties":false},"run":{"program":"node","args":["tools/marketing.mjs","campaign_verify"],"stdin":"context","mode":"read","timeout":"30s","max_output_bytes":4096,"secret_env":{"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}}}
   ],
   "needs": {
     "env": ["PRODUCT_API_URL"],

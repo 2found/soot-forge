@@ -1,12 +1,12 @@
 // A fixture of the Lohi api's campaign routes (design §7, frozen shapes):
 // POST /admin/links → {code, url}; GET /admin/analysis/campaigns/:id?from&to →
-// {clicks, signups}; X-API-Key auth (403 on a wrong key). `mode` is ok, error
+// {clicks, signups}; X-API-Key auth (401 on a wrong key; 403 for `limitedKey`, a key without the role). `mode` is ok, error
 // (503) or hang (never answers). Used by the tests and the real local check:
 // node tests/lohi-api-fixture.mjs <port> <key>.
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
-export function startFixture({ key, port = 0, host = '127.0.0.1' } = {}) {
+export function startFixture({ key, limitedKey = null, port = 0, host = '127.0.0.1' } = {}) {
   let seq = 0;
   const state = {
     mode: 'ok', calls: [], analysis: { clicks: [], signups: [] }, links: new Map(),
@@ -22,7 +22,8 @@ export function startFixture({ key, port = 0, host = '127.0.0.1' } = {}) {
     const send = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
     if (state.mode === 'hang') { hung.add(res); return; }
     if (state.mode === 'error') return send(503, { error: 'unavailable' });
-    if (call.key !== key) return send(403, { error: 'forbidden' });
+    if (limitedKey && call.key === limitedKey) return send(403, { error: 'forbidden' });
+    if (call.key !== key) return send(401, { error: 'authentication_required' });
     if (req.method === 'POST' && req.url === '/admin/links') {
       const code = 'c' + (++seq).toString(36).padStart(5, '0');
       state.links.set(code, call.body);

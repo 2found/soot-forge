@@ -81,7 +81,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   const granted = new Set(editor.packs.find(r => r.startsWith('marketing:tools=')).slice('marketing:tools='.length).split(','));
   for (const t of granted) assert.ok(packs.marketing.tools.some(x => x.name === t), `editor tool ${t}`);
   for (const s of host.schedules.filter(x => x.soot === 'lohi-editor')) for (const st of [{ pack: s.tool.pack, tool: s.tool.name }, ...(s.then ?? [])]) if (st.pack === 'marketing') assert.ok(granted.has(st.tool), `${s.id} runs marketing_${st.tool} as the Editor`);
-  assert.ok(granted.size <= 21 && !granted.has('video_import') && !granted.has('cms_save'), 'no hub or video tools in the Editor');
+  assert.ok(granted.size <= 22 && !granted.has('video_import') && !granted.has('cms_save'), 'no hub or video tools in the Editor');
   const blogChain = byId['marketing-blog'];
   assert.deepEqual(blogChain.tool.input, { schedule: true, channel: 'blog-lohi' });
   assert.deepEqual(blogChain.then.map(x => `${x.pack}_${x.tool}`), ['marketing_claim', 'lohi-blog_publish', 'marketing_record']);
@@ -117,4 +117,36 @@ test('the Lohi recipe: one video path, the Video Soot runs 2build mvf and the Ed
   assert.match(mission, /marketing-video/);
   assert.match(mission, /marketing_video_import/);
   assert.match(mission, /never post/);
+});
+
+test('setup over a Forge-installed pack keeps the receipt and the release file set', async () => {
+  const { mkdtemp, writeFile, readFile, mkdir } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { installPack } = await import('../examples/lohi-marketing/setup.mjs');
+  const { packFiles } = await import('./archive.mjs');
+  const forge = fileURLToPath(new URL('..', import.meta.url));
+  const out = await mkdtemp(join(tmpdir(), 'setup-twice-'));
+  const dest = join(out, 'packs', 'marketing');
+  assert.equal(installPack(forge, out, 'marketing'), 'copied');
+  const release = await packFiles(join(forge, 'packs', 'marketing'));
+  // Forge installs: the release files plus the receipt.
+  await writeFile(join(dest, '.soot-source.json'), '{"id":"marketing"}\n');
+  for (let i = 0; i < 2; i++) assert.equal(installPack(forge, out, 'marketing'), 'kept');
+  // A dev-only file that slipped in (an older setup copied tests/) is repaired only when the pack is not Forge-installed; here it is left, never the receipt.
+  assert.equal(await readFile(join(dest, '.soot-source.json'), 'utf8'), '{"id":"marketing"}\n');
+  const now = (await packFiles(dest, { slim: false })).filter(f => f !== '.soot-source.json');
+  assert.deepEqual(now, release);
+  // An older installed copy is brought to the release set and keeps its receipt.
+  const manifest = JSON.parse(await readFile(join(dest, 'pack.json'), 'utf8'));
+  await writeFile(join(dest, 'pack.json'), JSON.stringify({ ...manifest, version: '0.0.1' }));
+  await mkdir(join(dest, 'tests'), { recursive: true });
+  await writeFile(join(dest, 'tests', 'x.mjs'), '');
+  const fromVersion = JSON.parse(await readFile(join(forge, 'packs', 'marketing', 'pack.json'), 'utf8')).version;
+  if (fromVersion !== undefined) {
+    assert.equal(installPack(forge, out, 'marketing'), 'copied');
+    assert.equal(await readFile(join(dest, '.soot-source.json'), 'utf8'), '{"id":"marketing"}\n');
+    assert.deepEqual((await packFiles(dest, { slim: false })).filter(f => f !== '.soot-source.json'), release);
+  }
 });
