@@ -269,3 +269,20 @@ export async function campaignView(input, { store, now, env, soot }) {
     .sort((a, b) => rank[a.phase] - rank[b.phase] || Date.parse(b.starts) - Date.parse(a.starts));
   return { ...head, items, choices, empty: !items.length };
 }
+
+/** campaign_verify: one read-only request that says whether the saved admin key works (Thiết lập shows it on the row).
+ * 401 = wrong key; 403 = a real key without the role; 2xx/404 = accepted. Never writes, never returns the key. */
+export async function campaign_verify(_input, deps) {
+  const base = String(deps.env?.PRODUCT_API_URL ?? '').replace(/\/+$/, '');
+  if (!/^https:\/\/[^/\s]+$/.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(base)) return { state: 'no_api', ok: false, message: API_WHY.no_api() + '.' };
+  if (!deps.env?.PRODUCT_ADMIN_KEY) return { state: 'no_key', ok: false, message: API_WHY.no_key() + '.' };
+  const day = localDay(deps.now);
+  let res;
+  try {
+    res = await deps.fetch(`${base}/admin/analysis/campaigns/key-check?from=${day}&to=${day}`, { method: 'GET', signal: AbortSignal.timeout(deps.apiTimeoutMs ?? TIMEOUT_MS), headers: { 'X-API-Key': deps.env.PRODUCT_ADMIN_KEY, Accept: 'application/json' } });
+  } catch { return { state: 'unreachable', ok: false, message: `${apiHost(deps)} không trả lời, chưa kiểm tra được khoá.` }; }
+  if (res.status === 401) return { state: 'wrong_key', ok: false, message: 'Khoá không đúng.' };
+  if (res.status === 403) return { state: 'no_role', ok: false, message: 'Khoá đúng nhưng thiếu quyền: tạo khoá vai trò agent_mod ở trang quản trị Lohi.' };
+  if (res.ok || res.status === 404) return { state: 'ok', ok: true, message: 'Khoá dùng được.' };
+  return { state: 'unreachable', ok: false, message: `${apiHost(deps)} trả lỗi ${res.status}, chưa kiểm tra được khoá.` };
+}

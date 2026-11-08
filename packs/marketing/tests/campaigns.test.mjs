@@ -244,3 +244,24 @@ test('p5 review: span ≤ 62 days, one channel per platform, https-only api, api
   assert.equal(d.revision, 2);
   assert.equal((await w.store.call('posts', 'query', {})).rows.find(x => x.ref === 'P-0000000009').campaign, 'Lohi Dec');
 });
+
+test('campaign_verify: one read-only GET says ok, wrong key, key without the role, or api down; the key is never in the answer', async () => {
+  api.reset();
+  const w = world();
+  const ok = await w.call('campaign_verify', {});
+  assert.deepEqual([ok.state, ok.ok], ['ok', true]);
+  assert.deepEqual(api.calls.map(c => c.method), ['GET']);
+  assert.match(api.calls[0].path, /^\/admin\/analysis\/campaigns\/[^/?]+\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/);
+  const wrong = await world({ env: { PRODUCT_ADMIN_KEY: 'not-the-key' } }).call('campaign_verify', {});
+  assert.deepEqual([wrong.state, wrong.message], ['wrong_key', 'Khoá không đúng.']);
+  const limited = await startFixture({ key: KEY, limitedKey: 'reader-key' });
+  const noRole = await world({ env: { PRODUCT_API_URL: limited.url, PRODUCT_ADMIN_KEY: 'reader-key' } }).call('campaign_verify', {});
+  await limited.close();
+  assert.equal(noRole.state, 'no_role');
+  assert.match(noRole.message, /thiếu quyền.*agent_mod/);
+  api.mode = 'error';
+  const down = await w.call('campaign_verify', {});
+  assert.equal(down.state, 'unreachable');
+  assert.equal(JSON.stringify([ok, wrong, noRole, down]).includes('reader-key'), false);
+  assert.equal((await world({ env: { PRODUCT_ADMIN_KEY: '' } }).call('campaign_verify', {})).state, 'no_key');
+});

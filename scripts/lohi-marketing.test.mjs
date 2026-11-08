@@ -81,7 +81,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   const granted = new Set(editor.packs.find(r => r.startsWith('marketing:tools=')).slice('marketing:tools='.length).split(','));
   for (const t of granted) assert.ok(packs.marketing.tools.some(x => x.name === t), `editor tool ${t}`);
   for (const s of host.schedules.filter(x => x.soot === 'lohi-editor')) for (const st of [{ pack: s.tool.pack, tool: s.tool.name }, ...(s.then ?? [])]) if (st.pack === 'marketing') assert.ok(granted.has(st.tool), `${s.id} runs marketing_${st.tool} as the Editor`);
-  assert.ok(granted.size <= 21 && !granted.has('video_import') && !granted.has('cms_save'), 'no hub or video tools in the Editor');
+  assert.ok(granted.size <= 22 && !granted.has('video_import') && !granted.has('cms_save'), 'no hub or video tools in the Editor');
   const blogChain = byId['marketing-blog'];
   assert.deepEqual(blogChain.tool.input, { schedule: true, channel: 'blog-lohi' });
   assert.deepEqual(blogChain.then.map(x => `${x.pack}_${x.tool}`), ['marketing_claim', 'lohi-blog_publish', 'marketing_record']);
