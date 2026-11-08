@@ -10,7 +10,7 @@
 // and any credential already stored are never touched, no secret is printed.
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +61,26 @@ function runtimeKnowsEnv(soot) {
   } catch { return false; }
 }
 
+const RECEIPT = '.soot-source.json';
+const versionOf = file => { try { const v = JSON.parse(readFileSync(file, 'utf8')).version; return typeof v === 'number' || typeof v === 'string' ? String(v) : ''; } catch { return ''; } };
+const newer = (a, b) => a.localeCompare(b, 'en', { numeric: true }) > 0;
+
+/**
+ * A pack Forge already installed (it has the install receipt) is left alone unless the recipe's copy is newer: wiping it
+ * would drop the receipt and dev-only files would make `soot updates` say the pack was edited on this host. Otherwise
+ * the pack is copied as the release archive ships it (scripts/archive.mjs), and a receipt that is there is kept.
+ */
+export function installPack(forgeDir, out, id) {
+  const to = join(out, 'packs', id);
+  const from = join(forgeDir, 'packs', id);
+  const receipt = join(to, RECEIPT);
+  if (existsSync(receipt) && !newer(versionOf(join(from, 'pack.json')), versionOf(join(to, 'pack.json')))) return 'kept';
+  if (existsSync(to)) for (const name of readdirSync(to)) if (name !== RECEIPT) rmSync(join(to, name), { recursive: true, force: true });
+  // The release archive's own rule: a copy with a test file the archive omits is no longer the Forge copy.
+  cpSync(from, to, { recursive: true, filter: s => !/[\\/]node_modules([\\/]|$)/.test(s) && !isDevOnly(relative(from, s).split(sep).join('/')) });
+  return 'copied';
+}
+
 export function build(dir, { port = 7790, video = true, blogRemote, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
   const out = resolve(dir);
   const host = JSON.parse(readFileSync(join(here, 'deployment.example.json'), 'utf8'));
@@ -74,13 +94,7 @@ export function build(dir, { port = 7790, video = true, blogRemote, soot = 'soot
   if (env) host.env = hostEnv;
   mkdirSync(join(out, 'packs'), { recursive: true });
   mkdirSync(join(out, 'soots'), { recursive: true });
-  for (const id of packs) {
-    rmSync(join(out, 'packs', id), { recursive: true, force: true });
-    // The release archive's own rule (scripts/archive.mjs): a copy with a test file the archive omits is no longer
-    // the Forge copy, so the runtime would not adopt it by digest and would ask a person to apply it.
-    const from = join(forge, 'packs', id);
-    cpSync(from, join(out, 'packs', id), { recursive: true, filter: s => !/[\\/]node_modules([\\/]|$)/.test(s) && !isDevOnly(relative(from, s).split(sep).join('/')) });
-  }
+  for (const id of packs) installPack(forge, out, id);
   rmSync(join(out, 'packs', 'lohi-blog'), { recursive: true, force: true });
   cpSync(join(here, 'packs', 'lohi-blog'), join(out, 'packs', 'lohi-blog'), { recursive: true, filter: s => !/[\\/]tests([\\/]|$)/.test(s) });
   for (const f of host.soots) cpSync(join(here, f), join(out, f));

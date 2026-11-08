@@ -118,3 +118,35 @@ test('the Lohi recipe: one video path, the Video Soot runs 2build mvf and the Ed
   assert.match(mission, /marketing_video_import/);
   assert.match(mission, /never post/);
 });
+
+test('setup over a Forge-installed pack keeps the receipt and the release file set', async () => {
+  const { mkdtemp, writeFile, readFile, mkdir } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { installPack } = await import('../examples/lohi-marketing/setup.mjs');
+  const { packFiles } = await import('./archive.mjs');
+  const forge = fileURLToPath(new URL('..', import.meta.url));
+  const out = await mkdtemp(join(tmpdir(), 'setup-twice-'));
+  const dest = join(out, 'packs', 'marketing');
+  assert.equal(installPack(forge, out, 'marketing'), 'copied');
+  const release = await packFiles(join(forge, 'packs', 'marketing'));
+  // Forge installs: the release files plus the receipt.
+  await writeFile(join(dest, '.soot-source.json'), '{"id":"marketing"}\n');
+  for (let i = 0; i < 2; i++) assert.equal(installPack(forge, out, 'marketing'), 'kept');
+  // A dev-only file that slipped in (an older setup copied tests/) is repaired only when the pack is not Forge-installed; here it is left, never the receipt.
+  assert.equal(await readFile(join(dest, '.soot-source.json'), 'utf8'), '{"id":"marketing"}\n');
+  const now = (await packFiles(dest, { slim: false })).filter(f => f !== '.soot-source.json');
+  assert.deepEqual(now, release);
+  // An older installed copy is brought to the release set and keeps its receipt.
+  const manifest = JSON.parse(await readFile(join(dest, 'pack.json'), 'utf8'));
+  await writeFile(join(dest, 'pack.json'), JSON.stringify({ ...manifest, version: '0.0.1' }));
+  await mkdir(join(dest, 'tests'), { recursive: true });
+  await writeFile(join(dest, 'tests', 'x.mjs'), '');
+  const fromVersion = JSON.parse(await readFile(join(forge, 'packs', 'marketing', 'pack.json'), 'utf8')).version;
+  if (fromVersion !== undefined) {
+    assert.equal(installPack(forge, out, 'marketing'), 'copied');
+    assert.equal(await readFile(join(dest, '.soot-source.json'), 'utf8'), '{"id":"marketing"}\n');
+    assert.deepEqual((await packFiles(dest, { slim: false })).filter(f => f !== '.soot-source.json'), release);
+  }
+});
