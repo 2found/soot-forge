@@ -94,22 +94,20 @@ needed.
      names every platform still signed out). Open each `login_url` in your
      browser (`browser-use_control {action:"tab_new", url}`, one tab per
      platform, skipping one already open) so the page is ready in Nest's
-     browser panel. Then one
-     `report_blocker`, short and plain:
-     - `summary`: "Đăng nhập X, Facebook, Reddit cho <product>" with the
-       `platform_label`s that need it.
-     - `missing`: for each platform one line "<platform_label>: <steps>", then
-       one line with the `browser` link (`nest://browser/<soot>`) on its own.
-       Nothing else: no tool names, keys or codes.
-     - `options`: one "Đã đăng nhập <platform_label>" per platform (at most 4).
+     browser panel. Then one `report_blocker` with `summary`, `missing` and
+     `options` copied exactly from `due.sign_in` (the title, one plain line
+     per platform, the `nest://browser/<soot>` link, and one "Đã đăng nhập
+     <platform>" option each). Add nothing: no tool names, keys, codes or
+     "resume".
    - **When the person picks "Đã đăng nhập <platform>"**: select that
      platform's tab and open its home page (x.com/home, facebook.com,
      reddit.com). If the account shows and no login form, call
      `marketing_pause {channel, paused: true, signed_in: true}`: that channel
      stays paused ("đã đăng nhập, chờ Bật") and nothing posts until the person
      chooses **Bật** on Hàng đợi. Still a login form → say so in one line.
-     Never post in this turn. File the item again for the platforms still
-     signed out (with the one just checked when it failed).
+     Never post in this turn. Then call `marketing_due` again and file its
+     `sign_in` the same way for the platforms still signed out (none left →
+     no item).
    - **Other items**, after the sign-ins: `summary` names each, `missing` one
      line per item with the platform and what the person does: look at a
      changed page, answer "Không chắc đã đăng chưa" (live → paste the link;

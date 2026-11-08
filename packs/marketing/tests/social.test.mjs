@@ -430,8 +430,14 @@ test('AC11: the Hàng đợi view on a fresh workspace never writes (its storage
 
 test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest browser; "Đã đăng nhập" keeps that channel paused until Bật', async () => {
   const w = world();
-  await w.call('channels_setup', { channels: CHANNELS });
+  await w.call('channels_setup', { channels: CHANNELS, product: 'Lohi' });
   const due = await w.call('due', {}, { soot: 'lohi-editor' });
+  const steps = 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập';
+  assert.deepEqual(due.sign_in, {
+    summary: 'Đăng nhập X, Facebook, Reddit cho Lohi',
+    missing: `X: ${steps}\nFacebook: ${steps}\nReddit: ${steps}\nnest://browser/lohi-editor`,
+    options: [{ label: 'Đã đăng nhập X' }, { label: 'Đã đăng nhập Facebook' }, { label: 'Đã đăng nhập Reddit' }],
+  }, 'one ready Cần bạn item, in channel order');
   const x = due.needs.find(n => n.channel === 'x-lohi');
   assert.deepEqual([x.platform_label, x.title, x.login_url, x.browser, x.account], ['X', 'Đăng nhập X', 'https://x.com/i/flow/login', 'nest://browser/lohi-editor', 'lohi2com']);
   assert.equal(x.steps, 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập');
@@ -444,6 +450,7 @@ test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest b
   assert.deepEqual([w.ch('x-lohi').paused_reason, w.ch('facebook-lohi').paused_reason], ['signed_in', 'signed_out']);
   const after = await w.call('due', {});
   assert.deepEqual(after.needs.map(n => n.channel).sort(), ['facebook-lohi', 'reddit-lohi']);
+  assert.equal(after.sign_in.summary, 'Đăng nhập Facebook, Reddit cho Lohi', 'filed again for the platforms left, raised or not');
   assert.equal(after.notify, false, 'the platforms left stay raised');
   const view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
   assert.equal(view.channels.find(c => c.id === 'x-lohi').paused_label, 'đã đăng nhập, chờ Bật');

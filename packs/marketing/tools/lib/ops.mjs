@@ -27,7 +27,7 @@ export const STATE_LABEL = {
 export async function getSettings(store) {
   const rows = await store.query('settings', [], { limit: 100 });
   const s = Object.fromEntries(rows.map(r => [r.key, r.value]));
-  return { paused_all: s.paused_all === true, quiet_hours: s.quiet_hours ?? DEFAULT_QUIET, stale_after_h: s.stale_after_h ?? 6, paused_at: s.paused_at ?? null, gsc: s.gsc ?? null };
+  return { paused_all: s.paused_all === true, quiet_hours: s.quiet_hours ?? DEFAULT_QUIET, stale_after_h: s.stale_after_h ?? 6, paused_at: s.paused_at ?? null, gsc: s.gsc ?? null, product: s.product ?? null };
 }
 
 export async function setSetting(store, key, value) {
@@ -239,6 +239,17 @@ export async function due(input, { store, now, soot }) {
     }
     if (settings.paused_all || ch?.paused) continue;
     (q.action === 'reply' ? out.reply : out.publish).push(q.post);
+  }
+  // Every platform still signed out, as one ready Cần bạn item (report_blocker takes it as is).
+  const order = Object.keys(LOGIN_URL);
+  const signIns = out.needs.filter(n => n.login_url).sort((a, b) => order.indexOf(a.platform) - order.indexOf(b.platform));
+  if (signIns.length) {
+    const labels = signIns.map(n => n.platform_label);
+    out.sign_in = {
+      summary: `Đăng nhập ${labels.join(', ')}${settings.product ? ` cho ${settings.product}` : ''}`,
+      missing: [...signIns.map(n => `${n.platform_label}: ${SIGN_IN_STEPS}`), ...(signIns[0].browser ? [signIns[0].browser] : [])].join('\n'),
+      options: labels.slice(0, 4).map(l => ({ label: `Đã đăng nhập ${l}` })),
+    };
   }
   // The runtime's wake_when matches the boolean `notify` (or a string at a path), so both say the same.
   out.wake = out.notify = out.publish.length + out.unpublish.length + out.reply.length > 0 || out.needs.some(n => !n.raised);
@@ -580,6 +591,8 @@ export async function channels_setup(input, { store }) {
     await setSetting(store, 'quiet_hours', { from: q.from, to: q.to, tz: q.tz });
   }
   if (Number.isInteger(input.stale_after_h) && !(await store.one('settings', [eq('key', 'stale_after_h')]))) await setSetting(store, 'stale_after_h', input.stale_after_h);
+  // The product's name, for Cần bạn wording ("Đăng nhập X cho Lohi"); the recipe owns it.
+  if (typeof input.product === 'string' && input.product.trim()) await setSetting(store, 'product', input.product.trim().slice(0, 64));
   return { channels: out, quiet_hours: (await getSettings(store)).quiet_hours ?? settings.quiet_hours };
 }
 

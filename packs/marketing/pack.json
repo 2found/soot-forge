@@ -703,7 +703,7 @@
     {
       "name": "due",
       "title": "Việc đến hạn",
-      "description": "For the dispatch schedule: queued posts due to publish, replies due to send, unpublish requests, late items (never posted on their own) and needs: Cần bạn items (signed out, layout changed, captcha, late, uncertain, replies Soot never answers), each with raised; a sign-in has login_url, steps and the browser link nest://browser/<soot>. wake and notify are true only when there is work or an item not yet raised (a schedule wakes on wake_when {notify: true}).",
+      "description": "For the dispatch schedule: queued posts due to publish, replies due to send, unpublish requests, late items (never posted on their own) and needs: Cần bạn items (signed out, layout changed, captcha, late, uncertain, replies Soot never answers), each with raised; a sign-in has login_url, steps and the browser link nest://browser/<soot>; sign_in is the one ready Cần bạn item for every platform still signed out. wake and notify are true only when there is work or an item not yet raised (a schedule wakes on wake_when {notify: true}).",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
       "run": {
         "program": "node",
@@ -959,7 +959,8 @@
             "required": ["from","to","tz"],
             "additionalProperties": false
           },
-          "stale_after_h": {"type":"integer","minimum":1,"maximum":72}
+          "stale_after_h": {"type":"integer","minimum":1,"maximum":72},
+          "product": {"type":"string","maxLength":64}
         },
         "required": ["channels"],
         "additionalProperties": false

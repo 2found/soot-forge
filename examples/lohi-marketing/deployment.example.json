@@ -57,6 +57,7 @@
         "pack": "marketing",
         "name": "channels_setup",
         "input": {
+          "product": "Lohi",
           "channels": [
             {
               "id": "x-lohi",
