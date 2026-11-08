@@ -42,6 +42,11 @@
       "file": "skills/browser-post.md"
     },
     {
+      "name": "marketing-dispatch",
+      "description": "Without a hub: act on marketing_due — claim, publish through the channel's publisher, record, and file the one Cần bạn item (sign-in first).",
+      "file": "skills/dispatch.md"
+    },
+    {
       "name": "marketing-replies",
       "description": "Read replies and comments on social channels, classify each (safe, complaint, money, account, flagged, spam), answer only safe ones through check and claim, and raise the rest as Cần bạn items.",
       "file": "skills/replies.md"
@@ -703,7 +708,7 @@
     {
       "name": "due",
       "title": "Việc đến hạn",
-      "description": "For the dispatch schedule: queued posts due to publish, replies due to send, unpublish requests, late items (never posted on their own) and needs: Cần bạn items (signed out, layout changed, captcha, late, uncertain, replies Soot never answers), each with raised; a sign-in has login_url, steps and the browser link nest://browser/<soot>; sign_in is the one ready Cần bạn item for every platform still signed out. wake and notify are true only when there is work or an item not yet raised (a schedule wakes on wake_when {notify: true}).",
+      "description": "For the dispatch schedule: what is due (publish, reply, unpublish; late items never post on their own) and needs (Cần bạn items, each with raised). sign_in is the ready sign-in item for every platform still signed out. wake/notify: work or an item not yet raised.",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
       "run": {
         "program": "node",
@@ -872,7 +877,7 @@
     {
       "name": "facts_sync",
       "title": "Đọc giá và số liệu",
-      "description": "Read the product's served price/config source (https JSON) into facts; the guard accepts only prices, percentages and free offers found there within 24 hours.",
+      "description": "Read the product's served price/config source into facts; the guard accepts only prices and offers found there within 24 hours.",
       "parameters": {
         "type": "object",
         "properties": {"url":{"type":"string","maxLength":500}},
@@ -891,7 +896,7 @@
     {
       "name": "gsc_sync",
       "title": "Đọc Search Console",
-      "description": "Read Search Console impressions, clicks and position for every published post URL (page by day for the last days, queries for 28 days). Needs the Google sign-in; a missing or revoked sign-in answers needs_person.",
+      "description": "Read Search Console numbers for published post URLs. Needs the Google sign-in; missing or revoked answers needs_person.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -928,7 +933,7 @@
     {
       "name": "channels_setup",
       "title": "Thiết lập kênh",
-      "description": "Create the listed channels if missing (social channels start paused until their first sign-in) and fill only unset caps, account and rules; also quiet hours and stale_after_h when unset. Never unpauses a channel or overwrites a founder's edit. For a tool-only schedule.",
+      "description": "For a tool-only schedule: create missing channels (social ones paused until signed in) and fill only unset caps, account, rules, quiet hours, stale_after_h and the product name. Never unpauses or overwrites an edit.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -998,7 +1003,7 @@
     {
       "name": "replies_sync",
       "title": "Đọc phản hồi",
-      "description": "For the replies schedule (every 2 h): read watched Reddit threads by RSS, drop reader handles older than 30 days, and list replies to classify and browser channels (X, Facebook) to read. wake and notify are true only when there is something for the Publisher.",
+      "description": "For the replies schedule: read watched Reddit threads by RSS, drop reader handles after 30 days, list replies to classify and channels to read. wake/notify only when there is something to do.",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
       "run": {
         "program": "node",

@@ -29,7 +29,7 @@ The intent is written before you act. So:
 
 ## Read the page (each snapshot)
 
-Use `snapshot -i`. Classify the page with these checks, in this order:
+Use `snapshot -i -c` (interactive, compact). Classify the page with these checks, in this order:
 
 1. **Signed out:** the URL path has `login`, `signin`, `i/flow/login` or
    `checkpoint`, or the snapshot has a password field or a "Log in"/"Sign in"/
@@ -46,7 +46,7 @@ Use `snapshot -i`. Classify the page with these checks, in this order:
 
 `needs_person` pauses only that channel. Nothing was posted. The other
 channels go on. The person hears of it in the one `report_blocker` that ends
-your turn (marketing-publish step 6). For a sign-in you open the platform's
+your turn (marketing-dispatch step 4). For a sign-in you open the platform's
 login page in your own browser and the item links to it; the person signs in
 there and picks "Đã đăng nhập <platform>". Other lines name the platform:
 "X đổi giao diện: không tìm thấy ô soạn bài", or "X hỏi captcha".
