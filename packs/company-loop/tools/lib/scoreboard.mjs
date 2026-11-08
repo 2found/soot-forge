@@ -29,7 +29,7 @@ const rowOf = board => ({
 
 const valid = b => b && b.version === 1 && b.metrics && typeof b.metrics === 'object' && !Array.isArray(b.metrics)
   && /^\d{4}-\d{2}-\d{2}$/.test(b.range?.from ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(b.range?.to ?? '')
-  && Object.values(b.metrics).every(m => m && typeof m === 'object' && Number.isFinite(m.value));
+  && Object.values(b.metrics).every(m => m && typeof m === 'object' && (m.value === null || Number.isFinite(m.value)) && (m.previous == null || Number.isFinite(m.previous)));
 
 async function fetchBoard(deps, url, key, { from, to }) {
   const u = new URL(url.toString());

@@ -13,7 +13,10 @@ export const teamIdOf = ref => `loop-${ref.toLowerCase()}`;
 const bullets = (xs, empty) => (xs?.length ? xs.map(x => `- ${x}`).join('\n') : empty);
 
 /** The requirement in the shape bbs:team's kickoff asks for: outcome, audience, scope, non-goals, criteria, evidence. */
-export function requirementText(opp, { baseline, at }) {
+export function requirementText(rawOpp, { baseline, at }) {
+  // Model-written text stays one line per field, so it cannot open a heading or a section of its own.
+  const one = s => short(s, 600);
+  const opp = { ...rawOpp, title: one(rawOpp.title), summary: rawOpp.summary ? one(rawOpp.summary) : rawOpp.summary, evidence_refs: (rawOpp.evidence_refs ?? []).map(one) };
   const half = Number.isFinite(opp.expected_delta) ? Math.round((opp.expected_delta / 2) * 100) / 100 : null;
   return `# ${reqName(opp.ref).replace(/\.md$/, '')}: ${opp.title}
 
@@ -63,7 +66,7 @@ None recorded; the team decides Mechanical and Taste questions as assumptions.
 
 /** The exact command a founder can run by hand. */
 export function spawnCommand(repo, teamId, reqPath, agent = 'claude') {
-  const inner = `${agent} ${shq(`/bbs:team --team-id ${teamId} --auto ${reqPath}`)}`;
+  const inner = `${agent} ${shq(`/bbs:team --team-id ${teamId} --auto ${/^[\w./@+:-]+$/.test(reqPath) ? reqPath : shq(reqPath)}`)}`;
   return { argv: ['team', 'spawn', teamId, '--dir', repo, '--auto', '--command', inner], text: `cd ${shq(repo)} && bbs team spawn ${teamId} --dir ${shq(repo)} --auto --command ${shq(inner)}` };
 }
 

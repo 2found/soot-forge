@@ -63,7 +63,7 @@ export function fakeBbs() {
   writeFileSync(bin, `#!/usr/bin/env node
 const fs = require('node:fs'), path = require('node:path');
 const dir = ${JSON.stringify(dir)};
-fs.appendFileSync(path.join(dir, 'log'), JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd() }) + '\\n');
+fs.appendFileSync(path.join(dir, 'log'), JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), envKeys: Object.keys(process.env) }) + '\\n');
 const a = process.argv.slice(2);
 if (a[0] === 'team' && a[1] === 'spawn') { if (fs.existsSync(path.join(dir, 'fail-spawn'))) { console.error('orca: not running'); process.exit(1); } console.log('spawned ' + a[2]); }
 else if (a[0] === 'team' && a[1] === 'snapshot') { const f = path.join(dir, 'snapshot'); if (fs.existsSync(path.join(dir, 'fail-snapshot'))) { console.error('open index.json: no such file'); process.exit(1); } console.log(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : JSON.stringify({ schema_version: 2, ok: true, data: { phases: [] } })); }

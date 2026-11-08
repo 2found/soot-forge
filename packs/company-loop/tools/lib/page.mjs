@@ -10,7 +10,7 @@ import { bbsReady } from './handoff.mjs';
 import { scoreboard_sync } from './scoreboard.mjs';
 import { safeUrl } from './base.mjs';
 
-const pct = (v, p) => (Number.isFinite(p) && p > 0 ? Math.round(((v - p) / p) * 100) : null);
+const pct = (v, p) => (Number.isFinite(v) && Number.isFinite(p) && p > 0 ? Math.round(((v - p) / p) * 100) : null);
 
 /** The one next step as a code: {code, n?, ref?, do?}. */
 export function nextStep({ setup, sync, proposals, handoffs, topics }) {
@@ -58,6 +58,8 @@ export async function page_view(input, { store, env }) {
 /** Page actions. Only here (the operator-only page) a product Go is the founder's approval. */
 export async function page_action(input, deps) {
   const { store } = deps;
+  // The founder's tap is the approval: a model call (no page context) must never reach a Go.
+  if (deps.page !== 'cong-ty') fail('forbidden', 'Chỉ trang Công ty (bấm của người) mới đổi được cơ hội; Soot không tự quyết.');
   switch (input.op) {
     case 'go': case 'later': case 'drop': {
       const out = await decide({ id: input.id, decision: input.op, note: input.note }, deps, { by: 'founder' });

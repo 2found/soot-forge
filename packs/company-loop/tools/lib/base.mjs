@@ -84,7 +84,7 @@ export function safeUrl(raw) {
 export async function getJson(deps, url, headers, why) {
   const host = url.host;
   let res;
-  try { res = await deps.fetch(url.toString(), { method: 'GET', headers: { Accept: 'application/json', ...headers }, signal: AbortSignal.timeout(deps.apiTimeoutMs ?? 10_000) }); }
+  try { res = await deps.fetch(url.toString(), { method: 'GET', headers: { Accept: 'application/json', ...headers }, signal: AbortSignal.timeout(deps.apiTimeoutMs ?? 10_000), redirect: 'error' }); }
   catch { return { error: { code: 'unreachable', host, message: why.unreachable(host) } }; }
   if (res.status === 401 || res.status === 403) return { error: { code: 'forbidden', host, message: why.forbidden(host) } };
   if (!res.ok) return { error: { code: res.status >= 500 ? 'unreachable' : 'failed', host, message: (res.status >= 500 ? why.unreachable : why.failed)(host, res.status) } };

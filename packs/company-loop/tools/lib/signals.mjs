@@ -21,7 +21,7 @@ export async function csGaps(deps) {
     .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).slice(0, 5).map(g => ({ t: short(g.topic, 80), n: g.count ?? 0 }));
 }
 
-const pct = (v, p) => (Number.isFinite(p) && p > 0 ? Math.round(((v - p) / p) * 100) : null);
+const pct = (v, p) => (Number.isFinite(v) && Number.isFinite(p) && p > 0 ? Math.round(((v - p) / p) * 100) : null);
 
 /** Shrink the lists, least important first, until the packet fits. */
 function fit(packet) {
