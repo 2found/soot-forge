@@ -1089,7 +1089,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "request_id": {"type":"string","maxLength":64},
+          "request_id": {"type":"string","minLength":1,"maxLength":31},
           "campaign": {"type":"string","maxLength":512,"description":"Workspace-relative mvf campaign folder (holds campaign.json)."},
           "script": {"type":"string","maxLength":80,"pattern":"^[A-Za-z0-9_-]{1,80}$","description":"Script id; default the pretest winner."},
           "hook": {"type":"string","pattern":"^H[0-9]{1,2}$","description":"Default the pretest winner's hook."},
