@@ -77,7 +77,12 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   const editor = await json('examples/lohi-marketing/soots/lohi-editor.json');
   assert.deepEqual(editor.packs, ['marketing', 'lohi-blog', 'browser-use'], 'the editor claims and publishes, blog and browser');
   assert.ok(!host.soots.includes('soots/lohi-radar.json'), 'no Radar Soot: the plan tool supplies the topic');
-  assert.deepEqual((await json('examples/lohi-marketing/soots/lohi-writer.json')).packs, ['marketing']);
+  const writer = (await json('examples/lohi-marketing/soots/lohi-writer.json')).packs;
+  assert.equal(writer.length, 1);
+  const tools = writer[0].replace(/^marketing:tools=/, '').split(',');
+  const declared = new Set((await json('packs/marketing/pack.json')).tools.map((t) => t.name));
+  for (const t of tools) assert.ok(declared.has(t), `writer tool ${t} is declared by marketing`);
+  assert.ok(tools.includes('draft_save') && tools.includes('plan'), 'the Writer only gets the tools it writes with');
   assert.match(await readFile(new URL('examples/lohi-marketing/soots/writer.md', root), 'utf8'), /blog-lohi/);
 });
 
