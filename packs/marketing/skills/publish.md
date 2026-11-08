@@ -90,9 +90,11 @@ needed.
    stops your turn, so first call `marketing_raised {keys}` with all their
    keys (the schedule then does not wake for them again), then, as the last
    call, one `report_blocker` for all of them.
-   - **Sign-ins first** (needs with `login_url`). Open each `login_url` in
-     your browser (`browser-use_control {action:"tab_new", url}`, one tab per
-     platform) so the page is ready in Nest's browser panel. Then one
+   - **Sign-ins first** (needs with `login_url`, raised or not: the item
+     names every platform still signed out). Open each `login_url` in your
+     browser (`browser-use_control {action:"tab_new", url}`, one tab per
+     platform, skipping one already open) so the page is ready in Nest's
+     browser panel. Then one
      `report_blocker`, short and plain:
      - `summary`: "Đăng nhập X, Facebook, Reddit cho <product>" with the
        `platform_label`s that need it.
