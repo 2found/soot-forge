@@ -42,6 +42,9 @@
       }
     },
     "marketing": {
+      "env": [
+        "PRODUCT_API_URL"
+      ],
       "credentials": {
         "FILE_ROOT": "workspace"
       }
@@ -172,6 +175,23 @@
         }
       },
       "text": "Refresh the product facts the guard checks prices and offers against."
+    },
+    {
+      "id": "marketing-campaigns",
+      "name": "Đọc số chiến dịch",
+      "soot": "lohi-editor",
+      "every": "24h",
+      "at": "07:00",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "tool": {
+        "pack": "marketing",
+        "name": "campaign_report",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "marketing_campaign_report read the Lohi api for the running campaigns. Follow the marketing-measure skill, section Campaigns: record each outcomes item with the host outcome tool as given, update tokens_used for each tokens_due id, and tell the founder each tell item once."
     }
   ],
   "execution": {

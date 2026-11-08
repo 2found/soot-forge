@@ -821,11 +821,12 @@
     {
       "name": "page_view",
       "title": "Xem trang marketing",
-      "description": "Bài viết / Hàng đợi page model: {page?, filter?, id?}. The page id comes from the page context when omitted.",
+      "description": "Bài viết / Hàng đợi / Chiến dịch page model: {page?, filter?, id?, campaign?}. The page id comes from the page context when omitted.",
       "parameters": {
         "type": "object",
         "properties": {
-          "page": {"type":"string","enum":["bai-viet","hang-doi"]},
+          "page": {"type":"string","enum":["bai-viet","hang-doi","chien-dich"]},
+          "campaign": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
           "filter": {"type":"string","enum":["all","draft","waiting","published","refused","removed"]},
           "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"}
         },
@@ -844,7 +845,7 @@
     {
       "name": "page_action",
       "title": "Đổi trang marketing",
-      "description": "Bài viết / Hàng đợi page action: pull from the queue, restore, reschedule, unpublish, pause or resume. Needs a request_id.",
+      "description": "Bài viết / Hàng đợi / Chiến dịch page action: pull, restore, reschedule, unpublish, pause, resume, campaign_save or campaign_refresh. Needs a request_id.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -858,9 +859,13 @@
               "confirm_posted",
               "confirm_not_posted",
               "pause",
-              "resume"
+              "resume",
+              "campaign_save",
+              "campaign_refresh"
             ]
           },
+          "campaign": {"type":"object"},
+          "campaign_id": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
           "request_id": {"type":"string","maxLength":64},
           "id": {"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},
           "scheduled_at": {"type":"string","maxLength":40},
@@ -875,8 +880,9 @@
         "args": ["tools/marketing.mjs","page_action"],
         "stdin": "context",
         "mode": "write",
-        "timeout": "20s",
-        "max_output_bytes": 262144
+        "timeout": "60s",
+        "max_output_bytes": 262144,
+        "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}
       }
     },
     {
@@ -1111,10 +1117,71 @@
         "max_output_bytes": 65536,
         "secret_env": {"FILE_ROOT":"{{cred:FILE_ROOT}}"}
       }
+    },
+    {
+      "name": "campaign_save",
+      "title": "Lưu chiến dịch",
+      "description": "Create or update a campaign {name, goal{metric,target}, channels, starts, ends, token_budget}; makes one UTM short link per channel through the product api (PRODUCT_API_URL, needs PRODUCT_ADMIN_KEY). Saving again fills links that failed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {"type":"string","maxLength":64},
+          "id": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
+          "name": {"type":"string","minLength":1,"maxLength":120},
+          "goal": {"type":"object","properties":{"metric":{"type":"string","enum":["signups","first_topups","clicks","published"]},"target":{"type":"integer","minimum":1}},"required":["metric","target"],"additionalProperties":false},
+          "channels": {"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","pattern":"^[a-z0-9-]{1,32}$"}},
+          "starts": {"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},
+          "ends": {"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},
+          "token_budget": {"type":"integer","minimum":0},
+          "landing": {"type":"string","maxLength":300},
+          "state": {"type":"string","enum":["active","stopped"]}
+        },
+        "required": ["name","goal","channels","starts","ends"],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": ["tools/marketing.mjs","campaign_save"],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}
+      }
+    },
+    {
+      "name": "campaign_report",
+      "title": "Đọc số chiến dịch",
+      "description": "Read clicks and attributed signups per channel from the product api for running campaigns (or one id) and store them for Chiến dịch. Returns new signups as lead outcomes to record; with {id, tokens_used} also says when 80% of the token budget is used.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},
+          "tokens_used": {"type":"integer","minimum":0}
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": ["tools/marketing.mjs","campaign_report"],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "secret_env": {"PRODUCT_ADMIN_KEY":"{{cred:PRODUCT_ADMIN_KEY}}"}
+      }
     }
   ],
   "needs": {
+    "env": ["PRODUCT_API_URL"],
     "credentials": {
+      "PRODUCT_ADMIN_KEY": {
+        "title": "Khoá admin sản phẩm",
+        "description": "Khoá API vai trò admin tạo trong trang quản trị của sản phẩm; Soot dùng để tạo liên kết rút gọn cho chiến dịch và đọc số lượt bấm, đăng ký theo chiến dịch. Chỉ gửi tới địa chỉ api PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
+      },
       "MARKETING_HUB": {
         "title": "Marketing hub",
         "description": "Kết nối tới marketing hub của sản phẩm: các site, kênh và quyền đăng của nhóm này. Lấy ở trang quản trị hub; nhập trong Nest, không nhập trong chat.",
@@ -1146,7 +1213,7 @@
     {"id":"lead","label":{"vi":"Khách tiềm năng","en":"Lead"},"unit":"lead"}
   ],
   "storage": {
-    "version": 2,
+    "version": 3,
     "tables": [
       {
         "name": "settings",
@@ -1314,7 +1381,11 @@
           {"name":"ends","type":"timestamp"},
           {"name":"token_budget","type":"integer"},
           {"name":"tokens_used","type":"integer"},
-          {"name":"state","type":"text"}
+          {"name":"state","type":"text"},
+          {"name":"landing","type":"text"},
+          {"name":"report","type":"json"},
+          {"name":"leads","type":"integer"},
+          {"name":"budget_told","type":"boolean"}
         ]
       },
       {
@@ -1324,7 +1395,8 @@
           {"name":"campaign","type":"text","index":true},
           {"name":"channel","type":"text"},
           {"name":"post","type":"text"},
-          {"name":"target","type":"text"}
+          {"name":"target","type":"text"},
+          {"name":"url","type":"text"}
         ]
       },
       {
@@ -1356,6 +1428,17 @@
         "id": "hang-doi",
         "label": {"vi":"Hàng đợi","en":"Queue"},
         "icon": "calendar-clock",
+        "placement": "rail",
+        "access": "operator",
+        "provides": ["flow-marketing"],
+        "view_tool": "page_view",
+        "action_tool": "page_action",
+        "bundle": "page/"
+      },
+      {
+        "id": "chien-dich",
+        "label": {"vi":"Chiến dịch","en":"Campaigns"},
+        "icon": "target",
         "placement": "rail",
         "access": "operator",
         "provides": ["flow-marketing"],

@@ -1,6 +1,6 @@
 // @ts-check
-// Bài viết and Hàng đợi (marketing pack, flow-marketing). One bundle serves
-// both pages: the view tool answers for the page in its context. Plain DOM,
+// Bài viết, Hàng đợi and Chiến dịch (marketing pack, flow-marketing). One bundle serves
+// the three pages: the view tool answers for the page in its context. Plain DOM,
 // no network: every read and write goes through the soot-pages bridge.
 // Text is set with textContent only.
 import { createBridge, applyTheme, randomID } from './bridge.js';
@@ -13,6 +13,7 @@ const S = {
   /** @type {{ kind: 'info' | 'success', text: string } | null} */ notice: null,
   /** @type {{ title: string, yes: string, run: () => void } | null} */ confirm: null,
   caps: false, editing: '',
+  campaign: '', /** @type {any} */ sheet: null, sheetError: '',
 };
 
 const bridge = createBridge({
@@ -39,7 +40,7 @@ const badge = (/** @type {string} */ text, /** @type {string} */ state) => h('sp
 
 async function load() {
   S.loadError = '';
-  try { S.data = M.output(await bridge.call('view', M.viewBody(S.filter, S.id))); } catch (e) { S.loadError = M.errorText(S.t, e); }
+  try { S.data = M.output(await bridge.call('view', M.viewBody(S.filter, S.id, S.campaign))); } catch (e) { S.loadError = M.errorText(S.t, e); }
 }
 async function run(/** @type {() => Promise<void>} */ work) {
   if (S.busy) return;
@@ -54,7 +55,7 @@ async function act(/** @type {string} */ op, rest = {}) {
     const r = await bridge.call('action', M.actionBody(p.request_id, p.op, p.rest), p.request_id);
     if (!r.ok && r.error.code === 'no_response') { S.notice = { kind: 'info', text: S.t.unknown }; return; }
     S.pending = null;
-    try { M.output(r); S.notice = { kind: 'success', text: S.t.done }; } catch (e) { S.notice = { kind: 'info', text: M.errorText(S.t, e) }; }
+    try { S.notice = M.doneNotice(S.t, op, M.output(r)); } catch (e) { S.notice = { kind: 'info', text: M.errorText(S.t, e) }; }
     await load();
   });
 }
@@ -258,14 +259,134 @@ function render() {
   if (S.loadError) out.push(h('div', { class: 'notice err', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load), 'btn sm')));
   else if (!d) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
   else if (d.page === 'hang-doi') out.push(...queue(d));
+  else if (d.page === 'chien-dich') out.push(...(d.campaign ? campaignDetail(d) : campaignList(d)));
   else out.push(...(d.post ? postDetail(d) : postList(d)));
   if (S.notice) out.push(h('p', { class: `notice ${S.notice.kind}`, role: 'status' }, S.notice.text));
+  if (S.sheet && d?.page === 'chien-dich') out.push(...campaignSheet(d));
   const c = S.confirm;
   if (c) out.push(h('div', { class: 'scrim', onclick: closeConfirm }),
     h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': c.title, onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeConfirm(); } },
       h('b', { class: 'dialog-title' }, c.title), h('span', { class: 'muted' }, t.unpublishHelp(c.title)),
       h('div', { class: 'line end' }, button(t.keep, closeConfirm, 'btn out', { 'data-keep': '' }), button(c.yes, () => { S.confirm = null; c.run(); }, 'btn danger'))));
   root.replaceChildren(...out);
+}
+
+// ---------- Chiến dịch (#p5-campaigns, #p5-campaign-new, #p5-campaign-detail, #p5-campaign-api-error) ----------
+
+/** A bar fill, sized through CSSOM (the frame's CSP refuses style attributes). @param {number} pct */
+const fill = pct => { const i = h('i'); i.style.width = `${pct}%`; return i; };
+const openCampaign = (/** @type {string} */ id) => { S.campaign = id; S.notice = null; void run(load); };
+const openSheet = (/** @type {any} */ d) => { S.sheet = M.newCampaign(d.choices); S.sheetError = ''; S.pending = null; render(); /** @type {HTMLElement | null} */ (document.getElementById('mk-name'))?.focus(); };
+const closeSheet = () => { S.sheet = null; S.sheetError = ''; render(); };
+
+function campaignList(/** @type {any} */ d) {
+  const top = h('div', { class: 'line end' }, button('+ Tạo chiến dịch', () => openSheet(d), 'btn primary'));
+  if (d.empty) return [top, h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, 'Chưa có chiến dịch'),
+    h('span', {}, 'Một chiến dịch gom các bài theo một mục tiêu, có liên kết riêng cho từng kênh để đếm lượt bấm và người đăng ký.'))];
+  return [top, h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ c) => {
+    const pct = M.goalPct(c.goal);
+    const line = [M.dayRange(c.starts, c.ends), c.channels.join(', '), c.published ? `${c.published} bài đã đăng` : null].filter(Boolean).join(' · ');
+    return h('li', { class: 'row' },
+      h('div', { class: 'who' }, h('button', { class: 'link', type: 'button', onclick: () => openCampaign(c.id) }, c.name), h('small', { class: 'muted' }, line),
+        c.phase === 'running' && h('div', { class: 'bar2', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': pct == null ? null : String(pct), 'aria-label': M.goalLine(c.goal) }, fill(pct ?? 0)),
+        c.phase === 'running' && h('small', { class: 'muted' }, M.goalLine(c.goal))),
+      h('span', { class: `badge ${c.phase === 'running' ? 'ok' : ''}` }, c.phase_label));
+  }))];
+}
+
+const kpi = (/** @type {string} */ k, /** @type {string} */ v, /** @type {string | null} */ sub) => h('div', { class: 'card pad kpi-card' }, h('small', { class: 'muted' }, k), h('strong', {}, v), sub && h('small', { class: 'muted' }, sub));
+const n = (/** @type {number | null} */ v) => (v == null ? '—' : /** @type {string} */ (M.num(v)));
+
+function campaignDetail(/** @type {any} */ d) {
+  const c = d.campaign, t = d.totals, product = d.product ?? 'sản phẩm';
+  const back = h('button', { class: 'btn sm ghost back', type: 'button', onclick: () => { S.campaign = ''; S.notice = null; void run(load); } }, '← Tất cả chiến dịch');
+  const failed = d.read && !d.read.ok;
+  const when = d.read?.ok ? `đọc số ${product} lúc ${M.hm(d.read.at)}` : d.read ? null : `chưa đọc số ${product}`;
+  const head = h('div', { class: 'line' }, h('b', { class: 'title' }, c.name), h('span', { class: 'muted' }, ['', M.dayRange(c.starts, c.ends), when].filter(x => x !== null).join(' · ')));
+  const out = [back];
+  if (failed) out.push(h('div', { class: 'notice plain', role: 'alert' }, h('b', {}, `Chưa đọc được số đăng ký từ ${product}`), h('span', {}, M.readFailLine(d.read)),
+    h('span', {}, button('↻ Thử lại', () => void act('campaign_refresh', { campaign_id: c.id }), 'btn sm out'))));
+  out.push(head);
+  const goal = c.goal, of = (/** @type {string} */ m) => (goal.metric === m ? ` / ${M.num(goal.target)}` : '');
+  out.push(failed
+    ? h('div', { class: 'kpis four' }, kpi('Đã đăng', n(t.published), null), kpi('Tiếp cận', n(t.reach), null), kpi('Lượt bấm', '—', 'chưa rõ'), kpi('Đăng ký', '—', 'chưa rõ'))
+    : h('div', { class: 'kpis four' }, kpi(goal.metric === 'published' ? 'Đã đăng / mục tiêu' : 'Đã đăng', n(t.published) + of('published'), 'bài + video'), kpi('Tiếp cận', n(t.reach), 'hiển thị + lượt xem'),
+      kpi(goal.metric === 'clicks' ? 'Lượt bấm / mục tiêu' : 'Lượt bấm', n(t.clicks) + of('clicks'), 'qua liên kết chiến dịch'),
+      kpi(goal.metric === 'signups' ? 'Đăng ký / mục tiêu' : 'Đăng ký', n(t.signups) + of('signups'), t.first_topups == null ? null : `${M.num(t.first_topups)}${of('first_topups')} người nạp lần đầu`)));
+  if (!failed) out.push(h('div', { class: 'card scroll' }, h('table', { class: 'table channels' },
+    h('thead', {}, h('tr', {}, h('th', {}, 'Kênh'), ...['Đã đăng', 'Tiếp cận', 'Bấm', 'Đăng ký', 'Nạp lần đầu'].map(x => h('th', { class: 'num' }, x)))),
+    h('tbody', {}, ...d.rows.map((/** @type {any} */ r) => h('tr', {}, h('td', {}, r.label), ...[r.published, r.reach, r.clicks, r.signups, r.first_topups].map(v => h('td', { class: 'num' }, n(v)))))))));
+  if (d.links_missing.length) out.push(h('div', { class: 'notice plain', role: 'status' }, h('b', {}, `Chưa có liên kết cho ${d.links_missing.join(', ')}`),
+    h('span', {}, 'Bài trên kênh này chưa đếm được lượt bấm. Tạo lại khi api trả lời.'),
+    h('span', {}, button('Tạo lại liên kết', () => void act('campaign_save', { campaign: { id: c.id, name: c.name, goal: { metric: goal.metric, target: goal.target }, channels: c.channel_ids, starts: M.localInput(c.starts).slice(0, 10), ends: M.localInput(c.ends).slice(0, 10), token_budget: c.token_budget } }), 'btn sm out'))));
+  out.push(h('p', { class: 'muted' }, `${M.tokenLine(c.tokens_used, c.token_budget)} Đăng ký tính theo nguồn đầu tiên (utm) khi tạo tài khoản.`));
+  return out;
+}
+
+/** "Tạo chiến dịch": typing never re-renders (focus stays); only the code, hint and button follow it. */
+function syncSheet() {
+  const f = S.sheet, problem = M.campaignProblem(f);
+  const code = document.getElementById('mk-code'), hint = document.getElementById('mk-hint'), go = /** @type {HTMLButtonElement | null} */ (document.getElementById('mk-create'));
+  if (code) code.textContent = `Mã trong liên kết: ${M.slugOf(f.name) || '—'}`;
+  if (hint) hint.textContent = S.sheetError || problem || '';
+  if (go) go.disabled = S.busy || !!problem;
+}
+function field(/** @type {string} */ label, /** @type {string} */ id, /** @type {any[]} */ kids, /** @type {any} */ note = null) {
+  return h('div', { class: 'field' }, h('label', { for: id }, label), ...kids, note);
+}
+/** 2000000 → 2.000.000 once the field is left (the sheet keeps reading digits). */
+function groupDigits(/** @type {Event} */ e) {
+  const el = /** @type {HTMLInputElement} */ (e.target), n = M.digits(el.value);
+  if (n != null) { el.value = M.num(n) ?? el.value; S.sheet.budget = el.value; }
+}
+function textInput(/** @type {string} */ id, /** @type {string} */ key, more = {}) {
+  return h('input', { id, class: 'input', value: S.sheet[key], disabled: S.busy, oninput: (/** @type {Event} */ e) => { S.sheet[key] = /** @type {HTMLInputElement} */ (e.target).value; S.sheetError = ''; syncSheet(); }, ...more });
+}
+function campaignSheet(/** @type {any} */ d) {
+  const f = S.sheet, problem = M.campaignProblem(f);
+  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Kênh' }, ...d.choices.map((/** @type {any} */ c) => {
+    const on = f.channels.includes(c.id);
+    return h('button', { class: 'chip toggle', type: 'button', 'aria-pressed': String(on), disabled: S.busy, onclick: (/** @type {Event} */ e) => {
+      f.channels = f.channels.includes(c.id) ? f.channels.filter((/** @type {string} */ x) => x !== c.id) : [...f.channels, c.id];
+      const el = /** @type {HTMLElement} */ (e.currentTarget), now = f.channels.includes(c.id);
+      el.setAttribute('aria-pressed', String(now)); el.textContent = `${now ? '✓ ' : ''}${c.label}`; syncSheet();
+    } }, `${on ? '✓ ' : ''}${c.label}`);
+  }));
+  const metric = h('select', { id: 'mk-metric', class: 'input', 'aria-label': 'Đơn vị mục tiêu', disabled: S.busy, onchange: (/** @type {Event} */ e) => { f.metric = /** @type {HTMLSelectElement} */ (e.target).value; } },
+    ...Object.entries(M.GOAL_FORM).map(([k, v]) => h('option', { value: k, selected: f.metric === k }, v)));
+  const body = h('div', { class: 'sheet-body' },
+    field('Tên', 'mk-name', [textInput('mk-name', 'name', { maxlength: '120', autocomplete: 'off' })], h('span', { id: 'mk-code', class: 'muted' }, `Mã trong liên kết: ${M.slugOf(f.name) || '—'}`)),
+    field('Mục tiêu', 'mk-target', [h('div', { class: 'goal' }, textInput('mk-target', 'target', { inputmode: 'numeric', placeholder: '300' }), metric)]),
+    h('div', { class: 'field' }, h('span', { class: 'label' }, 'Kênh'), chips),
+    h('div', { class: 'two' }, field('Từ', 'mk-starts', [textInput('mk-starts', 'starts', { type: 'date' })]), field('Đến', 'mk-ends', [textInput('mk-ends', 'ends', { type: 'date' })])),
+    field('Ngân sách token', 'mk-budget', [textInput('mk-budget', 'budget', { inputmode: 'numeric', placeholder: '2.000.000', onchange: groupDigits })],
+      h('span', { class: 'muted' }, 'Đầu mối báo bạn khi dùng 80%. Chi tiền (quảng cáo, công cụ trả phí) vẫn do bạn quyết.')),
+    h('div', { class: 'field' }, h('span', { class: 'label' }, 'Liên kết'), h('span', { class: 'muted' }, `Mỗi kênh một liên kết ${d.api_host ? `${d.api_host}/r/…` : 'rút gọn'} gắn UTM, tạo khi lưu.`)));
+  return [h('div', { class: 'scrim', onclick: closeSheet }),
+    h('aside', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'mk-sheet-title', onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeSheet(); } },
+      h('header', {}, h('h2', { id: 'mk-sheet-title' }, 'Tạo chiến dịch'), h('button', { class: 'btn sm ghost', type: 'button', 'aria-label': 'Đóng', onclick: closeSheet }, '✕')),
+      body,
+      h('footer', {}, h('span', { id: 'mk-hint', class: S.sheetError ? 'errline grow' : 'muted grow', role: 'status' }, S.sheetError || problem || ''),
+        button('Hủy', closeSheet, 'btn ghost'), h('button', { id: 'mk-create', class: 'btn primary', type: 'button', disabled: S.busy || !!problem, onclick: () => void saveCampaign() }, 'Tạo chiến dịch')))];
+}
+
+/** Create: one request id until an answer comes; then open the new campaign, saying what still needs doing. */
+async function saveCampaign() {
+  const f = S.sheet;
+  if (!f || M.campaignProblem(f)) return;
+  S.pending = S.pending?.op === 'campaign_save' ? S.pending : { request_id: randomID('mk', 12), op: 'campaign_save', rest: { campaign: M.campaignBody(f) } };
+  const p = S.pending;
+  await run(async () => {
+    const r = await bridge.call('action', M.actionBody(p.request_id, p.op, p.rest), p.request_id);
+    if (!r.ok && r.error.code === 'no_response') { S.sheetError = S.t.unknown; return; }
+    S.pending = null;
+    let out;
+    try { out = M.output(r); } catch (e) { S.sheetError = M.errorText(S.t, e); return; }
+    S.sheet = null;
+    S.campaign = out.id;
+    S.notice = out.links_error ? { kind: 'info', text: `Đã tạo chiến dịch. Chưa tạo được liên kết: ${out.links_error.message}` } : { kind: 'success', text: 'Đã tạo chiến dịch và liên kết cho từng kênh.' };
+    await load();
+  });
 }
 
 function start() {

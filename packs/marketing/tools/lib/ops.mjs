@@ -9,6 +9,7 @@ import { nextSlot, DEFAULT_QUIET } from './time.mjs';
 import { contentHash, signClaim, CLAIM_TTL_MS, INTENT_STALE_MS } from './claim.mjs';
 import { metricsRows } from './page.mjs';
 import { claimAssets } from './video.mjs';
+import { draftCampaign } from './campaign.mjs';
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const iso = ms => new Date(ms).toISOString();
@@ -81,12 +82,19 @@ export async function draft_save(input, { store, now, soot }) {
   }
   // A reply answers one saved reader reply; its target comes from that row, never from the model.
   const target = kind === 'reply' ? await answerable(store, parent, ch, body, id) : null;
-  const fields = { kind, channel: ch.key, campaign: campaign ?? null, parent: parent ?? null, brief: target ?? brief ?? null, title: brief?.title ?? null, body, link: link ?? null, asset_ids: asset_ids ?? null };
+  // A post in a campaign is on one of its channels and, for social and video, goes out with that channel's link.
+  // An edit that leaves `campaign` out keeps the post's campaign.
+  const campKey = campaign ?? (id ? (await store.one('posts', [eq('ref', id)]))?.campaign : null) ?? null;
+  const camp = campKey ? await draftCampaign(store, campKey, ch.key) : null;
+  const useLink = link ?? (camp && ['social', 'video'].includes(kind) ? camp.link : null);
+  const fields = { kind, channel: ch.key, campaign: campKey, parent: parent ?? null, brief: target ?? brief ?? null, title: brief?.title ?? null, body, link: useLink ?? null, asset_ids: asset_ids ?? null };
   const lint = briefLint(fields, ch);
+  if (camp && !camp.link) lint.push({ field: 'link', code: 'campaign_link_missing', message: 'Chiến dịch chưa có liên kết cho kênh này; lưu lại chiến dịch để tạo.' });
+  const extra = camp ? { campaign_link: camp.link } : {};
   if (!id) {
     const row = { ...fields, ref: ref(), request_id: request_id ?? null, content_hash: hashOf(fields), state: 'draft', reason: null, revision: 1, author_soot: soot ?? null };
     await store.insert('posts', row);
-    return { id: row.ref, revision: 1, content_hash: row.content_hash, state: 'draft', lint };
+    return { id: row.ref, revision: 1, content_hash: row.content_hash, state: 'draft', lint, ...extra };
   }
   const cur = await post(store, id);
   if (['publishing', 'published', 'unpublishing', 'uncertain'].includes(cur.state)) fail('conflict', 'Bài đang đăng, đã đăng hoặc chưa rõ đã lên chưa; gỡ hoặc xác nhận trước rồi sửa.');
@@ -102,7 +110,7 @@ export async function draft_save(input, { store, now, soot }) {
   const n = await store.update('posts', [eq('ref', id), eq('revision', cur.revision)], { ...fields, content_hash: hashOf(fields), state: 'draft', reason: cur.kind === 'video' && cur.brief?.hold ? cur.reason : null, revision });
   if (!n) fail('revision_conflict', 'Bài vừa được sửa ở nơi khác.');
   await store.remove('queue', [eq('post', id), isNull('intent_id')]);
-  return { id, revision, content_hash: hashOf(fields), state: 'draft', lint };
+  return { id, revision, content_hash: hashOf(fields), state: 'draft', lint, ...extra };
 }
 
 /** The reply row a `kind:"reply"` post answers, or a refusal: only `safe`

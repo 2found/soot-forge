@@ -2,20 +2,22 @@
 
 Ask Kamaji in Nest for a marketing team. Kamaji reads this template, asks for
 what it needs one question at a time — the product, the readers, the goal, the
-blog's hub site, the channels, the voice and the languages — and offers its
-budget profiles. You approve once; Kamaji builds the team, writes the brief into
+blog, the channels, the voice, the languages and whether each publish waits for
+you (`publish_approval`, default `required`) — and offers its budget
+profiles. You approve once; Kamaji builds the team, writes the brief into
 the team's memory and sets its cycles. **Hoàn tác** removes it all.
 
 | member | does | packs |
 | --- | --- | --- |
 | Kamaji (lead) | runs the cycles, hands out tasks, reports once in the team thread | `nest-lead` playbooks |
 | Radar | watches the sources the audience reads, keeps the `signals` table | `marketing`, `research` |
-| Writer | turns signals into article and social drafts; never publishes | `marketing`, `writing` |
-| Editor | reviews, publishes what passes, hands off what a person must post, measures | `marketing` |
+| Writer | saves article and social drafts with `marketing_draft_save`; never publishes | `marketing`, `writing` |
+| Editor | checks (`marketing_check`), schedules what passes, publishes through `marketing_claim`, measures and runs campaigns | `marketing` |
 
 **Cycles** (run as Kamaji): *Chu kỳ sáng* 08:00 plans the day from the signals
 and the goal; *Duyệt chiều* 16:00 reviews and publishes; *Tổng kết tuần* reads
-`content_stats`, keeps lessons and proposes one change. The *Tiết kiệm*
+the pack's published posts and Search Console numbers, keeps lessons and
+proposes one change. The *Tiết kiệm*
 profile runs the morning cycle and the weekly review only.
 
 **Budgets** are daily token caps per member, enforced by the host. Nest shows
@@ -24,20 +26,27 @@ never invents a price. Raising a budget later asks you again.
 
 **Work you can follow.** Every piece of work is a task (Việc), drafts and
 signals are rows in the team tables `content` and `signals`, and the brief,
-voice rules and lessons are team memory (Dữ liệu › Trí nhớ). Nothing goes live
-without an editor's review task. TikTok, a channel without credentials and any
+voice rules and lessons are team memory (Dữ liệu › Trí nhớ). Posts, the queue
+and campaigns live in the marketing pack's own storage, on its **Bài viết**,
+**Hàng đợi** and **Chiến dịch** pages; there is no marketing hub. Nothing goes
+live without the editor's `marketing_check` verdict on that exact content. TikTok, a channel without credentials and any
 real decision come to you in **Cần bạn**.
 
 ## Set up after Kamaji builds it
 
-The template carries no credentials and grants nothing. Each member needs a
-`MARKETING_HUB` connection (Cài đặt → Kết nối) to a marketing hub client for
-this product — the writer's and radar's without the publish right, the
-editor's with it. Kamaji leaves one task per missing piece. See the
-[marketing pack](../../packs/marketing/README.md) for the hub contract.
+The template carries no credentials and grants nothing. The editor needs a
+`MARKETING_CLAIM_KEY` connection (Cài đặt → Kết nối) that signs each publish
+claim, and optionally `PRODUCT_ADMIN_KEY` so campaigns get short links and
+signup numbers from the product's api (its address is the `PRODUCT_API_URL`
+env the host grants the pack). Kamaji leaves one task per missing piece. See
+the [marketing pack](../../packs/marketing/README.md) for the publishing
+contract.
 
-Whether each publish waits for your approval is your approval policy; the
-template does not relax it.
+**Publish approval.** `marketing_claim` asks for an operator approval on every
+publish, and the template never relaxes it: `publish_approval` defaults to
+`required`. Only an answer of `none` sets the host's approval policy to
+`{"marketing_claim": "auto"}`; the guard (facts, personal data, channel rules,
+duplicates, pause, caps, spacing, quiet hours) still runs inside every claim.
 
 ## Without Nest
 

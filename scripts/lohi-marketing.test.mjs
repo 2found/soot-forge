@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const json = async path => JSON.parse(await readFile(new URL(path, root), 'utf8'));
 
-test('the Lohi recipe: product Lohi, marketing_claim auto, five tool-only schedules on declared tools, three paused social channels', async () => {
+test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none), six tool-only schedules on declared tools, three paused social channels', async () => {
   const host = await json('examples/lohi-marketing/deployment.example.json');
   const catalog = await json('catalog.json');
   // lohi-blog is Lohi's own publisher: a local pack inside the recipe, never a catalog row.
@@ -21,7 +21,10 @@ test('the Lohi recipe: product Lohi, marketing_claim auto, five tool-only schedu
   assert.equal(packs.marketing.tools.find(t => t.name === 'claim').run.approval, 'operator', 'the pack stays guarded; only this host relaxes it');
 
   const byId = Object.fromEntries(host.schedules.map(s => [s.id, s]));
-  assert.deepEqual(Object.keys(byId).sort(), ['marketing-channels', 'marketing-dispatch', 'marketing-facts', 'marketing-gsc', 'marketing-replies']);
+  assert.deepEqual(Object.keys(byId).sort(), ['marketing-campaigns', 'marketing-channels', 'marketing-dispatch', 'marketing-facts', 'marketing-gsc', 'marketing-replies']);
+  // Campaigns: a daily api read that wakes the Đầu mối (the Editor) for lead outcomes and the token budget.
+  assert.deepEqual([byId['marketing-campaigns'].tool.name, byId['marketing-campaigns'].at, byId['marketing-campaigns'].wake_when, byId['marketing-campaigns'].soot], ['campaign_report', '07:00', { notify: true }, host.default_soot]);
+  assert.ok(host.pack_grants.marketing.env.includes('PRODUCT_API_URL'), 'the api address is an operator env, never tool input');
   assert.equal(byId['marketing-dispatch'].every, '10m');
   assert.deepEqual(byId['marketing-dispatch'].wake_when, { notify: true }, 'the runtime wakes on a boolean only through notify');
   assert.deepEqual([byId['marketing-gsc'].at, byId['marketing-facts'].at], ['06:00', '05:30']);

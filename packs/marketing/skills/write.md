@@ -86,4 +86,11 @@ so), drafts live in this pack's own storage:
   the product's own pages. Fix every `lint` line the answer returns.
 - Write prices, discounts and "free" only as the product serves them today;
   the guard refuses any amount it cannot find in `facts`.
+- **In a campaign** (the task or the brief names one), pass `campaign: <id>`
+  and write only on that campaign's channels (`marketing_page_view {page:
+  "chien-dich", campaign}` lists them). A social or video post goes out with
+  the channel's campaign link: leave `link` out and the save fills it; an
+  article puts the returned `campaign_link` in its call to action. A
+  `campaign_link_missing` lint means the link is not made yet: say so on the
+  task, do not invent a URL.
 - Never schedule or publish; hand the post id to the editor.

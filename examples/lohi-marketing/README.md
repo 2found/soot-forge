@@ -13,12 +13,13 @@ every 10 m  marketing_due ──▶ Editor: marketing_claim ─▶ marketing-bro
 every 2 h   marketing_replies_sync ──(notify)──▶ Editor: marketing-replies ─▶ reply_save ─▶ check ─▶ claim {reply}
 05:20       marketing_channels_setup (creates x-lohi, facebook-lohi, reddit-lohi paused; fills unset caps)
 05:30       marketing_facts_sync (prices and offers the guard checks against)
+07:00       marketing_campaign_report ──(notify)──▶ Editor: record lead outcomes, token count, 80 % note
 on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_import ─▶ Editor: check ─▶ schedule ─▶ browser upload (X, Facebook)
 ```
 
 | file | what it is |
 | --- | --- |
-| `deployment.example.json` | product `Lohi`, the four Soots, the shared Editor/Video workspace, pack grants, the five schedules, `approvals: {"marketing_claim": "auto"}` |
+| `deployment.example.json` | product `Lohi`, the four Soots, the shared Editor/Video workspace, pack grants, the six schedules, `approvals: {"marketing_claim": "auto"}` |
 | `soots/lohi-*.json` | Radar (`lite`), Writer, Editor and Video (`flash`), each with a small daily token budget |
 | `soots/*.md` | the shared soul and each role's mission |
 | `packs/lohi-blog/` | the Lohi-only blog publisher, a local pack: it is not in the Forge catalog |
@@ -30,7 +31,17 @@ on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_im
   approval. This host alone sets it to `auto`. Every guard still runs inside
   the claim: facts, personal data, platform rules, duplicates, the Editor's
   verdict on that exact content, pause, caps, spacing and quiet hours. A model
-  cannot skip them.
+  cannot skip them. (The Forge `marketing-team` template asks the same
+  question as `publish_approval` and defaults to `required`; this recipe is
+  its `none`.)
+- **Campaigns.** The Chiến dịch page (or `marketing_campaign_save`) makes a
+  campaign with a goal, channels, dates and a token budget, and one
+  `api.lohi2.com/r/<code>` link per channel tagged `utm_source=<channel>`,
+  `utm_campaign=<id>`. Lohi's web keeps the first UTM a reader arrives with
+  and stores it on signup, so the api's report per campaign gives clicks,
+  signups and first top-ups per channel. The 07:00 read turns new signups into
+  `lead` outcomes; the Editor (the Đầu mối) says when 80 % of the token budget
+  is used and never stops a campaign itself.
 - **Channels.** `blog-lohi`: one post a day, at least 20 hours apart. The
   social channels:
 
@@ -121,7 +132,13 @@ on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_im
    The Editor checks that account and the channel shows "đã đăng nhập, chờ
    Bật". Nothing posts until you choose **Bật** for the channel on the Hàng
    đợi page (`resume`). You never give Soot a password.
-7. For videos, run `python3 packs/2build/marketing-video/tools/mvf.py doctor`
+7. For campaigns, create an admin-role API key in Lohi's admin UI and store it
+   in Nest, Đội Soot → Editor → the tool connections, `PRODUCT_ADMIN_KEY`.
+   Start the runtime with `PRODUCT_API_URL=https://api.lohi2.com` in its
+   environment, like `SOOT_BROWSER_PERSISTENT_SOOTS` above. The key goes only
+   to that address. Without either one, a campaign is saved without links and
+   the Chiến dịch page says what is missing; saving it again makes the links.
+8. For videos, run `python3 packs/2build/marketing-video/tools/mvf.py doctor`
    until it prints READY (ffmpeg, Node, HyperFrames 0.8.153, voice and the
    Micro Fish workspace). Grant `marketing` and `browser-use` the workspace
    (`soot grant marketing`, `soot grant browser-use`), then ask Video

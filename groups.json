@@ -5,7 +5,7 @@
     {
       "id": "marketing-team",
       "name": "Marketing team",
-      "description": "Kamaji leads a radar, a writer and an editor who research, write, review, publish and learn for one product through a marketing hub, on tasks you can follow.",
+      "description": "Kamaji leads a radar, a writer and an editor who research, write, check, publish and learn for one product from the marketing pack's own storage, with each publish approved by you unless you say otherwise.",
       "source": "groups/marketing-team/group.source.json"
     },
     {

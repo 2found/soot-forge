@@ -61,3 +61,19 @@ test('v2 fields are refused on v1, and v2 is checked like the runtime checks it'
   bad(t => { t.members[0].use = []; return t; }, 'use is retired');
   assert.doesNotThrow(() => validateGroup(structuredClone(v2)));
 });
+
+test('marketing-team is hubless and asks for publish approval, required by default', () => {
+  const t = validateGroup(source('marketing-team'));
+  const raw = readFileSync(new URL('../groups/marketing-team/group.source.json', import.meta.url), 'utf8');
+  assert.doesNotMatch(raw, /MARKETING_HUB|hub/i, 'no hub bindings or hub missions');
+  const ask = t.inputs.find(i => i.id === 'publish_approval');
+  assert.ok(ask?.confirm, 'publish_approval is confirmed before proposing');
+  assert.match(ask.ask, /Mặc định là required/, 'the default is required');
+  assert.match(ask.ask, /none:.*marketing_claim là auto/, 'only none relaxes the claim');
+  assert.deepEqual(t.bindings.map(b => [b.member, b.name]), [['editor', 'MARKETING_CLAIM_KEY'], ['editor', 'PRODUCT_ADMIN_KEY']]);
+  assert.match(t.members.find(m => m.id === 'editor').mission, /marketing_claim/);
+  const pack = JSON.parse(readFileSync(new URL('../packs/marketing/pack.json', import.meta.url), 'utf8'));
+  assert.equal(pack.tools.find(x => x.name === 'claim').run.approval, 'operator', 'approval on unless the host says auto');
+  const lohi = JSON.parse(readFileSync(new URL('../examples/lohi-marketing/deployment.example.json', import.meta.url), 'utf8'));
+  assert.equal(lohi.approvals.marketing_claim, 'auto', 'the Lohi recipe is publish_approval none');
+});

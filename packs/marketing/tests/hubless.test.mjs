@@ -415,12 +415,12 @@ test('the CLI entry talks to pack storage over HTTP with the per-call token and 
   } finally { server.close(); }
 });
 
-test('the declaration: hub optional, two flow-marketing pages, unguarded page tools, node built-ins only', async () => {
+test('the declaration: hub optional, three flow-marketing pages, unguarded page tools, node built-ins only', async () => {
   const { readFileSync, readdirSync } = await import('node:fs');
   const pack = JSON.parse(readFileSync(new URL('../pack.json', import.meta.url), 'utf8'));
   const tools = Object.fromEntries(pack.tools.map(t => [t.name, t]));
   assert.equal(pack.needs.credentials.MARKETING_HUB.optional, true);
-  assert.deepEqual(pack.interface.pages.map(p => [p.id, p.label.vi, p.provides]), [['bai-viet', 'Bài viết', ['flow-marketing']], ['hang-doi', 'Hàng đợi', ['flow-marketing']]]);
+  assert.deepEqual(pack.interface.pages.map(p => [p.id, p.label.vi, p.provides]), [['bai-viet', 'Bài viết', ['flow-marketing']], ['hang-doi', 'Hàng đợi', ['flow-marketing']], ['chien-dich', 'Chiến dịch', ['flow-marketing']]]);
   for (const p of pack.interface.pages) {
     assert.equal(tools[p.view_tool].run.mode, 'read');
     for (const name of [p.view_tool, p.action_tool]) assert.equal(tools[name].run.approval, undefined, name);

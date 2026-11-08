@@ -26,7 +26,7 @@ export function strings(locale) {
     unpublishAsk: (/** @type {string} */ ch) => `Gỡ bài trên ${ch}?`, unpublishYes: (/** @type {string} */ ch) => `Gỡ bài trên ${ch}`,
     unpublishHelp: (/** @type {string} */ title) => `Bài và lượt thích, trả lời của nó sẽ mất trên ${title.replace(/^Gỡ bài trên |\?$/g, '')}. Bài vẫn còn trong Bài viết để đăng lại.`,
     perDay: (/** @type {number} */ n, /** @type {number} */ h) => `${n} bài/ngày, cách nhau ít nhất ${h} giờ`, quiet: (/** @type {string} */ f, /** @type {string} */ t) => `giờ yên ${f}–${t}`,
-    unknown: 'Chưa rõ kết quả — tải lại để xem bài đã đổi chưa.', done: 'Đã lưu.', failed: 'Không làm được: ',
+    unknown: 'Chưa rõ kết quả — tải lại để xem bài đã đổi chưa.', done: 'Đã lưu.', reread: 'Đã đọc lại số.', failed: 'Không làm được: ',
     watch: 'Xem video', pullQueue: 'Kéo khỏi hàng đợi', hooks: 'Câu mở đầu', keepWatching: 'Muốn xem tiếp', chosen: 'chọn',
     videoNote: 'Không có gì chờ bạn xem: video tự đăng đúng giờ sau kiểm tra. Bạn có thể xem và kéo ra bất cứ lúc nào.',
     panel: (/** @type {number | null} */ n) => `Micro Fish${n ? `, ${n} người đọc mô phỏng` : ''}`,
@@ -102,7 +102,7 @@ export const holdTone = hold => (hold === 'render_failed' ? 'err' : 'warn');
 export const hookRows = pretest => [...(pretest?.hooks ?? [])].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
   .map(h => ({ text: h.text ? `"${h.text}"` : h.id, score: h.score == null ? '—' : `${h.score}%`, chosen: !!h.chosen }));
 
-export const viewBody = (/** @type {string} */ filter = 'all', /** @type {string} */ id = '') => (id ? { id } : { filter });
+export const viewBody = (/** @type {string} */ filter = 'all', /** @type {string} */ id = '', /** @type {string} */ campaign = '') => (campaign ? { campaign } : id ? { id } : { filter });
 /** @param {string} request_id @param {string} op @param {Record<string, unknown>} [rest] */
 export const actionBody = (request_id, op, rest = {}) => ({ op, request_id, ...rest });
 
@@ -118,3 +118,43 @@ export function output(r) {
   if (r.output?.error) throw r.output.error;
   return r.output;
 }
+
+/** The notice after an action. A campaign re-read that failed shows its own notice on the page, not "Đã lưu.". */
+export function doneNotice(/** @type {any} */ t, /** @type {string} */ op, /** @type {any} */ out) {
+  if (op !== 'campaign_refresh') return { kind: 'success', text: t.done };
+  return out?.read?.ok ? { kind: 'success', text: t.reread } : null;
+}
+
+// ---------- Chiến dịch ----------
+
+export const GOAL_FORM = { signups: 'người đăng ký mới', first_topups: 'người nạp lần đầu', clicks: 'lượt bấm', published: 'bài đã đăng' };
+export const GOAL_SHORT = { signups: 'người đăng ký', first_topups: 'người nạp lần đầu', clicks: 'lượt bấm', published: 'bài đã đăng' };
+/** The campaign code the server makes from a name (also the utm_campaign). @param {string} name */
+export const slugOf = name => String(name ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 64).replace(/-+$/, '');
+/** "2.000.000" or "2000000" → 2000000; empty → null. @param {string} s */
+export const digits = s => { const d = String(s ?? '').replace(/\D/g, ''); return d ? Number(d) : null; };
+/** "1/12 – 31/12" in Asia/Ho_Chi_Minh. @param {string} starts @param {string} ends */
+export const dayRange = (starts, ends) => `${day(starts)} – ${day(ends)}`;
+/** Progress toward the goal, 0–100; null when not read yet. @param {any} goal */
+export const goalPct = goal => (goal?.value == null || !goal.target ? null : Math.min(100, Math.round((goal.value / goal.target) * 100)));
+/** "126 / 300 người đăng ký"; "— / 300 …" before the first read. @param {any} goal */
+export const goalLine = goal => `${goal?.value == null ? '—' : num(goal.value)} / ${num(goal?.target ?? 0)} ${GOAL_SHORT[goal?.metric] ?? ''}`.trim();
+
+/** @param {any} [choices] */
+export const newCampaign = (choices = []) => ({ name: '', metric: 'signups', target: '', channels: choices.map((/** @type {any} */ c) => c.id), starts: '', ends: '', budget: '' });
+/** What still stops "Tạo chiến dịch", as the footer hint; null when it can be sent. @param {any} f */
+export function campaignProblem(f) {
+  if (!f.name.trim() || !f.starts || !f.ends) return 'Điền tên và ngày để tạo.';
+  if (!/^[a-z0-9][a-z0-9-]{1,63}$/.test(slugOf(f.name))) return 'Tên cần ít nhất 2 chữ hoặc số.';
+  if (f.ends < f.starts) return 'Ngày kết thúc phải từ ngày bắt đầu trở đi.';
+  if (!(digits(f.target) >= 1)) return 'Mục tiêu là một số lớn hơn 0.';
+  if (!f.channels.length) return 'Chọn ít nhất một kênh.';
+  return null;
+}
+/** The campaign_save body (page_action `campaign`). @param {any} f */
+export const campaignBody = f => ({ name: f.name.trim(), goal: { metric: f.metric, target: digits(f.target) ?? 0 }, channels: [...f.channels], starts: f.starts, ends: f.ends, token_budget: digits(f.budget) ?? 0 });
+/** The api failure line: "api.lohi2.com không trả lời lúc 07:00. Số bài, …". @param {any} read */
+export const readFailLine = read => `${String(read?.error?.message ?? 'Không đọc được').replace(/\.$/, '')} lúc ${read?.at ? hm(read.at) : '—'}. Số bài, tiếp cận dưới đây là của Soot; đăng ký và lượt bấm sẽ cập nhật ở lần đọc tới.`;
+/** "Token đã dùng: 820.000 / 2.000.000 (41%)." @param {number} used @param {number} budget */
+export const tokenLine = (used, budget) => (budget > 0 ? `Token đã dùng: ${num(used)} / ${num(budget)} (${Math.round((used / budget) * 100)}%).` : `Token đã dùng: ${num(used)} (chưa đặt ngân sách).`);

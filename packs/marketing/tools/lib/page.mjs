@@ -5,6 +5,7 @@ import { briefLint, platformOf, defaultsFor, internalLinks, HOLD_LABEL } from '.
 import { videoView } from './video.mjs';
 import { STATE_LABEL, ANSWERS, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
 import { localDayStart, DEFAULT_QUIET } from './time.mjs';
+import { campaignView, campaign_save, readReport } from './campaign.mjs';
 
 const DAY = 86_400_000;
 export const TABS = {
@@ -52,11 +53,12 @@ export async function metricsRows(store, now) {
   return [...days, ...queries];
 }
 
-export async function page_view(input, { store, now, page }) {
+export async function page_view(input, { store, now, page, env }) {
   const id = input.page ?? page;
   if (id === 'bai-viet') return input.id ? postDetail(input.id, { store, now }) : postList(input.filter, { store, now });
   if (id === 'hang-doi') return queueView({ store, now });
-  fail('invalid_request', 'page is bai-viet or hang-doi.');
+  if (id === 'chien-dich') return campaignView(input, { store, now, env });
+  fail('invalid_request', 'page is bai-viet, hang-doi or chien-dich.');
 }
 
 async function postList(filter = 'all', { store, now }) {
@@ -230,8 +232,24 @@ export async function page_action(input, deps) {
     }
     case 'pause': case 'resume':
       return pause({ channel: input.channel, paused: op === 'pause' }, deps);
+    // Chiến dịch: save (and make missing links), then one read so the detail has numbers.
+    // A page read never turns signups into lead outcomes: those stay the Soot's (campaign_report).
+    case 'campaign_save': {
+      if (!input.campaign || typeof input.campaign !== 'object' || Array.isArray(input.campaign)) fail('invalid_request', 'campaign is the campaign object.');
+      const { name, goal, channels, starts, ends, token_budget, landing, state, id } = input.campaign;
+      const saved = await campaign_save({ name, goal, channels, starts, ends, token_budget, landing, state, id }, deps);
+      const c = await store.one('campaigns', [eq('key', saved.id)]);
+      const report = await readReport(c, deps);
+      return { ...saved, read: { ok: report.ok, error: report.error ?? null } };
+    }
+    case 'campaign_refresh': {
+      const c = await store.one('campaigns', [eq('key', input.campaign_id ?? '')]);
+      if (!c) fail('not_found', `Không có chiến dịch ${input.campaign_id ?? ''}.`);
+      const report = await readReport(c, deps);
+      return { id: c.key, read: { ok: report.ok, error: report.error ?? null } };
+    }
   }
-  fail('invalid_request', 'op is pull, restore, unpublish, reschedule, post_now, drop, confirm_posted, confirm_not_posted, pause or resume.');
+  fail('invalid_request', 'op is pull, restore, unpublish, reschedule, post_now, drop, confirm_posted, confirm_not_posted, pause, resume, campaign_save or campaign_refresh.');
 }
 
 /** The person's pick on a Cần bạn item from `due.ask` (its key and one of its options), applied as

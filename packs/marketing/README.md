@@ -95,3 +95,24 @@ draft_save → check (guard + editor verdict) → schedule → due (tool-only sc
 
 The hub tools above are unchanged and still forward when `MARKETING_HUB` is
 bound; the new tools never forward.
+
+## Campaigns
+
+The **Chiến dịch** page (also `provides: ["flow-marketing"]`) and
+`campaign_save` make a campaign: a goal (`signups`, `first_topups`, `clicks`
+or `published` with a target), channels, dates, a token budget and one short
+link per channel made by the product api (`POST /admin/links`, `{code, url}`),
+tagged `utm_source=<channel>`, `utm_medium=blog|social`, `utm_campaign=<id>`.
+The api's address is the `PRODUCT_API_URL` env the host grants; its key is the
+optional operator credential `PRODUCT_ADMIN_KEY`, sent only to that address.
+`draft_save {campaign}` keeps a post on the campaign's channels and gives a
+social or video post the channel's link.
+
+`campaign_report` (a daily tool-only schedule) reads
+`GET /admin/analysis/campaigns/:id?from&to`, stores the snapshot and returns new
+attributed signups as `lead` outcomes (`ref: utm:<id>:<day>`), once each. The
+Soot passes `tokens_used` (summed from its outcomes' cost shares); at 80 % of
+the budget the tool returns one `tell` for the person and never stops the
+campaign. When the api cannot be read the page keeps the Soot-side numbers
+(published, reach) and says "Chưa đọc được số đăng ký từ <product>" with
+**Thử lại**; clicks and signups show "—", never 0.

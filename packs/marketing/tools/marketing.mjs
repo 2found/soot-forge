@@ -6,21 +6,22 @@ import { storage, MarketingError } from './lib/store.mjs';
 import * as ops from './lib/ops.mjs';
 import { page_view, page_action, answer } from './lib/page.mjs';
 import { video_import } from './lib/video.mjs';
+import { campaign_save, campaign_report } from './lib/campaign.mjs';
 
 export const TOOLS = {
   draft_save: ops.draft_save, items: ops.items, check: ops.check, schedule: ops.schedule, due: ops.due,
   claim: ops.claim, record: ops.record, fail: ops.failIntent, pause: ops.pause,
   page_view, page_action, facts_sync: ops.facts_sync, gsc_sync: ops.gsc_sync, seo_brief: ops.seo_brief,
   channels_setup: ops.channels_setup, raised: ops.raised, answer, replies_sync: ops.replies_sync, reply_save: ops.reply_save,
-  video_import,
+  video_import, campaign_save, campaign_report,
 };
 
 /** Run one tool; `deps` overrides the store, clock and fetch in tests. */
-export async function run(name, ctx, { env = process.env, store, now = Date.now(), fetchImpl = fetch } = {}) {
+export async function run(name, ctx, { env = process.env, store, now = Date.now(), fetchImpl = fetch, apiTimeoutMs } = {}) {
   const tool = TOOLS[name];
   if (!tool) throw new MarketingError('invalid_request', `Unknown tool ${name}.`);
   const input = ctx?.input ?? {};
-  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, soot: ctx?.soot ?? ctx?.page?.soot ?? null, page: ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id });
+  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, soot: ctx?.soot ?? ctx?.page?.soot ?? null, page: ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id });
 }
 
 async function readStdin() {
