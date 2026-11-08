@@ -54,3 +54,27 @@ test('build: --product-repo has no default; the company loop gets the scoreboard
   const set = build(tmp(), { env: true, video: false, connection: null, home: tmp(), productRepo: '/tmp/scratch-product' });
   assert.equal(JSON.parse(readFileSync(join(set.out, 'deployment.json'), 'utf8')).env.PRODUCT_REPO, '/tmp/scratch-product');
 });
+
+test('build: the Video Soot is added only when the workspace has the 2build pack (a missing pack would stop the whole workspace loading)', async () => {
+  const { build } = await import('./setup.mjs');
+  const { readFileSync, existsSync } = await import('node:fs');
+  const soots = out => JSON.parse(readFileSync(join(out, 'deployment.json'), 'utf8')).soots;
+  const bare = build(tmp(), { env: true, connection: null, home: tmp() });
+  assert.equal(bare.video, false);
+  assert.ok(!soots(bare.out).some(f => f.includes('lohi-video')), 'no 2build pack: no Video Soot');
+  assert.ok(!existsSync(join(bare.out, 'soots', 'video.md')));
+  assert.throws(() => build(tmp(), { env: true, video: true, connection: null, home: tmp() }), /pack 2build/, '--video without the pack is refused');
+  const dir = tmp();
+  mkdirSync(join(dir, 'packs', '2build'), { recursive: true });
+  writeFileSync(join(dir, 'packs', '2build', 'pack.json'), '{}');
+  const withPack = build(dir, { env: true, connection: null, home: tmp() });
+  assert.equal(withPack.video, true);
+  assert.ok(soots(withPack.out).some(f => f.includes('lohi-video')));
+  assert.equal(build(dir, { env: true, video: false, connection: null, home: tmp() }).video, false, '--no-video wins');
+});
+
+test('personSteps: the bbs:team step asks for --product-repo only when it was not given', async () => {
+  const { personSteps } = await import('./setup.mjs');
+  assert.match(personSteps().at(-1), /--product-repo/);
+  assert.doesNotMatch(personSteps({ productRepo: '/tmp/p' }).at(-1), /--product-repo/);
+});
