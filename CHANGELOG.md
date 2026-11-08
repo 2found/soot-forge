@@ -3,6 +3,44 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.9
+
+### Added
+
+- **Campaigns and the Chiến dịch page.** The marketing pack's new **Chiến dịch**
+  page and `marketing_campaign_save` make a campaign: a goal (`signups`,
+  `first_topups`, `clicks` or `published`, with a target), channels, dates
+  and a token budget. `marketing_draft_save {campaign}` keeps a post on the
+  campaign's channels.
+- **UTM short links.** Saving a campaign asks the product api
+  (`POST /admin/links`) for one short link per channel, tagged
+  `utm_source=<channel>`, `utm_medium=blog|social`, `utm_campaign=<id>`; a
+  social or video post on the campaign gets its channel's link. The api's
+  address is the host-granted `PRODUCT_API_URL` env; its key is the optional
+  operator credential `PRODUCT_ADMIN_KEY`, sent only to that address. Without
+  either, the campaign saves without links and the page says what is missing;
+  saving again makes them.
+- **Campaign report and lead outcomes.** `marketing_campaign_report` (a daily
+  tool-only schedule) reads `GET /admin/analysis/campaigns/:id`, keeps the
+  snapshot and returns each new attributed signup once as a `lead` outcome
+  (`ref: utm:<id>:<day>`). At 80 % of the token budget it returns one note for
+  the person and never stops the campaign. When the api cannot be read the page
+  keeps the Soot-side numbers and shows **Thử lại**; clicks and signups show
+  "—", never 0.
+- `examples/lohi-marketing`: a sixth schedule (07:00 campaign report) and the
+  `agent_mod` key setup for campaigns.
+
+### Changed
+
+- **The `marketing-team` template asks about publish approval.** The new
+  `publish_approval` input defaults to `required`: every `marketing_claim`
+  waits for your approval. Only `none` sets the host's policy to
+  `{"marketing_claim": "auto"}`; the guard still runs in every claim. The
+  template drops the marketing hub: the editor binds `MARKETING_CLAIM_KEY` and,
+  optionally, `PRODUCT_ADMIN_KEY`.
+
+Requires Soot 0.13.10 or later (unchanged).
+
 ## 0.11.8
 
 ### Added
