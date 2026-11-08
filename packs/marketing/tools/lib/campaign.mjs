@@ -16,6 +16,8 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY = 86_400_000;
 const TZ = 'Asia/Ho_Chi_Minh';
 const TIMEOUT_MS = 8000;
+/** The api reads at most 62 days per report (REVENUE_MAX_DAYS). */
+export const MAX_DAYS = 62;
 
 /** "Lohi tháng 12: truyện mới" → "lohi-thang-12-truyen-moi" (also the utm_campaign). */
 export const slugOf = name => fold(name).replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 64).replace(/-+$/, '');
@@ -39,7 +41,7 @@ export function targetOf(landing, id, key) {
 const API_WHY = {
   no_api: () => 'Soot chưa được đặt địa chỉ api (PRODUCT_API_URL)',
   no_key: () => 'Chưa có khoá PRODUCT_ADMIN_KEY trong Nest',
-  forbidden: host => `${host} từ chối khoá PRODUCT_ADMIN_KEY (cần khoá vai trò admin)`,
+  forbidden: host => `${host} từ chối khoá PRODUCT_ADMIN_KEY (khoá cần quyền tạo liên kết và đọc báo cáo chiến dịch)`,
   api_unreachable: host => `${host} không trả lời`,
   api_failed: host => `${host} trả lỗi`,
   api_bad: host => `${host} trả dữ liệu không đúng dạng`,
@@ -50,7 +52,8 @@ const apiError = (code, host, detail = '') => ({ code, host, message: API_WHY[co
 /** One product api call: {out} or {error:{code, host, message}}; never throws for the api's own failures. */
 async function api(deps, method, path, body) {
   const base = String(deps.env?.PRODUCT_API_URL ?? '').replace(/\/+$/, '');
-  if (!/^https?:\/\/[^/\s]+$/.test(base)) return { error: apiError('no_api', 'api') };
+  // The admin key travels only over https (plain http only to this machine, for a local api).
+  if (!/^https:\/\/[^/\s]+$/.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(base)) return { error: apiError('no_api', 'api') };
   const host = new URL(base).host;
   const key = deps.env?.PRODUCT_ADMIN_KEY;
   if (!key) return { error: apiError('no_key', host) };
@@ -63,7 +66,11 @@ async function api(deps, method, path, body) {
     });
   } catch { return { error: apiError('api_unreachable', host) }; }
   if (res.status === 401 || res.status === 403) return { error: apiError('forbidden', host) };
-  if (!res.ok) return { error: apiError(res.status >= 500 ? 'api_unreachable' : 'api_failed', host, String(res.status)) };
+  if (!res.ok) {
+    // The api's own error code (e.g. target_not_allowed) says why; keep it, never its free text.
+    const code = await res.json().then(b => (typeof b?.error === 'string' && /^[a-z_]{1,40}$/.test(b.error) ? ` ${b.error}` : ''), () => '');
+    return { error: apiError(res.status >= 500 ? 'api_unreachable' : 'api_failed', host, `${res.status}${code}`) };
+  }
   const out = await res.json().catch(() => null);
   return out && typeof out === 'object' ? { out } : { error: apiError('api_bad', host) };
 }
@@ -74,6 +81,7 @@ async function campaignRow(store, id) {
   if (!row) fail('not_found', `Không có chiến dịch ${id}.`);
   return row;
 }
+export const campaignExists = async (store, id) => typeof id === 'string' && ID_RE.test(id) && !!(await store.one('campaigns', [eq('key', id)]));
 export const linksOf = (store, ids) => store.query('links', [inList('campaign', ids)], { limit: 500 });
 
 /** campaign_save: create or update a campaign, then make each missing channel link. */
@@ -85,12 +93,16 @@ export async function campaign_save(input, deps) {
   if (!GOAL_METRICS.includes(goal.metric) || !Number.isInteger(goal.target) || goal.target < 1) fail('invalid_request', `goal is {metric: ${GOAL_METRICS.join('|')}, target ≥ 1}.`);
   if (!DAY_RE.test(input.starts ?? '') || !DAY_RE.test(input.ends ?? '') || Number.isNaN(Date.parse(input.starts)) || Number.isNaN(Date.parse(input.ends))) fail('invalid_request', 'starts and ends are YYYY-MM-DD.');
   if (input.ends < input.starts) fail('invalid_request', 'ends is on or after starts.');
+  if ((Date.parse(input.ends) - Date.parse(input.starts)) / DAY + 1 > MAX_DAYS) fail('invalid_request', `Một chiến dịch dài tối đa ${MAX_DAYS} ngày (api chỉ đọc số trong ${MAX_DAYS} ngày); chia thành hai chiến dịch.`);
   const budget = input.token_budget ?? 0;
   if (!Number.isInteger(budget) || budget < 0) fail('invalid_request', 'token_budget is a whole number ≥ 0.');
   if (input.state !== undefined && !['active', 'stopped'].includes(input.state)) fail('invalid_request', 'state is active or stopped.');
   const keys = [...new Set(Array.isArray(input.channels) ? input.channels : [])];
   if (!keys.length || keys.length > 10) fail('invalid_request', 'channels lists 1–10 channel ids.');
   for (const k of keys) await channel(store, k); // an unknown channel is refused here
+  // One link and one row per platform: two channels on one platform would share the api's numbers.
+  const dup = keys.find((k, i) => keys.findIndex(o => platform(o) === platform(k)) !== i);
+  if (dup) fail('invalid_request', `Mỗi nền tảng một kênh trong một chiến dịch (${dup} trùng nền tảng ${platform(dup)}).`);
   const settings = await getSettings(store);
   const id = input.id ?? slugOf(name);
   if (!ID_RE.test(id)) fail('invalid_request', 'Tên cần ít nhất 2 chữ hoặc số để làm mã chiến dịch.');
@@ -100,7 +112,8 @@ export async function campaign_save(input, deps) {
   const landing = input.landing ?? cur?.landing ?? settings.landing ?? LANDING_DEFAULT;
   if (typeof landing !== 'string' || !/^https:\/\/[^\s]+$/.test(landing) || landing.length > 300) fail('invalid_request', 'landing is an https address.');
   const row = { name, goal: { metric: goal.metric, target: goal.target }, channels: keys, starts: dayStart(input.starts), ends: dayEnd(input.ends), token_budget: budget, landing, state: input.state ?? cur?.state ?? 'active' };
-  if (cur) await store.update('campaigns', [eq('key', id)], row);
+  // A changed budget gets its own 80 % note.
+  if (cur) await store.update('campaigns', [eq('key', id)], { ...row, ...((cur.token_budget ?? 0) !== budget ? { budget_told: false } : {}) });
   else {
     try { await store.insert('campaigns', { key: id, ...row, tokens_used: 0, leads: 0, budget_told: false, report: null }); }
     catch (e) { if (e.code !== 'conflict') throw e; await store.update('campaigns', [eq('key', id)], row); }

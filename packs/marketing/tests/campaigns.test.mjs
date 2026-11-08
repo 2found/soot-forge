@@ -192,3 +192,38 @@ test('the key goes only to PRODUCT_API_URL: no tool takes an api address from it
   assert.equal(pack.tools.find(t => t.name === 'campaign_report').run.mode, 'write');
   assert.deepEqual(pack.interface.pages.find(p => p.id === 'chien-dich').provides, ['flow-marketing']);
 });
+
+test('p5 review: span ≤ 62 days, one channel per platform, https-only api, api error code kept, a new budget gets its own 80 % note, an old free-text tag stays editable', async () => {
+  api.reset();
+  const w = world();
+  // The api reads at most 62 days: a longer campaign is refused before any call.
+  await assert.rejects(w.call('campaign_save', { ...CAMPAIGN, id: 'q4', starts: '2026-10-01', ends: '2026-12-31' }), /tối đa 62 ngày/);
+  await assert.rejects(w.call('campaign_save', { ...CAMPAIGN, id: 'two-x', channels: ['x-lohi', 'x-lohi2'] }), /Mỗi nền tảng một kênh/);
+  assert.equal(api.calls.length, 0);
+  // Plain http to a remote host never carries the admin key.
+  const plain = world({ env: { PRODUCT_API_URL: 'http://api.example.com' } });
+  const p = await plain.call('campaign_save', { ...CAMPAIGN, channels: ['x-lohi'] });
+  assert.equal(p.links_error.code, 'no_api');
+  assert.equal(api.calls.length, 0);
+  // A wrong key: 403 → forbidden; a 4xx keeps the api's error code in the message.
+  api.mode = 'error';
+  const e = await w.call('campaign_save', { ...CAMPAIGN, channels: ['x-lohi'] });
+  assert.match(e.links_error.message, /\(503 unavailable\)/);
+  api.mode = 'ok';
+  // 80 % told once; a raised budget is told again at its own 80 %.
+  const c = await w.call('campaign_save', CAMPAIGN);
+  let r = await w.call('campaign_report', { id: c.id, tokens_used: 1_700_000 });
+  assert.equal(r.tell.length, 1);
+  r = await w.call('campaign_report', { id: c.id, tokens_used: 1_750_000 });
+  assert.equal(r.tell.length, 0);
+  await w.call('campaign_save', { ...CAMPAIGN, id: c.id, token_budget: 4_000_000 });
+  r = await w.call('campaign_report', { id: c.id, tokens_used: 2_000_000 });
+  assert.equal(r.tell.length, 0);
+  r = await w.call('campaign_report', { id: c.id, tokens_used: 3_300_000 });
+  assert.equal(r.tell.length, 1);
+  // A draft tagged before campaigns existed is still editable and keeps its tag.
+  await w.store.insert('posts', { ref: 'P-0000000009', kind: 'social', channel: 'x-lohi', campaign: 'Lohi Dec', body: 'cũ', state: 'draft', revision: 1, content_hash: 'h' });
+  const d = await w.call('draft_save', { id: 'P-0000000009', expected_revision: 1, kind: 'social', channel: 'x-lohi', body: 'Truyện mới tháng 12 trên Lohi.' });
+  assert.equal(d.revision, 2);
+  assert.equal((await w.store.call('posts', 'query', {})).rows.find(x => x.ref === 'P-0000000009').campaign, 'Lohi Dec');
+});

@@ -1178,7 +1178,7 @@
     "credentials": {
       "PRODUCT_ADMIN_KEY": {
         "title": "Khoá admin sản phẩm",
-        "description": "Khoá API vai trò admin tạo trong trang quản trị của sản phẩm; Soot dùng để tạo liên kết rút gọn cho chiến dịch và đọc số lượt bấm, đăng ký theo chiến dịch. Chỉ gửi tới địa chỉ api PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
+        "description": "Khoá API tạo trong trang quản trị của sản phẩm, có quyền tạo liên kết chiến dịch và đọc báo cáo chiến dịch; Soot dùng để tạo liên kết rút gọn cho chiến dịch và đọc số lượt bấm, đăng ký theo chiến dịch. Chỉ gửi tới địa chỉ api PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
         "from": "operator",
         "optional": true
       },

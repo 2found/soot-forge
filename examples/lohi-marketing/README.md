@@ -132,7 +132,8 @@ on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_im
    The Editor checks that account and the channel shows "đã đăng nhập, chờ
    Bật". Nothing posts until you choose **Bật** for the channel on the Hàng
    đợi page (`resume`). You never give Soot a password.
-7. For campaigns, create an admin-role API key in Lohi's admin UI and store it
+7. For campaigns, create an API key with role `agent_mod` in Lohi's admin UI
+   (Quản trị → API keys; a key can never be `admin`) and store it
    in Nest, Đội Soot → Editor → the tool connections, `PRODUCT_ADMIN_KEY`.
    Start the runtime with `PRODUCT_API_URL=https://api.lohi2.com` in its
    environment, like `SOOT_BROWSER_PERSISTENT_SOOTS` above. The key goes only
