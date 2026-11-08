@@ -122,3 +122,45 @@ test('an unreachable or malformed answer keeps old numbers and says so without l
   const dead = await world({ env: { SCOREBOARD_URL: 'http://127.0.0.1:1/x', PRODUCT_ADMIN_KEY: KEY } }).call('scoreboard_sync');
   assert.equal(dead.reason_code, 'unreachable');
 });
+
+test('readers waiting for a person: one Cần bạn ask per bucket change from 5, closed by the sync that finds fewer than 5', async () => {
+  reset();
+  const w = live({ SUPPORT_QUEUE_URL: 'https://lohi2.com/admin/support' });
+  const waiting = n => { api.over = { support: { by_state: { soot: 20, waiting_human: n, human: 1, resolved: 3 }, handoff_reasons: [] } }; };
+  waiting(4);
+  const quiet = await w.call('scoreboard_sync');
+  assert.deepEqual([quiet.done, quiet.ask, quiet.resolves_need], [true, undefined, undefined]);
+  waiting(22);
+  const first = await w.call('scoreboard_sync');
+  assert.deepEqual([first.notify, first.wake, first.ask.summary, first.ask.keys], [true, true, '22 bạn đọc đang chờ người trả lời', ['company:support:waiting']]);
+  assert.match(first.ask.missing, /https:\/\/lohi2\.com\/admin\/support/);
+  waiting(24);
+  w.now += 86_400_000;
+  assert.equal((await w.call('scoreboard_sync')).ask, undefined, 'same bucket on the next day: not raised again');
+  waiting(51);
+  w.now += 86_400_000;
+  assert.equal((await w.call('scoreboard_sync')).ask.summary, '51 bạn đọc đang chờ người trả lời');
+  waiting(7);
+  w.now += 86_400_000;
+  assert.equal((await w.call('scoreboard_sync')).ask.summary, '7 bạn đọc đang chờ người trả lời', 'a new bucket is raised once');
+  waiting(2);
+  w.now += 86_400_000;
+  const closed = await w.call('scoreboard_sync');
+  assert.deepEqual([closed.resolves_need, closed.done, closed.ask], [true, true, undefined]);
+  w.now += 86_400_000;
+  assert.equal((await w.call('scoreboard_sync')).resolves_need, undefined, 'closed once');
+  waiting(9);
+  w.now += 86_400_000;
+  assert.ok((await w.call('scoreboard_sync')).ask, 'and raised again when it climbs back');
+  assert.doesNotMatch(JSON.stringify(first), /agent-mod|PRODUCT_ADMIN/);
+  api.over = {};
+});
+
+test('the digest chain sync never raises or closes the waiting ask', async () => {
+  reset();
+  const w = live();
+  api.over = { support: { by_state: { soot: 1, waiting_human: 30, human: 0, resolved: 0 }, handoff_reasons: [] } };
+  const out = await w.call('scoreboard_sync', { for_digest: true });
+  assert.deepEqual([out.synced, out.ask, out.resolves_need], [true, undefined, undefined]);
+  api.over = {};
+});

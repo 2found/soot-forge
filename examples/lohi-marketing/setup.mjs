@@ -26,6 +26,8 @@ export const HOST_ENV = {
   SOOT_BROWSER_PERSISTENT_SOOTS: 'lohi-editor',
   // The scoreboard contract of the Lohi api (company-loop): aggregate numbers, read with the agent_mod key.
   SCOREBOARD_URL: 'https://api.lohi2.com/admin/analysis/scoreboard',
+  // Where a person answers the readers waiting for one (Lohi admin support queue); named in the daily Cần bạn card.
+  SUPPORT_QUEUE_URL: 'https://lohi2.com/admin/support',
 };
 // LOHI_BLOG_REMOTE has no default: a workspace set up without `--blog-remote` must never be able to push to the real blog repo.
 // PRODUCT_REPO has no default either: the company loop writes a requirement file into it and spawns a bbs team there, so a scratch

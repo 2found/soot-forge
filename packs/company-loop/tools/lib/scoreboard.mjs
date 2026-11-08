@@ -67,6 +67,26 @@ async function baseline(store, deps, board) {
   return 'recorded';
 }
 
+// Readers waiting for a person: one Cần bạn ask per change of the count bucket, closed when it falls below WAITING_MIN.
+export const WAITING_MIN = 5;
+export const waitingBucket = n => (!Number.isFinite(n) ? 0 : n >= 50 ? 50 : n >= 20 ? 20 : n >= 10 ? 10 : n >= WAITING_MIN ? WAITING_MIN : 0);
+
+/** {} (nothing to say), {resolves_need: true} (back under the line) or {ask} (a new bucket). Counts only, never a reader. */
+async function waitingNeed(store, env, board, now) {
+  const n = board.support?.by_state?.waiting_human;
+  if (!Number.isFinite(n)) return {};
+  const bucket = waitingBucket(n), last = (await getState(store, 'waiting_ask'))?.bucket ?? 0;
+  if (bucket === last) return {};
+  await setState(store, 'waiting_ask', { bucket, count: n, at: iso(now) });
+  if (!bucket) return { resolves_need: true };
+  const where = safeUrl(env.SUPPORT_QUEUE_URL)?.toString() ?? 'trang hỗ trợ trong quản trị sản phẩm';
+  return { ask: {
+    keys: ['company:support:waiting'], summary: `${n} bạn đọc đang chờ người trả lời`,
+    missing: `Mở ${where}, vào các cuộc đang chờ người và trả lời từng bạn. Thẻ này tự đóng khi còn dưới ${WAITING_MIN} bạn đọc chờ; số tăng sang mức mới sẽ nêu lại một lần.`,
+    options: [{ label: 'Đã xử lý', recommended: true }, { label: 'Để sau' }],
+  } };
+}
+
 export async function scoreboard_sync(input, deps) {
   const { store, env, now } = deps;
   if (!env.PRODUCT_ADMIN_KEY) return skippedFor('PRODUCT_ADMIN_KEY');
@@ -94,5 +114,7 @@ export async function scoreboard_sync(input, deps) {
     base = wk.error ? 'week_unreadable' : await baseline(store, deps, wk.board);
   }
   if (input.for_digest) return { ok: true, synced: true, period: row.key, baseline: base };
-  return { done: true, period: row.key, baseline: base };
+  const need = await waitingNeed(store, env, got.board, now);
+  if (need.ask) return { ok: true, period: row.key, baseline: base, ask: need.ask, notify: true, wake: true };
+  return { done: true, period: row.key, baseline: base, ...(need.resolves_need ? { resolves_need: true } : {}) };
 }

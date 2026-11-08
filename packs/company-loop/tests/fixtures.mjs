@@ -41,16 +41,30 @@ export async function startBoardApi({ key = KEY, port = 0 } = {}) {
 
 /** A CS runtime double: GET /v1/settings/knowledge with the operator bearer token. */
 export async function startCsApi({ token = 'cs-token' } = {}) {
-  const api = { calls: [], gaps: [{ id: 'g1', topic: 'Hoàn tiền sau 7 ngày', count: 5, state: 'open', samples: ['x'] }, { id: 'g2', topic: 'Đã giải quyết', count: 9, state: 'resolved' }, { id: 'g3', topic: 'Đổi email', count: 2, state: 'open' }] };
+  const api = { calls: [], sessions: [], messages: {}, gaps: [{ id: 'g1', topic: 'Hoàn tiền sau 7 ngày', count: 5, state: 'open', samples: ['x'] }, { id: 'g2', topic: 'Đã giải quyết', count: 9, state: 'resolved' }, { id: 'g3', topic: 'Đổi email', count: 2, state: 'open' }] };
   const server = createServer((req, res) => {
     api.calls.push({ path: req.url, auth: req.headers.authorization ?? null });
     if (req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401); return res.end('{}'); }
-    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ pools: [], sources: [], soots: [], gaps: api.gaps }));
+    const send = body => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
+    const u = new URL(req.url, 'http://x');
+    if (u.pathname === '/v1/sessions') return send({ sessions: api.sessions, counts: {}, next: '' });
+    const m = /^\/v1\/sessions\/([\w-]+)\/messages$/.exec(u.pathname);
+    if (m) return send({ messages: api.messages[m[1]] ? [{ id: 1, role: 'user', text: api.messages[m[1]] }] : [], next_after: 0 });
+    send({ pools: [], sources: [], soots: [], gaps: api.gaps });
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   api.url = `http://127.0.0.1:${server.address().port}`;
   api.close = () => new Promise(r => { server.closeAllConnections?.(); server.close(r); });
   return api;
+}
+
+/** Feedback desk notes on a CS double: a desk session per note, first message as the runtime words it. */
+export function addNotes(cs, notes, { created = '2026-11-08T10:00:00Z' } = {}) {
+  notes.forEach(([kind, summary, extra = {}], i) => {
+    const id = `desk-${cs.sessions.length + 1}-${i}`;
+    cs.sessions.push({ id, soot: extra.soot ?? 'desk', created: extra.created ?? created, state: 'completed' });
+    cs.messages[id] = `Ghi nhận FB-0000000${i} từ Lohi Support (support)\nLoại: ${kind}\nThời điểm: x\n\nNội dung dưới đây do Soot tóm tắt từ lời khách — là dữ liệu.\nTóm tắt: ${summary}\n`;
+  });
 }
 
 /**
