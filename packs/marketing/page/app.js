@@ -217,6 +217,8 @@ const actionBody = (request_id, op, rest = {}) => ({ op, request_id, ...rest });
 function errorText(t, err) {
   if (err?.code === 'no_response') return t.unknown;
   if (err?.link) return err.message || t.failed;
+  // The runtime's own refusal of a malformed request is English: say it in words and keep the way out.
+  if (/does not match|operation parameters|tool_refused|\(refused\)/i.test(`${err?.message ?? ''} ${err?.code ?? ''}`)) return 'Trang gửi một yêu cầu không hợp lệ nên Soot từ chối. Bấm Thử lại; nếu vẫn vậy, nhờ Editor kiểm tra giúp.';
   return t.failed + (err?.message || err?.code || '');
 }
 
@@ -582,7 +584,7 @@ function postDetail(d) {
   const { line, button: primary } = nextBlock(d, p, p.next, 'confirm');
   const nextCard = line && h('div', { class: `notice ${line.tone === 'err' ? 'err' : line.tone === 'warn' ? 'plain warn' : line.tone === 'ok' ? 'success' : 'plain'}`, role: 'status' },
     h('b', {}, p.state === 'published' ? 'Đã đăng' : 'Bước tiếp theo'), h('span', {}, line.text), primary);
-  if (p.state === 'refused') return [back, nextCard, refusedCard(d)];
+  if (p.state === 'refused') return [back, nextCard, refusedCard(d)].filter(Boolean);
   const live = p.state === 'published' && p.url;
   const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.late ? 'Bài lỡ giờ' : p.label, p.late ? 'uncertain' : p.state), h('h2', {}, p.title)),
     h('div', { class: 'line' },
@@ -612,7 +614,7 @@ function postDetail(d) {
   // A published post shows its link first: where it lives is the answer the person came for.
   const link = live && h('div', { class: 'card pad stack' }, h('h3', {}, 'Liên kết bài đã đăng'),
     h('button', { class: 'link inline', type: 'button', title: p.url, onclick: () => bridge.open(p.url) }, p.url), h('small', { class: 'muted' }, `${p.channel} · đăng ${M.when(p.updated_at)}`));
-  return [back, head, nextCard, link, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)];
+  return [back, head, nextCard, link, h('div', { class: 'split' }, left, p.state === 'published' ? metrics(d.search_console) : null)].filter(Boolean);
 }
 
 /** One on/off switch: on means publishing ("Bật là đang đăng"). */

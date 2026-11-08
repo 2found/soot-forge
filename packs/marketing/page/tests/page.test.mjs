@@ -177,3 +177,9 @@ test('markdown body: headings, lists, bold and https links become blocks; no HTM
   assert.deepEqual(b[1].parts.map(p => p.href ?? p.b ?? null), [null, true, null, 'https://lohi2.com/x', null]);
   assert.equal(M.mdBlocks('[x](javascript:alert(1))')[0].parts.every(p => !p.href), true);
 });
+
+test('a runtime refusal in English reads as one Vietnamese sentence with the way out', () => {
+  const text = M.errorText(M.strings('vi'), { code: 'tool_refused', message: "input does not match operation parameters: at '/id': bad (refused)" });
+  assert.match(text, /^Trang gửi một yêu cầu không hợp lệ/);
+  assert.doesNotMatch(text, /operation parameters/);
+});

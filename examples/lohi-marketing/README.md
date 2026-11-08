@@ -145,6 +145,10 @@ What only a person can do, each one Cần bạn card or one command:
 Check the accounts in the `marketing-channels` schedule (the X handle, the
 Facebook Page URL, the Reddit user) before the first run.
 
+What to do next is on the page itself: **Bài viết › Cần bạn** lists every post that waits for you, and
+**Hàng đợi** starts with one sentence and one button (or "Không cần làm gì, Soot đang tự chạy"). A channel that is
+signed out shows **Đăng nhập <kênh>**, which opens the Editor's browser pane.
+
 To stop publishing, turn off **Đăng mọi kênh** on the Hàng đợi page (a switch is on while it is publishing), or call
 `marketing_pause {paused: true}`. Writing and checking go on. To take a post
 down, choose **Gỡ bài** on the Bài viết page (a queued post: **Gỡ khỏi hàng đợi**). Removal goes through the same

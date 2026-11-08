@@ -110,6 +110,8 @@ export const actionBody = (request_id, op, rest = {}) => ({ op, request_id, ...r
 export function errorText(t, err) {
   if (err?.code === 'no_response') return t.unknown;
   if (err?.link) return err.message || t.failed;
+  // The runtime's own refusal of a malformed request is English: say it in words and keep the way out.
+  if (/does not match|operation parameters|tool_refused|\(refused\)/i.test(`${err?.message ?? ''} ${err?.code ?? ''}`)) return 'Trang gửi một yêu cầu không hợp lệ nên Soot từ chối. Bấm Thử lại; nếu vẫn vậy, nhờ Editor kiểm tra giúp.';
   return t.failed + (err?.message || err?.code || '');
 }
 
