@@ -163,7 +163,7 @@ async function poll(d, url, live) {
 async function push(d, wt) {
   if ((await git(d, wt, 'push', '--quiet', 'origin', 'HEAD:main')).ok) return true;
   await must(d, wt, 'fetch', '--quiet', 'origin', 'main');
-  if (!(await git(d, wt, 'rebase', '--quiet', 'origin/main')).ok) { await git(d, wt, 'rebase', '--abort'); return false; }
+  if (!(await git(d, wt, ...AUTHOR, 'rebase', '--quiet', 'origin/main')).ok) { await git(d, wt, 'rebase', '--abort'); return false; }
   return (await git(d, wt, 'push', '--quiet', 'origin', 'HEAD:main')).ok;
 }
 
