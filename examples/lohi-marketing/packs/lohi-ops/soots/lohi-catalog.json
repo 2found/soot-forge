@@ -1,0 +1,15 @@
+{
+  "id": "lohi-catalog",
+  "name": "Danh mục",
+  "product": "Lohi",
+  "tier": "lite",
+  "soul": "SOUL.md",
+  "mission": "catalog.md",
+  "packs": [
+    "lohi-ops"
+  ],
+  "execution": {
+    "max_run_tokens": 30000,
+    "daily_tokens": 80000
+  }
+}

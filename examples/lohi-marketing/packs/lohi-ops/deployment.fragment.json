@@ -1,0 +1,34 @@
+{
+  "pack_grants": {
+    "lohi-ops": {
+      "env": ["PRODUCT_API_URL", "CLI_CATALOG_DB", "APPSTORE_APP_ID", "APPSTORE_COUNTRY", "GSC_SITE", "SITE_URL", "PATH", "HOME"]
+    }
+  },
+  "soot_packs": {
+    "lohi-catalog": ["lohi-ops"]
+  },
+  "approvals": {
+    "lohi-ops_appstore_post": "operator",
+    "lohi-ops_comments_resolve": "operator"
+  },
+  "schedules": [
+    { "id": "ops-catalog-health", "name": "Sức khoẻ kho truyện", "soot": "lohi-catalog", "cron": "30 6 * * *", "timezone": "Asia/Ho_Chi_Minh",
+      "tool": { "pack": "lohi-ops", "name": "catalog_health", "input": {} },
+      "text": "lohi-ops_catalog_health failed. Say the reason in one line; the findings table and the Cần bạn card are the tool's." },
+    { "id": "ops-crawl-watch", "name": "Theo dõi thu thập truyện", "soot": "lohi-catalog", "cron": "15 */4 * * *", "timezone": "Asia/Ho_Chi_Minh",
+      "tool": { "pack": "lohi-ops", "name": "crawl_watch", "input": {} },
+      "text": "lohi-ops_crawl_watch failed. Say the reason in one line." },
+    { "id": "ops-comments", "name": "Kiểm duyệt bình luận", "soot": "lohi-catalog", "cron": "*/30 7-23 * * *", "timezone": "Asia/Ho_Chi_Minh",
+      "tool": { "pack": "lohi-ops", "name": "comments_pull", "input": { "limit": 40 } }, "wake_when": { "notify": true },
+      "text": "lohi-ops_comments_pull brought comments to judge. Follow the lohi-ops-moderation skill with this batch (do not pull again): lohi-ops_comments_decide once with a verdict per id. End with one line." },
+    { "id": "ops-reviews", "name": "Đánh giá App Store", "soot": "lohi-catalog", "every": "24h", "at": "09:10", "timezone": "Asia/Ho_Chi_Minh",
+      "tool": { "pack": "lohi-ops", "name": "appstore_sync", "input": {} }, "wake_when": { "notify": true },
+      "text": "lohi-ops_appstore_sync found new reviews. Follow the lohi-ops-reviews skill: lohi-ops_appstore_draft for each review in needs_reply. Do not post. End with one line." },
+    { "id": "ops-seo", "name": "Báo cáo SEO trang truyện", "soot": "lohi-catalog", "cron": "0 8 * * 2", "timezone": "Asia/Ho_Chi_Minh",
+      "tool": { "pack": "lohi-ops", "name": "seo_report", "input": {} }, "wake_when": { "notify": true },
+      "text": "lohi-ops_seo_report has the weekly novel-page SEO report. Summarize it in Vietnamese per your mission." },
+    { "id": "ops-pricing", "name": "Báo cáo giá và gói", "soot": "lohi-catalog", "cron": "30 8 * * 1", "timezone": "Asia/Ho_Chi_Minh",
+      "tool": { "pack": "lohi-ops", "name": "pricing_report", "input": {} }, "wake_when": { "notify": true },
+      "text": "lohi-ops_pricing_report has the weekly plans and cohorts analysis. Summarize it in Vietnamese per your mission; every suggestion is the founder's decision." }
+  ]
+}
