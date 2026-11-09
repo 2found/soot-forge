@@ -3,7 +3,9 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.11.20 — 2026-11-09
+
+Baseline: v0.11.19 (a483317). Pairs with Soot 0.13.22.
 
 ### Changed
 
