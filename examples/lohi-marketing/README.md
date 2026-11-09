@@ -176,7 +176,11 @@ The founder taps twice per product change (Go on the opportunity, and bbs:team's
 release go) and never for a content opportunity. Marketing receives topics through the
 chain `company-loop.topic_next` then `marketing.plan` (`input_from: previous`): the
 chain merges the topic into the plan call, and `marketing.plan` keeps it until a post about
-it exists, so the Writer's own plan call sees the same topic. No marketing tool was added.
+it exists, so the Writer's own plan call sees the same topic. A third step, `company-loop.topic_sync`,
+reads the plan's `topic_posts` (keywords of the newest posts): the topic is `handed` (given, not written) until a post
+with its keyword exists, then `written` with the post id, and returns to the queue if the 48 h hold ends with no post.
+The Công ty page shows exactly that. An existing workspace needs the extra step in its `marketing-plan` schedule and
+`topic_sync` in the Writer's grant; without them topics stay `handed` and return to the queue after 48 h.
 
 Set the product checkout when you set up the workspace (no default, never the real tree
 in a test):

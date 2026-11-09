@@ -4,7 +4,7 @@
 import { eq, fail, getState } from './base.mjs';
 import { latestBoard, labelOf, METRICS } from './scoreboard.mjs';
 import { hitRate } from './review.mjs';
-import { decide } from './opportunities.mjs';
+import { decide, HOLD_MS, HANDED } from './opportunities.mjs';
 import { startHandoff } from './handoff.mjs';
 import { bbsReady } from './handoff.mjs';
 import { scoreboard_sync } from './scoreboard.mjs';
@@ -14,7 +14,7 @@ import { healthView } from './health.mjs';
 const pct = (v, p) => (Number.isFinite(v) && Number.isFinite(p) && p > 0 ? Math.round(((v - p) / p) * 100) : null);
 
 /** The one next step as a code: {code, n?, ref?, do?}. */
-export function nextStep({ setup, sync, proposals, handoffs, topics }) {
+export function nextStep({ setup, sync, proposals, handoffs, topics, handed = 0 }) {
   if (!setup.key || !setup.url) return { code: 'setup' };
   if (sync && sync.ok === false && sync.code === 'forbidden') return { code: 'key_refused' };
   if (proposals) return { code: 'choose', n: proposals };
@@ -23,26 +23,34 @@ export function nextStep({ setup, sync, proposals, handoffs, topics }) {
   const delivered = handoffs.find(h => h.state === 'delivered');
   if (delivered) return { code: 'release_go', ref: delivered.opportunity };
   if (handoffs.some(h => ['spawned', 'starting', 'building', 'blocked'].includes(h.state))) return { code: 'building' };
+  if (handed) return { code: 'topic_handed', n: handed };
   if (topics) return { code: 'topics', n: topics };
   return { code: 'idle' };
 }
 
 export async function page_view(input, { store, env, now }) {
-  const [board, opps, handoffs, decisions, queued, sync] = await Promise.all([
+  const [board, opps, handoffs, decisions, allTopics, sync] = await Promise.all([
     latestBoard(store),
     store.query('opportunities', [], { order: 'updated_at', limit: 100 }),
     store.query('handoffs', [], { order: 'updated_at', limit: 50 }),
     store.query('decisions', [], { order: 'at', limit: 100 }),
-    store.query('topics', [eq('state', 'queued')], { limit: 50 }),
+    store.query('topics', [], { order: 'updated_at', limit: 50 }),
     getState(store, 'sync'),
   ]);
   // A read tool holds no credential: a sync that ran is the proof the key is there.
   const setup = { key: !!env.PRODUCT_ADMIN_KEY || !!sync, url: !!safeUrl(env.SCOREBOARD_URL), repo: !!env.PRODUCT_REPO, bbs: bbsReady(env) };
+  // `taken` is the old name of `handed` (rows written before the state split): it reads as handed over, not written.
+  const topics = allTopics.map(t => {
+    const state = HANDED.includes(t.state) ? 'handed' : t.state;
+    return { ref: t.opportunity_ref, query: t.query, kind: t.kind, state, post: t.post ?? null, at: t.updated_at, ...(state === 'handed' ? { until: new Date(Date.parse(t.updated_at) + HOLD_MS).toISOString() } : {}) };
+  });
+  const queued = topics.filter(t => t.state === 'queued');
+  const handed = topics.filter(t => t.state === 'handed');
   const proposals = opps.filter(o => o.state === 'proposed').length;
   const titleOf = Object.fromEntries(opps.map(o => [o.ref, o.title]));
   return {
     page: 'cong-ty', setup, sync,
-    next: nextStep({ setup, sync, proposals, handoffs, topics: queued.length }),
+    next: nextStep({ setup, sync, proposals, handoffs, topics: queued.length, handed: handed.length }),
     scoreboard: board ? {
       product: board.product, from: board.period_from, to: board.period_to, comparison: board.comparison,
       tiles: Object.entries(board.metrics).map(([key, m]) => ({ key, label: labelOf(key, m), unit: m.unit ?? (key === 'revenue_vnd' ? 'vnd' : 'count'), value: m.value, previous: m.previous ?? null, pct: pct(m.value, m.previous), good: METRICS[key]?.[1] ?? 'up' })),
@@ -54,6 +62,7 @@ export async function page_view(input, { store, env, now }) {
     decisions: decisions.slice(0, 40).map(d => ({ at: d.at, stage: d.stage, ref: d.opportunity_ref, title: titleOf[d.opportunity_ref] ?? d.opportunity_ref, decision: d.decision, by: d.by, note: d.note, target_outcome: d.target_outcome, expected_delta: d.expected_delta, check_after_days: d.check_after_days, baseline_value: d.baseline_value, actual_delta: d.actual_delta })),
     hit_rate: hitRate(decisions),
     topics_queued: queued.length,
+    topics,
     health: await healthView(store, now),
   };
 }

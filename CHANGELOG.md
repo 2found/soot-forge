@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+### Changed
+
+- **company-loop (storage version 3): a topic is not "done" when it is handed over.** `topic_next` now marks a topic `handed` (it was `taken`); the new chain step `topic_sync` (after `marketing.plan`) marks it `written` with the post id once a post with its keyword exists, and returns it to the queue when the 48 h hold ends with no post. New nullable column `topics.post`. Old `taken` rows read as `handed`. The Công ty page lists each topic's state on its opportunity card and in the next-step bar. `marketing.plan` (wake call) adds `topic_posts` (keyword and id of the newest posts). The Lohi example adds the `topic_sync` step to `marketing-plan` and grants it to the Writer.
+
 ## 0.11.18
 
 Baseline: v0.11.17 (7c663b9). **Needs Soot 0.13.19 or later**: the team templates are group-template v3 (team contracts, member tool chains, a team budget) and the company compiler hands its file to `soot company check`, which older runtimes lack. Soot 0.13.19 pairs with Forge 0.11.18; packs that did not change still run on Soot 0.13.14 or later. Commits since v0.11.17: 342d79d (recipe grants RELEASE_TAGS), 36887c7 and de963b2 (lean Soot team, loop health), ed7f31b and 64a90c0 (lohi-ops), defa64b, 77775ff (teams as interfaces), 419ef31, ea025eb, 09a9018 (QA fixes), af75b4a and d3ebfc9 (contract copy, lohi-ops quiet schedules) and this release commit.

@@ -7,7 +7,7 @@
   "mission": "writer.md",
   "packs": [
     "marketing:tools=plan,draft_save,check,schedule,items",
-    "company-loop:tools=topic_next"
+    "company-loop:tools=topic_next,topic_sync"
   ],
   "execution": {
     "max_run_tokens": 80000,

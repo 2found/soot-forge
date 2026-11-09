@@ -44,6 +44,11 @@ async function keepTopic(store, input, now, posts) {
   return live ? kept.query : null;
 }
 
+/** The keyword and id of the newest article posts (at most 20), for the company loop to match a handed topic against. */
+function writtenKeywords(posts) {
+  return posts.filter(p => p.brief?.keyword).slice(0, 20).map(p => ({ keyword: String(p.brief.keyword), post: p.ref }));
+}
+
 const short = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
 
 async function getJSON(fetch, url, timeout = 15_000) {
@@ -251,17 +256,21 @@ export async function plan(input, deps) {
     const scheduled = await rescueReady(store, ch, now, deps);
     const social = await socialToWake(store, cfg, settings, now);
     const why = await slotVerdict(store, ch, settings, now, cfg.depth ?? 1);
-    await keepTopic(store, input, now, await recentPosts(store, ch.key));
+    const recent = await recentPosts(store, ch.key);
+    await keepTopic(store, input, now, recent);
+    // The posts' keywords, so the company loop can tell a handed topic is written (topic_sync); read before anything is kept.
+    const topicPosts = writtenKeywords(recent);
+    const posted = topicPosts.length ? { topic_posts: topicPosts } : {};
     const stamp = (await store.one('settings', [eq('key', 'plan_wake')]))?.value;
     const extra = { ...(scheduled.length ? { scheduled } : {}), ...(social.length ? { social: social.length } : {}) };
     const slotFree = !why && stamp?.day !== today;
     if (!slotFree && !social.length) {
-      if (!why) return { wake: false, notify: false, slot: false, code: 'planned_today', reason: 'Hôm nay đã gọi Writer một lần.', ...extra };
-      return { wake: false, notify: false, slot: false, ...why, ...extra };
+      if (!why) return { wake: false, notify: false, slot: false, code: 'planned_today', reason: 'Hôm nay đã gọi Writer một lần.', ...extra, ...posted };
+      return { wake: false, notify: false, slot: false, ...why, ...extra, ...posted };
     }
     if (slotFree) await setSetting(store, 'plan_wake', { day: today, at: iso(now) });
     if (social.length) await stampSocial(store, social, now);
-    return { wake: true, notify: true, slot: slotFree, ...(social.length ? { kind: slotFree ? 'blog+social' : 'social' } : { kind: 'blog' }), ...extra, ...facts };
+    return { wake: true, notify: true, slot: slotFree, ...(social.length ? { kind: slotFree ? 'blog+social' : 'social' } : { kind: 'blog' }), ...extra, ...posted, ...facts };
   }
 
   const posts = await recentPosts(store, ch.key);

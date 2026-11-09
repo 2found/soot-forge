@@ -194,7 +194,7 @@ test('the decide tool needs the operator approval; the model tool list of the Le
 });
 
 // ---------- topic_next ----------
-test('topic_next gives the oldest queued topic once, marks it taken, and answers {} when none', async () => {
+test('topic_next gives the oldest queued topic once, marks it handed, and answers {} when none', async () => {
   const { w } = await ready();
   assert.deepEqual(await w.call('topic_next'), {});
   await w.call('digest_save', { opportunities: [ITEM.content, { ...ITEM.content, title: 'Truyện ngôn tình hay', query: 'truyện ngôn tình hay' }] });
@@ -202,16 +202,64 @@ test('topic_next gives the oldest queued topic once, marks it taken, and answers
   assert.deepEqual(first, { query: 'truyện tiên hiệp full', reason: ITEM.content.title, opportunity_ref: refOf(w, 'content') });
   assert.equal((await w.call('topic_next')).query, 'truyện ngôn tình hay');
   assert.deepEqual(await w.call('topic_next'), {});
-  assert.deepEqual(w.rows('topics').map(t => t.state), ['taken', 'taken']);
+  assert.deepEqual(w.rows('topics').map(t => t.state), ['handed', 'handed']);
 });
 
-test('in a chain topic_next is only the query (it merges into marketing plan) and at most one a day', async () => {
+test('in a chain topic_next is only the query (it merges into marketing plan), one handed topic at a time', async () => {
   const { w } = await ready();
   await w.call('digest_save', { opportunities: [ITEM.content, { ...ITEM.content, title: 'Truyện ngôn tình hay', query: 'truyện ngôn tình hay' }] });
   assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện tiên hiệp full' });
   assert.deepEqual(await w.call('topic_next', { chain: true }), {}, 'a second topic waits for the first to be written');
   w.now += 21 * 3_600_000;
-  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện ngôn tình hay' });
+  assert.deepEqual(await w.call('topic_next', { chain: true }), {}, 'marketing still holds the first topic (48 h), a second would be lost');
+  w.now += 28 * 3_600_000;
+  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện ngôn tình hay' }, 'after the hold the next topic goes');
+});
+
+// ---------- topic_sync (F-L6-6) ----------
+const HOUR = 3_600_000;
+test('topic_sync: handed until a post with the keyword exists, then written with the post id', async () => {
+  const { w } = await ready();
+  await w.call('digest_save', { opportunities: [ITEM.content] });
+  await w.call('topic_next', { chain: true });
+  // Marketing's plan reports the newest posts; none is about this topic yet.
+  const plan = { wake: false, notify: false, code: 'planned_today', topic_posts: [{ keyword: 'truyện hiện đại hay', post: 'P-1' }] };
+  const idle = await w.call('topic_sync', plan);
+  assert.deepEqual(idle, plan, 'passes the plan verdict through unchanged');
+  assert.deepEqual(w.rows('topics').map(t => [t.state, t.post ?? null]), [['handed', null]]);
+  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  assert.deepEqual([v.topics[0].state, v.topics[0].post, v.next.code], ['handed', null, 'topic_handed']);
+  w.now += 20 * HOUR;
+  const out = await w.call('topic_sync', { wake: true, topic_posts: [{ keyword: 'Truyện Tiên Hiệp full', post: 'P-9' }, ...plan.topic_posts] });
+  assert.deepEqual(out.topic_sync, [{ query: 'truyện tiên hiệp full', state: 'written', post: 'P-9' }]);
+  assert.equal(out.wake, true);
+  assert.deepEqual(w.rows('topics').map(t => [t.state, t.post]), [['written', 'P-9']]);
+  assert.deepEqual((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).topics.map(t => [t.state, t.post]), [['written', 'P-9']]);
+});
+
+test('topic_sync: a topic still unwritten after the 48 h hold returns to the queue (and can be handed again)', async () => {
+  const { w } = await ready();
+  await w.call('digest_save', { opportunities: [ITEM.content] });
+  await w.call('topic_next', { chain: true });
+  w.now += 47 * HOUR;
+  assert.equal((await w.call('topic_sync', {})).topic_sync, undefined, 'still within the hold');
+  w.now += 2 * HOUR;
+  assert.deepEqual((await w.call('topic_sync', {})).topic_sync, [{ query: 'truyện tiên hiệp full', state: 'queued' }]);
+  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện tiên hiệp full' });
+});
+
+test('a row already in the old state taken reads as handed, is written by topic_sync and expires like handed', async () => {
+  const { w } = await ready();
+  await w.call('digest_save', { opportunities: [ITEM.content, { ...ITEM.content, title: 'Truyện ngôn tình hay', query: 'truyện ngôn tình hay' }] });
+  for (const t of w.rows('topics')) await w.store.update('topics', t.id, { state: 'taken' });
+  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  assert.deepEqual(v.topics.map(t => t.state), ['handed', 'handed']);
+  assert.equal(v.next.code, 'topic_handed');
+  assert.equal((await w.call('topic_next', { chain: true })).query, undefined, 'an old taken row is a live hold too');
+  const out = await w.call('topic_sync', { topic_posts: [{ keyword: 'truyện ngôn tình hay', post: 'P-2' }] });
+  assert.deepEqual(out.topic_sync, [{ query: 'truyện ngôn tình hay', state: 'written', post: 'P-2' }]);
+  w.now += 49 * HOUR;
+  assert.deepEqual((await w.call('topic_sync', {})).topic_sync, [{ query: 'truyện tiên hiệp full', state: 'queued' }]);
 });
 
 // ---------- team_watch ----------

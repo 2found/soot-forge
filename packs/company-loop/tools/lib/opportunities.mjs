@@ -137,17 +137,51 @@ export async function decide(input, deps, { by = 'operator' } = {}) {
   return { ok: true, opportunity: view({ ...opp, state: 'go' }), handoff: { state: handoff.state, requirement_path: handoff.requirement_path, team_id: handoff.team_id, note: handoff.note, command: handoff.command } };
 }
 
-/** The oldest queued topic, marked taken. In a chain (`chain: true`) it is only the query, at most one a day. */
+const HOUR = 3_600_000;
+/** How long marketing keeps a handed topic (marketing `plan` holds `plan_topic` the same 48 hours). */
+export const HOLD_MS = 48 * HOUR;
+/**
+ * Topic states: queued -> handed (given to marketing, nothing written yet) -> written (a post with the keyword exists,
+ * `post` is its id), or back to queued when the hold ends with no post. `taken` is the old name of handed: rows
+ * written by earlier versions stay readable and are reconciled like handed ones.
+ */
+export const HANDED = ['handed', 'taken'];
+
+/** The oldest queued topic, marked handed. In a chain (`chain: true`) it is only the query, one at a time and at most one a day. */
 export async function topic_next(input, deps) {
   const { store, now } = deps;
   if (input.chain) {
-    const last = (await store.query('topics', [eq('state', 'taken')], { order: 'updated_at', limit: 1 }))[0];
-    if (last && now - Date.parse(last.updated_at) < 20 * 3_600_000) return {};
+    // Marketing keeps one handed topic at a time, so a second would be lost: wait until it is written or the hold ends.
+    for (const st of HANDED) {
+      const held = (await store.query('topics', [eq('state', st)], { order: 'updated_at', limit: 1 }))[0];
+      if (held && now - Date.parse(held.updated_at) < HOLD_MS) return {};
+    }
+    const last = (await store.query('topics', [eq('state', 'written')], { order: 'updated_at', limit: 1 }))[0];
+    if (last && now - Date.parse(last.updated_at) < 20 * HOUR) return {};
   }
   const next = (await store.query('topics', [eq('state', 'queued')], { order: 'created_at', desc: false, limit: 1 }))[0];
   if (!next) return {};
-  await store.update('topics', next.id, { state: 'taken' });
+  await store.update('topics', next.id, { state: 'handed' });
   return input.chain ? { query: next.query } : { query: next.query, reason: next.reason, opportunity_ref: next.opportunity_ref };
+}
+
+/**
+ * Chain step after marketing `plan`: its output lists the keywords of the newest posts (`topic_posts`). A handed topic
+ * with a post becomes `written` (with the post id); one whose 48 h hold ended with no post goes back to the queue.
+ * The input is passed through unchanged so the schedule still wakes on marketing's own verdict.
+ */
+export async function topic_sync(input, deps) {
+  const { store, now } = deps;
+  const posts = Array.isArray(input.topic_posts) ? input.topic_posts.filter(p => p && typeof p.keyword === 'string' && typeof p.post === 'string') : [];
+  const changed = [];
+  for (const st of HANDED) {
+    for (const t of await store.query('topics', [eq('state', st)], { order: 'created_at', desc: false, limit: 50 })) {
+      const hit = posts.find(p => fold(p.keyword) === fold(t.query));
+      if (hit) { await store.update('topics', t.id, { state: 'written', post: short(hit.post, 64) }); changed.push({ query: t.query, state: 'written', post: hit.post }); }
+      else if (now - Date.parse(t.updated_at) >= HOLD_MS) { await store.update('topics', t.id, { state: 'queued' }); changed.push({ query: t.query, state: 'queued' }); }
+    }
+  }
+  return changed.length ? { ...input, topic_sync: changed } : { ...input };
 }
 
 export { STATES };

@@ -80,7 +80,7 @@
     }
   ],
   "storage": {
-    "version": 2,
+    "version": 3,
     "tables": [
       {
         "name": "scoreboard",
@@ -348,6 +348,10 @@
             "name": "state",
             "type": "text",
             "index": true
+          },
+          {
+            "name": "post",
+            "type": "text"
           }
         ]
       },
@@ -604,7 +608,7 @@
     {
       "name": "topic_next",
       "title": "Chủ đề marketing kế tiếp",
-      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked taken, or {}. With chain: true only {query}, at most one a day, to merge into marketing plan.",
+      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked handed (given to marketing, not yet written), or {}. With chain: true only {query}, at most one a day, to merge into marketing plan.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -620,6 +624,28 @@
         "args": [
           "tools/loop.mjs",
           "topic_next"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "topic_sync",
+      "title": "Đối chiếu chủ đề với bài đã viết",
+      "description": "Chain step after marketing plan (input_from previous): a handed topic whose keyword now has a post becomes written with the post id; one whose 48 h hold ended with no post returns to the queue. Passes marketing's output through unchanged.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": true
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "topic_sync"
         ],
         "stdin": "context",
         "mode": "write",

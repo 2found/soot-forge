@@ -40,3 +40,12 @@ test('without a handed topic the Writer plan is unchanged', async () => {
   const writer = await w.call('plan', { channel: 'blog-lohi', catalog: CATALOG });
   assert.doesNotMatch(JSON.stringify(writer), /cách học tiếng Anh giao tiếp/);
 });
+
+test('the wake call reports the keywords of the newest posts (topic_posts) so the company loop can mark a topic written', async () => {
+  const w = world();
+  const first = await w.call('plan', { ...WAKE, query: 'truyện tiên hiệp hay nhất' });
+  assert.equal(first.topic_posts, undefined, 'no post yet');
+  await w.store.insert('posts', { ref: 'P-TEST000001', channel: 'blog-lohi', kind: 'article', state: 'draft', revision: 1, body: 'b', brief: { keyword: 'truyện tiên hiệp hay nhất' } });
+  const again = await w.call('plan', { ...WAKE, query: 'truyện tiên hiệp hay nhất' });
+  assert.deepEqual(again.topic_posts, [{ keyword: 'truyện tiên hiệp hay nhất', post: 'P-TEST000001' }]);
+});

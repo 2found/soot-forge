@@ -47,6 +47,7 @@ const nf = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
 const fmt = (v, unit) => (v === null || v === undefined ? 'Chưa có số liệu' : unit === 'vnd' ? `${nf.format(v)} ₫` : nf.format(v));
 const day = iso => (iso ? new Date(iso).toLocaleDateString('vi-VN') : '');
 const STATE = { proposed: ['Chờ bạn chọn', 'warn'], go: ['Đã Go', 'ok'], later: ['Để sau', ''], drop: ['Đã bỏ', ''] };
+const TOPIC = { queued: ['Đang chờ giao Writer', ''], handed: ['Đã giao Writer, chưa viết', 'warn'], written: ['Đã viết', 'ok'] };
 const KIND = { content: 'Nội dung', product: 'Sản phẩm' };
 const HAND = {
   spawned: ['Đội đã mở', 'ok', 'Đội bbs:team đang làm rõ yêu cầu. Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
@@ -67,6 +68,7 @@ function nextText(n, d) {
     case 'no_repo': return ['Chưa có kho mã để ghi yêu cầu: đặt PRODUCT_REPO rồi bấm Chạy lại ở mục Bàn giao.', 'bad'];
     case 'release_go': return ['Đội đã dựng xong: duyệt bản giao và bấm phát hành trong bbs:team. Đó là lượt bấm cuối của bạn.', 'warn'];
     case 'building': return ['Đội đang dựng. Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.', ''];
+    case 'topic_handed': return [`${n.n} chủ đề đã giao Writer nhưng chưa viết: bài lên ở lượt viết kế tiếp, bạn không phải làm gì.`, 'idle'];
     case 'topics': return [`${n.n} chủ đề đang chờ Writer: bài sẽ tự lên lịch, bạn không phải làm gì.`, 'idle'];
     default: return ['Không cần làm gì, Soot đang tự chạy. Bản tin kế tiếp: thứ Hai 08:30.', 'idle'];
   }
@@ -120,7 +122,12 @@ function tiles(sb) {
         h('span', { class: `delta ${tone}` }, t.pct === null ? `trước: ${fmt(t.previous, t.unit)}` : `${up > 0 ? '▲' : up < 0 ? '▼' : '='} ${nf.format(Math.abs(t.pct))}% (trước: ${fmt(t.previous, t.unit)})`));
     })));
 }
-function oppCard(o) {
+function topicLine(t) {
+  const [st, tone] = TOPIC[t.state] ?? [t.state, ''];
+  const note = t.state === 'written' ? (t.post ? `Bài ${t.post}` : '') : t.state === 'handed' ? `Chưa có bài; quá ${day(t.until)} vẫn chưa viết thì chủ đề quay lại hàng chờ.` : '';
+  return h('div', { class: 'line between' }, h('span', {}, h('span', { class: 'muted' }, 'Chủ đề: '), t.query), h('span', { class: 'line' }, note && h('span', { class: 'muted' }, note), badge(st, tone)));
+}
+function oppCard(o, topics = []) {
   const [st, tone] = STATE[o.state] ?? [o.state, ''];
   const open_ = o.state === 'proposed' || o.state === 'later';
   const measure = `Đo bằng ${o.target_outcome}: kỳ vọng ${o.expected_delta > 0 ? '+' : ''}${nf.format(o.expected_delta)} so với tuần trước, xem lại sau ${o.check_after_days} ngày`;
@@ -129,6 +136,7 @@ function oppCard(o) {
     o.summary && h('p', {}, o.summary),
     o.kind === 'content' && o.query && h('p', {}, h('span', { class: 'muted' }, 'Chủ đề tìm kiếm: '), o.query),
     h('p', { class: 'muted' }, measure),
+    topics.filter(t => t.ref === o.ref).map(topicLine),
     h('div', { class: 'chips' }, (o.evidence_refs ?? []).map(r => h('span', { class: 'chip' }, r)), h('span', { class: 'chip' }, `${o.signal_count} tín hiệu`), h('span', { class: 'chip' }, `công ${o.est_effort} · giá trị ${o.est_value}`)),
     open_ ? h('div', { class: 'line' }, btn(o.kind === 'product' ? 'Go: bắt đầu dựng' : 'Go', () => act('go', { id: o.ref }), 'btn primary'), btn('Để sau', () => act('later', { id: o.ref })), btn('Bỏ', () => act('drop', { id: o.ref }), 'btn ghost'))
       : h('p', { class: 'muted' }, o.state === 'go' ? (o.kind === 'content' ? 'Chủ đề đã vào hàng chờ của Writer; không cần làm gì.' : 'Đã bàn giao: xem mục Bàn giao bên dưới.') : o.state === 'drop' ? 'Soot sẽ không đề xuất lại cơ hội này.' : ''));
@@ -187,7 +195,7 @@ function render() {
     S.notice && h('p', { class: 'muted', role: 'status' }, S.notice),
     ...(d.next.code === 'choose' ? [] : [h('h2', {}, 'Số liệu'), tiles(d.scoreboard)]),
     h('h2', {}, 'Cơ hội'),
-    d.opportunities.length ? h('div', { class: 'stack' }, [...waitingOpps, ...rest].map(oppCard)) : h('div', { class: 'card empty' }, 'Chưa có cơ hội nào. Soot lập bản tin vào thứ Hai 08:30; nội dung tự chạy, cơ hội sản phẩm chờ bạn bấm Go.'),
+    d.opportunities.length ? h('div', { class: 'stack' }, [...waitingOpps, ...rest].map(o => oppCard(o, d.topics ?? []))) : h('div', { class: 'card empty' }, 'Chưa có cơ hội nào. Soot lập bản tin vào thứ Hai 08:30; nội dung tự chạy, cơ hội sản phẩm chờ bạn bấm Go.'),
     ...(d.next.code === 'choose' ? [h('h2', {}, 'Số liệu'), tiles(d.scoreboard)] : []),
     h('h2', {}, 'Bàn giao'),
     d.handoffs.length ? h('div', { class: 'stack' }, d.handoffs.map(handoffCard)) : h('div', { class: 'card empty' }, 'Chưa có bàn giao nào. Khi bạn bấm Go cho một cơ hội sản phẩm, yêu cầu được viết và đội bbs:team mở ở đây.'),

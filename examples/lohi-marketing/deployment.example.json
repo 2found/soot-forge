@@ -118,6 +118,12 @@
             }
           },
           "input_from": "previous"
+        },
+        {
+          "pack": "company-loop",
+          "tool": "topic_sync",
+          "label": "Đối chiếu chủ đề với bài",
+          "input_from": "previous"
         }
       ]
     },

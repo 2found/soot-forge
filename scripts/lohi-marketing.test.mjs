@@ -30,7 +30,8 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   // The company loop's next topic (if any) is merged into the plan's per-call query: topic_next, then plan with input_from previous.
   const planStep = byId['marketing-plan'].then[0];
   assert.deepEqual([byId['marketing-plan'].soot, byId['marketing-plan'].tool.pack, byId['marketing-plan'].tool.name, byId['marketing-plan'].tool.input, byId['marketing-plan'].wake_when], ['lohi-writer', 'company-loop', 'topic_next', { chain: true }, { notify: true }]);
-  assert.deepEqual([byId['marketing-plan'].then.length, planStep.pack, planStep.tool, planStep.input_from], [1, 'marketing', 'plan', 'previous']);
+  assert.deepEqual([byId['marketing-plan'].then.length, planStep.pack, planStep.tool, planStep.input_from], [2, 'marketing', 'plan', 'previous']);
+  assert.deepEqual([byId['marketing-plan'].then[1].pack, byId['marketing-plan'].then[1].tool, byId['marketing-plan'].then[1].input_from], ['company-loop', 'topic_sync', 'previous'], 'the last step marks a handed topic written (or back to the queue) and passes the plan verdict through');
   assert.equal(planStep.input.wake, true);
   assert.ok(planStep.input.facts_url && planStep.input.catalog.feed);
   assert.deepEqual([byId['blog-ready'].soot, byId['blog-ready'].tool.pack, byId['blog-ready'].tool.name], [host.default_soot, 'lohi-blog', 'ready']);
@@ -114,7 +115,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   assert.ok(!radar.tool.input.sources.some(x => /facebook|x\.com|twitter/.test(x.url)), 'no source that needs a login');
   const writer = (await json('examples/lohi-marketing/soots/lohi-writer.json')).packs;
   assert.deepEqual(writer.map(r => r.split(':')[0]), ['marketing', 'company-loop']);
-  assert.equal(writer[1], 'company-loop:tools=topic_next', 'the Writer only runs the topic step of the chain');
+  assert.equal(writer[1], 'company-loop:tools=topic_next,topic_sync', 'the Writer only runs the topic steps of the chain');
   assert.deepEqual(writer[0].replace(/^marketing:tools=/, '').split(',').sort(), ['check', 'draft_save', 'items', 'plan', 'schedule']);
   const tools = writer[0].replace(/^marketing:tools=/, '').split(',');
   const declared = new Set((await json('packs/marketing/pack.json')).tools.map((t) => t.name));
