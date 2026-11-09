@@ -111,6 +111,7 @@ export async function compileCompany(template, overlay, { mode = 'create', root,
   const teams = [];
   for (const t of kept) {
     const out = { id: t.id };
+    if (t.description) out.description = t.description;
     const group = t.group ? groups[t.group] : null;
     const name = t.name ?? (group ? (await catalogName(root, t.group)) : undefined);
     if (name) out.name = name;

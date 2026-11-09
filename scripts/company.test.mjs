@@ -64,6 +64,8 @@ test('compile: W2 files go in unchanged; teams, edges, remote, lead and ceiling 
   assert.equal(byId.marketing.contract.budget.daily_tokens, 250000);
   assert.deepEqual(byId['op-catalog'].contract.provides, undefined, "the job pack's table is provided once the pack is installed (adopt)");
   assert.match(notes.join('\n'), /lohi-ops\.findings is provided once/);
+  // A team without a description cannot be saved from Nest (group_purpose_required), so every compiled team carries one.
+  assert.deepEqual(company.teams.filter(t => !t.description).map(t => t.id), [], 'every team says what it is for');
 });
 
 test('compile: adopt mode names the Soots of the overlay, leaves budgets to the runtime (sum of member caps) and keeps an explicit one', async () => {

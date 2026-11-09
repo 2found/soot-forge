@@ -53,6 +53,8 @@
   "add": [
     {
       "id": "op-catalog",
+      "name": "Danh mục",
+      "description": "Giữ danh mục truyện sạch, duyệt bình luận, theo dõi đánh giá.",
       "kind": "group",
       "group": "team-op",
       "soots": [

@@ -7,6 +7,8 @@
   "teams": [
     {
       "id": "insight",
+      "name": "Insight",
+      "description": "Đọc số liệu, tìm cơ hội.",
       "kind": "group",
       "group": "team-insight",
       "soots": [
@@ -112,6 +114,8 @@
     },
     {
       "id": "marketing",
+      "name": "Marketing",
+      "description": "Viết nội dung từ chủ đề.",
       "kind": "group",
       "group": "team-marketing",
       "soots": [
@@ -195,6 +199,8 @@
     },
     {
       "id": "cs",
+      "name": "Hỗ trợ",
+      "description": "Trả lời độc giả, gom phản hồi.",
       "kind": "external",
       "group": "",
       "soots": [
@@ -247,6 +253,8 @@
     },
     {
       "id": "financial",
+      "name": "Tài chính",
+      "description": "Theo dõi doanh thu và chi phí.",
       "kind": "group",
       "group": "team-financial",
       "soots": [
@@ -285,6 +293,8 @@
     },
     {
       "id": "build",
+      "name": "Build",
+      "description": "Làm sản phẩm.",
       "kind": "external",
       "group": "",
       "soots": [
