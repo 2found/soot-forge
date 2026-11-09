@@ -8,7 +8,7 @@
 // `launch` topic for the marketing plan (CL3). Nothing changed answers {done: true}.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { eq, getState, inList, iso, setState, short } from './base.mjs';
+import { eq, inList, iso, short } from './base.mjs';
 import { runBbs } from './bbs.mjs';
 import { queueTopic } from './opportunities.mjs';
 
@@ -99,16 +99,15 @@ function handoverCard(h, title, parent, awaiting) {
   };
 }
 
-/** One reminder per handoff that never started: the command to run, once. */
-async function unstartedAsk(h, title, store, now) {
+/** One reminder card per handoff that never started: the command to run. The runtime files it once (the id is the
+ * dedup and a closed id is never raised again), so nothing is remembered here. */
+const unstartedId = h => `company:unstarted:${h.opportunity}`;
+function unstartedCard(h, title, now) {
   if (now - Date.parse(h.updated_at ?? h.created_at ?? 0) < NUDGE_AFTER_MS) return null;
-  const key = `unstarted:${h.opportunity}`;
-  if (await getState(store, key)) return null;
-  await setState(store, key, '1');
   return {
-    keys: [`company:unstarted:${h.opportunity}`], summary: `Đội dựng "${title}" chưa bắt đầu`,
-    missing: `Bạn đã Go nhưng đội ${h.team_id} chưa mở (máy chưa có bbs hoặc Orca chưa chạy). Chạy lệnh này một lần trong terminal: ${h.command ?? '(mở trang Công ty và bấm Chạy lại)'}\nSau đó Soot tự theo dõi tiếp; việc còn lại của bạn là cho phép phát hành trong terminal Orca của đội.`,
-    options: [{ label: 'Đã xem', recommended: true }],
+    id: unstartedId(h), title: `Đội dựng "${title}" chưa bắt đầu`,
+    why: `Bạn đã Go nhưng đội ${h.team_id} chưa mở (máy chưa có bbs hoặc Orca chưa chạy). Chạy lệnh này một lần trong terminal: ${h.command ?? '(mở trang Công ty và bấm Chạy lại)'}\nSau đó Soot tự theo dõi tiếp; việc còn lại của bạn là cho phép phát hành trong terminal Orca của đội.`,
+    options: [{ id: 'seen', label: 'Đã xem', recommended: true }],
   };
 }
 
@@ -122,7 +121,8 @@ export async function team_watch(input, deps) {
     const found = await resolveParent(h, env);
     if (h.state === 'draft_ready' && (found.missing || !found.ticket)) {
       // The team does not exist yet: keep the row, remind once, never fail the other handoffs.
-      if (!ask) ask = await unstartedAsk(h, (await store.one('opportunities', [eq('ref', h.opportunity)]))?.title ?? h.opportunity, store, now);
+      const card = unstartedCard(h, (await store.one('opportunities', [eq('ref', h.opportunity)]))?.title ?? h.opportunity, now);
+      if (card) raise.push(card);
       continue;
     }
     if (found.missing) return { done: true, note: 'bbs_missing' };
@@ -150,6 +150,7 @@ export async function team_watch(input, deps) {
     }
     if (s.state === h.state && s.detail === h.detail) continue;
     if (!s.awaiting) settle.push(handoverGroup(h)); // the state moved off the handover: its card is done
+    if (h.state === 'draft_ready') settle.push(unstartedId(h)); // the team exists now: the reminder is done
     const set = { state: s.state, detail: s.detail, ...(s.state === 'released' ? { released_at: iso(now) } : {}) };
     await store.update('handoffs', h.id, set);
     changed.push({ ref: h.opportunity, state: s.state });

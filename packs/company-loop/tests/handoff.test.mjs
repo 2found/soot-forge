@@ -41,7 +41,7 @@ test('walk: proposed -> Go -> spawned -> building -> delivered -> released, repo
   b.snapshot({ phases: [phase('p1', 'delivered', 'ask')] });
   const delivered = await w.call('team_watch');
   assert.equal(delivered.changed[0].state, 'delivered');
-  assert.match(delivered.ask.missing, /bbs ticket approval resolve --action approve/);
+  assert.match(delivered.raise[0].why, /bbs ticket approval resolve --action approve/);
   b.snapshot({ phases: [phase('p1', 'released', 'ask')] });
   const done = await w.call('team_watch');
   assert.deepEqual([done.changed[0].state, done.outcomes[0].id], ['released', 'requirement_shipped']);
@@ -62,17 +62,19 @@ test('bbs missing: draft_ready is watched, reminded once after the wait, and adv
   // Past the wait: ONE reminder carrying the command, even though bbs is not on this machine.
   w.now += NUDGE_AFTER_MS + 60_000;
   const remind = await w.call('team_watch');
-  assert.equal(remind.ask.keys[0], `company:unstarted:${ref}`);
-  assert.ok(remind.ask.missing.includes(w.rows('handoffs')[0].command));
-  assert.deepEqual([remind.notify, remind.wake], [true, true]);
+  assert.equal(remind.raise[0].id, `company:unstarted:${ref}`);
+  assert.ok(remind.raise[0].why.includes(w.rows('handoffs')[0].command));
+  assert.deepEqual([remind.notify, remind.wake], [false, false], 'the host files the card; no model');
   w.now += 30 * 60_000;
-  assert.deepEqual(await w.call('team_watch'), { done: true }, 'the reminder is not repeated');
+  const again = await w.call('team_watch');
+  assert.deepEqual(again.raise.map(c => c.id), [`company:unstarted:${ref}`], 'the same card id: the host files it once');
   // The founder runs the command: bbs is there, the team's ticket exists, the row moves on by itself.
   w.env.BBS_BIN = b.bin;
   b.tickets([{ id: 'bs-parent02', assignee: w.rows('handoffs')[0].team_id, parent: '', title: 'the project' }]);
   b.snapshot({ phases: [phase('p1', 'building')] });
   const moved = await w.call('team_watch');
   assert.deepEqual(moved.changed, [{ ref, state: 'building' }]);
+  assert.ok(moved.settle.includes(`company:unstarted:${ref}`), 'the reminder card is settled once the team exists');
   assert.equal(w.rows('handoffs')[0].ticket, 'bs-parent02');
 });
 

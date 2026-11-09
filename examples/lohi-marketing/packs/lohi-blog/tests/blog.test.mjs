@@ -250,7 +250,7 @@ test('ready: every missing prerequisite in one Cần bạn item, raised once and
   const first = await ready(env, { run });
   assert.equal(first.ok, false);
   assert.deepEqual(first.missing.map(m => m.key).sort(), ['2server', 'connection', 'gcloud', 'git_remote', 'go']);
-  assert.equal(first.notify, true);
+  assert.deepEqual([first.notify, first.wake], [false, false], 'the host cards the ask itself; no model');
   assert.equal(first.ask.options[0].label, 'Đã xong, kiểm tra lại');
   assert.match(first.ask.missing, /ssh-add/);
   const second = await ready(env, { run });
