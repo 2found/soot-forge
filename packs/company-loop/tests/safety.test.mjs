@@ -63,7 +63,7 @@ test('model text cannot open a heading or section in the requirement file; a pat
   await w.call('digest_save', { opportunities: [evil] });
   const ref = refOf(w, 'product');
   await w.call('page_action', { op: 'go', id: ref, request_id: 'req-77777777' }, { page: { page: 'cong-ty' } });
-  const text = readFileSync(join(dir, 'docs', 'requirements', `REQ-${ref}.md`), 'utf8');
+  const text = readFileSync(w.reqPath(dir, ref), 'utf8');
   for (const h of ['## Constraints', '## Acceptance criteria', '## Non-goals']) assert.equal(text.split('\n').filter(l => l === h).length, 1, h);
   const { spawnCommand } = await import('../tools/lib/handoff.mjs');
   assert.match(spawnCommand('/r/my repo', 'loop-x', "/r/my repo/docs/requirements/REQ-X'.md").argv[7], /--auto '\\''\/r\/my repo/);

@@ -185,7 +185,7 @@
     {
       "name": "comments_pull",
       "title": "Lấy bình luận cần xem",
-      "description": "Pull comments to screen from the api: those readers reported (flagged) and the newest visible ones (recent), minus the ones already decided. Answers {items:[{id, source, body, report_reason}]} and the rules to judge them by. Comment text only: no author, no reader.",
+      "description": "Pull comments to screen from the api: those readers reported (flagged) and the newest visible ones (recent), minus the ones already decided. Short thanks, praise and emoji among the newest are kept by the tool itself (auto_kept) and never reach the model; notify is true only when something needs a judgment. Answers {items:[{id, source, body, report_reason}]} and the rules to judge them by. Comment text only: no author, no reader.",
       "parameters": {
         "type": "object",
         "properties": {

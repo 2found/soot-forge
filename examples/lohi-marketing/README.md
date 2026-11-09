@@ -27,7 +27,7 @@ The Soots are grouped into **teams** in [company.lohi.json](company.lohi.json), 
 | Ops (`lohi-editor`) | flash, 150k | publishes blog by chain, X/Facebook/Reddit by browser, probes sign-ins, reads GSC, TikTok/YouTube numbers, scoreboard and the daily report; files Cần bạn cards | a due post, a failed step, a card to raise |
 | Writer (`lohi-writer`) | flash, 100k | only writes: `plan` brief, `draft_save`, `check`, `schedule`; the one record is `posts` (no `content` table) | a free blog slot |
 | Analyst (`lohi-analyst`) | lite, 80k | Monday digest from `company-loop_signals` (scoreboard, `cohorts`, `plans`, support, signals), campaigns | Monday 08:30, campaigns 07:00 |
-| Radar (`lohi-radar`) | lite, 50k | `radar-read` reads Vietnamese and English web-novel feeds with a tool; the model only triages kept signals; read-only | enough new signals |
+| Radar (`lohi-radar`) | lite, 50k | `radar-read` (daily 06:20) reads Vietnamese web-novel feeds with a tool, keeps only on-topic Vietnamese items and wakes the model at most once a day with at most 15; read-only | enough new signals |
 
 | Finance (`lohi-finance`) | lite, 30k | Monday `finance-report`: read-only report of revenue, plans and cohorts from `company-loop_signals`; never acts on money. A separate lite Soot was kept over making the Analyst carry it: it only wakes weekly, so it costs one run a week and keeps the Analyst's mission short | Monday 09:00 |
 
@@ -36,12 +36,18 @@ most days nothing wakes a model at all. Schedules that never wake one:
 `marketing-report`, `marketing-gsc`, `marketing-video-stats`, `company-review`,
 `company-health`, the blog chain and the probe.
 
-`radar-read` seeds `sources` once (an edit made on the table is never overwritten):
-r/noveltranslations, r/ProgressionFantasy, r/webnovels, r/LightNovels, a r/Vietnam
-search for "truyện chữ", and Google News feeds for web novels, audio reading apps
-and Lohi's competitors. Vietnamese competitor sites publish no public feed (not
-reachable when this was built), so they are followed through news search; add a feed
-by editing the `sources` table in Nest.
+`radar-read` seeds `sources` once (an edit made on the table is never overwritten): a r/Vietnam
+search for "truyện chữ" and Google News feeds for web novels, audio reading apps and Lohi's competitors.
+The tool filters before any model sees an item: `lang: "vi"` (the text must carry Vietnamese letters)
+and `keywords` (an accent-folded hit); anything else is stored as dismissed so it is never read twice.
+It wakes the Radar at most once per `wake_gap_hours` (20) with at most `max_items` (15) of the best
+new signals; the surplus is dismissed with a note, so the backlog cannot grow. A source that answers
+429 rests a day, three failures in a row switch it off, and both are named in `skipped` in the schedule's
+output (clear `disabled_at` in the `sources` table to turn one back on). The four English subreddits are
+gone from the seed list; `retire` switches off their rows on a workspace that already has them.
+Vietnamese competitor sites publish no public feed, so they are followed through news search; add a feed
+by editing the `sources` table in Nest. One run a day at the Radar's 50k cap is the point: cadence is
+daily, not every three hours.
 
 `company-health` (06:45) runs `marketing_inputs_health` into `company-loop_health_sync`,
 which fills the **Vòng lặp** section of the Công ty page: each stage's last run,
@@ -166,8 +172,8 @@ blog. The Editor is its Lead; the pack is product-neutral and Lohi is only confi
 Mon 08:30     scoreboard_sync{for_digest} ─▶ signals (packet ≤ 3 KiB) ──(notify)──▶ Editor: skill company-digest ─▶ digest_save
                  content opportunity ─▶ decided by Soot ─▶ topic queued ─▶ topic_next ─▶ marketing_plan ─▶ Writer ─▶ blog (no tap)
                  product opportunity ─▶ one "Cần bạn" card ─▶ page "Công ty": Go / Để sau / Bỏ        (tap 1)
-Go            requirement file REQ-OP-xxxx.md in PRODUCT_REPO + `bbs team spawn` (never land, release, integrate or seal)
-every 30 min  company_team_watch (no model) ─▶ team delivered ─▶ founder reviews and gives bbs:team's release go   (tap 2)
+Go            requirement file REQ-OP-xxxx.md in the ticket home ($BABYSIT_HOME/requirements/<repo>/, never the product working tree) + `bbs team spawn` (never land, release, integrate or seal); the Go answer and the page say what happens next
+every 30 min  company_team_watch (no model; also a handoff left draft_ready: moves on once the team exists, one reminder if it never starts) ─▶ team delivered ─▶ founder reviews and gives bbs:team's release go   (tap 2)
               released ─▶ outcome requirement_shipped + a "launch" topic ─▶ marketing writes about it
 Mon 08:00     company_review (no model) ─▶ fills the real change against the baseline; hit = actual at least half of expected
 ```
@@ -191,8 +197,8 @@ node examples/lohi-marketing/setup.mjs ~/.soot/lohi-marketing --blog-remote <git
 
 Credentials: `PRODUCT_ADMIN_KEY` (an `agent_mod` key, shared with marketing) is entered in
 Nest; `CS_RUNTIME_URL` and `CS_RUNTIME_TOKEN` are optional (support gaps join the digest when
-set). Without the key every loop tool answers a quiet `skipped`. If `bbs` is not on the
-machine a Go still writes the requirement and the page shows the exact command to run.
+set); reader feedback no longer needs the token: the digest reads the contract item `cs.voc` (`data` on scope `team:cs`) and the old desk scrape runs only when voc is unavailable. Without the key every loop tool answers a quiet `skipped`. If `bbs` is not on the
+machine a Go still writes the requirement and the page shows the exact command to run; Soot keeps watching that handoff and raises one reminder if the team has not started.
 
 
 To move an existing workspace onto teams (groups, per-team budgets, cross-team read grants), follow [ADOPT.md](ADOPT.md). That path is experimental and internal.

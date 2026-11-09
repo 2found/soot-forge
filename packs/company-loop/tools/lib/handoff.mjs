@@ -1,9 +1,9 @@
-// CL2: an approved product opportunity becomes a requirement file in the product repo and
+// CL2: an approved product opportunity becomes a requirement file (in the ticket home, not the product repo) and
 // a `bbs team` project. The founder's Go on the operator-only page is the approval; this
 // file never calls land, release, integrate or seal. When bbs or Orca is not there the
 // handoff is `draft_ready` with the exact command, never a silent drop.
 import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { eq, iso, short } from './base.mjs';
 import { runBbs, findBbs, shq } from './bbs.mjs';
 
@@ -77,13 +77,30 @@ async function upsert(store, opp, set) {
   return { opportunity: opp.ref, ...set };
 }
 
+/** Where the requirement lives: the ticket home, never the product working tree. */
+export function requirementDir(env, repo) {
+  const home = env.BABYSIT_HOME || (env.HOME ? join(env.HOME, '.babysit') : null);
+  if (!home || !isAbsolute(home)) return null;
+  return join(home, 'requirements', basename(repo).replace(/[^\w.-]+/g, '_') || 'product');
+}
+
+/** What happens next, in the founder's words: where the team works, what it needs from him, and where the release go is. */
+export const nextText = (teamId, reqPath) =>
+  `Bước tiếp: đội ${teamId} đọc yêu cầu (${reqPath}), tự làm rõ, thiết kế và dựng trong Orca; tiến độ hiện ở trang Công ty. Kho mã của bạn không bị ghi gì. Lần duy nhất cần bạn là cho phép phát hành, và việc đó làm trong terminal Orca của đội (bbs ticket approval resolve --action approve), không làm ở Nest.`;
+
 /** Write the requirement (never over a file a person may have edited) and spawn the team. */
 export async function startHandoff(opp, { store, env, now }, { baseline = null } = {}) {
   const repo = String(env.PRODUCT_REPO ?? '');
   if (!repo.startsWith('/') || !existsSync(repo) || !statSync(repo).isDirectory()) {
     return upsert(store, opp, { repo: repo || null, requirement_path: null, team_id: null, state: 'no_repo', note: 'Chưa đặt PRODUCT_REPO (đường dẫn tuyệt đối tới kho mã của sản phẩm).', command: null });
   }
-  const reqPath = join(repo, 'docs', 'requirements', reqName(opp.ref));
+  // A requirement a person already put in the repo is used as it is; a new one goes beside the tickets, so a Go never dirties the working tree.
+  const inRepo = join(repo, 'docs', 'requirements', reqName(opp.ref));
+  const dir = requirementDir(env, repo);
+  if (!existsSync(inRepo) && !dir) {
+    return upsert(store, opp, { repo, requirement_path: null, team_id: null, state: 'no_repo', note: 'Không có thư mục ticket (BABYSIT_HOME hoặc HOME) để ghi yêu cầu.', command: null });
+  }
+  const reqPath = existsSync(inRepo) ? inRepo : join(dir, reqName(opp.ref));
   let wrote = false;
   try {
     if (!existsSync(reqPath)) { mkdirSync(dirname(reqPath), { recursive: true }); writeFileSync(reqPath, requirementText(opp, { baseline, at: iso(now) }), { flag: 'wx' }); wrote = true; }
@@ -94,9 +111,10 @@ export async function startHandoff(opp, { store, env, now }, { baseline = null }
   const cmd = spawnCommand(repo, teamId, reqPath, env.BBS_TEAM_AGENT || 'claude');
   const r = await runBbs(env, cmd.argv, { cwd: repo, timeoutMs: 60_000 });
   const base = { repo, requirement_path: reqPath, team_id: teamId, command: cmd.text };
-  if (r.missing) return upsert(store, opp, { ...base, state: 'draft_ready', note: 'Máy này chưa có bbs: bạn chạy lệnh dưới đây để bắt đầu dựng.' });
-  if (!r.ok) return upsert(store, opp, { ...base, state: 'draft_ready', note: `bbs team spawn không chạy được (${short(r.stderr, 140)}); bạn chạy lệnh dưới đây khi Orca đã mở.` });
-  return upsert(store, opp, { ...base, state: 'spawned', note: wrote ? 'Đã ghi yêu cầu và mở đội bbs:team.' : 'Yêu cầu đã có sẵn trong kho; đã mở đội bbs:team.' });
+  const next = nextText(teamId, reqPath);
+  if (r.missing) return upsert(store, opp, { ...base, state: 'draft_ready', note: `Máy này chưa có bbs nên đội chưa bắt đầu: bạn chạy lệnh dưới đây một lần. Soot tiếp tục theo dõi và sẽ báo nếu đội vẫn chưa bắt đầu. ${next}` });
+  if (!r.ok) return upsert(store, opp, { ...base, state: 'draft_ready', note: `bbs team spawn không chạy được (${short(r.stderr, 140)}); bạn chạy lệnh dưới đây khi Orca đã mở. Soot tiếp tục theo dõi và sẽ báo nếu đội vẫn chưa bắt đầu. ${next}` });
+  return upsert(store, opp, { ...base, state: 'spawned', note: `${wrote ? 'Đã ghi yêu cầu và mở đội bbs:team.' : 'Yêu cầu đã có sẵn; đã mở đội bbs:team.'} ${next}` });
 }
 
 export const bbsReady = env => !!findBbs(env);

@@ -174,12 +174,26 @@ export async function topic_sync(input, deps) {
   const { store, now } = deps;
   const posts = Array.isArray(input.topic_posts) ? input.topic_posts.filter(p => p && typeof p.keyword === 'string' && typeof p.post === 'string') : [];
   const changed = [];
+  // The post's own numbers (publish date, GSC or campaign clicks, attributed sign-ups): null when not measured, never 0.
+  const own = p => ({
+    post_url: typeof p.url === 'string' ? short(p.url, 300) : null,
+    published_at: typeof p.published_at === 'string' && Number.isFinite(Date.parse(p.published_at)) ? new Date(p.published_at).toISOString() : null,
+    post_clicks: Number.isFinite(p.clicks) ? p.clicks : null,
+    post_signups: Number.isFinite(p.signups) ? p.signups : null,
+  });
   for (const st of HANDED) {
     for (const t of await store.query('topics', [eq('state', st)], { order: 'created_at', desc: false, limit: 50 })) {
       const hit = posts.find(p => fold(p.keyword) === fold(t.query));
-      if (hit) { await store.update('topics', t.id, { state: 'written', post: short(hit.post, 64) }); changed.push({ query: t.query, state: 'written', post: hit.post }); }
+      if (hit) { await store.update('topics', t.id, { state: 'written', post: short(hit.post, 64), ...own(hit) }); changed.push({ query: t.query, state: 'written', post: hit.post }); }
       else if (now - Date.parse(t.updated_at) >= HOLD_MS) { await store.update('topics', t.id, { state: 'queued' }); changed.push({ query: t.query, state: 'queued' }); }
     }
+  }
+  // A written topic keeps learning how its post does (the review reads this), without being reported as a change.
+  for (const t of await store.query('topics', [eq('state', 'written')], { order: 'updated_at', limit: 50 })) {
+    const hit = posts.find(p => p.post === t.post);
+    if (!hit) continue;
+    const next = own(hit);
+    if (Object.keys(next).some(k => next[k] !== null && next[k] !== (t[k] ?? null))) await store.update('topics', t.id, Object.fromEntries(Object.entries(next).filter(([, v]) => v !== null)));
   }
   return changed.length ? { ...input, topic_sync: changed } : { ...input };
 }

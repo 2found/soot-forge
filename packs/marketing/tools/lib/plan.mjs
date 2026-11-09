@@ -44,9 +44,23 @@ async function keepTopic(store, input, now, posts) {
   return live ? kept.query : null;
 }
 
-/** The keyword and id of the newest article posts (at most 20), for the company loop to match a handed topic against. */
-function writtenKeywords(posts) {
-  return posts.filter(p => p.brief?.keyword).slice(0, 20).map(p => ({ keyword: String(p.brief.keyword), post: p.ref }));
+/**
+ * The keyword and id of the newest article posts (at most 20), for the company loop to match a handed topic against.
+ * A published post also carries its own numbers: `published_at`, `url` and, when Search Console or a campaign link
+ * measured it, `clicks` (and attributed `signups`). Absent means not measured, never 0.
+ */
+export async function writtenKeywords(store, chKey, posts, now) {
+  const mine = posts.filter(p => p.brief?.keyword).slice(0, 20);
+  const published = mine.filter(p => p.state === 'published' && p.url);
+  const perf = published.length ? new Map((await performance(store, chKey, now)).posts.map(x => [x.ref, x])) : new Map();
+  const logged = published.length ? await store.query('publish_log', [eq('status', 'published')], { order: 'at', limit: 200 }) : [];
+  return mine.map(p => {
+    const base = { keyword: String(p.brief.keyword), post: p.ref };
+    if (p.state !== 'published' || !p.url) return base;
+    const at = logged.find(l => l.post === p.ref)?.at ?? p.updated_at;
+    const n = perf.get(p.ref);
+    return { ...base, url: p.url, ...(at ? { published_at: at } : {}), ...(n?.read && Number.isFinite(n.clicks) ? { clicks: n.clicks } : {}), ...(n?.read && Number.isFinite(n.signups) ? { signups: n.signups } : {}) };
+  });
 }
 
 const short = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
@@ -259,7 +273,7 @@ export async function plan(input, deps) {
     const recent = await recentPosts(store, ch.key);
     await keepTopic(store, input, now, recent);
     // The posts' keywords, so the company loop can tell a handed topic is written (topic_sync); read before anything is kept.
-    const topicPosts = writtenKeywords(recent);
+    const topicPosts = await writtenKeywords(store, ch.key, recent, now);
     const posted = topicPosts.length ? { topic_posts: topicPosts } : {};
     const stamp = (await store.one('settings', [eq('key', 'plan_wake')]))?.value;
     const extra = { ...(scheduled.length ? { scheduled } : {}), ...(social.length ? { social: social.length } : {}) };

@@ -72,6 +72,7 @@
         "CS_RUNTIME_URL",
         "SUPPORT_QUEUE_URL",
         "RELEASE_TAGS",
+        "BABYSIT_HOME",
         "LOOP_SOOT_BIN",
         "LOOP_SOOT_CONFIG",
         "PATH",
@@ -406,7 +407,7 @@
       "wake_when": {
         "notify": true
       },
-      "text": "Weekly digest. Follow the company-digest skill: company-loop_signals {} gives the packet (scoreboard, cohorts, plans, support, feedback), rank at most five opportunities (content or product), company-loop_digest_save them, record its outcomes, file its ask with report_blocker, end in one line. If a step failed (its output is attached), say the plain line in one sentence and stop."
+      "text": "Weekly digest. Follow the company-digest skill: read reader feedback first with data {op:\"query\", scope:\"team:cs\", table:\"voc\"} (contract item cs.voc; if refused or unreachable use the older feedback in the packet), then company-loop_signals {voc: true|false} gives the packet (scoreboard, cohorts, plans, support, feedback), rank at most five opportunities (content or product), company-loop_digest_save them, record its outcomes, file its ask with report_blocker, end in one line. If a step failed (its output is attached), say the plain line in one sentence and stop."
     },
     {
       "id": "company-watch",
@@ -441,37 +442,43 @@
       "id": "radar-read",
       "name": "Đọc tín hiệu thị trường",
       "soot": "lohi-radar",
-      "cron": "20 */3 * * *",
+      "cron": "20 6 * * *",
       "timezone": "Asia/Ho_Chi_Minh",
       "tool": {
         "pack": "marketing",
         "name": "radar_read",
         "input": {
           "schedule": true,
-          "per_call": 2,
-          "min_hours": 6,
+          "per_call": 5,
+          "min_hours": 20,
           "wake_at": 6,
+          "wake_gap_hours": 20,
+          "max_items": 15,
+          "lang": "vi",
+          "keywords": [
+            "truyện chữ",
+            "truyện dịch",
+            "đọc truyện",
+            "web novel",
+            "webnovel",
+            "tiên hiệp",
+            "ngôn tình",
+            "kiếm hiệp",
+            "đam mỹ",
+            "truyện audio",
+            "ebook",
+            "tangthuvien",
+            "metruyenchu",
+            "truyenfull",
+            "wattpad"
+          ],
+          "retire": [
+            "reddit-webnovels",
+            "reddit-progfantasy",
+            "reddit-webnovel",
+            "reddit-lightnovels"
+          ],
           "sources": [
-            {
-              "key": "reddit-webnovels",
-              "kind": "reddit",
-              "url": "https://www.reddit.com/r/noveltranslations/.rss"
-            },
-            {
-              "key": "reddit-progfantasy",
-              "kind": "reddit",
-              "url": "https://www.reddit.com/r/ProgressionFantasy/.rss"
-            },
-            {
-              "key": "reddit-webnovel",
-              "kind": "reddit",
-              "url": "https://www.reddit.com/r/webnovels/.rss"
-            },
-            {
-              "key": "reddit-lightnovels",
-              "kind": "reddit",
-              "url": "https://www.reddit.com/r/LightNovels/.rss"
-            },
             {
               "key": "reddit-vietnam-truyen",
               "kind": "reddit",

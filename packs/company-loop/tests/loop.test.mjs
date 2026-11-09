@@ -108,8 +108,10 @@ test('a product Go writes REQ-<id>.md in the shape bbs:team expects and spawns a
   const out = await w.call('page_action', { op: 'go', id: ref, request_id: 'req-12345678' }, { page: { page: 'cong-ty' } });
   assert.equal(out.handoff.state, 'spawned');
   assert.equal(out.handoff.team_id, `loop-${ref.toLowerCase()}`);
-  const path = join(dir, 'docs', 'requirements', `REQ-${ref}.md`);
+  const path = w.reqPath(dir, ref);
   assert.equal(out.handoff.requirement_path, path);
+  assert.ok(!existsSync(join(dir, 'docs', 'requirements')), 'the product working tree is not written');
+  assert.match(out.handoff.note, /Bước tiếp: đội loop-op-.* terminal Orca của đội \(bbs ticket approval resolve/);
   const text = readFileSync(path, 'utf8');
   for (const heading of ['## Outcome', '## Audience', '## Scope', '## Non-goals', '## Constraints', '## Acceptance criteria', '## Evidence']) assert.ok(text.includes(heading), heading);
   assert.match(text, /Target outcome: `support_handoffs`, expected change -3 within 30 days of release \(baseline when approved: 7\)/);
@@ -153,7 +155,7 @@ test('a product Go with bbs absent is draft_ready with the exact command, never 
   assert.equal(out.handoff.state, 'draft_ready');
   assert.match(out.handoff.command, new RegExp(`^cd '${dir}' && bbs team spawn loop-${ref.toLowerCase()} --dir '${dir}' --auto --command `));
   assert.match(out.handoff.command, /\/bbs:team --team-id/);
-  assert.ok(existsSync(join(dir, 'docs', 'requirements', `REQ-${ref}.md`)), 'the requirement is still written');
+  assert.ok(existsSync(w.reqPath(dir, ref)), 'the requirement is still written');
   assert.equal(w.rows('opportunities').find(o => o.ref === ref).state, 'go');
   assert.match(out.handoff.note, /chưa có bbs/);
   // The page offers the command and a retry; the next step names what to do.
@@ -423,9 +425,12 @@ test('hit rate math: a hit is actual at least half of expected, in the direction
   assert.deepEqual(hitRate([]), { hits: 0, measured: 0, rate: null });
 });
 
-test('review fills actual_delta from the scoreboard (target_outcome is the metric) once check_after_days have passed', async () => {
+test('review fills actual_delta from the scoreboard (target_outcome is the metric) once check_after_days have passed since release', async () => {
   const { w } = await ready();
-  await w.call('digest_save', { opportunities: [ITEM.content, { ...ITEM.content, title: 'Truyện ngôn tình hay', query: 'truyện ngôn tình hay', target_outcome: 'first_payers', expected_delta: 4 }, { ...ITEM.content, title: 'Chủ đề đo bằng outcome', query: 'chủ đề lạ', target_outcome: 'lead' }] });
+  const p = (title, extra) => ({ ...ITEM.product, title, check_after_days: 7, ...extra });
+  await w.call('digest_save', { opportunities: [p('Tăng đăng ký', { target_outcome: 'signups', expected_delta: 20 }), p('Tăng người trả tiền', { target_outcome: 'first_payers', expected_delta: 4 }), p('Chủ đề đo bằng outcome', { target_outcome: 'lead', expected_delta: 3 })] });
+  for (const o of w.rows('opportunities')) await w.call('decide', { id: o.ref, decision: 'go' });
+  for (const h of w.rows('handoffs')) await w.store.update('handoffs', h.id, { state: 'released', released_at: new Date(w.now).toISOString() });
   assert.deepEqual(await w.call('review'), { done: true, waiting: 3, hit_rate: { hits: 0, measured: 0, rate: null } }, 'before the days pass: quiet');
   // 8 days later signups went 120 -> 150, first_payers 3 -> 4.
   w.now += 8 * DAY;
@@ -437,11 +442,65 @@ test('review fills actual_delta from the scoreboard (target_outcome is the metri
   assert.deepEqual([by.first_payers.actual, by.first_payers.hit], [1, false]);
   assert.deepEqual(out.unmeasured.length, 1, 'an outcome that is not a scoreboard metric cannot be measured and is not counted');
   assert.deepEqual(out.hit_rate, { hits: 1, measured: 2, rate: 0.5 });
-  const log = w.rows('decisions');
+  const log = w.rows('decisions').filter(d => d.decision === 'go');
   assert.ok(log.every(d => d.reviewed_at));
   assert.deepEqual(log.map(d => d.actual_delta).sort(), [1, 30, null].sort());
   assert.deepEqual(await w.call('review'), { done: true, waiting: 0, hit_rate: { hits: 1, measured: 2, rate: 0.5 } }, 'each decision is reviewed once');
   api.over = {};
+});
+
+// F10: a content decision is measured on the post's own numbers from its publish day, not on the weekly total from the Go.
+/** A content Go whose post exists: the topic is written, the post published `daysAgo` days before w.now with the given numbers. */
+async function contentGo(w, { publishedDaysAgo = 10, ...own } = {}) {
+  await w.call('digest_save', { opportunities: [{ ...ITEM.content, expected_delta: 30 }] });
+  const ref = w.rows('opportunities')[0].ref;
+  await w.call('topic_next', {});
+  await w.call('topic_sync', { topic_posts: [{ keyword: 'truyện tiên hiệp full', post: 'P-1', url: 'https://lohi2.com/blog/x', published_at: new Date(w.now - publishedDaysAgo * DAY).toISOString(), ...own }] });
+  return ref;
+}
+
+test('a content decision is scored on the post\'s own clicks from its publish date, not on total signups from the Go', async () => {
+  const { w } = await ready();
+  const ref = await contentGo(w, { publishedDaysAgo: 8, clicks: 21 });
+  // The weekly total rises by 200 signups: it must not matter.
+  api.over = { metrics: { ...(await (await fetch(`${api.url}?from=2026-11-09&to=2026-11-15`, { headers: { 'x-api-key': KEY } })).json()).metrics, signups: { value: 1000, previous: 800 } } };
+  await w.call('scoreboard_sync');
+  const out = await w.call('review');
+  assert.deepEqual(out.reviewed.map(r => [r.ref, r.measured_by, r.actual, r.hit]), [[ref, 'clicks', 21, true]]);
+  assert.equal(w.rows('topics')[0].post_clicks, 21);
+  api.over = {};
+});
+
+test('a content post younger than check_after_days is waiting, even when the Go is old', async () => {
+  const { w } = await ready();
+  await contentGo(w, { publishedDaysAgo: 2, clicks: 50 });
+  w.now += 3 * DAY; // 11 days after the Go, 5 after the post: still inside its 7 days
+  assert.equal((await w.call('review')).waiting, 1);
+});
+
+test('a content post with no number of its own is "chưa đo": it waits a grace, then closes without scoring', async () => {
+  const { w } = await ready();
+  const ref = await contentGo(w, { publishedDaysAgo: 8 }); // no clicks, no signups: no Search Console, no campaign link
+  assert.equal((await w.call('review')).waiting, 1, 'inside the grace');
+  w.now += 15 * DAY;
+  const out = await w.call('review');
+  assert.deepEqual(out.unmeasured, [ref]);
+  assert.match(out.unmeasured_note, /^chưa đo/);
+  assert.deepEqual(out.hit_rate, { hits: 0, measured: 0, rate: null }, 'noise is never scored');
+  assert.equal(w.rows('decisions').find(d => d.decision === 'go').actual_delta, null);
+});
+
+test('a content post not yet published keeps waiting, and a later topic_sync fills its numbers once Search Console reports', async () => {
+  const { w } = await ready();
+  await w.call('digest_save', { opportunities: [ITEM.content] });
+  await w.call('topic_next', {});
+  await w.call('topic_sync', { topic_posts: [{ keyword: 'truyện tiên hiệp full', post: 'P-1' }] });
+  w.now += 20 * DAY;
+  assert.equal((await w.call('review')).waiting, 1, 'written but not published: nothing to measure');
+  await w.call('topic_sync', { topic_posts: [{ keyword: 'truyện tiên hiệp full', post: 'P-1', published_at: new Date(w.now - 9 * DAY).toISOString(), clicks: 4 }] });
+  const out = await w.call('review');
+  assert.equal(out.reviewed[0].actual, 4);
+  assert.equal(out.reviewed[0].hit, false, '4 clicks are below half of 20');
 });
 
 test('a product decision is measured from its release, not from the Go', async () => {

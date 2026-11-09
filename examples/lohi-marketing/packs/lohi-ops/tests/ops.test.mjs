@@ -146,7 +146,7 @@ test('crawl_watch: no path is a quiet skip, an unreadable file is a named error,
 const reply = (id, body) => ({ id, post_id: 'p', body, created_at: '2026-11-10T01:00:00Z', hidden: false, report_reason: null, reported_at: null });
 function modApi({ failHide = false } = {}) {
   return router({
-    'GET api.test/admin/moderation/replies': u => res({ version: 1, scope: u.searchParams.get('scope'), items: u.searchParams.get('scope') === 'flagged' ? [reply(ID1, 'mua sub zalo 0900')] : [reply(ID2, 'truyện hay quá'), reply(ID3, 'hmm')], next_cursor: null }),
+    'GET api.test/admin/moderation/replies': u => res({ version: 1, scope: u.searchParams.get('scope'), items: u.searchParams.get('scope') === 'flagged' ? [reply(ID1, 'mua sub zalo 0900')] : [reply(ID2, 'mong tác giả ra chương mới nhanh hơn nhé'), reply(ID3, 'hmm')], next_cursor: null }),
     [`POST api.test/admin/moderation/replies/${ID1}/hide`]: () => failHide ? res({}, 403) : res({ id: ID1, hidden: true, changed: true }),
     [`POST api.test/admin/moderation/replies/${ID1}/keep`]: res({ id: ID1, hidden: false, changed: false }),
     [`POST api.test/admin/moderation/replies/${ID3}/hide`]: res({ id: ID3, hidden: true, changed: true }),
@@ -179,6 +179,25 @@ test('comments: pull stores pending, decide hides only the confident bad, keeps 
   assert.equal(r.state, 'hidden');
   assert.equal(r.resolves_need, true);
   await assert.rejects(go('comments_resolve', { id: ID1, action: 'keep' }, { store, fetchImpl: fetch }), /escalated/);
+});
+test('comments: thanks, praise and emoji are kept by the tool and never wake the model; anything with a link, a number or an unknown word is judged', async () => {
+  const bodies = ['Cảm ơn ad nhiều nha', 'truyện hay quá', '👍👍', 'cảm ơn bạn http://spam.example', 'tuyệt vời', 'hay lắm, ib zalo 0900 123 456', 'cảm ơn nhưng chương 10 lỗi font'];
+  const ids = bodies.map((_, i) => `00000000-0000-4000-8000-00000000000${i}`);
+  const fetch = router({ 'GET api.test/admin/moderation/replies': u => res({ version: 1, scope: u.searchParams.get('scope'), items: u.searchParams.get('scope') === 'recent' ? bodies.map((b, i) => reply(ids[i], b)) : [], next_cursor: null }) });
+  const store = fakeStore({ clock: () => NOW });
+  const out = await go('comments_pull', {}, { store, fetchImpl: fetch });
+  assert.deepEqual(out.items.map(i => i.id), [ids[3], ids[5], ids[6]], 'only the ones needing a judgment reach the model');
+  assert.equal(out.auto_kept, 4);
+  assert.equal(out.notify, true);
+  const kept = store.data.comments.filter(c => c.state === 'kept');
+  assert.deepEqual(kept.map(c => c.why), ['tự giữ: thanks', 'tự giữ: praise', 'tự giữ: emoji', 'tự giữ: praise']);
+  assert.equal(fetch.calls.filter(c => c.method === 'POST').length, 0, 'an unreported comment needs no api call');
+  // A batch of only harmless comments is a quiet run: no wake.
+  const quiet = await go('comments_pull', {}, { store: fakeStore({ clock: () => NOW }), fetchImpl: router({ 'GET api.test/admin/moderation/replies': u => res({ version: 1, scope: 'recent', items: u.searchParams.get('scope') === 'recent' ? [reply(ids[0], bodies[0]), reply(ids[1], bodies[1])] : [], next_cursor: null }) }) });
+  assert.deepEqual([quiet.count, quiet.auto_kept, quiet.notify], [0, 2, false]);
+  // A reader-reported comment is never auto-kept, however polite.
+  const flagged = router({ 'GET api.test/admin/moderation/replies': u => res({ version: 1, scope: u.searchParams.get('scope'), items: u.searchParams.get('scope') === 'flagged' ? [{ ...reply(ids[0], 'cảm ơn'), report_reason: 'spam' }] : [], next_cursor: null }) });
+  assert.equal((await go('comments_pull', {}, { store: fakeStore({ clock: () => NOW }), fetchImpl: flagged })).count, 1);
 });
 test('comments_decide: dry run calls nothing, the hide cap spills to a person, bad input is refused', async () => {
   const store = fakeStore({ clock: () => NOW }), fetch = modApi();

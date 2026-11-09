@@ -5,7 +5,15 @@ woke you with `company-loop_signals`. You write the digest once; nobody answers
 a question mid-run. Cost is one short run: no browsing, no research, no
 sub-agents, no other tool than the ones named here.
 
-1. Call `company-loop_signals {}` once. It is a compact packet: `metrics`
+1. Read what readers asked for: `data {op: "query", scope: "team:cs", table: "voc", limit: 60}`
+   (the support team's contract item `cs.voc`: `kind`, `summary`, `created`, already
+   free of personal detail). Count the rows of the last 14 days by `kind` and note
+   the themes that repeat; that is your reader feedback. If the call is refused,
+   fails or the team is unreachable, you have no voc: say so in one clause and use
+   the packet's `cs_feedback` instead. If it answers with zero rows that is a real
+   answer ("no feedback"), not a failure.
+   Then call `company-loop_signals {voc: true}` once (`{voc: false}` when voc was
+   unavailable: the tool then reads the older feedback desk itself). It is a compact packet: `metrics`
    (`v` now, `p` before, `pct` change), `sources`, `reasons` (why support handed
    over to a person), `support` (threads by state: `waiting_human` is readers
    waiting for a person right now), `cs_gaps` (questions the knowledge base
@@ -23,9 +31,8 @@ sub-agents, no other tool than the ones named here.
    (`signal_count`, how many numbers and sources point at it), then value over
    effort, then confidence. Prefer the metric that fell or the gap that repeats
    over a metric that merely moved. Customer-service pain counts as evidence:
-   a high `support.waiting_human`, a `reason`, a kind in `cs_feedback.n` that
-   repeats (several `feature_request` or `bug` notes about the same thing in
-   `ex`) each become an opportunity, usually `product`, aimed at
+   a high `support.waiting_human`, a `reason`, a kind in the voc rows (or `cs_feedback.n`) that
+   repeats (several `feature_request` or `bug` notes about the same thing) each become an opportunity, usually `product`, aimed at
    `support_threads_new` or `support_handoffs` (negative `expected_delta`), or at
    `content` when a help article would answer the question. Cite them as
    `feedback:<kind>` or `metric:waiting_human`; never copy a sample word for
@@ -46,7 +53,12 @@ sub-agents, no other tool than the ones named here.
    is the change you expect in that metric over one 7-day window (negative for a
    metric that should fall, never 0) and `check_after_days` is how long to wait
    before looking (7 for content, 30 for a product change). Be honest: the
-   hit rate compares your number with what happens.
+   hit rate compares your number with what happens. For a `content` item the
+   review does not use the weekly total: it counts the post's own clicks (Search
+   Console or its campaign link) from its publish day, or sign-ups its campaign
+   link brought, so set `expected_delta` as that number for one post (for example
+   30 clicks), not as a change of the whole metric. A post with no measured click
+   count is reported "chưa đo", never scored.
 5. `evidence_refs` are short references (`metric:signups`, `source:facebook`,
    `reason:billing`, `gap:<topic>`), never customer text. `signal_count` counts
    the signals behind the item. `est_effort` is S, M, L or XL, `est_value` is

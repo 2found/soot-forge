@@ -285,14 +285,14 @@
     {
       "name": "radar_read",
       "title": "Đọc nguồn radar",
-      "description": "Read-only radar for a tool-only schedule: seed the sources table (new keys only), read the sources that are due (https feeds, oldest first), keep each new item once in signals. Wakes the triage Soot only when enough new signals arrived since the last wake.",
-      "parameters": {"type":"object","properties":{"sources":{"type":"array","maxItems":40,"items":{"type":"object","properties":{"key":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":48},"kind":{"type":"string","maxLength":24},"url":{"type":"string","maxLength":400}},"required":["key","url"],"additionalProperties":false}},"per_call":{"type":"integer","minimum":1,"maximum":5},"min_hours":{"type":"number","minimum":1,"maximum":168},"wake_at":{"type":"integer","minimum":1,"maximum":60},"schedule":{"type":"boolean"}},"required":[],"additionalProperties":false},
+      "description": "Read-only radar for a tool-only schedule: seed the sources table (new keys only), read the sources that are due (https feeds, oldest first), keep each new item once in signals. Items off topic (keywords, lang vi) are kept as dismissed and never reach the model. A source answering 429 rests a day; after 3 failures in a row it is switched off and reported in skipped; retire switches named sources off. Wakes the triage Soot only when enough new signals arrived since the last wake, at most once per wake_gap_hours (default 20), with at most 15 of the best new signals (the surplus is dismissed).",
+      "parameters": {"type":"object","properties":{"keywords":{"type":"array","maxItems":60,"items":{"type":"string","maxLength":40}},"lang":{"type":"string","enum":["vi","any"]},"max_items":{"type":"integer","minimum":1,"maximum":15},"wake_gap_hours":{"type":"number","minimum":0,"maximum":168},"retire":{"type":"array","maxItems":40,"items":{"type":"string","maxLength":48}},"sources":{"type":"array","maxItems":40,"items":{"type":"object","properties":{"key":{"type":"string","pattern":"^[a-z0-9]+(?:-[a-z0-9]+)*$","maxLength":48},"kind":{"type":"string","maxLength":24},"url":{"type":"string","maxLength":400}},"required":["key","url"],"additionalProperties":false}},"per_call":{"type":"integer","minimum":1,"maximum":5},"min_hours":{"type":"number","minimum":1,"maximum":168},"wake_at":{"type":"integer","minimum":1,"maximum":60},"schedule":{"type":"boolean"}},"required":[],"additionalProperties":false},
       "run": { "program": "node", "args": ["tools/marketing.mjs","radar_read"], "stdin": "context", "mode": "write", "timeout": "90s", "max_output_bytes": 65536 }
     },
     {
       "name": "signals_list",
       "title": "Xem tín hiệu thị trường",
-      "description": "List market signals by state (default new): ref, source, title, url, a short summary. For the radar triage.",
+      "description": "List market signals by state (default new, at most 15 at a time): ref, source, title, url, a short summary. For the radar triage.",
       "parameters": {"type":"object","properties":{"state":{"type":"string","enum":["new","kept","dismissed","used"]},"limit":{"type":"integer","minimum":1,"maximum":40}},"required":[],"additionalProperties":false},
       "run": { "program": "node", "args": ["tools/marketing.mjs","signals_list"], "stdin": "context", "mode": "read", "timeout": "20s", "max_output_bytes": 65536 }
     },
@@ -415,7 +415,7 @@
     {"id":"lead","label":{"vi":"Khách tiềm năng","en":"Lead"},"unit":"lead"}
   ],
   "storage": {
-    "version": 5,
+    "version": 6,
     "tables": [
       {
         "name": "settings",
@@ -447,7 +447,10 @@
           {"name":"kind","type":"text"},
           {"name":"url","type":"text"},
           {"name":"last_read_at","type":"timestamp"},
-          {"name":"last_error","type":"text"}
+          {"name":"last_error","type":"text"},
+          {"name":"fails","type":"integer"},
+          {"name":"retry_after","type":"timestamp"},
+          {"name":"disabled_at","type":"timestamp"}
         ]
       },
       {

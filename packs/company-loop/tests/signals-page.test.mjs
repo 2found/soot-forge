@@ -76,6 +76,32 @@ test('CS feedback: counts by kind and up to five scrubbed samples, within 1 KiB;
   assert.equal((await bad.call('signals')).packet.cs_feedback, undefined);
 });
 
+test('F11: voc read through the contract skips the desk scrape; voc unavailable falls back to it', async () => {
+  cs.sessions = []; cs.messages = {}; cs.calls.length = 0;
+  addNotes(cs, [['bug', 'Lỗi không đọc được chương']]);
+  const w = mk({ CS_RUNTIME_URL: cs.url, CS_RUNTIME_TOKEN: 'cs-token' });
+  await w.call('scoreboard_sync');
+  cs.calls.length = 0;
+  const viaVoc = await w.call('signals', { voc: true });
+  assert.equal(viaVoc.packet.cs_voc, 'contract');
+  assert.equal(viaVoc.packet.cs_feedback, undefined);
+  assert.ok(!cs.calls.some(c => c.path.startsWith('/v1/sessions')), 'no desk session was read');
+  // voc unavailable (refused, not granted, unreachable): the digest says voc false and the old path answers.
+  const fallback = await w.call('signals', { voc: false });
+  assert.equal(fallback.packet.cs_voc, undefined);
+  assert.deepEqual(fallback.packet.cs_feedback.n, { bug: 1 });
+  assert.deepEqual((await w.call('signals', {})).packet.cs_feedback.n, { bug: 1 }, 'omitted means unavailable');
+  // No static token at all and voc fine: nothing is asked of the CS runtime for feedback.
+  const noToken = mk({});
+  await noToken.call('scoreboard_sync');
+  assert.equal((await noToken.call('signals', { voc: true })).packet.cs_voc, 'contract');
+  assert.equal((await noToken.call('signals', { voc: false })).packet.cs_feedback, undefined, 'fallback is quiet without the old token');
+  // The skill reads voc through the data tool on the team:cs scope and keeps the fallback.
+  const skill = readFileSync(new URL('../skills/digest.md', import.meta.url), 'utf8');
+  assert.match(skill, /scope: "team:cs", table: "voc"/);
+  assert.match(skill, /signals \{voc: true\}/);
+});
+
 test('the packet stays under 3 KiB however long the history and the titles are', async () => {
   const w = mk({ CS_RUNTIME_URL: cs.url, CS_RUNTIME_TOKEN: 'cs-token' });
   await w.call('scoreboard_sync');

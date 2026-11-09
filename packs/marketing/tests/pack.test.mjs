@@ -80,3 +80,19 @@ test('the role skills work on tasks, team tables and team memory', () => {
   assert.match(read('measure'), /`visits`[\s\S]*null/);
   for (const name of ['radar', 'write', 'edit', 'measure']) assert.match(read(name), /team\.brief|team memory/, name);
 });
+
+// F3: a restart that cuts a `write` tool leaves its resource "result unknown" until a person settles it. The tools below
+// only keep their own bookkeeping rows (attention, probe, plan stamps) and are safe to run again, but the runtime gives a
+// `read` tool a read-only storage grant, so they cannot be `read` without losing that bookkeeping. They stay `write`
+// until the runtime can declare a tool re-runnable; claim, record, fail and pause are real effects and stay writes
+// for good. Pure reads are `read` today.
+test('restart safety: re-runnable bookkeeping tools are listed, real effects stay writes, pure reads are reads', () => {
+  const RERUNNABLE = ['due', 'plan', 'channels_probe', 'report', 'radar_read', 'signals_mark', 'check', 'schedule', 'facts_sync', 'gsc_sync'];
+  const EFFECTS = ['claim', 'record', 'fail', 'pause', 'draft_save', 'reply_save', 'cms_publish', 'social_publish', 'social_record', 'campaign_save'];
+  const PURE = ['items', 'seo_brief', 'signals_list', 'inputs_health', 'page_view', 'campaign_verify'];
+  for (const n of [...RERUNNABLE, ...EFFECTS]) assert.equal(tools[n].run.mode, 'write', n);
+  for (const n of PURE) assert.equal(tools[n].run.mode, 'read', n);
+  // claim is the one that needs the operator and its key; nothing in the re-runnable list may take a claim key.
+  for (const n of RERUNNABLE) assert.ok(!tools[n].run.secret_env?.MARKETING_CLAIM_KEY, n);
+  assert.equal(tools.claim.run.approval, 'operator');
+});

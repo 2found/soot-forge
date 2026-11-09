@@ -1,4 +1,7 @@
 import { run } from '../tools/loop.mjs';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, basename } from 'node:path';
 import { fakeStore } from './fake-store.mjs';
 
 export const T0 = Date.parse('2026-11-09T01:30:00Z'); // Monday 08:30 in Asia/Ho_Chi_Minh
@@ -8,7 +11,9 @@ export const DAY = 86_400_000;
 export function world({ env = {}, home } = {}) {
   const w = { now: T0 };
   w.store = fakeStore({ clock: () => w.now });
-  w.env = { PATH: process.env.PATH, HOME: home ?? '/nonexistent-home', ...env };
+  w.env = { PATH: process.env.PATH, HOME: home ?? '/nonexistent-home', BABYSIT_HOME: mkdtempSync(join(tmpdir(), 'babysit-home-')), ...env };
+  /** Where a Go writes the requirement of a ticket: beside the tickets, never in the product repo. */
+  w.reqPath = (repo, ref) => join(w.env.BABYSIT_HOME, 'requirements', basename(repo), `REQ-${ref}.md`);
   w.call = (name, input = {}, extra = {}) => run(name, { input, ...extra }, { store: w.store, now: w.now, env: w.env, fetchImpl: fetch, apiTimeoutMs: 500 });
   w.rows = table => w.store.data[table];
   return w;

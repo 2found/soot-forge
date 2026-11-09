@@ -36,6 +36,7 @@
       "CS_RUNTIME_URL",
       "SUPPORT_QUEUE_URL",
       "RELEASE_TAGS",
+      "BABYSIT_HOME",
       "PATH",
       "HOME"
     ],
@@ -352,6 +353,22 @@
           {
             "name": "post",
             "type": "text"
+          },
+          {
+            "name": "post_url",
+            "type": "text"
+          },
+          {
+            "name": "published_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "post_clicks",
+            "type": "number"
+          },
+          {
+            "name": "post_signups",
+            "type": "number"
           }
         ]
       },
@@ -423,10 +440,15 @@
     {
       "name": "signals",
       "title": "Gói tín hiệu cho bản tin",
-      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps and what readers asked for or lacked (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, from the feedback desk; both optional), opportunities and decisions with actual_delta, last launches. Wakes the Lead in a chain.",
+      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps, opportunities and decisions with actual_delta, last launches. Reader feedback comes from the team contract item cs.voc, which the digest reads with the data tool first and reports with voc: true; only when voc is unavailable (voc false or omitted) the packet falls back to the legacy feedback desk scrape (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, needs CS_RUNTIME_TOKEN). Wakes the Lead in a chain.",
       "parameters": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "voc": {
+            "type": "boolean",
+            "description": "true when cs.voc answered with rows (the digest has the feedback already); false or omitted when it was refused, empty-because-unreachable or not granted: the legacy desk scrape runs instead."
+          }
+        },
         "required": [],
         "additionalProperties": false
       },

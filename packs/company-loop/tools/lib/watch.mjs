@@ -12,7 +12,10 @@ import { eq, getState, inList, iso, setState, short } from './base.mjs';
 import { runBbs } from './bbs.mjs';
 import { queueTopic } from './opportunities.mjs';
 
-const OPEN = ['spawned', 'starting', 'building', 'blocked', 'delivered'];
+// draft_ready is watched too: the founder runs the printed command by hand, and the row must move on once the team exists.
+const OPEN = ['draft_ready', 'spawned', 'starting', 'building', 'blocked', 'delivered'];
+/** A handoff still waiting for its command this long gets one reminder. */
+export const NUDGE_AFTER_MS = 2 * 3_600_000;
 export const STARTING = 'Đội đang đọc yêu cầu — chưa có việc cần bạn.';
 
 /** The team's state from a snapshot: {state, detail}. */
@@ -95,6 +98,19 @@ async function handoverAsk(h, title, parent, awaiting, store) {
   };
 }
 
+/** One reminder per handoff that never started: the command to run, once. */
+async function unstartedAsk(h, title, store, now) {
+  if (now - Date.parse(h.updated_at ?? h.created_at ?? 0) < NUDGE_AFTER_MS) return null;
+  const key = `unstarted:${h.opportunity}`;
+  if (await getState(store, key)) return null;
+  await setState(store, key, '1');
+  return {
+    keys: [`company:unstarted:${h.opportunity}`], summary: `Đội dựng "${title}" chưa bắt đầu`,
+    missing: `Bạn đã Go nhưng đội ${h.team_id} chưa mở (máy chưa có bbs hoặc Orca chưa chạy). Chạy lệnh này một lần trong terminal: ${h.command ?? '(mở trang Công ty và bấm Chạy lại)'}\nSau đó Soot tự theo dõi tiếp; việc còn lại của bạn là cho phép phát hành trong terminal Orca của đội.`,
+    options: [{ label: 'Đã xem', recommended: true }],
+  };
+}
+
 export async function team_watch(input, deps) {
   const { store, env, now } = deps;
   const open = await store.query('handoffs', [inList('state', OPEN)], { order: 'updated_at', limit: 50 });
@@ -103,6 +119,11 @@ export async function team_watch(input, deps) {
   let ask = null;
   for (const h of open) {
     const found = await resolveParent(h, env);
+    if (h.state === 'draft_ready' && (found.missing || !found.ticket)) {
+      // The team does not exist yet: keep the row, remind once, never fail the other handoffs.
+      if (!ask) ask = await unstartedAsk(h, (await store.one('opportunities', [eq('ref', h.opportunity)]))?.title ?? h.opportunity, store, now);
+      continue;
+    }
     if (found.missing) return { done: true, note: 'bbs_missing' };
     let s;
     let parent = found.ticket;

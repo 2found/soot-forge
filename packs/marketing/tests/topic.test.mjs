@@ -49,3 +49,25 @@ test('the wake call reports the keywords of the newest posts (topic_posts) so th
   const again = await w.call('plan', { ...WAKE, query: 'truyện tiên hiệp hay nhất' });
   assert.deepEqual(again.topic_posts, [{ keyword: 'truyện tiên hiệp hay nhất', post: 'P-TEST000001' }]);
 });
+
+// F10: a published post reports its own numbers; no signal means the key is absent ("chưa đo"), never 0.
+const published = (w, ref, kw, url) => w.store.insert('posts', { ref, channel: 'blog-lohi', kind: 'article', state: 'published', revision: 1, body: 'b', url, brief: { keyword: kw } });
+
+test('topic_posts carries publish date and the post\'s own Search Console clicks', async () => {
+  const w = world();
+  await published(w, 'P-PUB000001', 'truyện kiếm hiệp hay', 'https://blog.lohi2.com/kiem-hiep');
+  await w.store.insert('publish_log', { post: 'P-PUB000001', channel: 'blog-lohi', action: 'publish', intent_id: 'i1', status: 'published', at: '2026-11-08T03:00:00.000Z' });
+  await w.store.insert('metrics', { url: 'https://blog.lohi2.com/kiem-hiep', source: 'gsc', day: '2026-11-09', query: '', impressions: 400, clicks: 17, position: 8 });
+  const out = await w.call('plan', { ...WAKE, query: 'truyện kiếm hiệp hay' });
+  assert.deepEqual(out.topic_posts, [{ keyword: 'truyện kiếm hiệp hay', post: 'P-PUB000001', url: 'https://blog.lohi2.com/kiem-hiep', published_at: '2026-11-08T03:00:00.000Z', clicks: 17 }]);
+});
+
+test('a published post nobody measured has no clicks key (not 0), and a draft has no publish fields', async () => {
+  const w = world();
+  await published(w, 'P-PUB000002', 'truyện ngôn tình hay', 'https://blog.lohi2.com/ngon-tinh');
+  await w.store.insert('posts', { ref: 'P-DRAFT00001', channel: 'blog-lohi', kind: 'article', state: 'draft', revision: 1, body: 'b', brief: { keyword: 'truyện đam mỹ hay' } });
+  const out = await w.call('plan', { ...WAKE, query: 'truyện ngôn tình hay' });
+  const byPost = Object.fromEntries(out.topic_posts.map(p => [p.post, p]));
+  assert.ok(byPost['P-PUB000002'].published_at && !('clicks' in byPost['P-PUB000002']) && !('signups' in byPost['P-PUB000002']));
+  assert.deepEqual(byPost['P-DRAFT00001'], { keyword: 'truyện đam mỹ hay', post: 'P-DRAFT00001' });
+});

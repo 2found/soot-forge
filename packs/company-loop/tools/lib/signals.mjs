@@ -34,7 +34,7 @@ export const scrub = text => short(String(text ?? '')
   .replace(/\b[A-Z]{2,8}[-\s]?[A-Z0-9]*\d[A-Z0-9]*\b/g, ''), 70);
 
 /**
- * What readers asked for or lacked, from the CS runtime's feedback desk: each note is a conversation of the
+ * LEGACY fallback (used only when the contract item cs.voc is unavailable): what readers asked for or lacked, from the CS runtime's feedback desk: each note is a conversation of the
  * `desk` Soot (source event) whose first message holds `Loại:` and `Tóm tắt:`. Counts by kind plus up to five
  * scrubbed samples per kind, at most 1 KiB. Null when unset; {error} on a failure.
  */
@@ -82,7 +82,7 @@ function fit(packet) {
   return packet;
 }
 
-export async function packetFor(deps) {
+export async function packetFor(deps, { voc = false } = {}) {
   const { store } = deps;
   const board = await latestBoard(store);
   if (!board) return null;
@@ -94,7 +94,8 @@ export async function packetFor(deps) {
     store.query('topics', [eq('state', 'queued')], { limit: 50 }),
   ]);
   const gaps = await csGaps(deps).catch(() => ({ error: 'failed' }));
-  const feedback = await csFeedback(deps).catch(() => ({ error: 'failed' }));
+  // The contract item cs.voc (read by the digest through the data tool) replaces the desk scrape; the scrape is the fallback when voc is unavailable.
+  const feedback = voc ? null : await csFeedback(deps).catch(() => ({ error: 'failed' }));
   const rate = hitRate(decisions);
   const packet = {
     product: board.product, period: [board.period_from, board.period_to],
@@ -107,6 +108,7 @@ export async function packetFor(deps) {
     plans: board.plans ? board.plans.slice(0, 6).map(p => ({ t: p.tier, st: p.started, ac: p.active, rev: p.revenue_vnd })) : null,
     ...(gaps && !gaps.error ? { cs_gaps: gaps } : {}),
     ...(gaps?.error ? { cs_error: gaps.error } : {}),
+    ...(voc ? { cs_voc: 'contract' } : {}),
     ...(feedback && !feedback.error ? { cs_feedback: feedback } : {}),
     ...(feedback?.error && !gaps?.error ? { cs_error: feedback.error } : {}),
     waiting: opps.filter(o => o.state === 'proposed').slice(0, 5).map(o => ({ ref: o.ref, title: short(o.title, 60), kind: o.kind })),
@@ -120,7 +122,7 @@ export async function packetFor(deps) {
 }
 
 export async function signals(input, deps) {
-  const packet = await packetFor(deps);
+  const packet = await packetFor(deps, { voc: input?.voc === true });
   if (!packet) return { done: true, empty: true, note: 'Chưa có số liệu nào để lập bản tin.' };
   return { packet, notify: true, wake: true };
 }

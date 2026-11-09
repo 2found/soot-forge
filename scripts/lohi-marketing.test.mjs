@@ -111,7 +111,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   assert.ok(host.soots.includes('soots/lohi-radar.json'), 'the Radar reads real sources by tool and wakes only to triage');
   const radar = byId['radar-read'];
   assert.deepEqual([radar.soot, radar.tool.name, radar.wake_when, radar.tool.input.schedule], ['lohi-radar', 'radar_read', { notify: true }, true]);
-  assert.ok(radar.tool.input.sources.length >= 6 && radar.tool.input.sources.every(x => /^https:\/\//.test(x.url)), 'real https sources, read-only');
+  assert.ok(radar.tool.input.sources.length >= 5 && radar.tool.input.lang === "vi" && radar.tool.input.max_items <= 15 && radar.tool.input.sources.every(x => !/reddit.com\/r\/(webnovels|LightNovels|ProgressionFantasy|noveltranslations)/.test(x.url)) && radar.tool.input.sources.every(x => /^https:\/\//.test(x.url)), 'real https sources, read-only');
   assert.ok(!radar.tool.input.sources.some(x => /facebook|x\.com|twitter/.test(x.url)), 'no source that needs a login');
   const writer = (await json('examples/lohi-marketing/soots/lohi-writer.json')).packs;
   assert.deepEqual(writer.map(r => r.split(':')[0]), ['marketing', 'company-loop']);

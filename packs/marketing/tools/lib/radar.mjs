@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { fail, eq } from './store.mjs';
 import { setSetting } from './ops.mjs';
+import { fold } from './guard.mjs';
 
 const HOUR = 3_600_000;
 const iso = ms => new Date(ms).toISOString();
@@ -37,53 +38,101 @@ export function parseFeed(xml) {
 const keyOf = u => createHash('sha1').update(u).digest('hex').slice(0, 8).toUpperCase();
 export const SIGNAL_STATES = ['new', 'kept', 'dismissed', 'used'];
 
+const VI_CHARS = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+/** After this many failed reads in a row a source is switched off (a person can clear `disabled_at` to turn it back on). */
+export const MAX_FAILS = 3;
+export const MAX_WAKE_ITEMS = 15;
+const DAY = 24 * HOUR;
+
 /**
- * radar_read {sources?, per_call?, min_hours?, wake_at?}: seeds the `sources` table (new keys only; an edit made on the
- * table is never overwritten), reads the sources that are due (oldest first, at most `per_call`, one Reddit at a time
- * is polite), keeps each new item once. Wakes the triage Soot only when enough new signals arrived since the last wake.
+ * Is an item about this product's readers? `keywords` (accent-folded, any one hit) and `lang: 'vi'` (the text carries
+ * Vietnamese letters, so an English subreddit never reaches the model). No keywords and lang any: everything passes.
+ * Returns the number of keyword hits (0 = off topic) so the best items rank first.
+ */
+export function relevance(item, { keywords = [], lang = 'any' } = {}) {
+  const raw = `${item.title} ${item.summary}`;
+  if (lang === 'vi' && !VI_CHARS.test(raw)) return 0;
+  if (!keywords.length) return 1;
+  const hay = fold(raw);
+  return keywords.reduce((n, k) => n + (hay.includes(fold(k)) ? 1 : 0), 0);
+}
+
+/**
+ * radar_read {sources?, per_call?, min_hours?, wake_at?, keywords?, lang?, max_items?, wake_gap_hours?, retire?}: seeds the
+ * `sources` table (new keys only; an edit made on the table is never overwritten), reads the sources that are due (oldest
+ * first, at most `per_call`), keeps each new item once. Items off topic (keywords, language) are kept as dismissed, so they are
+ * never read twice and never reach the model. A source that answers 429 rests a day; after MAX_FAILS failures in a row it is
+ * switched off and reported as skipped. Wakes the triage Soot at most once per `wake_gap_hours` (default 20), with at most
+ * `max_items` (15) of the best new signals; the surplus is dismissed with a note.
  */
 export async function radar_read(input, { store, now, fetch }) {
   const seeds = Array.isArray(input.sources) ? input.sources : [];
   if (seeds.length > 40) fail('invalid_request', 'At most 40 sources.');
+  const keywords = (Array.isArray(input.keywords) ? input.keywords : []).map(k => String(k).trim()).filter(Boolean).slice(0, 60);
+  const lang = input.lang === 'vi' ? 'vi' : 'any';
   const known = new Set((await store.query('sources', [], { limit: 200 })).map(r => r.key));
   for (const s of seeds) {
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(s?.key)) || !publicHttps(s.url)) fail('invalid_request', 'A source needs a lowercase key and a public https url.');
     if (!known.has(s.key)) await store.insert('sources', { key: s.key, kind: s.kind ?? 'feed', url: s.url });
   }
+  // Retired sources (dead, answering 429, or the wrong language) are switched off; their rows and signals stay.
+  const retired = [];
+  for (const key of Array.isArray(input.retire) ? input.retire.slice(0, 40) : []) {
+    const row = await store.one('sources', [eq('key', String(key))]);
+    if (row && !row.disabled_at) { await store.update('sources', [eq('key', row.key)], { disabled_at: iso(now), last_error: row.last_error ?? 'retired' }); retired.push(row.key); }
+  }
   const perCall = Math.min(Math.max(Number(input.per_call) || 2, 1), 5);
   const minMs = (Number(input.min_hours) || 6) * HOUR;
-  const sources = (await store.query('sources', [], { limit: 200 }))
+  const all = await store.query('sources', [], { limit: 200 });
+  const skipped = all.filter(r => r.disabled_at).map(r => ({ source: r.key, why: `tắt: ${r.last_error ?? 'không đọc được'}` }))
+    .concat(all.filter(r => !r.disabled_at && r.retry_after && now < Date.parse(r.retry_after)).map(r => ({ source: r.key, why: `nghỉ đến ${r.retry_after.slice(0, 16)}: ${r.last_error ?? ''}`.trim() })));
+  const sources = all
+    .filter(r => !r.disabled_at && !(r.retry_after && now < Date.parse(r.retry_after)))
     .filter(r => !r.last_read_at || now - Date.parse(r.last_read_at) >= minMs)
     .sort((a, b) => Date.parse(a.last_read_at ?? 0) - Date.parse(b.last_read_at ?? 0)).slice(0, perCall);
   const read = [];
   for (const src of sources) {
-    let items = [], error = null;
+    let items = [], error = null, status = 0;
     try {
       const res = await fetch(src.url, { redirect: 'follow', signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; soot-radar/1.0)', Accept: 'application/atom+xml, application/rss+xml, application/xml, text/xml' } });
-      if (!res.ok) error = `HTTP ${res.status}`;
+      if (!res.ok) { status = res.status; error = `HTTP ${res.status}`; }
       else items = parseFeed((await res.text()).slice(0, 1_500_000));
     } catch (e) { error = e?.name === 'TimeoutError' ? 'timeout' : 'unreachable'; }
-    let fresh = 0;
+    let fresh = 0, off = 0;
     for (const it of items.slice(0, 40)) {
       if (await store.one('signals', [eq('url', it.url)])) continue;
-      await store.insert('signals', { ref: 'RS-' + keyOf(it.url), source: src.key, title: it.title, url: it.url, summary: it.summary, state: 'new', found_at: iso(now) });
-      fresh++;
+      const score = relevance(it, { keywords, lang });
+      await store.insert('signals', { ref: 'RS-' + keyOf(it.url), source: src.key, title: it.title, url: it.url, summary: it.summary, state: score ? 'new' : 'dismissed', score, ...(score ? {} : { note: 'tự bỏ: ngoài chủ đề' }), found_at: iso(now) });
+      if (score) fresh++; else off++;
     }
-    await store.update('sources', [eq('key', src.key)], { last_read_at: iso(now), last_error: error });
-    read.push({ source: src.key, new: fresh, ...(error ? { error } : {}) });
+    const fails = error ? (src.fails ?? 0) + 1 : 0;
+    const off_now = error && fails >= MAX_FAILS;
+    await store.update('sources', [eq('key', src.key)], { last_read_at: iso(now), last_error: error, fails, retry_after: status === 429 ? iso(now + DAY) : null, ...(off_now ? { disabled_at: iso(now) } : {}) });
+    read.push({ source: src.key, new: fresh, ...(off ? { off_topic: off } : {}), ...(error ? { error } : {}), ...(off_now ? { disabled: true } : {}) });
+    if (off_now) skipped.push({ source: src.key, why: `tắt sau ${fails} lần lỗi: ${error}` });
   }
-  const waiting = (await store.query('signals', [eq('state', 'new')], { limit: 500 }));
+  let waiting = await store.query('signals', [eq('state', 'new')], { limit: 500 });
   const woke = (await store.one('settings', [eq('key', 'radar_woke')]))?.value ?? { at: null };
   const sinceWake = waiting.filter(s => !woke.at || (s.found_at ?? '') > woke.at).length;
   const threshold = Math.min(Math.max(Number(input.wake_at) || 8, 1), 60);
-  const wake = input.schedule === true && sinceWake >= threshold;
-  if (wake) await setSetting(store, 'radar_woke', { at: iso(now) });
-  return { read, new_total: read.reduce((n, r) => n + r.new, 0), waiting: waiting.length, ...(wake ? { notify: true, wake: true } : { notify: false, wake: false }) };
+  const gapMs = Math.max(Number(input.wake_gap_hours ?? 20), 0) * HOUR;
+  const rested = !woke.at || now - Date.parse(woke.at) >= gapMs;
+  const wake = input.schedule === true && sinceWake >= threshold && rested;
+  const cap = Math.min(Math.max(Number(input.max_items) || MAX_WAKE_ITEMS, 1), MAX_WAKE_ITEMS);
+  let dropped = 0;
+  if (wake) {
+    await setSetting(store, 'radar_woke', { at: iso(now) });
+    // The triage Soot is shown the best few, never the whole backlog.
+    const ranked = [...waiting].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || String(b.found_at).localeCompare(String(a.found_at)));
+    for (const s of ranked.slice(cap)) { await store.update('signals', [eq('ref', s.ref)], { state: 'dismissed', note: 'tự bỏ: vượt giới hạn mỗi lần' }); dropped++; }
+    waiting = ranked.slice(0, cap);
+  }
+  return { read, new_total: read.reduce((n, r) => n + r.new, 0), waiting: waiting.length, ...(retired.length ? { retired } : {}), ...(skipped.length ? { skipped } : {}), ...(dropped ? { dropped } : {}), ...(wake ? { notify: true, wake: true, wake_items: waiting.length } : { notify: false, wake: false }) };
 }
 
 export async function signals_list(input, { store }) {
   const state = SIGNAL_STATES.includes(input.state) ? input.state : 'new';
-  const rows = await store.query('signals', [eq('state', state)], { order: 'found_at', desc: true, limit: Math.min(Number(input.limit) || 20, 40) });
+  const rows = await store.query('signals', [eq('state', state)], { order: 'found_at', desc: true, limit: Math.min(Number(input.limit) || (state === 'new' ? MAX_WAKE_ITEMS : 20), state === 'new' ? MAX_WAKE_ITEMS : 40) });
   return { state, signals: rows.map(r => ({ ref: r.ref, source: r.source, title: r.title, url: r.url, summary: short(r.summary, 220), ...(r.note ? { note: r.note } : {}) })), more: Math.max(0, (await store.query('signals', [eq('state', state)], { limit: 500 })).length - rows.length) };
 }
 

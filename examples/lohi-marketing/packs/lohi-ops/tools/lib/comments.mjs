@@ -11,6 +11,24 @@ export const HIDE_CAP = 15;
 const HIDE_VERDICTS = new Set(['spam', 'abuse', 'scam']);
 const VERDICTS = new Set([...HIDE_VERDICTS, 'ok', 'unsure']);
 
+// Comments no judgment is needed for: a short thanks, praise or an emoji, from the newest visible ones (never one a reader
+// reported). Every word must be on the list, so any unknown word, link, number run or contact goes to the model as before.
+const fold = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
+const THANKS = new Set(['cam', 'on', 'camon', 'thanks', 'thank', 'thankyou', 'tks', 'thx', 'ty', 'cảm', 'cám']);
+const PRAISE = new Set(['hay', 'tuyet', 'voi', 'dinh', 'tot', 'ok', 'oke', 'okay', 'good', 'great', 'nice', 'love', 'like', 'wow', 'xuat', 'sac', 'ung', 'ho', 'thich', 'hihi', 'haha', 'hehe', 'dang', 'doc', 'cuon', 'hap', 'dan', 'cute', 'dep', 'qua', 'rat', 'lam', 'cuc', 'sieu', 'that', 'nhat']);
+const FILLER = new Set(['truyen', 'chuong', 'bo', 'nay', 'ad', 'admin', 'tac', 'gia', 'dich', 'nhom', 'nhieu', 'nhe', 'nha', 'a', 'ah', 'ạ', 'ban', 'you', 'so', 'much', 'rat', 'va', 'cho', 'minh', 'em', 'anh', 'chi', 'moi', 'nguoi', 'tiep', 'di', 'nua', 'cap', 'nhat', 'luon', 'the', 'day', 'la', 'de', 'cuong']);
+export const AUTO_KEEP_MAX_CHARS = 60;
+/** 'thanks' | 'praise' | 'emoji' when the comment is harmless on its face, else null. */
+export function harmless(body) {
+  const raw = String(body ?? '').trim();
+  if (!raw || raw.length > AUTO_KEEP_MAX_CHARS) return null;
+  if (/https?:|www\.|@|\.(com|vn|net|org|me|ly)\b|\d{4,}/i.test(raw)) return null;
+  const words = fold(raw).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  if (!words.length) return /[\p{Extended_Pictographic}\p{Emoji_Presentation}]/u.test(raw) || /^[\s!.?~♥❤]+$/.test(raw) ? 'emoji' : null;
+  if (words.length > 8 || words.some(w => !THANKS.has(w) && !PRAISE.has(w) && !FILLER.has(w))) return null;
+  return words.some(w => THANKS.has(w)) ? 'thanks' : words.some(w => PRAISE.has(w)) ? 'praise' : null;
+}
+
 const apiFail = e => ({ ok: false, error: { code: e.code, message: e.message } });
 
 export async function comments_pull(input, deps) {
@@ -32,12 +50,22 @@ export async function comments_pull(input, deps) {
       items.push({ id: it.id, source: scope, body: it.body, report_reason: it.report_reason ?? null, created_at: it.created_at });
     }
   }
-  const batch = items.slice(0, limit);
+  // Harmless ones are kept here, in the tool: no model wake, no api call (an unreported comment has nothing to dismiss).
+  const autoKept = [];
+  const judge = [];
+  for (const it of items) {
+    const kind = it.source === 'recent' && !it.report_reason ? harmless(it.body) : null;
+    if (kind) {
+      await upsert(store, 'comments', 'reply_id', { reply_id: it.id, source: it.source, excerpt: short(it.body, 160), state: 'kept', verdict: 'ok', confidence: 1, why: `tự giữ: ${kind}`, decided_at: iso(deps.now) });
+      autoKept.push(it.id);
+    } else judge.push(it);
+  }
+  const batch = judge.slice(0, limit);
   for (const it of batch) {
     await upsert(store, 'comments', 'reply_id', { reply_id: it.id, source: it.source, excerpt: short(it.body, 160), state: 'pending' });
   }
   return {
-    ok: true, count: batch.length, skipped_known: skippedKnown, items: batch,
+    ok: true, count: batch.length, auto_kept: autoKept.length, skipped_known: skippedKnown, items: batch,
     // The schedule wakes the model (wake_when notify) only when there is something to judge.
     notify: batch.length > 0,
     rules: `Phân loại từng bình luận: spam, abuse, scam, ok hoặc unsure. Chỉ spam/abuse/scam rõ ràng (độ tin cậy >= ${HIDE_MIN}) mới bị ẩn; ok chắc chắn (>= ${KEEP_MIN}) thì giữ; còn lại là unsure để người quyết.`,

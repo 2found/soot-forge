@@ -141,3 +141,75 @@ test('inputs_health says exactly what is missing, in the words a person acts on'
   await w.call('gsc_sync', { site: 'sc-domain:lohi2.com' });
   assert.match((await w.call('inputs_health', {})).inputs.find(i => i.key === 'gsc').detail, /Đăng nhập Google/, 'the sync recorded why it read nothing');
 });
+
+// F12: relevance in the tool, a short wake, sources that answer 429 or never return.
+const KW = ['truyện chữ', 'truyện dịch', 'đọc truyện', 'webnovel'];
+const NEWS = { key: 'news-vi', kind: 'news', url: 'https://news.google.com/rss/search?q=vi' };
+const EN = { key: 'reddit-en', kind: 'reddit', url: 'https://www.reddit.com/r/webnovels/.rss' };
+
+test('radar prefilter: English and off-topic items are kept as dismissed, never shown to the model', async () => {
+  const w = world();
+  w.feeds[NEWS.url] = rss([['Ứng dụng đọc truyện chữ mới ra mắt', 'https://n.example/1', 'người đọc truyện chữ tăng'], ['Giá vàng hôm nay tăng mạnh', 'https://n.example/2', 'thị trường'], ['Top 10 Python frameworks', 'https://n.example/3', 'listicle']]);
+  w.feeds[EN.url] = atom([['Best webnovel of the year', 'https://www.reddit.com/r/webnovels/1']]);
+  const out = await w.call('radar_read', { sources: [NEWS, EN], per_call: 5, keywords: KW, lang: 'vi' });
+  assert.equal(out.new_total, 1);
+  assert.deepEqual(out.read.find(r => r.source === 'news-vi'), { source: 'news-vi', new: 1, off_topic: 2 });
+  assert.equal(out.read.find(r => r.source === 'reddit-en').off_topic, 1, 'English text has no Vietnamese letters');
+  const states = Object.fromEntries(w.store.data.signals.map(s => [s.url, s.state]));
+  assert.equal(states['https://n.example/1'], 'new');
+  assert.equal(states['https://n.example/2'], 'dismissed');
+  assert.equal((await w.call('signals_list', {})).signals.length, 1);
+  // Read again later: the dismissed ones are not stored twice.
+  w.now += 7 * H;
+  assert.equal((await w.call('radar_read', { per_call: 5, keywords: KW, lang: 'vi' })).new_total, 0);
+  assert.equal(w.store.data.signals.length, 4);
+});
+
+test('radar wake: at most 15 of the best new items, the surplus dismissed, one wake per gap', async () => {
+  const w = world();
+  w.feeds[NEWS.url] = rss(Array.from({ length: 30 }, (_, i) => [`Đọc truyện dịch số ${i}${i < 5 ? ' webnovel truyện chữ' : ''}`, `https://n.example/${i}`, 'nội dung']));
+  const a = await w.call('radar_read', { sources: [NEWS], schedule: true, wake_at: 6, keywords: KW, lang: 'vi' });
+  assert.deepEqual([a.wake, a.wake_items, a.waiting, a.dropped], [true, 15, 15, 15]);
+  const shown = (await w.call('signals_list', { limit: 40 })).signals;
+  assert.equal(shown.length, 15, 'the list is capped too');
+  assert.ok(['https://n.example/0', 'https://n.example/4'].every(u => shown.some(s => s.url === u)), 'the best-matching items are the ones kept');
+  assert.equal(w.store.data.signals.filter(s => s.note === 'tự bỏ: vượt giới hạn mỗi lần').length, 15);
+  // New items the same day do not wake again before the gap.
+  w.now += 7 * H;
+  w.feeds[NEWS.url] = rss(Array.from({ length: 10 }, (_, i) => [`Đọc truyện chữ mới ${i}`, `https://n.example/new${i}`, 'x']));
+  const b = await w.call('radar_read', { schedule: true, wake_at: 6, keywords: KW, lang: 'vi' });
+  assert.deepEqual([b.new_total, b.notify], [10, false]);
+  w.now += 14 * H;
+  w.feeds[NEWS.url] = rss(Array.from({ length: 10 }, (_, i) => [`Đọc truyện chữ lại ${i}`, `https://n.example/again${i}`, 'x']));
+  assert.equal((await w.call('radar_read', { schedule: true, wake_at: 6, keywords: KW, lang: 'vi' })).wake, true, 'a day later it wakes again');
+});
+
+test('radar non-happy: a source answering 429 rests a day and is named in skipped; three failures switch it off; retire does it by hand', async () => {
+  const w = world();
+  w.feeds[NEWS.url] = rss([['Đọc truyện chữ', 'https://n.example/1', 'x']]);
+  const first = await w.call('radar_read', { sources: [NEWS, EN], per_call: 5 });
+  assert.equal(first.read.find(r => r.source === 'reddit-en').error, 'HTTP 429');
+  assert.equal(w.store.data.sources.find(s => s.key === 'reddit-en').fails, 1);
+  // Inside the rest the source is not even tried; the call says so.
+  w.now += 7 * H;
+  const hitsBefore = w.hits.filter(u => u === EN.url).length;
+  const second = await w.call('radar_read', { per_call: 5 });
+  assert.equal(w.hits.filter(u => u === EN.url).length, hitsBefore);
+  assert.match(second.skipped.find(s => s.source === 'reddit-en').why, /^nghỉ đến/);
+  // After the rest it fails again twice more and is switched off.
+  w.now += 25 * H;
+  await w.call('radar_read', { per_call: 5 });
+  w.now += 25 * H;
+  const third = await w.call('radar_read', { per_call: 5 });
+  assert.equal(third.read.find(r => r.source === 'reddit-en').disabled, true);
+  assert.match(third.skipped.find(s => s.source === 'reddit-en').why, /^tắt sau 3 lần lỗi: HTTP 429/);
+  w.now += 25 * H;
+  const hits = w.hits.length;
+  const later = await w.call('radar_read', { per_call: 5 });
+  assert.ok(!later.read.some(r => r.source === 'reddit-en') && w.hits.slice(hits).every(u => u !== EN.url));
+  assert.match(later.skipped.find(s => s.source === 'reddit-en').why, /^tắt/);
+  // retire switches a healthy source off by name, keeping its signals.
+  const r = await w.call('radar_read', { retire: ['news-vi', 'nope'] });
+  assert.deepEqual(r.retired, ['news-vi']);
+  assert.equal(w.store.data.signals.length, 1);
+});
