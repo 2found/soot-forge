@@ -3,6 +3,29 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.18
+
+Baseline: v0.11.17 (7c663b9). **Needs Soot 0.13.19 or later**: the team templates are group-template v3 (team contracts, member tool chains, a team budget) and the company compiler hands its file to `soot company check`, which older runtimes lack. Soot 0.13.19 pairs with Forge 0.11.18; packs that did not change still run on Soot 0.13.14 or later. Commits since v0.11.17: 342d79d (recipe grants RELEASE_TAGS), 36887c7 and de963b2 (lean Soot team, loop health), ed7f31b and 64a90c0 (lohi-ops), defa64b, 77775ff (teams as interfaces), 419ef31, ea025eb, 09a9018 (QA fixes), af75b4a and d3ebfc9 (contract copy, lohi-ops quiet schedules) and this release commit.
+
+### Added
+
+- **Team templates v3.** `team-insight`, `team-marketing`, `team-financial` and `team-op` are experimental, internal group templates with a contract per team (what it gives and takes, by level), member tool chains and a team budget. `groups/company-team` plus `scripts/company.mjs` compile a company template and a per-company overlay into the runtime's `company-template/v1` and hand it to `soot company check|create|adopt`; the runtime owns what a company is. Products, teams and remote runtimes follow the runtime's product model (D6): a team scopes `products`, and a cross-team read is contract-scoped and product-checked.
+- **lohi-ops pack (a recipe slot).** Catalog health, crawl watch, comment moderation, App Store reviews, novel SEO and a pricing report for the Lohi recipe, with the `lohi-catalog` Soot and a deployment fragment. A missing `PRODUCT_ADMIN_KEY` or `CLI_CATALOG_DB` keeps schedules quiet and raises one Cần bạn item with the exact next step; catalog health and crawl watch wake on notify.
+- **Lohi recipe: ADOPT.md.** The runbook to adopt a live workspace into teams: the runtime must run with `soot serve --watch` to apply the adopted file, and the leftover writer `content` table is documented.
+
+### Changed
+
+- **marketing (storage version 5).** A parked item never wakes the Soot again (per-item wake markers), a GSC reason is named, radar and video statistics are read by tools (`radar_read`, `signals`, `video_stats` via `yt-dlp`), `inputs_health` reports starving inputs, and the private content table is gone.
+- **company-loop (storage version 2).** Cohorts and plans, `health_sync` and the Vòng lặp section of the Công ty page, which reads `soot teams health`.
+- **Catalog: one 16 MiB manifest cap**, as the runtime.
+- **Lohi recipe: lean team by job** (Ops, Writer, Analyst, Radar, Finance), Vietnamese team and contract copy, every compiled team carries a name and description (a team without one cannot be saved from Nest), escalation triggers ride as codes.
+- **Recipe grants `RELEASE_TAGS`**, with a test that keeps the recipe granting every env its packs ask for; without it the company-loop 0.11.17 update waited for a person.
+- **`setup.mjs` upgrades a Forge-installed pack by its release tag and data shape.** `versionOf` read a field no manifest has, so a live workspace never got the new tools. A local pack's own Soots and approvals join the workspace.
+
+### Compatibility
+
+- Needs Soot 0.13.19 for the team templates and the company commands; an installed workspace keeps working, and an update to marketing (storage 5) and company-loop (storage 2) is applied by `soot updates` or `setup.mjs`. `scripts/company.mjs` stays in this release; it is removed when `company.source.json` is written in the runtime's own format.
+
 ## 0.11.17
 
 Baseline: v0.11.16 (ba4d1a3). **Needs Soot 0.13.14 or later**, as 0.11.15; Soot 0.13.18 or later pairs with it (Nest opens `nest://page/...` links from 0.13.18; an older Nest shows them as an unknown link). Commits since v0.11.16: 2299d02, 1879ffb, 6ab1248 (merge 1861b18) and this release commit. Packs changed: `company-loop`, `soot-nest` (skill text only) and the `lohi-marketing` recipe; no new pack and no catalog change.

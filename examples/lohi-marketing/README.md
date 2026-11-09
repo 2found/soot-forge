@@ -7,7 +7,7 @@ Writer, Analyst, Radar and an optional Video Soot share the [marketing pack](../
 [Lohi blog publisher](packs/lohi-blog/README.md), a local pack that ships with
 this recipe, puts posts on `blog.lohi2.com`.
 
-**Needs Soot 0.13.14 or later.** The recipe uses schedule `then` chains, optional
+**Needs Soot 0.13.19 or later** for the teams and the company file (`soot company`, `soot teams health`); the packs alone need 0.13.14. The recipe uses schedule `then` chains, optional
 credentials (a quiet `skipped`), the workspace `env` field, the `marketing:tools=`
 pack selector and schedule catch-up; an older runtime refuses the deployment or
 cannot run the `marketing-blog` and `marketing-probe` chains. The marketing pack
