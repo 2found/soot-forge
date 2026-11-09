@@ -140,3 +140,13 @@ test('upload takes only a clean workspace media path, checked against the real d
     await assert.rejects(uploadFile({...ok,path:'alias/08-delivery/v.mp4'},root),/symlink/);
   } finally { rmSync(root,{recursive:true,force:true}); }
 });
+
+import {DENSITY,DENSITY_ARGS,STREAM_ENV} from './browser.mjs';
+test('frames are captured at 2x with room under the stream caps and legible quality',()=>{
+ assert.equal(DENSITY,'2');
+ assert.deepEqual(DENSITY_ARGS,['--force-device-scale-factor=2']);
+ // The viewport tops out at 2400 CSS px; the cap must not shrink a 2x frame of it.
+ assert.ok(Number(STREAM_ENV.AGENT_BROWSER_STREAM_MAX_WIDTH)>=2400*Number(DENSITY));
+ assert.ok(Number(STREAM_ENV.AGENT_BROWSER_STREAM_MAX_HEIGHT)>=2400*Number(DENSITY));
+ assert.ok(Number(STREAM_ENV.AGENT_BROWSER_STREAM_QUALITY)>=80);
+});

@@ -14,6 +14,15 @@ import { createHash } from 'node:crypto';
 // Installations never share profiles merely because they share this binary.
 const root = process.env.SOOT_PACK_STATE || process.cwd();
 const SAFE_ID = /^[a-zA-Z0-9_-]{1,128}$/;
+// Frames the viewer shows on a Retina screen must carry 2x the pixels of the
+// CSS viewport, or text is a blur. The screencast captures the window at the
+// browser's own scale (an emulated scale alone leaves frames at 1x), so the
+// browser starts at 2x, the stream's size caps leave room for it, and JPEG
+// quality is high enough to keep small text legible.
+export const DENSITY='2';
+export const DENSITY_ARGS=['--force-device-scale-factor='+DENSITY];
+export const STREAM_ENV={AGENT_BROWSER_STREAM_MAX_WIDTH:'4800',AGENT_BROWSER_STREAM_MAX_HEIGHT:'4800',AGENT_BROWSER_STREAM_QUALITY:'85'};
+
 /** Soot ids the host lists in SOOT_BROWSER_PERSISTENT_SOOTS (comma separated). */
 export function persistentSoots(value = process.env.SOOT_BROWSER_PERSISTENT_SOOTS) {
   return new Set(String(value ?? '').split(',').map(s => s.trim()).filter(s => SAFE_ID.test(s)));
@@ -197,7 +206,8 @@ export async function main() {
     const binary=launch.binary;
     const seed=10000+parseInt(createHash('sha256').update(ident.session).digest('hex').slice(0,8),16)%90000;
     const env={...process.env, AGENT_BROWSER_SESSION:ident.session, AGENT_BROWSER_EXECUTABLE_PATH:binary,
-      AGENT_BROWSER_ARGS:launch.args.map(a=>a.startsWith('--fingerprint=')?`--fingerprint=${seed}`:a).join(','),
+      AGENT_BROWSER_ARGS:[...launch.args.map(a=>a.startsWith('--fingerprint=')?`--fingerprint=${seed}`:a),...DENSITY_ARGS].join(','),
+      ...STREAM_ENV,
       AGENT_BROWSER_PROFILE:ident.profile, AGENT_BROWSER_HEADED:'0', AGENT_BROWSER_IDLE_TIMEOUT_MS:'0'};
     const run=async args=> {
       let stdout;
@@ -228,7 +238,7 @@ export async function main() {
         }
         // State on disk is not an alternate source of unbounded CLI arguments.
         validateInput({action:'resize',width:size.width,height:size.height});
-        await run(['set','viewport',String(size.width),String(size.height)]);
+        await run(['set','viewport',String(size.width),String(size.height),DENSITY]);
         await run(['stream','enable']);
         stream=await run(['stream','status']);
       }
@@ -246,7 +256,7 @@ export async function main() {
       case 'tab_close':result=await run(['tab','close',tab()]);break;
       case 'resize': {
         const width=number('width',240,2400),height=number('height',240,2400);
-        result=await run(['set','viewport',width,height]);
+        result=await run(['set','viewport',width,height,DENSITY]);
         await writeFile(join(sessionDir,'viewport.json'),JSON.stringify({width:Number(width),height:Number(height)}),{mode:0o600});break;
       }
       case 'click':await run(['mouse','move',number('x',0,2400),number('y',0,2400)]);await run(['mouse','down']);result=await run(['mouse','up']);break;

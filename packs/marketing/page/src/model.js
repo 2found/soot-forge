@@ -184,9 +184,12 @@ export const tokenLine = (used, budget) => (budget > 0 ? `Token đã dùng: ${nu
 /** nest:// link that opens the Soot's browser, where the person signs in. @param {string | null | undefined} editor */
 export const signInLink = (editor, channel) => {
   if (!editor) return 'nest://settings/setup';
-  const login = LOGIN_PAGE[String(channel ?? '').split('-')[0]];
-  return `nest://browser/${encodeURIComponent(editor)}${login ? `?url=${encodeURIComponent(login)}` : ''}`;
+  const site = String(channel ?? '').split('-')[0];
+  const login = LOGIN_PAGE[site];
+  // `label` names the site in the sign-in window's title ("Đăng nhập X cho Lohi").
+  return `nest://browser/${encodeURIComponent(editor)}${login ? `?url=${encodeURIComponent(login)}&label=${encodeURIComponent(SITE_LABEL[site] ?? site)}` : ''}`;
 };
+const SITE_LABEL = { x: 'X', facebook: 'Facebook', reddit: 'Reddit' };
 /** The page each platform signs in on, so the pane never opens blank. */
 export const LOGIN_PAGE = { x: 'https://x.com/i/flow/login', facebook: 'https://www.facebook.com/login', reddit: 'https://www.reddit.com/login' };
 /** nest://new for the writer: revise this post. @param {string | null | undefined} writer @param {any} p */

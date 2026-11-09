@@ -145,7 +145,7 @@ test('a channel row names its state and carries its button; a signed-out channel
   assert.equal(M.channelLine({ ...c, paused_reason: 'person' }, {}).button.do, 'resume_channel');
   assert.match(M.channelLine({ ...c, paused: false }, { paused_all: true }).text, /dừng mọi kênh/);
   assert.equal(M.signInLink('lohi-editor'), 'nest://browser/lohi-editor');
-  assert.equal(M.signInLink('lohi-editor', 'x-lohi'), 'nest://browser/lohi-editor?url=' + encodeURIComponent('https://x.com/i/flow/login'));
+  assert.equal(M.signInLink('lohi-editor', 'x-lohi'), 'nest://browser/lohi-editor?url=' + encodeURIComponent('https://x.com/i/flow/login') + '&label=X');
   assert.equal(M.signInLink(null), 'nest://settings/setup');
 });
 
