@@ -82,6 +82,7 @@
   "tools": [
     {
       "name": "lohi_lookup",
+      "title": "Xem tài khoản của bạn đọc",
       "description": "Read the chatting user's own account data (profile, wallet, top-ups, orders, subscription+quota, requests, chapter unlocks), reading suggestions (kind=recommend: REQUIRED first step whenever the reader asks what to read or for novel suggestions — returns their taste + ranked unread candidates; optional like (\"giống X\")/about (story content)/q/genres/tags/status; never name novels from memory) or public novel/chapter data. Broken content / audio reports: kind=find_novel (q = the title or the lohi2.com link the reader gave → novelId, slug, chapterFromLink) THEN kind=content_health (novelId + from[/to] chapter numbers → per-chapter body verdict missing|empty|placeholder|untranslated|unpublished and Pro-audio verdict on_empty_text|placeholder|too_short, plus defect runs). REQUIRED before saying anything about a chapter or audio being broken. The reader's own data is scoped by the host's signed principal, never by a parameter; an anonymous conversation gets principal_required. Wrong character names: kind=name_check (novelId + name[+other] + from[/to], max 60 chapters) → how many chapters use each spelling and whether the Book Bible knows either; counts only, no chapter text. Product/plan questions: kind=features (optional q) → plans with CURRENT price/quota/offline limit, free limits, LT costs, and per feature web/iOS/Android availability + which plans unlock it. REQUIRED before answering any 'tính năng X có không / gói nào / giá / hạn mức / trên iOS có không' question; never quote prices or quotas from memory.",
       "parameters": {
         "type": "object",
@@ -192,6 +193,7 @@
     },
     {
       "name": "lohi_thread_history",
+      "title": "Đọc lại cuộc trò chuyện",
       "description": "Read back what was already said in THIS conversation. Use it before answering when the newest message is not self-contained: the reader spread one problem over several messages, referred to something earlier ('cái đó', 'như mình nói'), or sent a follow-up whose subject is in a previous line. q finds a line by keyword (accent-insensitive); before=nextCursor keeps looking further back.",
       "parameters": {
         "type": "object",
@@ -230,6 +232,7 @@
     },
     {
       "name": "lohi_subject_card",
+      "title": "Thẻ bạn đọc cho bàn hỗ trợ",
       "description": "The reader card for a support console (interface.subject, subject.v1): who the signed-in reader is — name, email, user id, plan, LT balance, join date and latest top-up, with the 'Mở trên Lohi' admin link. Run by the host for the conversation's principal; not for answering the reader (use lohi_lookup for balances, prices and quotas).",
       "parameters": {
         "type": "object",
@@ -259,6 +262,7 @@
     },
     {
       "name": "lohi_request_novel",
+      "title": "Gửi yêu cầu thêm truyện",
       "description": "Create a novel request on behalf of the chatting user (type novel only, idempotent). One per request; confirm the title back to the user.",
       "parameters": {
         "type": "object",
@@ -309,6 +313,7 @@
     },
     {
       "name": "lohi_report_content_issue",
+      "title": "Báo lỗi nội dung cho đội hỗ trợ",
       "description": "Ask the support team to fix a broken novel/chapter/audio defect that kind=content_health has ALREADY shown for this window. kind=content (chapters missing/empty/placeholder/untranslated) or kind=audio (Pro audio too short/placeholder on good text). The server re-checks the defect itself and refuses a healthy window; nothing is changed until a member approves it. Max 3 pending per conversation. Tell the reader it is queued for the team, never that it is fixed or when. kind=name (wrong character name): needs wrongName (+ rightName) and requires that kind=name_check showed the wrong spelling in the text; it opens a REVIEW for staff, who decide — never promise a rename.",
       "parameters": {
         "type": "object",

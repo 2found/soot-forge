@@ -44,11 +44,20 @@ function output(r) {
 
 // ---------- words ----------
 const nf = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
-const fmt = (v, unit) => (v === null || v === undefined ? 'Chưa có số liệu' : unit === 'vnd' ? `${nf.format(v)} ₫` : nf.format(v));
+const fmt = (v, unit) => (v === null || v === undefined ? 'Chưa có số liệu' : unit === 'vnd' ? `${nf.format(v)}\u00a0₫` : nf.format(v));
 const day = iso => (iso ? new Date(iso).toLocaleDateString('vi-VN') : '');
+/** "06:30 10/11/2026": a snapshot says when it was taken, so a morning figure is not read as now. */
+const when = iso => (iso ? `${new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${day(iso)}` : '');
 const STATE = { proposed: ['Chờ bạn chọn', 'warn'], go: ['Đã Go', 'ok'], later: ['Để sau', ''], drop: ['Đã bỏ', ''] };
 const TOPIC = { queued: ['Đang chờ giao Writer', ''], handed: ['Đã giao Writer, chưa viết', 'warn'], written: ['Đã viết', 'ok'] };
 const KIND = { content: 'Nội dung', product: 'Sản phẩm' };
+const EFFORT = { S: 'nhỏ', M: 'vừa', L: 'lớn', XL: 'rất lớn' };
+const VALUE = { low: 'thấp', medium: 'vừa', high: 'cao' };
+const REF = { metric: 'Số', source: 'Nguồn', reason: 'Lý do', gap: 'Thiếu bài', feedback: 'Phản hồi' };
+/** An outcome key in words: "support_threads_new" reads "Hỗ trợ mới". */
+const metric = k => S.data?.metric_labels?.[k] ?? S.data?.scoreboard?.tiles?.find(t => t.key === k)?.label ?? k;
+/** "metric:waiting_human" reads "Số: Bạn đọc chờ người"; a ref of no known kind is shown as written. */
+const evidenceRef = r => { const at = r.indexOf(':'), kind = at > 0 ? r.slice(0, at) : ''; return REF[kind] ? `${REF[kind]}: ${kind === 'metric' ? metric(r.slice(at + 1)) : r.slice(at + 1)}` : r; };
 const HAND = {
   spawned: ['Đội đã mở', 'ok', 'Đội bbs:team đang làm rõ yêu cầu. Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
   starting: ['Đội đang đọc yêu cầu', 'ok', 'Đội đang đọc yêu cầu — chưa có việc cần bạn.'],
@@ -114,7 +123,7 @@ function nextBar(d) {
 function tiles(sb) {
   if (!sb) return h('div', { class: 'card empty' }, 'Chưa có số liệu. Soot đọc bảng số mỗi ngày lúc 06:15; bấm Đọc ngay khi đã nhập khoá.');
   return h('div', { class: 'stack' },
-    h('p', { class: 'muted' }, `${sb.product} · ${day(sb.from)} đến ${day(sb.to)}, so với 7 ngày trước đó`),
+    h('p', { class: 'muted' }, `${day(sb.from)} đến ${day(sb.to)}, so với 7 ngày trước đó`),
     h('div', { class: 'tiles' }, sb.tiles.map(t => {
       const up = t.pct === null ? 0 : t.pct > 0 ? 1 : t.pct < 0 ? -1 : 0;
       const tone = up === 0 ? 'flat' : (up > 0) === (t.good === 'up') ? 'ok' : 'bad';
@@ -130,14 +139,14 @@ function topicLine(t) {
 function oppCard(o, topics = []) {
   const [st, tone] = STATE[o.state] ?? [o.state, ''];
   const open_ = o.state === 'proposed' || o.state === 'later';
-  const measure = `Đo bằng ${o.target_outcome}: kỳ vọng ${o.expected_delta > 0 ? '+' : ''}${nf.format(o.expected_delta)} so với tuần trước, xem lại sau ${o.check_after_days} ngày`;
+  const measure = `Đo bằng ${metric(o.target_outcome)}: kỳ vọng ${o.expected_delta > 0 ? '+' : ''}${nf.format(o.expected_delta)} so với tuần trước, xem lại sau ${o.check_after_days} ngày`;
   return h('div', { class: 'card stack' },
     h('div', { class: 'line between' }, h('span', { class: 'strong' }, o.title), h('span', { class: 'line' }, badge(KIND[o.kind] ?? o.kind), badge(st, tone))),
     o.summary && h('p', {}, o.summary),
     o.kind === 'content' && o.query && h('p', {}, h('span', { class: 'muted' }, 'Chủ đề tìm kiếm: '), o.query),
     h('p', { class: 'muted' }, measure),
     topics.filter(t => t.ref === o.ref).map(topicLine),
-    h('div', { class: 'chips' }, (o.evidence_refs ?? []).map(r => h('span', { class: 'chip' }, r)), h('span', { class: 'chip' }, `${o.signal_count} tín hiệu`), h('span', { class: 'chip' }, `công ${o.est_effort} · giá trị ${o.est_value}`)),
+    h('div', { class: 'chips' }, (o.evidence_refs ?? []).map(r => h('span', { class: 'chip' }, evidenceRef(r))), h('span', { class: 'chip' }, `${o.signal_count} tín hiệu`), h('span', { class: 'chip' }, `công ${EFFORT[o.est_effort] ?? o.est_effort} · giá trị ${VALUE[o.est_value] ?? o.est_value}`)),
     open_ ? h('div', { class: 'line' }, btn(o.kind === 'product' ? 'Go: bắt đầu dựng' : 'Go', () => act('go', { id: o.ref }), 'btn primary'), btn('Để sau', () => act('later', { id: o.ref })), btn('Bỏ', () => act('drop', { id: o.ref }), 'btn ghost'))
       : h('p', { class: 'muted' }, o.state === 'go' ? (o.kind === 'content' ? 'Chủ đề đã vào hàng chờ của Writer; không cần làm gì.' : 'Đã bàn giao: xem mục Bàn giao bên dưới.') : o.state === 'drop' ? 'Soot sẽ không đề xuất lại cơ hội này.' : ''));
 }
@@ -162,7 +171,7 @@ function log(d) {
     rows.length ? h('div', { class: 'card scroll' }, h('table', { class: 'table' },
       h('thead', {}, h('tr', {}, ['Ngày', 'Quyết định', 'Ai', 'Cơ hội', 'Kỳ vọng', 'Thực tế'].map(t => h('th', {}, t)))),
       h('tbody', {}, rows.map(x => h('tr', {}, h('td', {}, day(x.at)), h('td', {}, x.decision), h('td', {}, x.by), h('td', {}, x.title),
-        h('td', {}, `${x.target_outcome} ${x.expected_delta > 0 ? '+' : ''}${nf.format(x.expected_delta)}`),
+        h('td', {}, `${metric(x.target_outcome)} ${x.expected_delta > 0 ? '+' : ''}${nf.format(x.expected_delta)}`),
         h('td', {}, x.actual_delta === null || x.actual_delta === undefined ? (x.decision === 'go' ? `chấm sau ${x.check_after_days} ngày` : '') : nf.format(x.actual_delta))))))) : h('div', { class: 'card empty' }, 'Chưa có quyết định nào. Bản tin đầu tiên chạy vào thứ Hai 08:30.'));
 }
 
@@ -171,10 +180,10 @@ function healthSection(d) {
   if (!hl) return h('div', { class: 'card empty' }, 'Chưa có số về vòng lặp. Soot cập nhật mỗi sáng; chưa có thì các bước chưa chạy lần nào.');
   const rt = hl.runtime?.tokens_7d;
   return h('div', { class: 'stack' },
-    h('p', { class: 'muted' }, `Cập nhật ${day(hl.at)}${hl.age_h > 30 ? ' (đã cũ)' : ''}. ${rt === undefined ? 'Chưa đọc được số token từ Soot.' : `Token 7 ngày: ${nf.format(rt)}.`}`),
+    h('p', { class: 'muted' }, `Số lúc ${when(hl.at)}${hl.age_h > 30 ? ' (đã cũ)' : hl.age_h >= 1 ? ` (${hl.age_h} giờ trước; Soot cập nhật mỗi sáng)` : ''}. ${rt === undefined ? 'Chưa đọc được số token từ Soot.' : `Token 7 ngày: ${nf.format(rt)}.`}`),
     h('div', { class: 'stack' }, hl.stages.map(st => h('div', { class: 'card stack' },
       h('div', { class: 'line between' }, h('span', { class: 'strong' }, st.label), badge(st.starving?.length ? `${st.starving.length} nguồn đang đói` : 'đủ nguồn', st.starving?.length ? 'warn' : '')),
-      h('p', { class: 'muted' }, st.external ? 'Chạy ở máy chủ Hỗ trợ riêng.' : st.last_run ? `Lần chạy gần nhất: ${st.last_run.name} (${day(st.last_run.at)}, ${st.last_run.status ?? 'chưa rõ'}). Token 7 ngày: ${nf.format(st.tokens_7d ?? 0)}${st.model_wakes_7d != null ? `, gọi model ${st.model_wakes_7d} lần` : ''}${st.budget_daily ? `. Hôm nay ${nf.format(st.tokens_today ?? 0)}/${nf.format(st.budget_daily)} (${Math.round(st.budget_percent ?? 0)}%)` : ''}.` : 'Chưa có lần chạy nào.'),
+      h('p', { class: 'muted' }, st.external ? 'Chạy trên máy chủ riêng của nhóm; lần chạy và token của nhóm nằm ở đó.' : st.last_run ? `Lần chạy gần nhất: ${st.last_run.name} (${day(st.last_run.at)}, ${st.last_run.status ?? 'chưa rõ'}). Token 7 ngày: ${nf.format(st.tokens_7d ?? 0)}${st.model_wakes_7d != null ? `, gọi model ${st.model_wakes_7d} lần` : ''}${st.budget_daily ? `. Hôm nay đến lúc đó ${nf.format(st.tokens_today ?? 0)}/${nf.format(st.budget_daily)} (${Math.round(st.budget_percent ?? 0)}%)` : ''}.` : 'Chưa có lần chạy nào.'),
       (st.starving ?? []).map(i => h('p', {}, h('span', { class: 'strong' }, i.label + ': '), i.detail || 'chưa có'))))),
     h('div', { class: 'card stack' }, h('span', { class: 'strong' }, 'Công sức của bạn (7 ngày)'),
       h('p', {}, `Quyết định cơ hội: ${hl.effort?.decisions_tapped_7d ?? 0}. Lần nhắn Soot: ${hl.effort?.chat_instructions_7d ?? 'chưa rõ'}. Thẻ Cần bạn đang mở: ${hl.effort?.cards_open ?? 'chưa rõ'}${hl.effort?.cards_answered_7d != null ? `, đã trả lời 7 ngày: ${hl.effort.cards_answered_7d}${hl.effort.median_answer_s != null ? ` (chờ trung vị ${Math.round(hl.effort.median_answer_s)} giây)` : ''}` : ''}.`),

@@ -266,6 +266,9 @@ export function queueHeadline(d) {
   const failed = items.find((/** @type {any} */ q) => q.state === 'failed');
   if (failed) return out('warn', `Một bài đăng lỗi${failed.retry_at ? `, Soot thử lại ${when(failed.retry_at).toLowerCase()}` : '. Bấm Thử ngay hoặc gỡ khỏi hàng đợi'}.`, null);
   if (held && !live.length) return out('warn', `${held.label} đang dừng nên ${items.filter((/** @type {any} */ q) => q.channel_id === held.id && q.action === 'publish').length} bài chờ ở đây chưa đi. Bật ${held.label} để Soot đăng tiếp.`, { do: 'resume_channel', label: `Bật ${held.label}`, channel: held.id });
+  // A signed-out channel with nothing queued yet still blocks it: "Không cần làm gì" would hide the login it waits for.
+  const signedOut = (d.channels ?? []).filter((/** @type {any} */ c) => c.paused && c.paused_reason === 'signed_out');
+  if (live.length && signedOut.length) return out('warn', `Bài kế tiếp: ${live[0].channel} ${when(live[0].scheduled_at).toLowerCase()}. ${signedOut.map((/** @type {any} */ c) => c.label).join(', ')} chưa đăng nhập nên Soot chưa đăng được lên ${signedOut.length > 1 ? 'các kênh này' : 'kênh này'}.`, { do: 'sign_in', label: `Đăng nhập ${signedOut[0].label}`, channel: signedOut[0].id });
   if (live.length) return out('plain', `Không cần làm gì, Soot đang tự chạy. Bài kế tiếp: ${live[0].channel} ${when(live[0].scheduled_at).toLowerCase()}.`, null);
   if (items.some((/** @type {any} */ q) => q.in_flight)) return out('plain', 'Đang đăng. Vài phút nữa sẽ có liên kết bên dưới. Không cần làm gì.', null);
   return out('plain', 'Hàng đợi trống. Soot lên bài mới mỗi sáng 08:00; hoặc bạn nhờ Writer viết ngay.', d.writer ? { do: 'ask_writer', label: 'Nhờ viết bài' } : null);

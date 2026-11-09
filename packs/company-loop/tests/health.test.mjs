@@ -83,6 +83,7 @@ test('health_sync on the teams CLI: one row per team from `teams health`, answer
         starving_inputs: [{ team: 'marketing', item: 'metrics', reason: 'stale' }, { team: 'marketing', item: 'signals', reason: 'never_ran', optional: true }],
         tokens: { day: '2026-11-09', spent: 40000, budget: 130000, percent: 30.8, last_7_days: [1000, 2000, 0, 0, 0, 0, 40000] }, founder_effort: {} },
       { team: 'marketing', name: 'Marketing', schedules: [{ id: 'anything', last: ago(1), ok: true, skip: 'GSC_GOOGLE' }], starving_inputs: [], tokens: { spent: 0, last_7_days: [] } },
+      { team: 'cs', name: 'Hỗ trợ', remote: { runtime: 'cs-server', group: 'support' }, schedules: [], starving_inputs: [], tokens: { spent: 0, last_7_days: [] } },
     ] },
     'attention answers': { answers: [], effort: { answered: 4, per_week: 4, median_seconds_to_answer: 90, window_days: 7, open_unanswered: 1 } },
   });
@@ -101,7 +102,8 @@ test('health_sync on the teams CLI: one row per team from `teams health`, answer
   assert.ok(ins.starving.some(i => i.key === 'marketing.metrics' && i.detail.includes('lâu')));
   assert.ok(!ins.starving.some(i => i.key === 'marketing.signals'), 'optional inputs are not hunger');
   assert.deepEqual(h.stages[1].skipped, [{ schedule: 'anything', key: 'GSC_GOOGLE' }]);
-  assert.equal(h.stages[2].external, true);
+  assert.equal(h.stages[2].external, true, 'a remote team is said to run on its own server, never "Chưa có lần chạy nào"');
+  assert.equal(h.stages.length, 3, 'the remote team is the Support row, not a second one');
   assert.equal(h.effort.cards_answered_7d, 4);
   assert.equal(h.effort.median_answer_s, 90);
   assert.equal(h.effort.cards_open, 1);
@@ -116,4 +118,13 @@ test('health_sync without a reachable soot CLI still stores the inputs and says 
     assert.ok(h.runtime.reason);
     assert.ok(h.stages.find(s => s.key === 'marketing').starving.some(i => i.key === 'tiktok'));
   }
+});
+
+test('page_view names every outcome key an opportunity is measured by', async () => {
+  const w = mk({});
+  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  const labels = (v.output ?? v).metric_labels;
+  assert.equal(labels.support_threads_new, 'Hỗ trợ mới');
+  assert.equal(labels.waiting_human, 'Bạn đọc chờ người');
+  assert.ok(Object.values(labels).every(l => !/_/.test(l)), 'no raw key reaches the page');
 });

@@ -38,7 +38,9 @@ Do not publish an item, and ask in the hand-off below, when:
   `social_list` shows it `published`, `failed` or `uncertain`.
 - **Not connected, TikTok, or an account for another site** → a person posts
   it. As the last call of your turn, after your report, call `report_blocker`
-  once for all of this turn's hand-offs: `summary` "Cần đăng tay: <kênh> <id>…",
+  once for all of this turn's hand-offs: `summary` "Cần đăng tay: <số> bài trên
+  <kênh>, <kênh>" (the person reads it as a title: name channels and a count,
+  never a post id),
   `missing` one block per post (id, channel, the caption exactly, for TikTok the
   script, and "trả lời link bài đã đăng vào cuộc trò chuyện này"), `completed`
   your report. The person reads only Nest, so `missing` carries the text itself.

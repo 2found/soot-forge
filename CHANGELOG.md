@@ -3,6 +3,18 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.22 — 2026-11-10
+
+Baseline: v0.11.21 (67f9fbb). Pairs with Soot 0.13.26. Browser tools stay 0.2.2.
+
+### Changed
+
+- **Công ty speaks words, not keys.** An opportunity is measured by "Hỗ trợ mới", not `support_threads_new`; evidence reads "Số: Bạn đọc chờ người" instead of `metric:waiting_human`; effort and value read nhỏ/vừa/lớn and thấp/vừa/cao. The scoreboard line no longer starts with the product id, and an amount keeps "₫" on its line. `page_view` adds `metric_labels`.
+- **Vòng lặp says when its numbers were taken** ("Số lúc 06:30 …, 12 giờ trước"), and a team's "Hôm nay" is "đến lúc đó", so a morning snapshot is not read as now. A remote team (served by another runtime) reads as running on its own server instead of "Chưa có lần chạy nào".
+- **Marketing › Hàng đợi no longer says "Không cần làm gì" while a channel waits for a login.** With posts going out on one channel and others signed out, the headline names the signed-out channels and offers "Đăng nhập …".
+- **Hand-off cards are titled by channel and count** ("Cần đăng tay: 3 bài trên X, Facebook"), never by post ids.
+- **lohi-cs tools carry Vietnamese titles**, so an approval or a held call in Cần bạn is titled "Gửi yêu cầu thêm truyện", not the model-facing English description.
+
 ## 0.11.21 — 2026-11-09
 
 Baseline: v0.11.20 (8cdb993). Pairs with Soot 0.13.24. Browser tools 0.2.2 (`soot-browser`) are built from this revision.

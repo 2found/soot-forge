@@ -51,6 +51,8 @@ function teamRow(h) {
   const days = Array.isArray(h.tokens?.last_7_days) ? h.tokens.last_7_days : [];
   return {
     key: String(h.team), label: short(h.name || h.team, 60), schedules: sched.length,
+    // A remote team runs and spends on its own server: its runs are not this runtime's to count.
+    ...(h.remote ? { external: true } : {}),
     last_run: last ? { schedule: last.id, name: last.name ?? last.id, at: last.last, status: last.skip ? 'skipped' : last.ok ? 'ok' : 'failed' } : null,
     tokens_7d: days.reduce((n, d) => n + num(d), 0),
     tokens_today: num(h.tokens?.spent), budget_daily: num(h.tokens?.budget) || null, budget_percent: num(h.tokens?.percent) || null,

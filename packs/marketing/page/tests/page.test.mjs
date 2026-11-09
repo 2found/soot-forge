@@ -134,6 +134,12 @@ test('Hàng đợi headline: the one blocker wins, otherwise "Không cần làm 
   const ok = M.queueHeadline({ items: [{ action: 'publish', channel: 'Blog', scheduled_at: '2026-11-10T03:00:00Z' }], channels: [] });
   assert.match(ok.text, /^Không cần làm gì, Soot đang tự chạy/);
   assert.equal(M.queueHeadline({ items: [], channels: [], writer: 'lohi-writer' }).button.do, 'ask_writer');
+  // Blog posts on its own but X waits for a login with nothing queued yet: the login is the headline, not "Không cần làm gì".
+  const part = M.queueHeadline({ items: [{ action: 'publish', channel: 'Blog', scheduled_at: '2026-11-10T03:00:00Z' }], channels: [{ ...ch[0], waiting: 0 }, { id: 'fb', label: 'Facebook', paused: true, paused_reason: 'signed_out', waiting: 0 }] });
+  assert.equal(part.tone, 'warn');
+  assert.match(part.text, /^Bài kế tiếp: Blog .*X, Facebook chưa đăng nhập/);
+  assert.doesNotMatch(part.text, /Không cần làm gì/);
+  assert.deepEqual([part.button.do, part.button.channel], ['sign_in', 'x-lohi']);
 });
 
 test('a channel row names its state and carries its button; a signed-out channel is never just a switch', () => {

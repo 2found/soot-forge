@@ -60,6 +60,8 @@ export async function page_view(input, { store, env, now }) {
     opportunities: opps.map(o => ({ ref: o.ref, title: o.title, kind: o.kind, state: o.state, summary: o.summary, query: o.query, evidence_refs: o.evidence_refs, signal_count: o.signal_count, est_effort: o.est_effort, est_value: o.est_value, confidence: o.confidence, target_outcome: o.target_outcome, expected_delta: o.expected_delta, check_after_days: o.check_after_days })),
     handoffs: handoffs.map(h => ({ opportunity: h.opportunity, title: titleOf[h.opportunity] ?? h.opportunity, state: h.state, requirement_path: h.requirement_path, team_id: h.team_id, ticket: h.ticket, command: h.command, note: h.note, detail: h.detail })),
     decisions: decisions.slice(0, 40).map(d => ({ at: d.at, stage: d.stage, ref: d.opportunity_ref, title: titleOf[d.opportunity_ref] ?? d.opportunity_ref, decision: d.decision, by: d.by, note: d.note, target_outcome: d.target_outcome, expected_delta: d.expected_delta, check_after_days: d.check_after_days, baseline_value: d.baseline_value, actual_delta: d.actual_delta })),
+    // Names for the outcome keys an opportunity is measured by (the tiles carry their own).
+    metric_labels: { ...Object.fromEntries(Object.keys(METRICS).map(k => [k, labelOf(k)])), waiting_human: 'Bạn đọc chờ người' },
     hit_rate: hitRate(decisions),
     topics_queued: queued.length,
     topics,
