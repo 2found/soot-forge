@@ -15,6 +15,38 @@ export const needsCredential = (key, why) => {
   return { ok: false, reason_code: 'needs_credential', key, message, link: SETUP_LINK, error: { code: 'needs_credential', message } };
 };
 
+const SETUP_WHAT = {
+  PRODUCT_ADMIN_KEY: { for: 'đọc sức khoẻ kho truyện', how: 'Khoá API vai trò agent_mod của Lohi; dùng chung khoá đã nhập cho marketing.' },
+  PRODUCT_API_URL: { for: 'gọi api sản phẩm', how: 'Địa chỉ https của api sản phẩm, ví dụ https://api.lohi2.com.' },
+  CLI_CATALOG_DB: { for: 'theo dõi thu thập truyện', how: 'Đường dẫn tới cli/data/catalog.db trên máy chạy Soot.' },
+};
+/**
+ * A key or path the pack cannot work without, not set. Schedules stay quiet (the run is a plain skip), but the person is
+ * asked ONCE, with the exact next step: which key, and where in Nest it goes. The card clears itself when a run
+ * finds the key (clearSetup).
+ */
+export async function setupNeed(deps, key) {
+  const quiet = skippedFor(key);
+  if (!deps.store) return quiet;
+  const what = SETUP_WHAT[key] ?? { for: 'chạy gói lohi-ops', how: '' };
+  const card = await needCard(deps.store, `setup:${key}`, {
+    items: [key], sig: key, summary: `Thiếu ${key} để ${what.for}`,
+    lines: [`Mở Nest, vào Cài đặt, chọn Thiết lập, tìm ${key} và nhập giá trị (${SETUP_LINK}). ${what.how}`.trim(), 'Nhập xong, lịch tự chạy lại ở lần tới; không cần báo lại.'],
+    options: [{ label: 'Đã nhập, kiểm tra lại' }],
+  });
+  return { ...quiet, notify: card.notify, wake: card.wake, ...(card.ask ? { ask: card.ask } : {}) };
+}
+/** The key is there now: close its card, once. Returns {resolves_need: true} or {}. */
+export async function clearSetup(deps, ...keys) {
+  if (!deps.store) return {};
+  let cleared = false;
+  for (const key of keys) {
+    const r = await needCard(deps.store, `setup:${key}`, { items: [], summary: '', lines: [] });
+    cleared = cleared || r.resolves_need === true;
+  }
+  return cleared ? { resolves_need: true } : {};
+}
+
 export function storage(env, fetchImpl = fetch) {
   const url = env.SOOT_STORAGE_URL, token = env.SOOT_STORAGE_TOKEN;
   const call = async (table, op, body) => {

@@ -1,6 +1,6 @@
 // crawl_watch: the cli's local SQLite catalog (cli/data/catalog.db), opened read-only.
 // Stuck and failed crawls, sources that stopped moving, radar finds not yet onboarded.
-import { skippedFor, needCard, iso, short } from './base.mjs';
+import { setupNeed, clearSetup, needCard, iso, short } from './base.mjs';
 
 const HOUR = 3_600_000, DAY = 86_400_000;
 const ms = s => { const t = Date.parse(s ?? ''); return Number.isFinite(t) ? t : null; };
@@ -16,7 +16,7 @@ export const errorKind = e => short(String(e ?? 'không rõ lỗi').replace(/\d+
 export async function crawl_watch(input, deps) {
   const { env, now, store } = deps;
   const path = env.CLI_CATALOG_DB;
-  if (!path) return skippedFor('CLI_CATALOG_DB');
+  if (!path) return setupNeed(deps, 'CLI_CATALOG_DB');
   const stuckHours = Math.min(Math.max(Number(input.stuck_hours) || 6, 1), 168);
   const staleDays = Math.min(Math.max(Number(input.stale_days) || 7, 1), 90);
   const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 50);
@@ -71,7 +71,7 @@ export async function crawl_watch(input, deps) {
     });
     return {
       ok: true, generated_at: iso(now), sources: [...sources.values()].sort((a, b) => b.total - a.total).slice(0, limit),
-      stuck: stuck.slice(0, limit), failed, stale_sources: staleSources, backlog: backlogRows.slice(0, limit), actionable: actionable.length, ...card,
+      stuck: stuck.slice(0, limit), failed, stale_sources: staleSources, backlog: backlogRows.slice(0, limit), actionable: actionable.length, ...card, ...((await clearSetup(deps, 'CLI_CATALOG_DB')).resolves_need ? { resolves_need: true } : {}),
     };
   } finally { try { db.close(); } catch { /* read-only handle */ } }
 }

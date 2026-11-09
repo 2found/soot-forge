@@ -15,7 +15,7 @@ Everything reads aggregate or public data; no tool changes a price, a plan or a 
 ## Wiring
 
 - Env: `PRODUCT_API_URL` (https://api.lohi2.com), `CLI_CATALOG_DB` (absolute path to `cli/data/catalog.db`; Node >= 22.5 for `node:sqlite`), `APPSTORE_APP_ID` (default 6795186131), `APPSTORE_COUNTRY` (default vn), `GSC_SITE` (default sc-domain:lohi2.com), `SITE_URL` (default https://lohi2.com).
-- Credentials, all optional (a missing one is a quiet `skipped`, except posting a reply, which names `ASC_API_KEY`):
+- Credentials, all optional (a missing one is a quiet `skipped` on schedules; `catalog_health` and `crawl_watch` also raise ONE Cần bạn item naming the key and where it goes (Nest, Cài đặt, Thiết lập), closed when a run finds it; except posting a reply, which names `ASC_API_KEY`):
   `PRODUCT_ADMIN_KEY` (an `agent_mod` api key; sent only to `PRODUCT_API_URL`, only over https),
   `GSC_GOOGLE`, `ASC_API_KEY` (JSON `{key_id, issuer_id, private_key}`).
 - Suggested schedules: `catalog_health` daily; `crawl_watch` every 2 to 6 hours; `comments_pull` every 30 to 60 minutes (the Soot classifies, then `comments_decide`); `appstore_sync` daily; `seo_report` and `pricing_report` weekly.

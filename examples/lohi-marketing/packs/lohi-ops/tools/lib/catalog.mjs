@@ -1,6 +1,6 @@
 // catalog_health: the api's catalog-health endpoint (GET {PRODUCT_API_URL}/admin/analysis/catalog-health)
 // read check by check, turned into a findings table, and a Cần bạn need only for what a person must act on.
-import { fail, skippedFor, lohiApi, upsert, needCard, iso, short } from './base.mjs';
+import { fail, skippedFor, setupNeed, clearSetup, lohiApi, upsert, needCard, iso, short } from './base.mjs';
 
 const CHECKS = ['stale', 'gaps', 'thin', 'untranslated'];
 const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 };
@@ -61,7 +61,7 @@ export async function catalog_health(input, deps) {
   for (const check of checks) {
     const days = check === 'stale' ? Math.min(Math.max(Number(input.stale_days) || 14, 1), 365) : recent;
     const r = await scan(deps, check, { days, limit, pages });
-    if (r.skipped) return skippedFor(r.skipped);
+    if (r.skipped) return setupNeed(deps, r.skipped);
     if (r.error) { errors.push({ check, ...r.error }); if (r.error.code === 'forbidden') break; continue; }
     scanned[check] = { novels: r.scanned, more: r.next_cursor !== null, truncated: r.truncated };
     findings.push(...r.items.map(it => toFinding(check, it, t)));
@@ -85,11 +85,13 @@ export async function catalog_health(input, deps) {
     items: actionable.map(f => f.key), summary: `Kho truyện có ${actionable.length} điều cần xử lý`,
     lines: actionable.slice(0, 12).map(f => `• ${short(f.line, 140)}`).concat(actionable.length > 12 ? [`… và ${actionable.length - 12} mục nữa (xem bảng catalog_health).`] : []),
   });
+  const cleared = await clearSetup(deps, 'PRODUCT_ADMIN_KEY', 'PRODUCT_API_URL');
   const counts = Object.fromEntries(CHECKS.filter(c => checks.includes(c)).map(c => [c, findings.filter(f => f.check === c).length]));
   return {
     ok: errors.length === 0, scanned, counts, new: fresh, actionable: actionable.length, errors: errors.length ? errors : undefined,
     findings: findings.slice(0, 50).map(({ key, check, severity, actionable: a, line }) => ({ key, check, severity, actionable: a, line })),
     more_findings: Math.max(findings.length - 50, 0),
     ...card,
+    ...(cleared.resolves_need ? { resolves_need: true } : {}),
   };
 }

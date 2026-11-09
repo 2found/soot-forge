@@ -345,3 +345,28 @@ test('pricing_report: reads the scoreboard with the key to the api only, never w
 test('an unknown tool is refused', async () => {
   await assert.rejects(run('hide_everything', {}, {}), /Unknown tool/);
 });
+
+// ---------- a key the pack cannot work without ----------
+test('a missing PRODUCT_ADMIN_KEY or CLI_CATALOG_DB stays a quiet skip but asks the person once, naming the key and where it goes in Nest', async () => {
+  const store = fakeStore({ clock: () => NOW });
+  const first = await run('catalog_health', { input: {} }, { now: NOW, env: { PRODUCT_API_URL: API }, store, fetchImpl: router({}) });
+  assert.equal(first.skipped, true);
+  assert.equal(first.reason_code, 'optional_credential');
+  assert.equal(first.wake, true);
+  assert.match(first.ask.summary, /PRODUCT_ADMIN_KEY/);
+  assert.match(first.ask.missing, /Cài đặt.*Thiết lập.*PRODUCT_ADMIN_KEY/s);
+  // The next scheduled run is silent: one Cần bạn item, not one per run.
+  const again = await run('catalog_health', { input: {} }, { now: NOW, env: { PRODUCT_API_URL: API }, store, fetchImpl: router({}) });
+  assert.equal(again.wake, false);
+  assert.equal(again.notify, false, 'the ask is carried (like every pack card) but does not wake the Soot again');
+  // The key is entered: the next run closes the item.
+  const routes = catalogRoutes();
+  const fixed = await run('catalog_health', { input: {} }, { now: NOW, env: ENV, store, fetchImpl: router(routes) });
+  assert.equal(fixed.resolves_need, true);
+
+  const crawl = fakeStore({ clock: () => NOW });
+  const c1 = await run('crawl_watch', { input: {} }, { now: NOW, env: {}, store: crawl });
+  assert.equal(c1.skipped, true);
+  assert.match(c1.ask.summary, /CLI_CATALOG_DB/);
+  assert.equal((await run('crawl_watch', { input: {} }, { now: NOW, env: {}, store: crawl })).wake, false);
+});
