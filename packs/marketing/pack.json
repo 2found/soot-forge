@@ -196,7 +196,7 @@
       "title": "Việc đến hạn",
       "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised; resolves_need when none is left. The dispatch schedule passes schedule: true and skip: channels a tool chain publishes. With channel: {id, action} of the one due publish there for marketing_claim, or {done: true}.",
       "parameters": {"type":"object","properties":{"refile":{"type":"boolean"},"schedule":{"type":"boolean"},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"skip":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":32}}},"required":[],"additionalProperties":false},
-      "run": { "program": "node", "args": ["tools/marketing.mjs","due"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144 }
+      "run": { "program": "node", "args": ["tools/marketing.mjs","due"], "stdin": "context", "mode": "write", "rerun": "safe", "timeout": "20s", "max_output_bytes": 262144 }
     },
     {
       "name": "claim",
@@ -266,14 +266,14 @@
       "title": "Kế hoạch bài hôm nay",
       "description": "The daily content plan. wake: true is the schedule, tool-only: it queues a checked draft nobody scheduled, and wakes the Writer only for a free blog slot or a published post still to share on a signed-in social channel. Without wake it is the Writer's ready brief (query: a subject asked for): topic, keyword, angle, real novels with links, internal_links, titles to avoid, social (posts to share per channel). Saves the catalog it was given.",
       "parameters": {"type":"object","properties":{"wake":{"type":"boolean"},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"facts_url":{"type":"string","maxLength":500},"depth":{"type":"integer","minimum":1,"maximum":5},"query":{"type":"string","maxLength":120},"catalog":{"type":"object","properties":{"feed":{"type":"string","maxLength":500},"genres":{"type":"string","maxLength":500},"search":{"type":"string","maxLength":500},"page":{"type":"string","maxLength":500},"links":{"type":"array","maxItems":6,"items":{"type":"string","maxLength":500}}},"required":[],"additionalProperties":false}},"required":[],"additionalProperties":false},
-      "run": { "program": "node", "args": ["tools/marketing.mjs","plan"], "stdin": "context", "mode": "write", "timeout": "60s", "max_output_bytes": 65536 }
+      "run": { "program": "node", "args": ["tools/marketing.mjs","plan"], "stdin": "context", "mode": "write", "rerun": "safe", "timeout": "60s", "max_output_bytes": 65536 }
     },
     {
       "name": "channels_probe",
       "title": "Kiểm tra đăng nhập kênh",
       "description": "For a tool chain around the Editor's browser: with no result it names the next paused social channel's check page ({action: navigate, url}, the browser-use_control input) or {done: true}; with the page's result it decides signed in or out from the page text, unpauses only a channel the person confirmed that is really signed in, and sends a confirmed-but-signed-out one back to its sign-in card.",
       "parameters": {"type":"object","properties":{"session":{"type":"string","maxLength":200},"result":{},"resource":{"type":"object"}},"required":[],"additionalProperties":false},
-      "run": { "program": "node", "args": ["tools/marketing.mjs","channels_probe"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 16384 }
+      "run": { "program": "node", "args": ["tools/marketing.mjs","channels_probe"], "stdin": "context", "mode": "write", "rerun": "safe", "timeout": "20s", "max_output_bytes": 16384 }
     },
     {
       "name": "report",

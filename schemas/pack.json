@@ -889,6 +889,13 @@
                   "null"
                 ]
               },
+              "rerun": {
+                "description": "Write only; the only value is \"safe\": running the call again with the same input converges on the same effect, so a result left unknown by a restart is settled by the host instead of waiting for a person.",
+                "enum": [
+                  "safe"
+                ],
+                "type": "string"
+              },
               "parameters": {
                 "additionalProperties": {},
                 "type": [
