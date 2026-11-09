@@ -5,6 +5,14 @@ Release notes for Soot Forge pack releases. The version is `package.json`'s;
 
 ## Unreleased
 
+## 0.11.19
+
+Baseline: v0.11.18 (9d202d9). **Needs Soot 0.13.21 or later**: marketing declares `run.rerun`, which an older runtime refuses as an unknown pack field, and the packs raise Cần bạn cards through the chain result's `raise`/`settle`, which an older runtime ignores (no card is filed).
+
+### Added
+
+- **Packs raise cards from tool results, with no model wake.** `scoreboard_sync` (waiting readers), the opportunities card (new `company-cards` schedule), `team_watch` (handover waiting, a Go whose team has not started after 2 h), marketing sign-in, lohi-ops and `lohi-blog_ready` return `raise` (an idempotent card id, title, why, link and options) and `settle` (ids to close) instead of `ask` + `notify`/`wake`; a card closed by the person is never raised again under the same id. The digest no longer files the opportunities card itself.
+
 ### Changed
 
 - **company-loop: the build leg is finishable.** A product Go writes `REQ-<id>.md` beside the tickets (`$BABYSIT_HOME/requirements/<repo>/`), never into the founder's working tree (a file already in `docs/requirements/` is used as is), and its answer says what happens next and that the release go is given in the team's Orca terminal. `team_watch` also watches `draft_ready` handoffs: they advance once the team exists and raise one reminder (with the command) after 2 h otherwise. A test walks proposed, Go, spawned or draft_ready, building, delivered and released with a fake `bbs`. New env `BABYSIT_HOME` (declared in `needs.env`; the recipe grants it).
@@ -12,7 +20,7 @@ Release notes for Soot Forge pack releases. The version is `package.json`'s;
 - **company-loop: reader feedback through the contract.** The digest reads `cs.voc` with the `data` tool on scope `team:cs` and calls `signals {voc: true}`; the desk scrape with `CS_RUNTIME_TOKEN` runs only as the fallback (`voc: false`). The waiting-readers count still comes from the legacy `/admin/support` until R1.
 - **marketing: radar filters before the model.** `radar_read` takes `keywords`, `lang`, `max_items` (at most 15), `wake_gap_hours` and `retire`; a source answering 429 rests a day and three failures switch it off (noted in `skipped`). The Lohi recipe reads daily, drops the English subreddits and retires their rows. `plan`'s `topic_posts` carries a published post's `published_at`, `url` and own `clicks`. `sources` gained `fails`, `retry_after`, `disabled_at`.
 - **lohi-ops: `ops-comments` keeps harmless comments itself.** Short thanks, praise and emoji among the newest comments (never a reported one, never one with a link, contact or number run) are kept by `comments_pull` (`auto_kept`) and the model wakes only for comments that need a judgment.
-- **marketing: restart safety documented.** `due`, `plan` and `channels_probe` stay `write` because a `read` tool cannot keep their bookkeeping rows; a test pins which tools are re-runnable so they can be declared once the runtime has the declaration.
+- **marketing: restart-safe tools declare it.** `due`, `plan` and `channels_probe` stay `write` (a `read` tool cannot keep their bookkeeping rows) and now declare `run.rerun: "safe"`, so a call a restart cut settles itself (`auto_retry_safe`) instead of locking the resource; the pack schema accepts `rerun` (enum `"safe"`). A test pins which tools are re-runnable.
 - **company-loop (storage version 3): a topic is not "done" when it is handed over.** `topic_next` now marks a topic `handed` (it was `taken`); the new chain step `topic_sync` (after `marketing.plan`) marks it `written` with the post id once a post with its keyword exists, and returns it to the queue when the 48 h hold ends with no post. New nullable column `topics.post`. Old `taken` rows read as `handed`. The Công ty page lists each topic's state on its opportunity card and in the next-step bar. `marketing.plan` (wake call) adds `topic_posts` (keyword and id of the newest posts). The Lohi example adds the `topic_sync` step to `marketing-plan` and grants it to the Writer.
 
 ## 0.11.18
