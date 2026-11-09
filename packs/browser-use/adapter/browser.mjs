@@ -1,7 +1,7 @@
 import { agent } from './agent.mjs';
 import { sendInput, textEvents } from './input.mjs';
 import { launchSettings, boundedJSON, lock, resolveBrowser } from './launch.mjs';
-import { readFile, writeFile, rm, access, lstat, realpath, open } from 'node:fs/promises';
+import { readFile, writeFile, rm, access, lstat, realpath, open, mkdir } from 'node:fs/promises';
 import { join, resolve, sep, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -27,13 +27,41 @@ export const STREAM_ENV={AGENT_BROWSER_STREAM_MAX_WIDTH:'4800',AGENT_BROWSER_STR
 export function persistentSoots(value = process.env.SOOT_BROWSER_PERSISTENT_SOOTS) {
   return new Set(String(value ?? '').split(',').map(s => s.trim()).filter(s => SAFE_ID.test(s)));
 }
+// Named profiles (contract browser-profiles): a person signs a profile in once
+// and grants it to teams or Soots in Nest. The host passes the ids the calling
+// Soot may open in SOOT_BROWSER_PROFILES on every call; a host that predates
+// profiles passes nothing, and then no profile opens.
+export const PROFILE_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
+export function grantedProfiles(value = process.env.SOOT_BROWSER_PROFILES) {
+  return new Set(String(value ?? '').split(',').map(s => s.trim()).filter(s => PROFILE_ID.test(s)));
+}
+// A conversation that asked for a profile keeps working in it: its later
+// calls, its live view and a person's input in Nest follow this link.
+export function profileLink(packRoot, conversation) { return join(packRoot,'.browser','named-links',conversation); }
+export async function linkedProfile(packRoot, conversation) {
+  try { const v=(await readFile(profileLink(packRoot,conversation),'utf8')).trim(); return PROFILE_ID.test(v)?v:''; } catch { return ''; }
+}
+/** The profile this call works in: the one it asks for, else the one its conversation is linked to; refused unless granted now. */
+export function chooseProfile(input, linked, granted = grantedProfiles()) {
+  const asked = input?.profile;
+  if (asked !== undefined && (typeof asked !== 'string' || !PROFILE_ID.test(asked))) throw new Error('Invalid browser profile');
+  const name = asked || linked || '';
+  if (name && !granted.has(name)) throw Object.assign(new Error(`browser_profile_not_granted: this Soot may not use browser profile "${name}"; nothing ran. Work without a profile, or ask a person to grant it in Nest › Cài đặt › Trình duyệt`), {decided:true});
+  return name;
+}
 // A Soot the host lists keeps one profile across all its conversations (a
-// Publisher signed in once); every other Soot keeps one per conversation.
-// Only host context decides: the model's input never names a profile.
-export function identity(call, packRoot = root, persistent = persistentSoots()) {
+// Publisher signed in once); every other Soot keeps one per conversation. A
+// named profile is one browser shared by every conversation working in it (a
+// browser profile folder cannot open twice). Only host context and a granted
+// name decide: the model's input never names a path, session or daemon.
+export function identity(call, packRoot = root, persistent = persistentSoots(), named = '') {
   const conversation = call?.event?.subject;
   if (call?.api_version !== 'soot/v1' || call?.hook !== 'tool.call' || call?.event?.source !== 'conversation' || !SAFE_ID.test(conversation || '')) throw new Error('A host conversation context is required');
   const scope = createHash('sha256').update(packRoot).digest('hex').slice(0,12);
+  if (named) {
+    if (!PROFILE_ID.test(named)) throw new Error('Invalid browser profile');
+    return { session: `sootn-${scope}-${named}`, profile: join(packRoot,'.browser','named-profiles',named), state: join(packRoot,'.browser','named-sessions',named), id: `profile-${named}`, persistent: true, named };
+  }
   // Persistent state has its own directories and daemon prefix, so no
   // conversation id (whatever its spelling) can reach a Soot's profile.
   if (typeof call.soot === 'string' && SAFE_ID.test(call.soot) && persistent.has(call.soot)) {
@@ -101,6 +129,7 @@ export async function uploadFile(input, fileRoot = process.env.FILE_ROOT) {
 export function validateInput(input) {
   if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Invalid browser input');
   if(input.tab!==undefined && (typeof input.tab!=='string'||!/^t[0-9]+$/.test(input.tab)))throw new Error('Invalid tab');
+  if(input.profile!==undefined && (typeof input.profile!=='string'||!PROFILE_ID.test(input.profile)))throw new Error('Invalid browser profile');
   const number=(key,min,max)=>{const n=input[key];if(!Number.isInteger(n)||n<min||n>max)throw new Error(`Invalid ${key}`);};
   switch(input.action) {
     case 'command':command(input);break;
@@ -125,11 +154,18 @@ export async function main() {
     return;
   }
   let text='';for await(const chunk of process.stdin){text+=chunk;if(text.length>131072)throw new Error('Envelope too large');}
-  const call=JSON.parse(text), ident=identity(call), input=call.input||{};
+  const call=JSON.parse(text), input=call.input||{};
+  identity(call); // the host context, before any state is read
   const readonly=process.argv[2]==='view';
   if(!['view','control'].includes(process.argv[2])||call.operation!==`browser-use_${process.argv[2]}`||typeof call.soot!=='string'||!call.soot)throw new Error('Invalid browser operation binding');
   if(!readonly)validateInput(input);
   else if(!input||Array.isArray(input)||typeof input!=='object'||Object.keys(input).length)throw new Error('View expects empty input');
+  // Every call re-checks the grant, a viewer and a person's input included:
+  // a revoked profile stops at the next call.
+  const conversation=call.event.subject, link=profileLink(root,conversation);
+  const named=chooseProfile(readonly?{}:input, await linkedProfile(root,conversation));
+  const ident=identity(call,root,persistentSoots(),named);
+  if(!readonly&&input.profile&&input.action!=='close'){await mkdir(join(root,'.browser','named-links'),{recursive:true,mode:0o700});await writeFile(link,named,{mode:0o600});}
   const sessionDir=ident.state;
   // A viewer never takes the control lock: it must connect while an agent is
   // navigating/waiting, and it must never launch or resurrect a dead session.
@@ -149,7 +185,9 @@ export async function main() {
         state='active';
       } catch {}
     }
-    process.stdout.write(JSON.stringify({session:ident.id,tabs:[],closed:state!=='active',resource:{state},...(state==='active'?{stream_url:endpoint}:{})}));
+    // The ids this Soot may pass as profile, only when the host granted any.
+    const profiles=[...grantedProfiles()];
+    process.stdout.write(JSON.stringify({session:ident.id,tabs:[],closed:state!=='active',resource:{state},...(state==='active'?{stream_url:endpoint}:{}),...(profiles.length?{profiles}:{})}));
     return;
   }
   // Human input has its own host receipt and must remain usable while a model
@@ -194,6 +232,7 @@ export async function main() {
       running=(listedResult.data?.sessions||[]).some(s=>(typeof s==='string'?s:s.name||s.session)===ident.session);
       if (!running) {
         await writeFile(closedFile,'closed',{mode:0o600});
+        if(ident.named)await rm(link,{force:true});
         process.stdout.write(JSON.stringify({session:ident.id,result:{closed:true},resource:{state:'closed'}}));
         return;
       }
@@ -269,10 +308,10 @@ export async function main() {
         const up=await uploadFile(input);
         result={...(await run(['upload',up.selector,up.file])),uploaded:{path:input.path,bytes:up.bytes}};break;
       }
-      case 'close':result=running?await run(['close']):{closed:true};await writeFile(closedFile,'closed',{mode:0o600});break;
+      case 'close':result=running?await run(['close']):{closed:true};await writeFile(closedFile,'closed',{mode:0o600});if(ident.named)await rm(link,{force:true});break;
       default:throw new Error('Unknown browser action');
     }
-    process.stdout.write(JSON.stringify({session:ident.id,result,resource:{state:input.action==='close'?'closed':'active'}}));
+    process.stdout.write(JSON.stringify({session:ident.id,...(ident.named?{profile:ident.named}:{}),result,resource:{state:input.action==='close'?'closed':'active'}}));
   } finally {await unlock();}
 }
 export function run() { main().catch(e=>{process.stderr.write(e.message+'\n');process.exitCode=e.uncertain?2:1;}); }

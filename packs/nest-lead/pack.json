@@ -34,7 +34,7 @@
     },
     {
       "name": "nest-manage",
-      "description": "Change this Nest's settings yourself as Kamaji, its lead: Soots, schedules, teams (built from a template in one approval), approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, access grants and chat channel pairings; report once with a link and Hoàn tác.",
+      "description": "Change this Nest's settings yourself as Kamaji, its lead: Soots, schedules, teams (built from a template in one approval), products (create, rename, which a team serves), approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, access grants and chat channel pairings; report once with a link and Hoàn tác.",
       "file": "skills/nest-manage.md"
     }
   ],
@@ -42,7 +42,7 @@
     {
       "name": "manage",
       "title": "Đổi cài đặt Nest",
-      "description": "Read and change this Nest's settings as Kamaji, its lead: Soots, schedules, teams, tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
+      "description": "Read and change this Nest's settings as Kamaji, its lead: Soots, schedules, teams, products (create, rename, which a team serves), tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -71,6 +71,8 @@
               "client.disable",
               "client.key.rotate",
               "client.delete",
+              "company.product.save",
+              "group.products",
               "soot.improve",
               "updates.status",
               "updates.apply",
@@ -281,6 +283,45 @@
           "undo": {
             "type": "string",
             "description": "With action undo: the request_id of the change to reverse."
+          },
+          "company_product": {
+            "type": "object",
+            "description": "company.product.save: {id, name}. A new id (lowercase, -) creates the product; an existing id renames it. Deleting a product is the person's, in Nest.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "group_products": {
+            "type": "object",
+            "description": "group.products: {group, products}. The product ids a team serves; an empty list means all products.",
+            "properties": {
+              "group": {
+                "type": "string"
+              },
+              "products": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 32
+              }
+            },
+            "required": [
+              "group",
+              "products"
+            ],
+            "additionalProperties": false
           }
         },
         "additionalProperties": false
@@ -330,6 +371,8 @@
               "client.disable",
               "client.key.rotate",
               "client.delete",
+              "company.product.save",
+              "group.products",
               "soot.improve",
               "updates.status",
               "updates.apply",
@@ -540,6 +583,45 @@
           "undo": {
             "type": "string",
             "description": "With action undo: the request_id of the change to reverse."
+          },
+          "company_product": {
+            "type": "object",
+            "description": "company.product.save: {id, name}. A new id (lowercase, -) creates the product; an existing id renames it. Deleting a product is the person's, in Nest.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "group_products": {
+            "type": "object",
+            "description": "group.products: {group, products}. The product ids a team serves; an empty list means all products.",
+            "properties": {
+              "group": {
+                "type": "string"
+              },
+              "products": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 32
+              }
+            },
+            "required": [
+              "group",
+              "products"
+            ],
+            "additionalProperties": false
           }
         },
         "additionalProperties": false

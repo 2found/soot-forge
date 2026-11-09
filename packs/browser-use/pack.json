@@ -31,7 +31,7 @@
   "tools": [
     {
       "name": "control",
-      "description": "Control the browser with agent-browser and CloakBrowser. Read browser-use skill first. The host supplies the session: one per conversation, or one kept for the Soot when the host lists it in SOOT_BROWSER_PERSISTENT_SOOTS; never choose a session/profile. upload sends one workspace file to a page's file input.",
+      "description": "Control the browser with agent-browser and CloakBrowser. Read browser-use skill first. The host supplies the session: one per conversation, or one kept for the Soot when the host lists it in SOOT_BROWSER_PERSISTENT_SOOTS; never choose a session or a path. profile works in a named sign-in a person granted this Soot (Nest › Cài đặt › Trình duyệt); the conversation then stays in it until close. upload sends one workspace file to a page's file input.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -124,6 +124,11 @@
             "type": "string",
             "maxLength": 71,
             "description": "upload (required): the file's sha256 from the claim; a changed file is refused."
+          },
+          "profile": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+            "description": "Optional: a named browser profile id the host granted this Soot (its sign-ins). Omit to use the conversation's own browser. A profile not granted is refused before anything runs."
           }
         },
         "required": [
@@ -147,7 +152,7 @@
     },
     {
       "name": "view",
-      "description": "Inspect conversation browser availability without launching it. Nest subscribes to its live screencast.",
+      "description": "Inspect conversation browser availability without launching it; profiles lists the named browser profiles the host granted this Soot. Nest subscribes to its live screencast.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -201,7 +206,8 @@
     "env": [
       "PATH",
       "HOME",
-      "SOOT_BROWSER_PERSISTENT_SOOTS"
+      "SOOT_BROWSER_PERSISTENT_SOOTS",
+      "SOOT_BROWSER_PROFILES"
     ],
     "credentials": {
       "FILE_ROOT": {

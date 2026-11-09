@@ -1,10 +1,13 @@
 # Posting through the Soot's browser
 
 Use this for a channel whose publisher is `browser` (X, a Facebook Page,
-Reddit). You drive the `browser-use_control` tool. The host keeps this Soot
-signed in to one browser profile when it lists the Soot in
-`SOOT_BROWSER_PERSISTENT_SOOTS`. The person signs in once, in Nest's docked
-browser panel, on the login page you opened. You never sign in, type a password or a 2FA code, solve a
+Reddit). You drive the `browser-use_control` tool. When the person granted you
+a named browser profile for the account (`browser-use_view {}` lists your
+`profiles`; the id names the account, such as `lohi-x`), pass
+`"profile": "<id>"` on every control call for that claim: the sign-in lives
+there. Otherwise the host keeps this Soot signed in to one browser profile when
+it lists the Soot in `SOOT_BROWSER_PERSISTENT_SOOTS`. The person signs in once,
+in Nest's docked browser panel, on the login page you opened. You never sign in, type a password or a 2FA code, solve a
 captcha or switch accounts.
 
 Every action starts from a signed claim from `marketing_claim`. The claim

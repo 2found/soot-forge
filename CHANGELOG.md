@@ -3,6 +3,19 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+Pairs with Soot 0.13.27 (unreleased). Browser tools 0.2.3 (`soot-browser`, not yet published: the release publishes it and pins `internal/browserinstall/manifest.json`).
+
+### Added
+
+- **Named browser profiles.** `browser-use_control` takes an optional `profile`: a named sign-in a person granted the Soot or its team in Nest › Cài đặt › Trình duyệt. The pack declares `SOOT_BROWSER_PROFILES` in `needs.env`; the host sets it on every call to the ids the calling Soot may open and refuses an ungranted `profile` before the tool runs, and the adapter re-checks it on every call (its live view and a person's input included), so a revoke stops at the next call. A conversation that asks for a profile stays in it until `close`; one profile is one browser shared by the conversations using it. `browser-use_view` lists the granted ids in `profiles`. A host that predates profiles sets nothing, and a profile call is refused while every other call works as before. `marketing` `browser-post` posts in the profile named for the account when one is granted.
+- **Kamaji creates products.** `nest-lead` `manage` takes `company.product.save` (`company_product: {id, name}`) and `group.products` (`group_products: {group, products}`), so a fresh Nest can be asked to make a product and point a team at it. Deleting a product stays the person's.
+
+### Changed
+
+- **Bots and websites belong to a team.** On Nest 0.13.27+ `nest-lead` sends the person to paste a bot token on the team's Kênh tab (`nest://team/<team>/kenh`) and asks which team answers the bot when none is named, since `nest://settings/channels` is now only an overview; an older Nest keeps `nest://settings/channels`. `soot-nest` `nest-links` lists `nest://team/<team>/kenh|quyen` and `nest://settings/browser` (Nest 0.13.27+).
+
 ## 0.11.22 — 2026-11-10
 
 Baseline: v0.11.21 (67f9fbb). Pairs with Soot 0.13.26. Browser tools stay 0.2.2.

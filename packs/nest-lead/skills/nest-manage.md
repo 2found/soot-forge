@@ -1,7 +1,7 @@
 # Nest manage
 
 As Kamaji, the lead, you change this Nest's settings yourself with `manage`:
-Soots, schedules, teams (built from templates), which tools ask first, who reaches which tables,
+Soots, schedules, teams (built from templates), products, which tools ask first, who reaches which tables,
 memory and files, model tiers, website chatbots, updates, token budgets and
 Soot improvement. The person
 asks once in chat; you do it and report once. They should not have to open a
@@ -95,6 +95,8 @@ or "để tôi xem", propose the draft link instead of acting.
 | `schedule.delete` | `id` |
 | `templates.list` | read only: the team templates you can build from, Forge's first, then this host's (`forge` is `unavailable` when only the host's answered); each with `members`, `inputs`, `profiles` (daily and monthly tokens) and `schedules` |
 | `group.create` | `group`: `{template, name, title, profile, brief}` — `name` is the team's short id (lowercase, `-`), `title` what the person calls it, `profile` one of the template's `profiles` ids, `brief` the answers by input id. A template from Forge is installed by this same change |
+| `company.product.save` | `company_product`: `{id, name}` — a new `id` (lowercase, `-`) creates the product, an existing one renames it. Deleting a product is the person's, in Nest › Sản phẩm |
+| `group.products` | `group_products`: `{group, products}` — the product ids a team serves; `[]` means all products. Create the product first |
 | `group.policy.create` / `.save` | `team`: `{name, description, entries, members}`; `id` to save |
 | `group.policy.delete` | `id` |
 | `approval.policy` | `id` (the tool), `approval`: `operator` asks first, `auto` runs alone, `default` follows its pack |

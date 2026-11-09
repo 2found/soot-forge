@@ -22,13 +22,15 @@ wants to see it first (`nest-lead`).
 | `nest://data/<collection>/<document>` | a document, in a sheet |
 | `nest://soot/<soot>` | a Soot's profile, in a sheet |
 | `nest://team/<team>` | a team's page in Đội Soot |
+| `nest://team/<team>/kenh`, `nest://team/<team>/quyen` | that team's Kênh tab (its bots and websites) or Quyền tab (Nest 0.13.27+) |
 | `nest://schedules/<soot>` | a Soot's Lịch chạy |
 | `nest://page/<page>`, `nest://page/<soot>/<page>` | a page a pack serves (`nest://page/cong-ty` is Công ty); without a Soot, the one on this server that serves it (Nest 0.13.18+) |
 | `nest://schedules/nest-morning-brief` | the morning brief's schedule, to turn it off or change the time (the fixed id of Kamaji's brief) |
 | `nest://overview`, `tasks`, `chat`, `team`, `data`, `reports` | that page; `tasks` (Việc) is every server's work in one list |
 | `nest://inbox` | Cần bạn, the queue on Tổng quan |
 | `nest://settings` and `/servers`, `/ai`, `/approvals`, `/website`, `/knowledge` | that Settings page |
-| `nest://settings/channels` | Kênh chat: the Telegram and Discord bots — the only place a bot token is entered, pairing codes, who is paired, **Thu hồi** |
+| `nest://settings/channels` | Nest 0.13.27+: Cài đặt › Kênh, the overview of every team's bots and websites, each opening its team's tab; a bot token is entered on `nest://team/<team>/kenh`. Older Nest: Kênh chat, the Telegram and Discord bots — where a bot token is entered, pairing codes, who is paired, **Thu hồi** |
+| `nest://settings/browser` | Trình duyệt: named browser sign-ins (profiles), which team or Soot may use each, and signing one in (Nest 0.13.27+) |
 | `nest://new?soot=<soot>&team=<team>&text=<draft>` | new work with `text` waiting in the composer |
 | `nest://new/soot?name=&mission=&packs=a,b` | the Tạo Soot wizard, filled in |
 | `nest://new/team?name=&purpose=&members=a,b&lead=a` | the Tạo nhóm wizard, filled in; the lead is a member |

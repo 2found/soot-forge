@@ -150,3 +150,48 @@ test('frames are captured at 2x with room under the stream caps and legible qual
  assert.ok(Number(STREAM_ENV.AGENT_BROWSER_STREAM_MAX_HEIGHT)>=2400*Number(DENSITY));
  assert.ok(Number(STREAM_ENV.AGENT_BROWSER_STREAM_QUALITY)>=80);
 });
+
+import {chooseProfile,grantedProfiles,profileLink} from './browser.mjs';
+test('a named profile opens only when the host grants it now',()=>{
+ const granted=grantedProfiles('social, founder,../evil,');
+ assert.deepEqual([...granted],['social','founder']);
+ assert.equal(chooseProfile({},'' ,granted),'');
+ assert.equal(chooseProfile({profile:'social'},'',granted),'social');
+ assert.equal(chooseProfile({},'social',granted),'social',"a conversation's link is followed");
+ assert.equal(chooseProfile({profile:'founder'},'social',granted),'founder','asking switches the link');
+ assert.throws(()=>chooseProfile({profile:'other'},'',granted),/browser_profile_not_granted/);
+ assert.throws(()=>chooseProfile({},'social',grantedProfiles('')),/browser_profile_not_granted/,'a revoked link stops');
+ assert.throws(()=>chooseProfile({profile:'social'},'',grantedProfiles(undefined)),/browser_profile_not_granted/,'an older host grants nothing');
+ assert.throws(()=>chooseProfile({profile:'../x'},'',granted),/Invalid browser profile/);
+ assert.throws(()=>validateInput({action:'navigate',url:'https://x.com',profile:'/tmp/p'}),/Invalid browser profile/);
+});
+test('a named profile is one shared browser apart from conversation and Soot profiles',()=>{
+ const a=identity(call,'/nest/packs.d/browser-use',new Set(),'social');
+ const b=identity({...call,event:{...call.event,subject:'conversation-2'}},'/nest/packs.d/browser-use',new Set(['fixture']),'social');
+ assert.equal(a.session,b.session);assert.equal(a.profile,b.profile);assert.equal(a.named,'social');
+ assert.ok(a.profile.endsWith('/.browser/named-profiles/social'));
+ const own=identity(call,'/nest/packs.d/browser-use'), soot=identity(call,'/nest/packs.d/browser-use',new Set(['fixture']));
+ assert.notEqual(a.session,own.session);assert.notEqual(a.session,soot.session);assert.notEqual(a.profile,soot.profile);
+ assert.throws(()=>identity(call,'/nest/packs.d/browser-use',new Set(),'../evil'));
+ assert.ok(profileLink('/s','conversation-1').endsWith('/.browser/named-links/conversation-1'));
+});
+test('an ungranted profile is refused before any state or browser exists',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'soot-browser-profile-'));
+ try {
+  const result=spawnSync(process.execPath,[fileURLToPath(new URL('./cli.mjs',import.meta.url)),'control'],{cwd:dir,input:JSON.stringify({...call,operation:'browser-use_control',input:{action:'navigate',url:'https://x.com',profile:'social'}}),env:{PATH:'/nonexistent',SOOT_BROWSER_PROFILES:'founder'},encoding:'utf8'});
+  assert.equal(result.status,1);assert.match(result.stderr,/browser_profile_not_granted/);assert.equal(result.stdout,'');
+  assert.equal(existsSync(join(dir,'.browser')),false);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('a view follows the conversation link and stops when the grant is revoked',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'soot-browser-link-'));
+ try {
+  mkdirSync(join(dir,'.browser','named-links'),{recursive:true});writeFileSync(profileLink(dir,call.event.subject),'social');
+  const state=join(dir,'.browser','named-sessions','social');mkdirSync(state,{recursive:true});writeFileSync(join(state,'closed'),'closed');
+  const view=env=>spawnSync(process.execPath,[fileURLToPath(new URL('./cli.mjs',import.meta.url)),'view'],{cwd:dir,input:JSON.stringify({...call,input:{}}),env:{PATH:'/nonexistent',...env},encoding:'utf8'});
+  let result=view({SOOT_BROWSER_PROFILES:'social'});
+  assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),{session:'profile-social',tabs:[],closed:true,resource:{state:'closed'},profiles:['social']});
+  result=view({SOOT_BROWSER_PROFILES:''});
+  assert.equal(result.status,1);assert.match(result.stderr,/browser_profile_not_granted/);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
