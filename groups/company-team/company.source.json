@@ -2,7 +2,7 @@
   "api_version": "soot-forge/company-template/v1",
   "id": "company-team",
   "name": "Company",
-  "description": "A company made of teams, each an interface: what it takes in, what it gives out, what it decides alone or with the founder, its daily token budget and when it escalates. Add, remove or rename a team, or change a contract, in an overlay file; no code changes.",
+  "description": "Một công ty gồm các nhóm, mỗi nhóm là một giao diện: nhận gì, giao ra gì, tự quyết gì hay quyết cùng người sáng lập, ngân sách token mỗi ngày và khi nào báo bạn. Thêm, bớt hay đổi tên nhóm, hoặc sửa hợp đồng, trong một tệp overlay; không cần sửa mã.",
   "daily_token_ceiling": 550000,
   "teams": [
     {
@@ -24,18 +24,18 @@
       "takes_in": [
         {
           "from": "marketing",
-          "what": "published posts and their numbers (metrics, posts)",
+          "what": "bài đã đăng và số liệu của bài (metrics, posts)",
           "contract": "marketing-numbers"
         },
         {
           "from": "cs",
-          "what": "voice-of-customer rows (voc)",
+          "what": "ý kiến độc giả đã gom (voc)",
           "contract": "cs-voc",
           "optional": true
         },
         {
           "from": "build",
-          "what": "release state of an approved opportunity",
+          "what": "tình trạng phát hành của cơ hội đã duyệt",
           "contract": "build-state"
         }
       ],
@@ -52,7 +52,7 @@
             "target_outcome",
             "expected_delta"
           ],
-          "note": "ranked weekly; the founder decides product ones"
+          "note": "xếp hạng mỗi tuần; cơ hội sản phẩm do người sáng lập quyết"
         },
         {
           "table": "topics",
@@ -64,7 +64,7 @@
             "kind",
             "state"
           ],
-          "note": "content topics marketing writes next"
+          "note": "chủ đề nội dung để Marketing viết tiếp"
         },
         {
           "table": "scoreboard",
@@ -77,7 +77,7 @@
             "cohorts",
             "plans"
           ],
-          "note": "the product's numbers, one row a week"
+          "note": "số liệu của sản phẩm, mỗi tuần một dòng"
         },
         {
           "table": "handoffs",
@@ -89,26 +89,37 @@
             "ticket",
             "released_at"
           ],
-          "note": "requests to build and their state"
+          "note": "yêu cầu làm sản phẩm và tình trạng"
         }
       ],
       "decides": {
         "alone": [
-          "rank and queue content topics",
-          "which sources the radar reads",
-          "propose a budget split"
+          "xếp hạng và xếp hàng chủ đề nội dung",
+          "radar đọc những nguồn nào",
+          "đề xuất cách chia ngân sách"
         ],
         "with_founder": [
-          "a product opportunity (Go, Để sau, Bỏ)",
-          "goals",
-          "any change of a team's daily budget"
+          "một cơ hội sản phẩm (Go, Để sau, Bỏ)",
+          "mục tiêu",
+          "mọi thay đổi ngân sách mỗi ngày của một nhóm"
         ]
       },
       "daily_tokens": 130000,
       "escalates_when": [
-        "a scoreboard key is refused or the product serves no numbers",
-        "readers wait for a person",
-        "an opportunity has waited a week for the founder"
+        {
+          "when": "một khóa bảng số liệu bị từ chối hoặc sản phẩm không trả số liệu",
+          "on": "input_starving",
+          "after": "24h"
+        },
+        {
+          "when": "độc giả đang chờ một người trả lời",
+          "on": "queue_waiting"
+        },
+        {
+          "when": "một cơ hội đã chờ người sáng lập một tuần",
+          "on": "queue_waiting",
+          "after": "168h"
+        }
       ],
       "lead": true
     },
@@ -131,7 +142,7 @@
       "takes_in": [
         {
           "from": "insight",
-          "what": "content topics to write",
+          "what": "chủ đề nội dung cần viết",
           "contract": "topics"
         }
       ],
@@ -148,7 +159,7 @@
             "state",
             "url"
           ],
-          "note": "the one record of what was written and published"
+          "note": "bản ghi duy nhất về việc đã viết và đã đăng"
         },
         {
           "table": "metrics",
@@ -163,7 +174,7 @@
             "impressions",
             "clicks"
           ],
-          "note": "Search Console, TikTok and YouTube numbers"
+          "note": "số liệu Search Console, TikTok và YouTube"
         },
         {
           "table": "signals",
@@ -176,25 +187,31 @@
             "note",
             "ref"
           ],
-          "note": "market signals the radar kept"
+          "note": "tín hiệu thị trường radar đã giữ"
         }
       ],
       "decides": {
         "alone": [
-          "write and schedule within the checks and caps",
-          "pause a channel"
+          "viết và lên lịch trong các bước kiểm tra và giới hạn",
+          "tạm dừng một kênh"
         ],
         "with_founder": [
-          "publishing while publish_approval is required",
-          "a new channel or a sign-in",
-          "anything about money or accounts"
+          "đăng bài khi còn yêu cầu publish_approval",
+          "một kênh mới hoặc một lần đăng nhập",
+          "mọi việc liên quan đến tiền hoặc tài khoản"
         ]
       },
       "daily_tokens": 250000,
       "escalates_when": [
-        "a channel is signed out",
-        "a post is late past stale_after_h",
-        "a reply is about money, an account or a complaint"
+        {
+          "when": "một kênh bị đăng xuất",
+          "on": "chain_failed"
+        },
+        {
+          "when": "một bài trễ quá stale_after_h",
+          "on": "queue_waiting"
+        },
+        "một phản hồi nói về tiền, tài khoản hoặc khiếu nại"
       ]
     },
     {
@@ -216,7 +233,7 @@
       "takes_in": [
         {
           "from": "insight",
-          "what": "knowledge gaps the digest found",
+          "what": "chỗ thiếu kiến thức mà bản tổng hợp tìm thấy",
           "optional": true
         }
       ],
@@ -229,25 +246,25 @@
             "summary",
             "created"
           ],
-          "note": "what readers asked, reported or wanted"
+          "note": "điều độc giả đã hỏi, báo hoặc muốn"
         }
       ],
       "decides": {
         "alone": [
-          "answer from the facts",
-          "record feedback"
+          "trả lời dựa trên dữ kiện",
+          "ghi nhận phản hồi"
         ],
         "with_founder": [
-          "refunds, accounts and complaints go to a person"
+          "hoàn tiền, tài khoản và khiếu nại chuyển cho một người"
         ]
       },
       "daily_tokens": 0,
       "escalates_when": [
-        "a reader waits for a person"
+        "một độc giả đang chờ một người"
       ],
       "external": {
         "runtime": "cs-server",
-        "note": "declared, not deployed by setup; see the support team"
+        "note": "chỉ khai báo, setup không triển khai; xem nhóm hỗ trợ"
       },
       "optional": true
     },
@@ -266,28 +283,31 @@
       "takes_in": [
         {
           "from": "insight",
-          "what": "scoreboard rows with revenue, cohorts and plans",
+          "what": "dòng bảng số liệu về doanh thu, nhóm người dùng và gói",
           "contract": "scoreboard"
         }
       ],
       "gives_out": [
         {
           "event": "weekly_finance_report",
-          "note": "the weekly read-only finance report; company-loop has no report table"
+          "note": "báo cáo tài chính hằng tuần, chỉ đọc; company-loop không có bảng báo cáo"
         }
       ],
       "decides": {
         "alone": [
-          "write the weekly report"
+          "viết báo cáo hằng tuần"
         ],
         "with_founder": [
-          "it never acts on money: any change is the founder's"
+          "không bao giờ tự động xử lý tiền: mọi thay đổi do người sáng lập quyết"
         ]
       },
       "daily_tokens": 30000,
       "escalates_when": [
-        "revenue falls two weeks running",
-        "Soot cost per team grows faster than its output"
+        "doanh thu giảm hai tuần liên tiếp",
+        {
+          "when": "chi phí Soot của một nhóm tăng nhanh hơn kết quả nhóm làm ra",
+          "on": "budget_80"
+        }
       ],
       "optional": true
     },
@@ -306,7 +326,7 @@
       "takes_in": [
         {
           "from": "insight",
-          "what": "a REQUIREMENT file plus an approved product opportunity",
+          "what": "một tệp REQUIREMENT cùng một cơ hội sản phẩm đã duyệt",
           "contract": "build-request"
         }
       ],
@@ -320,26 +340,26 @@
             "ticket",
             "released_at"
           ],
-          "note": "shipped or release state"
+          "note": "tình trạng đã phát hành hoặc đang chờ phát hành"
         }
       ],
       "decides": {
         "alone": [
-          "build and verify inside the requirement"
+          "làm và kiểm tra trong phạm vi yêu cầu"
         ],
         "with_founder": [
-          "the release go"
+          "lệnh phát hành"
         ]
       },
       "daily_tokens": 0,
       "escalates_when": [
-        "a handover waits for the release go",
-        "the build is blocked"
+        "một bản bàn giao đang chờ lệnh phát hành",
+        "việc làm sản phẩm bị chặn"
       ],
       "external": {
         "runtime": "claude-code",
         "via": "bbs team",
-        "note": "for now a contract: company-loop writes the requirement and reads the state; nothing here deploys Claude Code"
+        "note": "hiện chỉ là hợp đồng: company-loop viết yêu cầu và đọc tình trạng; không có gì ở đây triển khai Claude Code"
       }
     }
   ],

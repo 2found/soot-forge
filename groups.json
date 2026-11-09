@@ -11,7 +11,7 @@
     {
       "id": "team-insight",
       "name": "Insight team",
-      "description": "The company's eyes and thin lead: an Analyst reads the numbers and writes the weekly digest, a Radar watches the market read-only. It also sets goals, runs the weekly review and splits the token budget between teams; the founder decides.",
+      "description": "Đôi mắt và đầu mối gọn của công ty: Analyst đọc số liệu và viết bản tổng hợp hằng tuần, Radar theo dõi thị trường ở chế độ chỉ đọc. Nhóm cũng đặt mục tiêu, chạy buổi xem lại hằng tuần và chia ngân sách token giữa các nhóm; người sáng lập quyết.",
       "source": "groups/team-insight/group.source.json",
       "stability": "experimental",
       "audience": "internal"
@@ -19,7 +19,7 @@
     {
       "id": "team-marketing",
       "name": "Marketing team (company)",
-      "description": "The company's voice: a Writer that only writes, and a Publisher that posts what passed the checks. Publishing, Search Console, sign-in probes and video stats are tool-chain schedules of this team, not separate teams.",
+      "description": "Tiếng nói của công ty: Writer chỉ viết, Publisher đăng những gì đã qua kiểm tra. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này, không phải nhóm riêng.",
       "source": "groups/team-marketing/group.source.json",
       "stability": "experimental",
       "audience": "internal"
@@ -27,7 +27,7 @@
     {
       "id": "team-financial",
       "name": "Financial team",
-      "description": "Read-only finance: revenue, cohorts, plans, unit economics and what each team's Soots cost. It reports and warns; it never acts on money.",
+      "description": "Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
       "source": "groups/team-financial/group.source.json",
       "stability": "experimental",
       "audience": "internal"
@@ -35,7 +35,7 @@
     {
       "id": "team-op",
       "name": "Operations team (one job)",
-      "description": "A team for one operational job of the company (a catalog, an inventory, a content import). Use it once per job: the job's pack comes from the product, so the template carries none.",
+      "description": "Nhóm cho một việc vận hành của công ty (danh mục, kho hàng, nhập nội dung). Dùng một lần cho mỗi việc: gói của việc đó đến từ sản phẩm nên mẫu không mang sẵn.",
       "source": "groups/team-op/group.source.json",
       "stability": "experimental",
       "audience": "internal"

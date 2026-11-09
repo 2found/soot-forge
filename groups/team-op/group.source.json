@@ -2,7 +2,7 @@
   "api_version": "soot/group-template/v3",
   "id": "team-op",
   "name": "Operations team (one job)",
-  "description": "A team for one operational job of the company (a catalog, an inventory, a content import). Use it once per job: the job's pack comes from the product, so the template carries none.",
+  "description": "Nhóm cho một việc vận hành của công ty (danh mục, kho hàng, nhập nội dung). Dùng một lần cho mỗi việc: gói của việc đó đến từ sản phẩm nên mẫu không mang sẵn.",
   "root": "",
   "members": [
     {
@@ -64,20 +64,20 @@
     "version": "team-contract/v1",
     "decides": {
       "self": [
-        "routine jobs inside the job pack's limits"
+        "việc thường lệ trong giới hạn của gói công việc"
       ],
       "with_person": [
-        "anything that deletes or republishes content",
-        "anything about money or accounts"
+        "mọi việc xóa hoặc đăng lại nội dung",
+        "mọi việc liên quan đến tiền hoặc tài khoản"
       ]
     },
     "escalates": [
       {
-        "when": "a source is down",
+        "when": "một nguồn đang hỏng",
         "on": "chain_failed"
       },
       {
-        "when": "a job would remove content"
+        "when": "một việc sắp gỡ nội dung"
       }
     ],
     "budget": {

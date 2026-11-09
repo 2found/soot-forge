@@ -2,7 +2,7 @@
   "api_version": "soot/group-template/v3",
   "id": "team-financial",
   "name": "Financial team",
-  "description": "Read-only finance: revenue, cohorts, plans, unit economics and what each team's Soots cost. It reports and warns; it never acts on money.",
+  "description": "Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
   "root": "",
   "members": [
     {
@@ -102,18 +102,18 @@
     },
     "decides": {
       "self": [
-        "write the weekly report"
+        "viết báo cáo hằng tuần"
       ],
       "with_person": [
-        "it never acts on money: any change is the founder's"
+        "không bao giờ tự động xử lý tiền: mọi thay đổi do người sáng lập quyết"
       ]
     },
     "escalates": [
       {
-        "when": "revenue falls two weeks running"
+        "when": "doanh thu giảm hai tuần liên tiếp"
       },
       {
-        "when": "Soot cost per team grows faster than its output",
+        "when": "chi phí Soot của một nhóm tăng nhanh hơn kết quả nhóm làm ra",
         "on": "budget_80"
       }
     ],

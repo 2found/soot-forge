@@ -2,7 +2,7 @@
   "extends": "company-team",
   "id": "lohi",
   "name": "Lohi",
-  "description": "Lohi as a company of teams. Soot ids are the recipe's; op-catalog is the lohi-catalog Soot that the lohi-ops pack ships; support and the desk run on the CS server and are declared here, not deployed by setup.",
+  "description": "Lohi như một công ty gồm các nhóm. Mã Soot theo công thức; op-catalog là Soot lohi-catalog mà gói lohi-ops mang theo; nhóm hỗ trợ và bàn tiếp nhận chạy trên máy chủ CS, chỉ khai báo ở đây, setup không triển khai.",
   "teams": {
     "insight": {
       "soots": [
@@ -66,7 +66,7 @@
       "takes_in": [
         {
           "from": "insight",
-          "what": "approved catalog opportunities",
+          "what": "cơ hội danh mục đã duyệt",
           "contract": "catalog-requests",
           "optional": true
         }
@@ -85,21 +85,24 @@
             "first_seen",
             "last_seen"
           ],
-          "note": "what the catalog, crawl and SEO checks found; the lohi-ops pack owns the table"
+          "note": "điều các lần kiểm tra danh mục, thu thập và SEO tìm thấy; gói lohi-ops giữ bảng này"
         }
       ],
       "decides": {
         "alone": [
-          "routine catalog jobs inside the pack's limits"
+          "việc danh mục thường lệ trong giới hạn của gói"
         ],
         "with_founder": [
-          "anything that deletes or republishes novels"
+          "mọi việc xóa hoặc đăng lại truyện"
         ]
       },
       "daily_tokens": 80000,
       "escalates_when": [
-        "a source is down",
-        "a job would remove content"
+        {
+          "when": "một nguồn đang hỏng",
+          "on": "chain_failed"
+        },
+        "một việc sắp gỡ nội dung"
       ],
       "slot": "examples/lohi-marketing/packs/lohi-ops"
     }

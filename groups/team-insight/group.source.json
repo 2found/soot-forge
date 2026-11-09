@@ -2,7 +2,7 @@
   "api_version": "soot/group-template/v3",
   "id": "team-insight",
   "name": "Insight team",
-  "description": "The company's eyes and thin lead: an Analyst reads the numbers and writes the weekly digest, a Radar watches the market read-only. It also sets goals, runs the weekly review and splits the token budget between teams; the founder decides.",
+  "description": "Đôi mắt và đầu mối gọn của công ty: Analyst đọc số liệu và viết bản tổng hợp hằng tuần, Radar theo dõi thị trường ở chế độ chỉ đọc. Nhóm cũng đặt mục tiêu, chạy buổi xem lại hằng tuần và chia ngân sách token giữa các nhóm; người sáng lập quyết.",
   "root": "",
   "members": [
     {
@@ -196,7 +196,7 @@
             "target_outcome",
             "expected_delta"
           ],
-          "note": "ranked weekly; the founder decides product ones",
+          "note": "xếp hạng mỗi tuần; cơ hội sản phẩm do người sáng lập quyết",
           "tenant": "all"
         },
         {
@@ -209,7 +209,7 @@
             "kind",
             "state"
           ],
-          "note": "content topics marketing writes next",
+          "note": "chủ đề nội dung để Marketing viết tiếp",
           "tenant": "all"
         },
         {
@@ -223,7 +223,7 @@
             "cohorts",
             "plans"
           ],
-          "note": "the product's numbers, one row a week",
+          "note": "số liệu của sản phẩm, mỗi tuần một dòng",
           "tenant": "all"
         },
         {
@@ -236,35 +236,35 @@
             "ticket",
             "released_at"
           ],
-          "note": "requests to build and their state",
+          "note": "yêu cầu làm sản phẩm và tình trạng",
           "tenant": "all"
         }
       ]
     },
     "decides": {
       "self": [
-        "rank and queue content topics",
-        "which sources the radar reads",
-        "propose a budget split"
+        "xếp hạng và xếp hàng chủ đề nội dung",
+        "radar đọc những nguồn nào",
+        "đề xuất cách chia ngân sách"
       ],
       "with_person": [
-        "a product opportunity (Go, Để sau, Bỏ)",
-        "goals",
-        "any change of a team's daily budget"
+        "một cơ hội sản phẩm (Go, Để sau, Bỏ)",
+        "mục tiêu",
+        "mọi thay đổi ngân sách mỗi ngày của một nhóm"
       ]
     },
     "escalates": [
       {
-        "when": "a scoreboard key is refused or the product serves no numbers",
+        "when": "một khóa bảng số liệu bị từ chối hoặc sản phẩm không trả số liệu",
         "on": "input_starving",
         "after": "24h"
       },
       {
-        "when": "readers wait for a person",
+        "when": "độc giả đang chờ một người trả lời",
         "on": "queue_waiting"
       },
       {
-        "when": "an opportunity has waited a week for the founder",
+        "when": "một cơ hội đã chờ người sáng lập một tuần",
         "on": "queue_waiting",
         "after": "168h"
       }

@@ -57,10 +57,15 @@ test('compile: W2 files go in unchanged; teams, edges, remote, lead and ceiling 
   assert.equal(byId.insight.profile, 'lean');
   // takes_in becomes consumes (optional and why kept), a read contract becomes the reader's edge, decides is renamed.
   assert.deepEqual(byId.insight.contract.consumes.map(c => [c.team, c.item, c.optional ?? false]), [['marketing', 'metrics', false], ['cs', 'voc', true]]);
-  assert.deepEqual(byId.marketing.contract.consumes[0], { team: 'insight', item: 'topics', fields: ['query', 'reason', 'opportunity_ref', 'state'], why: 'content topics to write' });
-  assert.deepEqual(byId.financial.contract.decides, { self: ['write the weekly report'], with_person: ["it never acts on money: any change is the founder's"] });
+  assert.deepEqual(byId.marketing.contract.consumes[0], { team: 'insight', item: 'topics', fields: ['query', 'reason', 'opportunity_ref', 'state'], why: 'chủ đề nội dung cần viết' });
+  assert.deepEqual(byId.financial.contract.decides, { self: ['viết báo cáo hằng tuần'], with_person: ['không bao giờ tự động xử lý tiền: mọi thay đổi do người sáng lập quyết'] });
   assert.deepEqual(byId.financial.contract.provides.events, ['weekly_finance_report']);
-  assert.deepEqual(byId.insight.contract.escalates[0], { when: 'a scoreboard key is refused or the product serves no numbers', on: 'input_starving', after: '24h' }, 'a trigger rides along when the group template declares the same text');
+  assert.deepEqual(byId.insight.contract.escalates[0], { when: 'một khóa bảng số liệu bị từ chối hoặc sản phẩm không trả số liệu', on: 'input_starving', after: '24h' }, 'the trigger is a code of the company file, not a match on the text');
+  // No trigger depends on the wording: every escalation the group templates give a code has the same code in the compiled company.
+  const codes = c => (c.contract.escalates ?? []).filter(e => e.on).map(e => e.on).sort();
+  assert.deepEqual(codes(byId.marketing), ['chain_failed', 'queue_waiting']);
+  assert.deepEqual(codes(byId.financial), ['budget_80']);
+  assert.deepEqual(codes(byId['op-catalog']), ['chain_failed']);
   assert.equal(byId.marketing.contract.budget.daily_tokens, 250000);
   assert.deepEqual(byId['op-catalog'].contract.provides, undefined, "the job pack's table is provided once the pack is installed (adopt)");
   assert.match(notes.join('\n'), /lohi-ops\.findings is provided once/);
