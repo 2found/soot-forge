@@ -3,6 +3,15 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.21 — 2026-11-09
+
+Baseline: v0.11.20 (8cdb993). Pairs with Soot 0.13.24. Browser tools 0.2.2 (`soot-browser`) are built from this revision.
+
+### Changed
+
+- **Browser use: sharp pages.** The browser tool now captures at 2x density with a larger, higher-quality stream, so text in the live browser stays readable on Retina screens.
+- **Marketing: sign-in links name the site.** "Đăng nhập X" carries the site label so Nest opens a sign-in window titled for that site.
+
 ## 0.11.20 — 2026-11-09
 
 Baseline: v0.11.19 (a483317). Pairs with Soot 0.13.22.
