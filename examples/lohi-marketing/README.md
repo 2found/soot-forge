@@ -5,7 +5,7 @@ marketing hub and no person in the loop. The team is split by **job**, not by
 pack: Ops (the `lohi-editor` id, which owns the browser profile and claim key),
 Writer, Analyst, Radar and an optional Video Soot share the [marketing pack](../../packs/marketing/README.md)'s own storage. The
 [Lohi blog publisher](packs/lohi-blog/README.md), a local pack that ships with
-this recipe, puts posts on `blog.lohi2.com`.
+this recipe, puts posts on **lohi2.com/blog** (the 2found hub CMS, site `lohi`); `blog.lohi2.com` is retired and only redirects.
 
 **Needs Soot 0.13.21 or later**: marketing declares `run.rerun` and the packs raise Cần bạn cards (`raise`/`settle`); the teams and the company file need 0.13.19. The recipe uses schedule `then` chains, optional
 credentials (a quiet `skipped`), the workspace `env` field, the `marketing:tools=`
@@ -14,9 +14,10 @@ cannot run the `marketing-blog` and `marketing-probe` chains. The marketing pack
 (storage version 5) also declares table `description`s, which Soot 0.13.13
 refuses in `pack.json`: update Soot first.
 
-**`setup.mjs` requires `--blog-remote <git url>` to publish.** There is no default
-blog repository (since 0.11.12); without the flag the workspace is built but the
-blog chain does not start. See [Set it up](#set-it-up) below.
+**The blog is lohi2.com/blog.** `setup.mjs` defaults to `--blog cms`: the `marketing-blog` chain publishes to the hub CMS
+with the operator credential `MARKETING_HUB` (a publisher token for site `lohi`), and until it is entered `blog-ready`
+raises one Cần bạn card. `--blog git --blog-remote <git url>` keeps the old `blog.lohi2.com` repository (no default
+repository, since 0.11.12). See [Set it up](#set-it-up) below.
 
 ## The lean team (by job)
 
@@ -206,19 +207,19 @@ To move an existing workspace onto teams (groups, per-team budgets, cross-team r
 ## Set it up
 
 ```bash
-# live workspace (the real blog repo; you choose it, there is no default):
-node examples/lohi-marketing/setup.mjs ~/.soot/lohi-marketing --blog-remote git@github.com:reallongnguyen/novel-reader.git
-# any test or scratch workspace: a local bare repo, never the real one
-git init --bare /tmp/scratch-blog.git
-node examples/lohi-marketing/setup.mjs /tmp/scratch-ws --blog-remote /tmp/scratch-blog.git
+# live workspace: the blog is lohi2.com/blog (CMS target, the default)
+node examples/lohi-marketing/setup.mjs ~/.soot/lohi-marketing
+printf '%s' '{"service_url":"https://2found.dev/api/hub","service_token":"…"}' | soot credential set lohi-editor MARKETING_HUB
+# the old blog.lohi2.com repository instead (you choose it, there is no default):
+node examples/lohi-marketing/setup.mjs /tmp/scratch-ws --blog git --blog-remote /tmp/scratch-blog.git   # a local bare repo for a test
 cd ~/.soot/lohi-marketing && soot start
 ```
 
 `setup.mjs` copies the packs and Soots, writes `deployment.json` and generates
 the Editor's claim key once (never printed, never overwritten). If the runtime
 knows the workspace `env` field, the host settings (`PRODUCT_API_URL`,
-`SOOT_BROWSER_PERSISTENT_SOOTS`, and `LOHI_BLOG_REMOTE` from `--blog-remote`)
-go into the file (plus `LOOP_SOOT_CONFIG`, the workspace's own `deployment.json`; set `YT_DLP_BIN` only when `yt-dlp` is not on PATH). **`LOHI_BLOG_REMOTE` has no default**: without `--blog-remote`
+`SOOT_BROWSER_PERSISTENT_SOOTS`, `LOHI_BLOG_TARGET` from `--blog`, and `LOHI_BLOG_REMOTE` from `--blog-remote` with `--blog git`)
+go into the file (plus `LOOP_SOOT_CONFIG`, the workspace's own `deployment.json`; set `YT_DLP_BIN` only when `yt-dlp` is not on PATH). **`LOHI_BLOG_REMOTE` has no default**: with `--blog git` and no `--blog-remote`
 the blog chain does not start and `blog-ready` raises one Cần bạn card
 ("Chưa chọn kho đăng blog"), so a test workspace can never push to the real
 blog repo. Run setup again with the live address, since it rewrites the file;
@@ -236,11 +237,11 @@ What only a person can do, each one Cần bạn card or one command:
 2. **Sign in to Google** from Nest for Search Console (`GSC_GOOGLE`). Optional:
    without it the plan chooses topics from the catalog, and Bài viết shows
    "Chưa có số liệu", never 0.
-3. **Let the machine reach the blog repository.** An SSH key that can push to
-   the kiem-lai repo, `git`, `go`, `2server` and a signed-in `gcloud`. The
-   publisher clones the repo itself (no `LOHI_REPO`). The `blog-ready` check
-   at 06:30 lists what is missing in one Cần bạn card and stays quiet until
-   that list changes.
+3. **Connect the CMS (lohi2.com/blog).** Enter `MARKETING_HUB` for Ops in Nest
+   (Cài đặt → Kết nối), or `soot credential set lohi-editor MARKETING_HUB` with the value on stdin: a publisher
+   token for site `lohi`. The `blog-ready` check at 06:30 says in one Cần bạn card whether it is missing,
+   refused, or lacks the site or the publish right, and stays quiet until that changes. (With `--blog git`
+   instead: an SSH key that can push to the blog repo, `git`, `go`, `2server` and a signed-in `gcloud`.)
 4. **Campaigns (optional):** an API key with role `agent_mod` from Lohi's
    admin UI, stored in Nest as `PRODUCT_ADMIN_KEY`.
 5. **Videos (optional):** `soot add 2found/soot-forge/packs/2build`, run
@@ -258,7 +259,7 @@ signed out shows **Đăng nhập <kênh>**, which opens the Editor's browser pan
 To stop publishing, turn off **Đăng mọi kênh** on the Hàng đợi page (a switch is on while it is publishing), or call
 `marketing_pause {paused: true}`. Writing and checking go on. To take a post
 down, choose **Gỡ bài** on the Bài viết page (a queued post: **Gỡ khỏi hàng đợi**). Removal goes through the same
-claim and leaves one commit on the blog's history; on X, Facebook and Reddit
+claim and archives the CMS post (git target: leaves one commit on the blog's history); on X, Facebook and Reddit
 the Editor deletes the post in its browser. To stop one platform, pause its
 channel.
 

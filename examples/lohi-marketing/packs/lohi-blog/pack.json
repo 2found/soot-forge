@@ -7,8 +7,8 @@
     "en": "Lohi blog"
   },
   "description": {
-    "vi": "Nơi đăng của kênh blog-lohi: nhận lượt đăng đã ký từ gói marketing, viết bài vào một worktree riêng của kho kiem-lai (tự clone khi máy không có sẵn), dựng blog không cảnh báo, commit đúng một tệp, push, triển khai và kiểm tra địa chỉ; triển khai lỗi thì hoàn lại. Đọc danh mục truyện thật của Lohi và báo một lần mọi điều kiện còn thiếu.",
-    "en": "The blog-lohi channel's publisher: takes a signed claim from the marketing pack, writes the post in its own worktree of the kiem-lai repository (cloned itself when the machine has none), builds the blog with zero warnings, commits only that file, pushes, deploys and checks the URL; a failed deploy is reverted. Reads Lohi's real catalog and raises every missing prerequisite once."
+    "vi": "Nơi đăng của kênh blog-lohi: nhận lượt đăng đã ký từ gói marketing và đăng lên lohi2.com/blog qua CMS của hub (lưu bản nháp, đăng đúng bản đó, kiểm tra API công khai; cùng slug thì cập nhật, không nhân đôi), hoặc theo LOHI_BLOG_TARGET=git viết vào worktree riêng của kho blog, dựng không cảnh báo, push, triển khai và hoàn lại khi lỗi. Đọc danh mục truyện thật của Lohi và báo một lần mọi điều kiện còn thiếu.",
+    "en": "The blog-lohi channel's publisher: takes a signed claim from the marketing pack and publishes it to lohi2.com/blog through the hub CMS (saves a draft, publishes that revision, checks the public API; the same slug updates, never duplicates), or with LOHI_BLOG_TARGET=git writes it in its own worktree of the blog repository, builds with zero warnings, pushes, deploys and reverts a failed deploy. Reads Lohi's real catalog and raises every missing prerequisite once."
   },
   "keywords": {
     "vi": [
@@ -24,6 +24,7 @@
   },
   "needs": {
     "env": [
+      "LOHI_BLOG_TARGET",
       "LOHI_REPO",
       "LOHI_BLOG_REMOTE",
       "LOHI_CONNECTION",
@@ -38,6 +39,12 @@
         "title": "Khoá ký lượt đăng",
         "description": "Cùng giá trị MARKETING_CLAIM_KEY đã nhập cho gói marketing của Soot này; lượt đăng không có chữ ký đúng, hết hạn hay sai nội dung bị từ chối. Nhập trong Nest, không nhập trong chat.",
         "from": "operator"
+      },
+      "MARKETING_HUB": {
+        "title": "Marketing hub (CMS lohi2.com/blog)",
+        "description": "Kết nối tới hub của 2found để đăng bài lên lohi2.com/blog: {\"service_url\":\"https://2found.dev/api/hub\",\"service_token\":\"…\"}. Token phải là của người đăng (publish) cho site lohi. Chỉ dùng khi LOHI_BLOG_TARGET là cms. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
       }
     }
   },
@@ -52,7 +59,7 @@
     {
       "name": "publish",
       "title": "Đăng bài blog",
-      "description": "Publish one signed blog-lohi claim (a tool-chain step: input is marketing_claim's answer): own clean worktree at origin/main, look for an earlier commit of the same intent first, write posts/<series>/<slug>.vi.md, build with zero warnings, commit only that file, push fast-forward, deploy, poll the URL. Answers {ok, status: published, url, platform_id, intent_id} (the marketing_record input) or {ok: false, status: failed, reason, retry, intent_id}.",
+      "description": "Publish one signed blog-lohi claim (a tool-chain step: input is marketing_claim's answer). Target git (default): own clean worktree at origin/main, look for an earlier commit of the same intent first, write posts/<series>/<slug>.vi.md, build with zero warnings, commit only that file, push fast-forward, deploy, poll the URL. Target cms (LOHI_BLOG_TARGET=cms): read the CMS post of the slug, save it as a draft unless the same content is already there, publish the revision to hub site lohi (language vi), verify the public read API returns it and answer https://lohi2.com/blog/<slug>; the same slug again updates, never duplicates. Answers {ok, status: published, url, platform_id, intent_id} (the marketing_record input) or {ok: false, status: failed, reason, retry, intent_id}.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -80,14 +87,15 @@
         "max_input_bytes": 131072,
         "max_output_bytes": 16384,
         "secret_env": {
-          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}"
+          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}",
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
         }
       }
     },
     {
       "name": "unpublish",
       "title": "Gỡ bài blog",
-      "description": "Remove one published blog-lohi post from a signed unpublish claim: delete the file in a commit, push, deploy and check the URL is gone. Answers {status: removed} or {status: failed, reason, retry}.",
+      "description": "Remove one published blog-lohi post from a signed unpublish claim. Target git: delete the file in a commit, push, deploy and check the URL is gone. Target cms: archive the CMS post and check the public read API no longer returns it. Answers {status: removed} or {status: failed, reason, retry}.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -112,14 +120,15 @@
         "max_input_bytes": 131072,
         "max_output_bytes": 16384,
         "secret_env": {
-          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}"
+          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}",
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
         }
       }
     },
     {
       "name": "find",
       "title": "Tìm bài đã đăng",
-      "description": "Crash recovery: is this claim's post already on main (commit trailer Soot-Intent) and live? Answers {found, url?, platform_id?}. Changes nothing outside the tool's own worktree.",
+      "description": "Crash recovery: is this claim's post already live? Target git: the commit trailer Soot-Intent is on main and the URL answers. Target cms: the public CMS read API returns the same title, summary and body. Answers {found, url?, platform_id?}. Changes nothing.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -144,7 +153,8 @@
         "max_input_bytes": 131072,
         "max_output_bytes": 16384,
         "secret_env": {
-          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}"
+          "MARKETING_CLAIM_KEY": "{{cred:MARKETING_CLAIM_KEY}}",
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
         }
       }
     },
@@ -201,7 +211,7 @@
     {
       "name": "ready",
       "title": "Kiểm tra điều kiện đăng blog",
-      "description": "For a daily tool-only schedule: is every prerequisite of publishing in place (git, go, 2server, gcloud sign-in, the connection file, push access to the repository)? Answers ok, missing[] and ask, one ready Cần bạn item; wake/notify only when the missing list changed.",
+      "description": "For a daily tool-only schedule: is every prerequisite of publishing in place? Target git: git, go, 2server, gcloud sign-in, the connection file, push access to the repository. Target cms: the MARKETING_HUB credential is set and well formed, the hub accepts it and the token may publish for site lohi. Answers ok, missing[] and ask, one ready Cần bạn item; wake/notify only when the missing list changed.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -218,7 +228,10 @@
         "mode": "write",
         "timeout": "2m",
         "max_input_bytes": 4096,
-        "max_output_bytes": 16384
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        }
       }
     }
   ]

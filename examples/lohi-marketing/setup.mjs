@@ -4,8 +4,11 @@
 // (host settings in `env` once the runtime supports it), generates the claim
 // key. What is left for a person is printed at the end.
 //
-//   node examples/lohi-marketing/setup.mjs <workspace-dir> [--port 7790] [--video|--no-video] [--blog-remote <git url>]
-//                                       [--product-repo <abs path>] [--cs-runtime-url <url>]
+//   node examples/lohi-marketing/setup.mjs <workspace-dir> [--port 7790] [--video|--no-video] [--blog cms|git]
+//                                       [--blog-remote <git url>] [--product-repo <abs path>] [--cs-runtime-url <url>]
+//
+// The blog is lohi2.com/blog: `--blog cms` (the default) publishes to the 2found hub CMS, site lohi, with the
+// operator credential MARKETING_HUB. `--blog git` is the old blog.lohi2.com repository and needs `--blog-remote`.
 //
 // The Video Soot is added when the workspace already has the 2build pack
 // (--video insists, --no-video leaves it out).
@@ -31,6 +34,8 @@ export const HOST_ENV = {
   SCOREBOARD_URL: 'https://api.lohi2.com/admin/analysis/scoreboard',
   // Where a person answers the readers waiting for one (Lohi admin support queue); named in the daily Cần bạn card.
   SUPPORT_QUEUE_URL: 'https://lohi2.com/admin/support',
+  // Where the blog goes live: `cms` = lohi2.com/blog through the hub CMS (MARKETING_HUB), `git` = blog.lohi2.com (LOHI_BLOG_REMOTE).
+  LOHI_BLOG_TARGET: 'cms',
 };
 // LOHI_BLOG_REMOTE has no default: a workspace set up without `--blog-remote` must never be able to push to the real blog repo.
 // PRODUCT_REPO has no default either: the company loop writes a requirement file into it and spawns a bbs team there, so a scratch
@@ -110,7 +115,8 @@ export function installLocalPack(out, id, host, from = join(here, 'packs', id)) 
   return { installed: true, soot_packs: frag.soot_packs };
 }
 
-export function build(dir, { port = 7790, video, blogRemote, productRepo, csRuntimeUrl, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
+export function build(dir, { port = 7790, video, blog = 'cms', blogRemote, productRepo, csRuntimeUrl, soot = 'soot', home, env = runtimeKnowsEnv(soot), connection = findConnection() } = {}) {
+  if (!['cms', 'git'].includes(blog)) throw new Error('--blog is cms or git.');
   const out = resolve(dir);
   // The Video Soot selects the 2build pack, which comes from 2found/2build, not
   // from this setup. Without it the whole workspace would fail to load, so the
@@ -125,7 +131,7 @@ export function build(dir, { port = 7790, video, blogRemote, productRepo, csRunt
     delete host.tool_hosts?.['lohi-video'];
   }
   const packs = ['marketing', 'browser-use', 'company-loop', ...(video ? ['toolbox'] : [])];
-  const hostEnv = { ...HOST_ENV, ...(blogRemote ? { LOHI_BLOG_REMOTE: blogRemote } : {}), ...(productRepo ? { PRODUCT_REPO: productRepo } : {}), ...(csRuntimeUrl ? { CS_RUNTIME_URL: csRuntimeUrl } : {}), ...(connection ? { LOHI_CONNECTION: connection } : {}) };
+  const hostEnv = { ...HOST_ENV, LOHI_BLOG_TARGET: blog, ...(blogRemote && blog === 'git' ? { LOHI_BLOG_REMOTE: blogRemote } : {}), ...(productRepo ? { PRODUCT_REPO: productRepo } : {}), ...(csRuntimeUrl ? { CS_RUNTIME_URL: csRuntimeUrl } : {}), ...(connection ? { LOHI_CONNECTION: connection } : {}) };
   // The Vòng lặp view asks this workspace's own soot CLI for runs and tokens: it needs the deployment file's absolute path.
   hostEnv.LOOP_SOOT_CONFIG = join(out, 'deployment.json');
   if (env) host.env = hostEnv;
@@ -157,14 +163,16 @@ export function build(dir, { port = 7790, video, blogRemote, productRepo, csRunt
   writeFileSync(join(out, 'deployment.json'), JSON.stringify(host, null, 2) + '\n');
   const key = claimKeyFile('lohi-editor', { home, credentialsDir: host.credentials_dir });
   if (ops.installed) packs.push('lohi-ops');
-  return { out, packs, video, env, hostEnv, connection: Boolean(connection), keyMade: ensureClaimKey(key), key };
+  return { out, packs, video, blog, env, hostEnv, connection: Boolean(connection), keyMade: ensureClaimKey(key), key };
 }
 
-export const personSteps = ({ productRepo } = {}) => [
+export const personSteps = ({ productRepo, blog = 'cms' } = {}) => [
   'Đăng nhập X, Facebook, Reddit trong Nest khi Cần bạn hiện thẻ (mỗi nền tảng một lần bấm).',
   'Đăng nhập Google trong Nest cho Search Console (tuỳ chọn; không có thì chọn chủ đề theo danh mục). Chưa đăng nhập thì mục Vòng lặp ghi đúng "GSC chưa nối".',
   'Số TikTok/YouTube (tuỳ chọn): cài yt-dlp một lần (`brew install yt-dlp`); chưa cài thì mục Vòng lặp ghi "chưa có số TikTok".',
-  'Đăng blog: máy cần git qua SSH tới kho kiem-lai, go, 2server, gcloud đã đăng nhập; thiếu gì Soot báo đúng một thẻ Cần bạn.',
+  blog === 'cms'
+    ? 'Đăng blog lên lohi2.com/blog: nhập MARKETING_HUB cho Soot Ops trong Nest (Cài đặt → Kết nối), token người đăng của site lohi; thiếu hay bị từ chối thì Soot báo đúng một thẻ Cần bạn.'
+    : 'Đăng blog (kho git): máy cần git qua SSH tới kho kiem-lai, go, 2server, gcloud đã đăng nhập; thiếu gì Soot báo đúng một thẻ Cần bạn.',
   'Chiến dịch và bảng số công ty (tuỳ chọn): khoá API vai trò agent_mod của Lohi, nhập PRODUCT_ADMIN_KEY trong Nest.',
   'Vòng lặp công ty: mở trang Công ty, bấm Go / Để sau / Bỏ cho từng cơ hội sản phẩm (nội dung thì Soot tự chạy). ' + (productRepo ? 'Bấm Go thì Soot mở đội bbs:team; đội cần bbs và Orca trên máy này.' : 'Muốn Soot mở đội bbs:team thì chạy setup với --product-repo; đội cần bbs và Orca trên máy này.'),
 ];
@@ -172,8 +180,8 @@ export const personSteps = ({ productRepo } = {}) => [
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   const flagValue = name => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-  const dir = args.find((a, i) => !a.startsWith('--') && !['--port', '--blog-remote', '--product-repo', '--cs-runtime-url'].includes(args[i - 1]));
-  if (!dir) { console.error('usage: node setup.mjs <workspace-dir> [--port 7790] [--video|--no-video] [--blog-remote <git url>] [--product-repo <abs path>] [--cs-runtime-url <url>]'); process.exit(2); }
+  const dir = args.find((a, i) => !a.startsWith('--') && !['--port', '--blog', '--blog-remote', '--product-repo', '--cs-runtime-url'].includes(args[i - 1]));
+  if (!dir) { console.error('usage: node setup.mjs <workspace-dir> [--port 7790] [--video|--no-video] [--blog cms|git] [--blog-remote <git url>] [--product-repo <abs path>] [--cs-runtime-url <url>]'); process.exit(2); }
   for (const f of ['--product-repo', '--cs-runtime-url']) {
     const v = flagValue(f);
     if (args.includes(f) && (!v || v.startsWith('--'))) { console.error(`${f} needs a value.`); process.exit(2); }
@@ -182,12 +190,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (productRepo && !isAbsolute(productRepo)) { console.error('--product-repo needs an absolute path.'); process.exit(2); }
   const csRuntimeUrl = flagValue('--cs-runtime-url');
   const blogRemote = flagValue('--blog-remote');
+  const blog = flagValue('--blog') ?? 'cms';
+  if (!['cms', 'git'].includes(blog)) { console.error('--blog is cms or git.'); process.exit(2); }
+  if (blog === 'git' && !blogRemote) console.error('Ghi chú: --blog git không có --blog-remote; blog-ready sẽ báo một thẻ Cần bạn.');
   if (args.includes('--blog-remote') && (!blogRemote || blogRemote.startsWith('--'))) { console.error('--blog-remote needs a git address.'); process.exit(2); }
   const port = Number(args[args.indexOf('--port') + 1]) || 7790;
   if (args.includes('--video') && args.includes('--no-video')) { console.error('Chọn một: --video hoặc --no-video.'); process.exit(2); }
   let r;
   try {
-    r = build(dir, { port, video: args.includes('--no-video') ? false : args.includes('--video') || undefined, blogRemote, productRepo, csRuntimeUrl });
+    r = build(dir, { port, video: args.includes('--no-video') ? false : args.includes('--video') || undefined, blog, blogRemote, productRepo, csRuntimeUrl });
   } catch (e) { console.error(e.message); process.exit(2); }
   console.log(`Workspace: ${r.out}`);
   console.log(`Packs: ${r.packs.join(', ')}, lohi-blog (kèm ${r.keyMade ? 'khoá ký lượt đăng vừa tự sinh' : 'khoá ký lượt đăng đã có'}, không in ra).`);
@@ -196,8 +207,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   else if (args.includes('--no-video')) console.log('Không có Video Soot (--no-video).');
   else console.log('Video Soot: chưa thêm vì workspace chưa có pack 2build. Muốn làm video: `soot add 2found/soot-forge/packs/2build` rồi chạy lại setup.');
   console.log(r.connection ? 'Kết nối 2server: đã tìm thấy và ghi vào env (LOHI_CONNECTION).' : 'Kết nối 2server: chưa thấy .2server/connection.yaml; blog-ready sẽ báo một thẻ Cần bạn.');
-  console.log(blogRemote ? 'Kho đăng blog: đã ghi LOHI_BLOG_REMOTE theo --blog-remote.' : 'Kho đăng blog: chưa chọn (không có --blog-remote); Soot sẽ không đăng blog và blog-ready báo một thẻ Cần bạn.');
+  if (blog === 'cms') console.log(`Blog: lohi2.com/blog qua CMS của hub (LOHI_BLOG_TARGET=cms). Nhập MARKETING_HUB cho lohi-editor trong Nest; chưa có thì blog-ready báo một thẻ Cần bạn.${blogRemote ? ' --blog-remote bị bỏ qua.' : ''}`);
+  else console.log(blogRemote ? 'Blog: kho git blog.lohi2.com (LOHI_BLOG_TARGET=git); đã ghi LOHI_BLOG_REMOTE theo --blog-remote.' : 'Blog: kho git (LOHI_BLOG_TARGET=git) chưa chọn (không có --blog-remote); Soot sẽ không đăng blog và blog-ready báo một thẻ Cần bạn.');
   console.log(productRepo ? 'Kho sản phẩm: đã ghi PRODUCT_REPO theo --product-repo (Soot ghi yêu cầu vào docs/requirements/ và mở đội bbs:team khi bạn bấm Go).' : 'Kho sản phẩm: chưa chọn (không có --product-repo); bấm Go cho cơ hội sản phẩm sẽ báo chưa có kho và không mở đội.');
   console.log('Việc chỉ người làm được:');
-  personSteps({ productRepo }).forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
+  personSteps({ productRepo, blog }).forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
 }

@@ -5,6 +5,22 @@ Release notes for Soot Forge pack releases. The version is `package.json`'s;
 
 ## Unreleased
 
+### Changed
+
+- **Lohi's blog is lohi2.com/blog.** The `lohi-blog` publisher gained a **CMS target** (`LOHI_BLOG_TARGET=cms`): the
+  `marketing-blog` chain (`due -> claim -> lohi-blog.publish -> record`) reads the CMS post of the slug, saves it as a draft
+  to hub site `lohi` (language `vi`) unless the same content is already there, publishes that revision, verifies the
+  public CMS read API and answers `https://lohi2.com/blog/<slug>`. The same slug is an update, never a second post
+  (retry, re-issued claim, a crash between save and publish); a refused, missing or malformed `MARKETING_HUB` is one
+  plain failure; `unpublish` archives the CMS post; `find` and `ready` follow (`ready` checks the credential, the site
+  and the publish right by a `tool.preflight`, and no longer asks for git, Go, 2server or gcloud). The git target stays
+  the pack default when the variable is unset. `lohi-blog` declares the optional credential `MARKETING_HUB` and the env
+  `LOHI_BLOG_TARGET` (an existing workspace must grant it). The Lohi recipe's `setup.mjs` takes `--blog cms|git` and
+  defaults to `cms`; `--blog-remote` only applies with `--blog git`. Writer and Ops guidance names `lohi2.com/blog`,
+  not `blog.lohi2.com`.
+- **marketing: the draft slug lint is the CMS slug rule** (words of a-z and 0-9 joined by single hyphens, 3-80
+  characters), so a post is never refused by the CMS after it was scheduled.
+
 ## 0.11.19
 
 Baseline: v0.11.18 (9d202d9). **Needs Soot 0.13.21 or later**: marketing declares `run.rerun`, which an older runtime refuses as an unknown pack field, and the packs raise Cần bạn cards through the chain result's `raise`/`settle`, which an older runtime ignores (no card is filed).

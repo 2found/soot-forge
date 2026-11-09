@@ -26,8 +26,38 @@ test('build: no default blog remote, --blog-remote writes only what it is given'
   const none = build(tmp(), { env: true, video: false, connection: null, home: tmp() });
   assert.equal(none.hostEnv.LOHI_BLOG_REMOTE, undefined);
   assert.equal(JSON.parse(readFileSync(join(none.out, 'deployment.json'), 'utf8')).env.LOHI_BLOG_REMOTE, undefined);
-  const set = build(tmp(), { env: true, video: false, connection: null, home: tmp(), blogRemote: '/tmp/scratch.git' });
+  const set = build(tmp(), { env: true, video: false, connection: null, home: tmp(), blog: 'git', blogRemote: '/tmp/scratch.git' });
   assert.equal(JSON.parse(readFileSync(join(set.out, 'deployment.json'), 'utf8')).env.LOHI_BLOG_REMOTE, '/tmp/scratch.git');
+});
+
+test('build: the blog goes to the CMS (lohi2.com/blog) by default; --blog git needs a remote and is the only way LOHI_BLOG_REMOTE is written', async () => {
+  const { build, HOST_ENV, personSteps } = await import('./setup.mjs');
+  const { readFileSync, existsSync } = await import('node:fs');
+  const envOf = r => JSON.parse(readFileSync(join(r.out, 'deployment.json'), 'utf8')).env;
+  assert.equal(HOST_ENV.LOHI_BLOG_TARGET, 'cms', 'the Lohi default: lohi2.com/blog');
+  const cms = build(tmp(), { env: true, video: false, connection: null, home: tmp(), blogRemote: '/tmp/ignored.git' });
+  assert.equal(cms.blog, 'cms');
+  assert.equal(envOf(cms).LOHI_BLOG_TARGET, 'cms');
+  assert.equal(envOf(cms).LOHI_BLOG_REMOTE, undefined, 'a remote given with --blog cms is not written');
+  const git = build(tmp(), { env: true, video: false, connection: null, home: tmp(), blog: 'git', blogRemote: '/tmp/scratch.git' });
+  assert.deepEqual([envOf(git).LOHI_BLOG_TARGET, envOf(git).LOHI_BLOG_REMOTE], ['git', '/tmp/scratch.git']);
+  assert.throws(() => build(tmp(), { env: true, video: false, connection: null, home: tmp(), blog: 'ftp' }), /--blog/);
+  // The installed publisher can use the CMS credential and the target; the host grants both names.
+  const host = JSON.parse(readFileSync(join(cms.out, 'deployment.json'), 'utf8'));
+  const pack = JSON.parse(readFileSync(join(cms.out, 'packs', 'lohi-blog', 'pack.json'), 'utf8'));
+  assert.deepEqual(pack.needs.env.filter(e => !host.pack_grants['lohi-blog'].env.includes(e)), [], 'every env the publisher asks for is granted');
+  assert.ok(pack.needs.credentials.MARKETING_HUB && pack.tools.filter(t => t.name !== 'catalog').every(t => t.run.secret_env.MARKETING_HUB));
+  assert.ok(!existsSync(join(cms.out, 'packs', 'lohi-blog', 'tests')));
+  assert.match(personSteps().find(s => /blog/i.test(s)), /MARKETING_HUB/);
+  assert.match(personSteps({ blog: 'git' }).find(s => /blog/i.test(s)), /kho git/);
+});
+
+test('recipe: no Soot guidance names blog.lohi2.com; the blog is lohi2.com/blog', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  for (const f of readdirSync(join(import.meta.dirname, 'soots')).filter(f => f.endsWith('.md'))) {
+    assert.doesNotMatch(readFileSync(join(import.meta.dirname, 'soots', f), 'utf8'), /blog\.lohi2\.com/, f);
+  }
+  assert.match(readFileSync(join(import.meta.dirname, 'soots', 'SOUL.md'), 'utf8'), /https:\/\/lohi2\.com\/blog/);
 });
 
 test('build: the Forge packs are copied exactly as the release archive ships them (so the runtime adopts them by digest)', async () => {

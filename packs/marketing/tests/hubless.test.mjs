@@ -89,6 +89,14 @@ test('AC1: draft → check → schedule → due → claim → publish → record
   assert.equal(q.channels[0].id, 'blog-lohi');
 });
 
+test('draft_save lints the slug as the CMS does: words joined by single hyphens', async () => {
+  const w = world();
+  for (const [slug, ok] of [['cach-chon-tien-hiep', true], ['tien-hiep-2026', true], ['hai--gach', false], ['-dau-gach', false], ['cuoi-gach-', false], ['Hoa', false], ['ab', false]]) {
+    const d = await w.call('draft_save', { request_id: `slug-${slug}`, kind: 'article', channel: 'blog-lohi', body: 'x', brief: { title: 'Tiêu đề', meta: 'x', slug, keyword: 'zzz' } });
+    assert.equal(d.lint.some(l => l.code === 'slug_invalid'), !ok, slug);
+  }
+});
+
 test('draft_save lints the article brief and replays a request id', async () => {
   const w = world();
   const bad = await w.call('draft_save', { request_id: 'r1', kind: 'article', channel: 'blog-lohi', body: 'ngắn', brief: { title: 'Ngắn', meta: 'x', slug: 'Bad Slug', keyword: 'zzz' } });

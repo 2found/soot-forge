@@ -36,7 +36,8 @@ export function briefLint(post, channel) {
   const len = s => [...String(s ?? '')].length;
   if (len(b.title) < 30 || len(b.title) > 60) out.push({ field: 'title', code: 'title_length', message: `Tiêu đề ${len(b.title)} ký tự; cần 30–60.` });
   if (len(b.meta) < 120 || len(b.meta) > 160) out.push({ field: 'meta', code: 'meta_length', message: `Mô tả ${len(b.meta)} ký tự; cần 120–160.` });
-  if (!/^[a-z0-9-]{3,80}$/.test(b.slug ?? '')) out.push({ field: 'slug', code: 'slug_invalid', message: 'Đường dẫn chỉ gồm a-z, 0-9 và dấu gạch, 3–80 ký tự.' });
+  // Words of a-z and 0-9 joined by single hyphens: also the CMS slug rule, so a CMS publish never refuses it.
+  if (!/^(?=.{3,80}$)[a-z0-9]+(?:-[a-z0-9]+)*$/.test(b.slug ?? '')) out.push({ field: 'slug', code: 'slug_invalid', message: 'Đường dẫn gồm các từ a-z, 0-9 nối bằng một dấu gạch, 3–80 ký tự.' });
   const hosts = channel?.rules?.internal_hosts ?? [];
   const links = internalLinks(post.body, hosts);
   if (hosts.length && links.length < 2) out.push({ field: 'body', code: 'internal_links', message: `Có ${links.length} liên kết nội bộ; cần ít nhất 2.` });
