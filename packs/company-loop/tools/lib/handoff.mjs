@@ -1,7 +1,9 @@
 // CL2: an approved product opportunity becomes a requirement file (in the ticket home, not the product repo) and
 // a `bbs team` project. The founder's Go on the operator-only page is the approval; this
 // file never calls land, release, integrate or seal. When bbs or Orca is not there the
-// handoff is `draft_ready` with the exact command, never a silent drop.
+// handoff is `draft_ready` with the exact command, never a silent drop. A company with no
+// build stage (no PRODUCT_REPO) gets a `task`: the Go and the task are recorded, a person does
+// the work, and marking it done (page op task_done) starts the outcome clock.
 import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { eq, iso, short } from './base.mjs';
@@ -73,8 +75,8 @@ export function spawnCommand(repo, teamId, reqPath, agent = 'claude') {
 async function upsert(store, opp, set) {
   const row = await store.one('handoffs', [eq('opportunity', opp.ref)]);
   if (row) { await store.update('handoffs', row.id, set); return { ...row, ...set }; }
-  await store.insert('handoffs', { opportunity: opp.ref, ...set });
-  return { opportunity: opp.ref, ...set };
+  await store.insert('handoffs', { opportunity: opp.ref, product: opp.product ?? null, ...set });
+  return { opportunity: opp.ref, product: opp.product ?? null, ...set };
 }
 
 /** Where the requirement lives: the ticket home, never the product working tree. */
@@ -91,6 +93,8 @@ export const nextText = (teamId, reqPath) =>
 /** Write the requirement (never over a file a person may have edited) and spawn the team. */
 export async function startHandoff(opp, { store, env, now }, { baseline = null } = {}) {
   const repo = String(env.PRODUCT_REPO ?? '');
+  // No build stage at all: the decision is logged and the work is a task for a person, not a failure.
+  if (!repo) return upsert(store, opp, { repo: null, requirement_path: null, team_id: null, state: 'task', note: TASK_NOTE, command: null });
   if (!repo.startsWith('/') || !existsSync(repo) || !statSync(repo).isDirectory()) {
     return upsert(store, opp, { repo: repo || null, requirement_path: null, team_id: null, state: 'no_repo', note: 'Chưa đặt PRODUCT_REPO (đường dẫn tuyệt đối tới kho mã của sản phẩm).', command: null });
   }
@@ -118,3 +122,7 @@ export async function startHandoff(opp, { store, env, now }, { baseline = null }
 }
 
 export const bbsReady = env => !!findBbs(env);
+
+export const TASK_NOTE = 'Đã ghi quyết định và một việc cần làm. Chưa nối đội dựng (PRODUCT_REPO) nên Soot không tự làm: giao việc cho người trong nhóm, xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó.';
+/** A handoff waiting for a person: `task`, or `no_repo` written before tasks existed with no repo set. */
+export const isTask = h => h.state === 'task' || (h.state === 'no_repo' && !h.repo);

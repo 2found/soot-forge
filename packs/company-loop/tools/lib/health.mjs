@@ -13,6 +13,7 @@ import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
 import { getState, setState, iso, short } from './base.mjs';
 import { latestBoard } from './scoreboard.mjs';
+import { scoreboardSources, syncKey } from './products.mjs';
 
 const DAY = 86_400_000;
 export const STAGES = [
@@ -137,10 +138,14 @@ export async function health_sync(input, deps) {
   const stages = Array.isArray(input.stages) && input.stages.length ? input.stages : STAGES;
   const sent = (Array.isArray(input.inputs) ? input.inputs : []).map(cleanInput).filter(Boolean).slice(0, 20);
   const board = await latestBoard(store);
-  const sync = await getState(store, 'sync');
+  // Every scoreboard source's last read (the single SCOREBOARD_URL and each SCOREBOARD_URLS entry): a failing one is said.
+  const syncs = await Promise.all(scoreboardSources(env).sources.map(s => getState(store, syncKey(s))));
+  const sync = syncs.find(s => s?.ok === false) ?? syncs.find(Boolean) ?? null;
+  // Numbers a Soot records (metrics_record) feed the scoreboard as well as an address does.
+  const recorded = board ? null : (await store.query('metrics', [], { order: 'period_to', limit: 1 }))[0] ?? null;
   const own = [
-    { key: 'scoreboard', label: 'Bảng số sản phẩm', starving: !board || sync?.ok === false, rows: board ? 1 : 0,
-      detail: sync?.ok === false ? short(sync.message, 240) : board ? `Bảng số ${board.period_from}..${board.period_to}` : 'Chưa có bảng số: chưa đọc được SCOREBOARD_URL.' },
+    { key: 'scoreboard', label: 'Bảng số sản phẩm', starving: (!board && !recorded) || sync?.ok === false, rows: board || recorded ? 1 : 0,
+      detail: sync?.ok === false ? short(sync.message, 240) : board ? `Bảng số ${board.period_from}..${board.period_to}` : recorded ? `Số do Soot ghi ${recorded.period_from}..${recorded.period_to}` : 'Chưa có bảng số: chưa đọc được SCOREBOARD_URL và chưa có Soot nào ghi số (metrics_record).' },
     { key: 'cohorts', label: 'Nhóm người dùng', starving: !board?.cohorts, rows: board?.cohorts?.length ?? 0, detail: board?.cohorts ? `${board.cohorts.length} nhóm theo tuần đăng ký` : 'Chưa có số theo nhóm người dùng (bảng số chưa trả cohorts).' },
     { key: 'plans', label: 'Gói đăng ký', starving: !board?.plans, rows: board?.plans?.length ?? 0, detail: board?.plans ? `${board.plans.length} gói` : 'Chưa có số theo gói (bảng số chưa trả plans).' },
     { key: 'cs', label: 'Hỗ trợ khách', starving: !env.CS_RUNTIME_URL, rows: env.CS_RUNTIME_URL ? 1 : 0, detail: env.CS_RUNTIME_URL ? 'Đã nối runtime Hỗ trợ' : 'Chưa nối Hỗ trợ (CS_RUNTIME_URL): bản tin chưa có khoảng trống kiến thức.' },
@@ -154,10 +159,12 @@ export async function health_sync(input, deps) {
   // Support row (a remote team is not in `teams health`, so it stays a line of its own).
   const base = runtime.ok ? runtime.stages : stages.map(s => ({ key: s.key, label: s.label }));
   const withCs = runtime.ok && runtime.via === 'teams' && !base.some(r => r.key === 'cs' || r.key === 'support') ? [...base, { key: 'cs', label: 'Hỗ trợ khách', external: true }] : base;
+  // A company without a build stage (no PRODUCT_REPO) has nothing to watch there: said, not counted as hunger.
+  const noBuild = !env.PRODUCT_REPO;
   const rows = withCs.map(st => {
     const mine = inputs.filter(i => i.starving && (st.key === 'insight' ? ['scoreboard', 'cohorts', 'plans'].includes(i.key) : st.key === 'cs' ? i.key === 'cs' : st.key === 'marketing' ? ['gsc', 'signals', 'tiktok', 'youtube'].includes(i.key) : false))
       .map(i => ({ key: i.key, label: i.label, detail: i.detail }));
-    return { ...st, starving: [...(st.starving ?? []), ...mine] };
+    return { ...st, starving: [...(st.starving ?? []), ...mine], ...(st.key === 'build' && noBuild ? { unused: true } : {}) };
   });
   const value = {
     at: iso(now), stages: rows, inputs,

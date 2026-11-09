@@ -3,8 +3,8 @@
 // reversible, so the digest sends them straight to a topic (auto-go by "soot"); a product
 // opportunity waits for the founder's tap on the operator page.
 import { createHash } from 'node:crypto';
-import { eq, fail, fold, iso, mondayOf, ictDay, short } from './base.mjs';
-import { latestBoard } from './scoreboard.mjs';
+import { eq, fail, fold, getState, iso, mondayOf, ictDay, short } from './base.mjs';
+import { boardFor } from './scoreboard.mjs';
 import { startHandoff } from './handoff.mjs';
 
 export const KINDS = ['content', 'product'];
@@ -39,24 +39,25 @@ export function itemProblems(it) {
   return p;
 }
 
-/** The value of a scoreboard metric now: the decision's baseline (null when the target is not a metric). */
-export async function baselineFor(store, target) {
-  const v = (await latestBoard(store))?.metrics?.[target]?.value;
+/** The value of a scoreboard metric now, on the product's own board: the decision's baseline (null when the target is not a metric). */
+export async function baselineFor(store, target, product) {
+  const board = await boardFor(store, {}, product, await getState(store, 'host_product'));
+  const v = board ? [board.north, ...board.tiles].find(t => t?.key === target)?.value : null;
   return Number.isFinite(v) ? v : null;
 }
 
 export async function logDecision(store, opp, decision, by, note, now, stage = 'digest') {
   await store.insert('decisions', {
-    at: iso(now), stage, opportunity_ref: opp.ref, decision, by, note: note ? short(note, 300) : null,
+    at: iso(now), stage, opportunity_ref: opp.ref, product: opp.product ?? null, decision, by, note: note ? short(note, 300) : null,
     evidence_refs: opp.evidence_refs ?? [], target_outcome: opp.target_outcome, expected_delta: opp.expected_delta,
-    check_after_days: opp.check_after_days, baseline_value: await baselineFor(store, opp.target_outcome), actual_delta: null,
+    check_after_days: opp.check_after_days, baseline_value: await baselineFor(store, opp.target_outcome, opp.product), actual_delta: null,
   });
 }
 
 export async function queueTopic(store, opp, kind, reason, query) {
   const q = short(query || opp.query || opp.title, 120);
   if (await store.one('topics', [eq('opportunity_ref', opp.ref), eq('kind', kind)])) return false;
-  await store.insert('topics', { query: q, reason: short(reason, 200), opportunity_ref: opp.ref, kind, state: 'queued' });
+  await store.insert('topics', { query: q, reason: short(reason, 200), opportunity_ref: opp.ref, product: opp.product ?? null, kind, state: 'queued' });
   return true;
 }
 
@@ -143,7 +144,7 @@ export async function decide(input, deps, { by = 'operator' } = {}) {
     await queueTopic(store, opp, 'content', opp.summary || opp.title, opp.query);
     return { ok: true, opportunity: view({ ...opp, state: 'go' }), topic: opp.query };
   }
-  const handoff = await startHandoff(opp, deps, { baseline: await baselineFor(store, opp.target_outcome) });
+  const handoff = await startHandoff(opp, deps, { baseline: await baselineFor(store, opp.target_outcome, opp.product) });
   return { ok: true, opportunity: view({ ...opp, state: 'go' }), handoff: { state: handoff.state, requirement_path: handoff.requirement_path, team_id: handoff.team_id, note: handoff.note, command: handoff.command } };
 }
 

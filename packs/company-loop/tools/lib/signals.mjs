@@ -2,8 +2,8 @@
 // never raw text from customers: metric changes against the previous period, the top
 // sources, why support handed over to a person, what the CS runtime could not answer
 // and what readers asked for or lacked (optional), the opportunities and decisions so far and the last launches.
-import { eq, getJson, safeUrl, short } from './base.mjs';
-import { latestBoard, labelOf } from './scoreboard.mjs';
+import { eq, getJson, getState, safeUrl, short } from './base.mjs';
+import { latestBoard, labelOf, boardFor, dataProducts } from './scoreboard.mjs';
 import { hitRate } from './review.mjs';
 
 export const MAX_BYTES = 3072;
@@ -84,9 +84,18 @@ function fit(packet) {
 
 export async function packetFor(deps, { voc = false } = {}) {
   const { store } = deps;
-  const board = await latestBoard(store);
-  if (!board) return null;
-  const metrics = Object.entries(board.metrics).map(([k, m]) => ({ k, label: labelOf(k, m), v: m.value, p: m.previous ?? null, pct: pct(m.value, m.previous) }));
+  // The HTTP board as before; a company whose Soots record numbers (metrics_record) gets its newest recorded board.
+  let board = await latestBoard(store);
+  let metrics;
+  if (board) metrics = Object.entries(board.metrics).map(([k, m]) => ({ k, label: labelOf(k, m), v: m.value, p: m.previous ?? null, pct: pct(m.value, m.previous) }));
+  else {
+    const products = await dataProducts(store);
+    const host = await getState(store, 'host_product');
+    const table = products.length ? await boardFor(store, deps.env ?? {}, products.includes(host) ? host : products[0], host) : null;
+    if (!table) return null;
+    board = { product: table.product, period_from: table.from, period_to: table.to, sources: [], support: null, cohorts: null, plans: null };
+    metrics = [table.north, ...table.tiles].filter(Boolean).map(t => ({ k: t.key, label: t.label, v: t.value, p: t.previous, pct: t.pct, ...(t.unit !== 'count' && t.unit !== 'vnd' ? { u: t.unit } : {}) }));
+  }
   const [opps, decisions, handoffs, queued] = await Promise.all([
     store.query('opportunities', [], { order: 'updated_at', limit: 60 }),
     store.query('decisions', [], { order: 'at', limit: 200 }),

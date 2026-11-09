@@ -179,14 +179,29 @@ test('a spawn that fails (Orca not running) is draft_ready with the reason; Ch�
   assert.equal(w.rows('handoffs').length, 1, 'one handoff per opportunity');
 });
 
-test('a product Go with no PRODUCT_REPO says so (no_repo) and spawns nothing', async () => {
+test('a product Go with no PRODUCT_REPO records the decision and a task, spawns nothing, and task_done starts the outcome clock', async () => {
   const { w, b } = await ready({ repo: false });
   await w.call('digest_save', { opportunities: [ITEM.product] });
-  const out = await w.call('decide', { id: refOf(w, 'product'), decision: 'go' });
-  assert.equal(out.handoff.state, 'no_repo');
+  const ref = refOf(w, 'product');
+  const out = await w.call('decide', { id: ref, decision: 'go' });
+  assert.equal(out.handoff.state, 'task');
   assert.match(out.handoff.note, /PRODUCT_REPO/);
   assert.equal(b.calls().filter(c => c.argv[1] === 'spawn').length, 0);
-  assert.equal((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).next.code, 'no_repo');
+  assert.equal(w.rows('decisions').filter(d => d.decision === 'go' && d.opportunity_ref === ref).length, 1, 'the Go is in the decision log');
+  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  assert.deepEqual([v.next.code, v.next.n], ['task', 1]);
+  assert.equal(v.handoffs[0].state, 'task');
+  // Marking it done is the release: review measures from now, never from the Go.
+  w.now += 86_400_000;
+  await w.call('page_action', { op: 'task_done', id: ref, request_id: 'req-task0001' }, { page: { page: 'cong-ty' } });
+  const h = w.rows('handoffs')[0];
+  assert.equal(h.state, 'released');
+  assert.equal(h.released_at, new Date(w.now).toISOString());
+  assert.equal((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).next.code, 'idle');
+  await assert.rejects(w.call('page_action', { op: 'task_done', id: ref, request_id: 'req-task0002' }, { page: { page: 'cong-ty' } }), /Không có việc/);
+  // A task row from before (no_repo with no repo) reads as a task too.
+  await w.store.update('handoffs', h.id, { state: 'no_repo', repo: null, released_at: null });
+  assert.equal((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).handoffs[0].state, 'task');
 });
 
 test('the decide tool needs the operator approval; the model tool list of the Lead never includes it', async () => {

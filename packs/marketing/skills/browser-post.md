@@ -3,7 +3,7 @@
 Use this for a channel whose publisher is `browser` (X, a Facebook Page,
 Reddit). You drive the `browser-use_control` tool. When the person granted you
 a named browser profile for the account (`browser-use_view {}` lists your
-`profiles`; the id names the account, such as `lohi-x`), pass
+`profiles`; the id names the account, such as `brand-x`), pass
 `"profile": "<id>"` on every control call for that claim: the sign-in lives
 there. Otherwise the host keeps this Soot signed in to one browser profile when
 it lists the Soot in `SOOT_BROWSER_PERSISTENT_SOOTS`. The person signs in once,

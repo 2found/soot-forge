@@ -1,20 +1,33 @@
 // Công ty (company-loop). Plain DOM, no network: every read and write is a `call` posted to Nest
 // (soot-pages bridge v1), which runs this pack's page_view / page_action tool. Text is set with
-// textContent only. The view model carries codes and numbers; the words are here.
+// textContent only; sizes are set through CSSOM (no style attributes). The view model carries codes and
+// numbers; the words are here. Nest's product scope arrives in a `context` message (before `init` and on
+// every change); an older Nest sends none and the page shows every product the data names.
 'use strict';
 (() => {
 const BRIDGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const PRODUCT = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const rid = (prefix, bytes = 12) => prefix + '-' + Array.from(crypto.getRandomValues(new Uint8Array(bytes)), b => b.toString(16).padStart(2, '0')).join('');
 const isTokens = t => !!t && typeof t === 'object' && !Array.isArray(t) && Object.entries(t).every(([k, v]) => /^--[A-Za-z0-9-]{1,64}$/.test(k) && typeof v === 'string' && v.length <= 512);
 
 const waiting = new Map();
-const S = { data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', ticket: {} };
+// local: the page's own switch (undefined = follow Nest; null = every product; an id).
+const S = { data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', ctx: null, local: undefined, started: false, seq: 0 };
 const embedded = window.parent !== window;
 
+const str = (v, max) => typeof v === 'string' && v.length <= max;
+function parseContext(m) {
+  const named = p => p && typeof p === 'object' && str(p.id, 64) && p.id && str(p.name, 128);
+  if (m.product !== null && !named(m.product)) return null;
+  if (!Array.isArray(m.products) || m.products.length > 64 || !m.products.every(p => named(p) && Array.isArray(p.teams) && p.teams.every(t => str(t, 128)))) return null;
+  if (m.host !== undefined && !str(m.host, 128)) return null;
+  return m;
+}
 function parse(m) {
   if (!m || typeof m !== 'object' || m.v !== 1) return null;
   if (m.type === 'init') return ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) ? m : null;
   if (m.type === 'theme') return ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) ? m : null;
+  if (m.type === 'context') return parseContext(m);
   if (m.type === 'result' && typeof m.id === 'string' && BRIDGE_ID.test(m.id)) return m;
   return null;
 }
@@ -25,7 +38,13 @@ window.addEventListener('message', e => {
   if (!m) return;
   if (m.type === 'init') { applyTheme(m); S.locale = m.locale; start(); }
   else if (m.type === 'theme') applyTheme(m);
-  else { const w = waiting.get(m.id); if (w) { waiting.delete(m.id); clearTimeout(w.timer); w.resolve(m.ok ? { ok: true, output: m.output } : { ok: false, error: m.error }); } }
+  else if (m.type === 'context') {
+    const before = JSON.stringify(S.ctx), product = S.ctx?.product?.id ?? null;
+    S.ctx = m;
+    // A product change in Nest wins over the page's own switch; new names or teams only reload.
+    if ((m.product?.id ?? null) !== product) S.local = undefined;
+    if (before !== JSON.stringify(m) && S.started) reload();
+  } else { const w = waiting.get(m.id); if (w) { waiting.delete(m.id); clearTimeout(w.timer); w.resolve(m.ok ? { ok: true, output: m.output } : { ok: false, error: m.error }); } }
 });
 function call(mode, input, requestID) {
   const id = rid('c', 8);
@@ -42,46 +61,66 @@ function output(r) {
   return r.output;
 }
 
+// ---------- scope ----------
+const nestProduct = () => (S.ctx?.product && PRODUCT.test(S.ctx.product.id) ? S.ctx.product.id : null);
+const chosen = () => (S.local !== undefined ? S.local : nestProduct());
+const host = () => (S.ctx?.host && PRODUCT.test(S.ctx.host) ? S.ctx.host : undefined);
+function viewInput() {
+  const product = chosen();
+  const products = (S.ctx?.products ?? []).filter(p => PRODUCT.test(p.id)).map(p => ({ id: p.id, name: p.name, teams: p.teams.slice(0, 64) }));
+  return { page: 'cong-ty', ...(product ? { product } : {}), ...(host() ? { host: host() } : {}), ...(products.length ? { products } : {}) };
+}
+const choose = id => { S.local = id === nestProduct() ? undefined : id; S.notice = ''; reload(); };
+
 // ---------- words ----------
-const nf = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
-const fmt = (v, unit) => (v === null || v === undefined ? 'Chưa có số liệu' : unit === 'vnd' ? `${nf.format(v)}\u00a0₫` : nf.format(v));
-const day = iso => (iso ? new Date(iso).toLocaleDateString('vi-VN') : '');
-/** "06:30 10/11/2026": a snapshot says when it was taken, so a morning figure is not read as now. */
-const when = iso => (iso ? `${new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${day(iso)}` : '');
-const STATE = { proposed: ['Chờ bạn chọn', 'warn'], go: ['Đã Go', 'ok'], later: ['Để sau', ''], drop: ['Đã bỏ', ''] };
-const TOPIC = { queued: ['Đang chờ giao Writer', ''], handed: ['Đã giao Writer, chưa viết', 'warn'], written: ['Đã viết', 'ok'] };
+const nf = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+const MONEY = { vnd: '₫', usd: 'US$', eur: '€' };
+function fmt(v, unit) {
+  if (v === null || v === undefined) return 'Chưa có';
+  const u = String(unit || '').toLowerCase();
+  if (u === 'vnd') return Math.abs(v) >= 1e6 ? `${nf.format(v / 1e6)} tr ₫` : `${nf.format(v)} ₫`;
+  if (MONEY[u]) return `${nf.format(v)} ${MONEY[u]}`;
+  if (u === 'percent' || u === '%') return `${nf.format(v)}%`;
+  if (!u || u === 'count') return nf.format(v);
+  return `${nf.format(v)} ${u.slice(0, 12)}`;
+}
+const two = n => String(n).padStart(2, '0');
+const at = iso => { const d = iso ? new Date(iso.length === 10 ? `${iso}T00:00:00` : iso) : null; return d && !isNaN(d) ? d : null; };
+/** "10/11": a calendar day (a period's YYYY-MM-DD is that day, not UTC midnight). */
+const dm = iso => { const d = at(iso); return d ? `${two(d.getDate())}/${two(d.getMonth() + 1)}` : ''; };
+/** "06:30 10/11": a snapshot says when it was taken, so a morning figure is not read as now. */
+const when = iso => { const d = at(iso); return d ? `${two(d.getHours())}:${two(d.getMinutes())} ${dm(iso)}` : ''; };
+const signed = v => `${v > 0 ? '+' : ''}${nf.format(v)}`;
 const KIND = { content: 'Nội dung', product: 'Sản phẩm' };
 const EFFORT = { S: 'nhỏ', M: 'vừa', L: 'lớn', XL: 'rất lớn' };
 const VALUE = { low: 'thấp', medium: 'vừa', high: 'cao' };
 const REF = { metric: 'Số', source: 'Nguồn', reason: 'Lý do', gap: 'Thiếu bài', feedback: 'Phản hồi' };
-/** An outcome key in words: "support_threads_new" reads "Hỗ trợ mới". */
-const metric = k => S.data?.metric_labels?.[k] ?? S.data?.scoreboard?.tiles?.find(t => t.key === k)?.label ?? k;
-/** "metric:waiting_human" reads "Số: Bạn đọc chờ người"; a ref of no known kind is shown as written. */
+const DECISION = { go: 'Go', later: 'Để sau', drop: 'Bỏ' };
+const metric = k => S.data?.metric_labels?.[k] ?? k;
 const evidenceRef = r => { const at = r.indexOf(':'), kind = at > 0 ? r.slice(0, at) : ''; return REF[kind] ? `${REF[kind]}: ${kind === 'metric' ? metric(r.slice(at + 1)) : r.slice(at + 1)}` : r; };
+const productName = id => S.data?.scope?.products?.find(p => p.id === id)?.name ?? id;
+const scopeName = d => d.scope.product?.name ?? 'Mọi sản phẩm';
+const many = d => !d.scope.product && (d.scope.products?.length ?? 0) >= 2;
+const SETTINGS = key => `nest://settings/setup?key=${encodeURIComponent(key)}`;
+const draft = text => `nest://new?text=${encodeURIComponent(text.slice(0, 1500))}`;
+const RHYTHM = [
+  ['company-scoreboard', 'Đọc bảng số', 'Mỗi sáng 06:15'],
+  ['company-digest', 'Bản tin cơ hội', 'Thứ Hai 08:30'],
+  ['company-review', 'Chấm kết quả quyết định', 'Thứ Hai 08:00'],
+  ['company-watch', 'Theo dõi đội dựng', '30 phút một lần'],
+];
 const HAND = {
-  spawned: ['Đội đã mở', 'ok', 'Đội bbs:team đang làm rõ yêu cầu. Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
-  starting: ['Đội đang đọc yêu cầu', 'ok', 'Đội đang đọc yêu cầu — chưa có việc cần bạn.'],
-  building: ['Đang dựng', 'ok', 'Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
-  blocked: ['Vướng khi phát hành', 'bad', 'Đội đang xử lý; mở terminal của đội trong Orca nếu cần xem.'],
-  delivered: ['Chờ bạn duyệt', 'warn', 'Duyệt bản giao rồi bấm phát hành trong bbs:team. Soot không phát hành thay bạn.'],
-  released: ['Đã phát hành', 'ok', 'Soot sẽ xếp một bài giới thiệu cho marketing.'],
-  draft_ready: ['Bản nháp sẵn', 'warn', 'Chạy lệnh dưới đây trong terminal để mở đội dựng.'],
-  no_repo: ['Chưa có kho mã', 'bad', 'Đặt PRODUCT_REPO cho Soot rồi bấm Chạy lại.'],
+  spawned: ['Đội đã mở', 1, 'Đội bbs:team đang làm rõ yêu cầu. Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
+  starting: ['Đội đang đọc yêu cầu', 1, 'Đội đang đọc yêu cầu: chưa có việc cần bạn.'],
+  building: ['Đang dựng', 1, 'Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
+  blocked: ['Vướng khi phát hành', 1, 'Đội đang xử lý; mở terminal của đội trong Orca nếu cần xem.'],
+  delivered: ['Chờ bạn duyệt', 2, 'Duyệt bản giao rồi cho phép phát hành trong bbs:team. Soot không phát hành thay bạn.'],
+  released: ['Đã phát hành', 3, 'Soot đo kết quả từ ngày phát hành.'],
+  draft_ready: ['Bản nháp sẵn', 0, 'Soot đã viết yêu cầu nhưng chưa mở được đội dựng.'],
+  no_repo: ['Chưa có kho mã', 0, 'Đặt PRODUCT_REPO cho Soot rồi bấm Chạy lại.'],
+  task: ['Chờ người làm', 0, 'Đã ghi quyết định và một việc. Chưa nối đội dựng nên Soot không tự làm.'],
 };
-function nextText(n, d) {
-  switch (n.code) {
-    case 'setup': return ['Chưa đọc được số của sản phẩm: nhập khoá PRODUCT_ADMIN_KEY và địa chỉ SCOREBOARD_URL ở Thiết lập.', 'warn', ['Mở Thiết lập', 'nest://settings/setup']];
-    case 'key_refused': return [d.sync?.message || 'Khoá bị từ chối: cần khoá vai trò agent_mod.', 'bad', ['Mở Thiết lập', 'nest://settings/setup']];
-    case 'choose': return [`${n.n} cơ hội chờ bạn: bấm Go, Để sau hoặc Bỏ ở mỗi thẻ. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.`, 'warn'];
-    case 'draft_ready': return ['Soot đã viết yêu cầu nhưng chưa mở được đội dựng: chạy lệnh ở mục Bàn giao, hoặc bấm Chạy lại khi đã mở Orca.', 'warn'];
-    case 'no_repo': return ['Chưa có kho mã để ghi yêu cầu: đặt PRODUCT_REPO rồi bấm Chạy lại ở mục Bàn giao.', 'bad'];
-    case 'release_go': return ['Đội đã dựng xong: duyệt bản giao và bấm phát hành trong bbs:team. Đó là lượt bấm cuối của bạn.', 'warn'];
-    case 'building': return ['Đội đang dựng. Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.', ''];
-    case 'topic_handed': return [`${n.n} chủ đề đã giao Writer nhưng chưa viết: bài lên ở lượt viết kế tiếp, bạn không phải làm gì.`, 'idle'];
-    case 'topics': return [`${n.n} chủ đề đang chờ Writer: bài sẽ tự lên lịch, bạn không phải làm gì.`, 'idle'];
-    default: return ['Không cần làm gì, Soot đang tự chạy. Bản tin kế tiếp: thứ Hai 08:30.', 'idle'];
-  }
-}
+const TOPIC = { queued: ['Chờ Writer', ''], handed: ['Đã giao Writer', 'warn'], written: ['Đã viết', 'ok'] };
 
 // ---------- dom ----------
 function h(tag, attrs = {}, ...kids) {
@@ -90,132 +129,308 @@ function h(tag, attrs = {}, ...kids) {
     if (v === undefined || v === null || v === false) continue;
     if (k.startsWith('on')) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v === true ? '' : String(v));
   }
-  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(typeof kid === 'string' ? document.createTextNode(kid) : kid);
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false && kid !== '') el.append(typeof kid === 'string' ? document.createTextNode(kid) : kid);
   return el;
 }
-const btn = (text, fn, cls = 'btn') => h('button', { class: cls, type: 'button', disabled: S.busy, onclick: fn }, text);
-const badge = (text, tone = '') => h('span', { class: `badge ${tone}` }, text);
+const btn = (text, fn, cls = '') => h('button', { class: `btn ${cls}`.trim(), type: 'button', disabled: S.busy, onclick: fn }, text);
+const linkBtn = (text, link, cls = 'link') => btn(text, () => open(link), cls);
+const badge = (text, tone = '') => h('span', { class: `badge ${tone}`.trim() }, text);
+const lamp = tone => h('span', { class: `lamp ${tone}`.trim(), 'aria-hidden': 'true' });
+const small = (text, cls = 'small muted') => h('p', { class: cls }, text);
+const jump = id => () => { const el = document.getElementById(id); if (el) { el.scrollIntoView({ block: 'start' }); el.querySelector('button, summary')?.focus({ preventScroll: true }); } };
+const sizeTo = (el, prop, pct) => { el.style[prop] = `${Math.max(0, Math.min(100, pct))}%`; return el; };
+const sec = (id, title, aside, ...body) => h('section', { id, 'aria-label': title }, h('div', { class: 'sec-h' }, h('h2', {}, title), aside ? h('span', { class: 'small muted' }, aside) : null), ...body);
+const empty = (...lines) => h('div', { class: 'empty' }, ...lines);
 
 async function load() {
-  S.error = '';
-  try { S.data = output(await call('view', { page: 'cong-ty' })); } catch (e) { S.error = e?.code === 'no_response' ? 'Chưa nhận được trả lời từ máy chủ. Bấm Tải lại.' : `Không tải được trang: ${e?.message || e?.code || ''}`; }
+  // Only the newest view counts: a slow answer for a scope the founder has left is dropped.
+  const seq = ++S.seq;
+  let data = null, error = '';
+  try { data = output(await call('view', viewInput())); }
+  catch (e) {
+    // The host's transport failures (server off, a gateway error, no answer) read as one plain line.
+    const down = ['no_response', 'unavailable', 'busy'].includes(e?.code) || /^http_5\d\d$/.test(e?.code ?? '');
+    error = down ? (e.code === 'busy' ? 'Máy chủ đang bận. Đợi một lát rồi bấm Tải lại.' : 'Chưa nhận được trả lời từ máy chủ. Trang giữ nguyên; bấm Tải lại khi máy chủ chạy lại.') : `Máy chủ báo: ${e?.message || e?.code || 'lỗi không rõ'}`;
+  }
+  if (seq !== S.seq) return false;
+  S.error = error;
+  if (data) S.data = data;
+  return true;
 }
+async function reload() { if (await load()) render(); }
 async function act(op, rest = {}) {
   if (S.busy) return;
   const key = JSON.stringify([op, rest]);
   S.pending = S.pending?.key === key ? S.pending : { key, id: rid('cl', 12) };
   S.busy = true; render();
   try {
-    const r = await call('action', { op, request_id: S.pending.id, ...rest }, S.pending.id);
+    const r = await call('action', { op, request_id: S.pending.id, ...(host() ? { host: host() } : {}), ...rest }, S.pending.id);
     if (!r.ok && r.error.code === 'no_response') S.notice = 'Chưa chắc việc đã xong: bấm Tải lại để xem.';
     else {
       S.pending = null;
-      try { const o = output(r); S.notice = o.handoff?.note ? `${o.handoff.note}` : 'Xong.'; } catch (e) { S.notice = e?.message || 'Không làm được.'; }
+      try { const o = output(r); S.notice = op === 'sync' ? (o.ok === false ? 'Chưa đọc được số mới.' : 'Đã đọc số mới.') : o.handoff?.note || 'Xong.'; } catch (e) { S.notice = e?.message || 'Không làm được.'; }
       await load();
     }
   } finally { S.busy = false; render(); }
 }
 
+// ---------- the one next step ----------
+function nextOf(d) {
+  const n = d.next, name = scopeName(d), sb = d.scoreboard;
+  const task = d.handoffs.find(x => x.opportunity === n.ref) ?? d.handoffs.find(x => x.state === 'task');
+  switch (n.code) {
+    case 'setup': return n.missing === 'key'
+      ? ['warn', 'Chưa có khoá đọc bảng số', 'Đã có địa chỉ bảng số nhưng chưa có khoá PRODUCT_ADMIN_KEY. Nhập khoá rồi bấm Đọc số ngay.', ['Nhập khoá trong Thiết lập', () => open(SETTINGS('PRODUCT_ADMIN_KEY')), 'primary']]
+      : ['warn', `Chưa có bảng số cho ${name}`, 'Nối địa chỉ bảng số của sản phẩm, hoặc để một Soot ghi số mỗi tuần vào bảng của trang này (công cụ Ghi số liệu).', ['Mở Thiết lập', () => open(SETTINGS('SCOREBOARD_URL')), 'primary']];
+    case 'key_refused': return ['bad', `Chưa đọc được số mới${d.sync?.since ? ` từ ${dm(d.sync.since)}` : ''}`, `Máy chủ sản phẩm từ chối khoá quản trị. Nhập khoá mới có quyền đọc bảng số; ${sb ? `số bên dưới là của ${dm(sb.from)}–${dm(sb.to)}` : 'chưa có số cũ để hiện'}.`, ['Đổi khoá trong Thiết lập', () => open(SETTINGS('PRODUCT_ADMIN_KEY')), 'primary']];
+    case 'no_data': return ['idle', `${name} chưa có số liệu hay cơ hội nào`, 'Nối bảng số cho sản phẩm này (SCOREBOARD_URLS) hoặc để Soot ghi số, rồi bản tin thứ Hai sẽ đưa cơ hội vào đây. Các mục của sản phẩm khác đang được ẩn.', ['Xem mọi sản phẩm', () => choose(null), 'strong']];
+    case 'choose': return ['warn', `${n.n} cơ hội chờ bạn chọn`, 'Chọn Go, Để sau hoặc Bỏ ở từng cơ hội. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.', [`Xem ${n.n} cơ hội`, jump('can-ban'), 'primary']];
+    case 'draft_ready': return ['warn', 'Yêu cầu đã viết, đội dựng chưa mở', 'Soot chưa mở được đội bbs:team. Mở Orca rồi bấm Chạy lại, hoặc chạy lệnh trong mục Cần bạn.', ['Chạy lại', () => act('retry_handoff', { id: n.ref }), 'primary']];
+    case 'no_repo': return ['bad', 'Chưa có kho mã để ghi yêu cầu', 'Đặt PRODUCT_REPO cho Soot rồi bấm Chạy lại ở mục Cần bạn.', ['Mở Thiết lập', () => open(SETTINGS('PRODUCT_REPO')), 'primary']];
+    case 'task': return ['warn', `${n.n} việc đã ghi chờ người làm`, 'Chưa nối đội dựng (kho mã hoặc bbs), nên sau Go Soot ghi quyết định và một việc. Giao việc cho người trong nhóm; xong thì đánh dấu để Soot đo kết quả từ ngày đó.', ['Giao việc', () => open(taskDraft(task)), 'primary']];
+    case 'release_go': return ['warn', 'Bản giao chờ bạn duyệt phát hành', 'Đọc bản bàn giao trong terminal của đội ở Orca; hài lòng thì cho phép phát hành. Đó là lượt bấm cuối của bạn.', ['Xem bản giao', jump('can-ban'), 'primary']];
+    case 'building': return ['ok', 'Đội đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi có bản giao cần bạn duyệt.', ['Xem tiến độ', jump('dang-dung'), 'strong']];
+    case 'sync_failed': return ['bad', 'Chưa đọc được số mới', 'Bảng số không trả lời ở lần đọc gần nhất. Soot thử lại mỗi sáng; bấm Đọc số ngay để thử lại bây giờ.', ['Đọc số ngay', () => act('sync'), 'primary']];
+    case 'topic_handed': return ['ok', `${n.n} chủ đề đã giao Writer, chưa viết`, 'Bài lên ở lượt viết kế tiếp; bạn không phải làm gì.', ['Xem chủ đề', jump('dang-dung'), 'strong']];
+    case 'topics': return ['ok', `${n.n} chủ đề đang chờ Writer`, 'Bài sẽ tự lên lịch; bạn không phải làm gì.', ['Xem chủ đề', jump('dang-dung'), 'strong']];
+    default: return ['ok', 'Không có việc nào cần bạn', 'Soot đang tự chạy. Bản tin cơ hội kế tiếp: thứ Hai 08:30.', ['Xem lịch chạy', () => open(`nest://schedules/${encodeURIComponent(d.soot || 'company-digest')}`), 'strong']];
+  }
+}
+function taskDraft(x) {
+  if (!x) return 'nest://new';
+  return draft(`Việc cần làm (đã Go trên trang Công ty): ${x.title}.${x.summary ? ` ${x.summary}` : ''} Làm xong thì báo để mình đánh dấu đã xong.`);
+}
 function nextBar(d) {
-  const [text, tone, link] = nextText(d.next, d);
-  return h('div', { class: `next ${tone}`, role: 'status' }, h('span', { class: 'strong' }, text), link && btn(link[0], () => open(link[1])));
-}
-function tiles(sb) {
-  if (!sb) return h('div', { class: 'card empty' }, 'Chưa có số liệu. Soot đọc bảng số mỗi ngày lúc 06:15; bấm Đọc ngay khi đã nhập khoá.');
-  return h('div', { class: 'stack' },
-    h('p', { class: 'muted' }, `${day(sb.from)} đến ${day(sb.to)}, so với 7 ngày trước đó`),
-    h('div', { class: 'tiles' }, sb.tiles.map(t => {
-      const up = t.pct === null ? 0 : t.pct > 0 ? 1 : t.pct < 0 ? -1 : 0;
-      const tone = up === 0 ? 'flat' : (up > 0) === (t.good === 'up') ? 'ok' : 'bad';
-      return h('div', { class: 'card tile' }, h('span', { class: 'muted' }, t.label), h('strong', {}, fmt(t.value, t.unit)),
-        h('span', { class: `delta ${tone}` }, t.pct === null ? `trước: ${fmt(t.previous, t.unit)}` : `${up > 0 ? '▲' : up < 0 ? '▼' : '='} ${nf.format(Math.abs(t.pct))}% (trước: ${fmt(t.previous, t.unit)})`));
-    })));
-}
-function topicLine(t) {
-  const [st, tone] = TOPIC[t.state] ?? [t.state, ''];
-  const note = t.state === 'written' ? (t.post ? `Bài ${t.post}` : '') : t.state === 'handed' ? `Chưa có bài; quá ${day(t.until)} vẫn chưa viết thì chủ đề quay lại hàng chờ.` : '';
-  return h('div', { class: 'line between' }, h('span', {}, h('span', { class: 'muted' }, 'Chủ đề: '), t.query), h('span', { class: 'line' }, note && h('span', { class: 'muted' }, note), badge(st, tone)));
-}
-function oppCard(o, topics = []) {
-  const [st, tone] = STATE[o.state] ?? [o.state, ''];
-  const open_ = o.state === 'proposed' || o.state === 'later';
-  const measure = `Đo bằng ${metric(o.target_outcome)}: kỳ vọng ${o.expected_delta > 0 ? '+' : ''}${nf.format(o.expected_delta)} so với tuần trước, xem lại sau ${o.check_after_days} ngày`;
-  return h('div', { class: 'card stack' },
-    h('div', { class: 'line between' }, h('span', { class: 'strong' }, o.title), h('span', { class: 'line' }, badge(KIND[o.kind] ?? o.kind), badge(st, tone))),
-    o.summary && h('p', {}, o.summary),
-    o.kind === 'content' && o.query && h('p', {}, h('span', { class: 'muted' }, 'Chủ đề tìm kiếm: '), o.query),
-    h('p', { class: 'muted' }, measure),
-    topics.filter(t => t.ref === o.ref).map(topicLine),
-    h('div', { class: 'chips' }, (o.evidence_refs ?? []).map(r => h('span', { class: 'chip' }, evidenceRef(r))), h('span', { class: 'chip' }, `${o.signal_count} tín hiệu`), h('span', { class: 'chip' }, `công ${EFFORT[o.est_effort] ?? o.est_effort} · giá trị ${VALUE[o.est_value] ?? o.est_value}`)),
-    open_ ? h('div', { class: 'line' }, btn(o.kind === 'product' ? 'Go: bắt đầu dựng' : 'Go', () => act('go', { id: o.ref }), 'btn primary'), btn('Để sau', () => act('later', { id: o.ref })), btn('Bỏ', () => act('drop', { id: o.ref }), 'btn ghost'))
-      : h('p', { class: 'muted' }, o.state === 'go' ? (o.kind === 'content' ? 'Chủ đề đã vào hàng chờ của Writer; không cần làm gì.' : 'Đã bàn giao: xem mục Bàn giao bên dưới.') : o.state === 'drop' ? 'Soot sẽ không đề xuất lại cơ hội này.' : ''));
-}
-function handoffCard(x) {
-  const [st, tone, step] = HAND[x.state] ?? [x.state, '', ''];
-  const fix = x.state === 'draft_ready' || x.state === 'no_repo';
-  return h('div', { class: 'card stack' },
-    h('div', { class: 'line between' }, h('span', { class: 'strong' }, x.title), badge(st, tone)),
-    h('p', {}, x.detail || step), x.note && x.note !== x.detail && h('p', { class: 'muted' }, x.note),
-    x.requirement_path && h('p', { class: 'muted' }, `Yêu cầu: ${x.requirement_path}`),
-    x.command && fix && h('code', { class: 'cmd' }, x.command),
-    fix && h('div', { class: 'line' }, btn('Chạy lại', () => act('retry_handoff', { id: x.opportunity }))),
-    ['spawned', 'starting', 'building'].includes(x.state) && h('details', { class: 'muted' }, h('summary', {}, 'Gắn tay ticket cha'), h('div', { class: 'line' },
-      h('input', { class: 'input', id: `t-${x.opportunity}`, placeholder: x.ticket ? `Ticket cha: ${x.ticket}` : 'Mã ticket cha của dự án (nếu Soot chưa đọc được)', 'aria-label': 'Mã ticket cha' }),
-      btn('Gắn', () => { const v = document.getElementById(`t-${x.opportunity}`)?.value.trim(); if (v) act('link_ticket', { id: x.opportunity, ticket: v }); }, 'btn ghost'))));
-}
-function log(d) {
-  const r = d.hit_rate;
-  const rows = d.decisions;
-  return h('div', { class: 'stack' },
-    h('p', { class: r.measured ? 'strong' : 'muted' }, r.measured ? `Tỉ lệ trúng: ${r.hits}/${r.measured} (${Math.round(r.rate * 100)}%). Trúng nghĩa là kết quả thật đạt ít nhất nửa mức kỳ vọng.` : 'Chưa đo được quyết định nào. Soot chấm kết quả vào sáng thứ Hai, sau số ngày đã hẹn.'),
-    rows.length ? h('div', { class: 'card scroll' }, h('table', { class: 'table' },
-      h('thead', {}, h('tr', {}, ['Ngày', 'Quyết định', 'Ai', 'Cơ hội', 'Kỳ vọng', 'Thực tế'].map(t => h('th', {}, t)))),
-      h('tbody', {}, rows.map(x => h('tr', {}, h('td', {}, day(x.at)), h('td', {}, x.decision), h('td', {}, x.by), h('td', {}, x.title),
-        h('td', {}, `${metric(x.target_outcome)} ${x.expected_delta > 0 ? '+' : ''}${nf.format(x.expected_delta)}`),
-        h('td', {}, x.actual_delta === null || x.actual_delta === undefined ? (x.decision === 'go' ? `chấm sau ${x.check_after_days} ngày` : '') : nf.format(x.actual_delta))))))) : h('div', { class: 'card empty' }, 'Chưa có quyết định nào. Bản tin đầu tiên chạy vào thứ Hai 08:30.'));
+  const [tone, title, why, a] = nextOf(d);
+  return h('div', { class: `next ${tone === 'warn' || tone === 'bad' ? tone : ''}`.trim(), role: 'status' },
+    lamp(tone), h('div', { class: 'body' }, h('span', { class: 'title' }, title), h('span', { class: 'muted' }, why)),
+    a ? h('span', { class: 'act' }, btn(a[0], a[1], a[2])) : null);
 }
 
-function healthSection(d) {
+// ---------- header and scope ----------
+function header(d) {
+  const ps = d.scope.products ?? [], cur = d.scope.product?.id ?? null, follows = S.ctx && S.local === undefined && nestProduct();
+  const sub = [`Số lúc ${when(d.at)}`, follows ? 'theo sản phẩm đang chọn ở Nest' : null].filter(Boolean).join(' · ');
+  return h('div', { class: 'head' },
+    h('div', {}, h('h1', {}, 'Công ty'), h('p', { class: 'sub muted small' }, sub)),
+    h('div', { class: 'row' },
+      ps.length >= 2 ? h('div', { class: 'seg', role: 'group', 'aria-label': 'Sản phẩm đang xem' },
+        [{ id: null, name: 'Mọi sản phẩm' }, ...ps].map(p => h('button', { type: 'button', 'aria-pressed': String(p.id === cur), disabled: S.busy, onclick: () => choose(p.id) }, p.name, p.waiting ? h('span', { class: 'count', 'aria-label': `${p.waiting} việc chờ bạn` }, String(p.waiting)) : null))) : null,
+      btn('Đọc số ngay', () => act('sync'), 'text'), btn('Tải lại', reload, 'text')));
+}
+function scopeLine(d) {
+  const out = [];
+  if (!S.ctx) out.push(small('Bản Nest này chưa gửi sản phẩm đang chọn, nên trang hiện mọi sản phẩm có trong dữ liệu.'));
+  if (S.ctx && S.local !== undefined && nestProduct() !== chosen()) {
+    out.push(h('div', { class: 'notice' }, h('span', {}, `Bạn đang xem ${scopeName(d)} trên trang này; Nest đang chọn ${S.ctx.product?.name ?? 'mọi sản phẩm'}.`), btn('Theo Nest', () => { S.local = undefined; reload(); }, 'link')));
+  }
+  const lo = d.scope.left_out ?? {};
+  const parts = [['cơ hội', lo.opportunities], ['bàn giao', lo.handoffs], ['quyết định', lo.decisions], ['chủ đề', lo.topics]].filter(([, n]) => n).map(([w, n]) => `${n} ${w}`);
+  if (d.scope.product && (parts.length || d.scope.unlabeled)) {
+    const old = d.scope.unlabeled ? ` ${d.scope.unlabeled} mục cũ chưa gắn sản phẩm chỉ hiện ở Mọi sản phẩm.` : '';
+    out.push(h('div', { class: 'notice' }, h('span', {}, `Đang xem ${scopeName(d)}.${parts.length ? ` Không tính ${parts.join(', ')} của sản phẩm khác.` : ''}${old}`), btn('Xem mọi sản phẩm', () => choose(null), 'link')));
+  }
+  return out;
+}
+
+// ---------- Cần bạn ----------
+function oppItem(o, d) {
+  const measure = `Đo bằng ${metric(o.target_outcome)}: kỳ vọng ${signed(o.expected_delta)} so với tuần trước, xem lại sau ${o.check_after_days} ngày`;
+  const facts = [measure, o.est_effort && `công ${EFFORT[o.est_effort] ?? o.est_effort}`, o.est_value && `giá trị ${VALUE[o.est_value] ?? o.est_value}`, Number.isFinite(o.signal_count) && `${o.signal_count} tín hiệu`].filter(Boolean).join(' · ');
+  const later = o.state === 'later';
+  return h('div', { class: 'item' },
+    h('div', { class: 'item-h' }, lamp(later ? 'idle' : 'warn'), h('span', { class: 't' }, o.title), many(d) && o.product ? badge(productName(o.product)) : null, badge(KIND[o.kind] ?? o.kind), badge(later ? 'Để sau' : 'Chờ bạn chọn', later ? '' : 'warn')),
+    o.summary ? h('p', {}, o.summary) : null,
+    o.kind === 'content' && o.query ? small(`Chủ đề tìm kiếm: ${o.query}`) : null,
+    small(facts),
+    h('div', { class: 'row' },
+      btn(o.kind === 'product' ? (d.setup.build ? 'Go: bắt đầu dựng' : 'Go: ghi thành việc') : 'Go', () => act('go', { id: o.ref }), 'strong'),
+      later ? null : btn('Để sau', () => act('later', { id: o.ref })), btn('Bỏ', () => act('drop', { id: o.ref }), 'text'),
+      (o.evidence_refs ?? []).length ? h('details', {}, h('summary', {}, 'Bằng chứng'), h('div', { class: 'chips' }, o.evidence_refs.map(r => h('span', { class: 'chip' }, evidenceRef(r))))) : null));
+}
+function handoffNeed(x, d) {
+  const prod = many(d) && x.product ? badge(productName(x.product)) : null;
+  if (x.state === 'delivered') return h('div', { class: 'item' },
+    h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, `Bản giao “${x.title}” chờ bạn duyệt phát hành`), prod, badge('Lượt bấm cuối', 'warn')),
+    small(x.detail || HAND.delivered[2], 'muted'),
+    x.command ? h('details', {}, h('summary', {}, 'Lệnh cho phép phát hành'), h('code', { class: 'cmd' }, x.command)) : null);
+  if (x.state === 'task') return h('div', { class: 'item' },
+    h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, x.title), prod, badge('Việc đã ghi', 'warn')),
+    x.summary ? h('p', {}, x.summary) : null,
+    small('Đã Go: quyết định đã vào nhật ký. Không có đội dựng nên việc chờ người làm; xong thì Soot đo kết quả từ ngày đó.'),
+    h('div', { class: 'row' }, btn('Giao việc', () => open(taskDraft(x)), 'strong'), btn('Đánh dấu đã xong', () => act('task_done', { id: x.opportunity }))));
+  // draft_ready, no_repo
+  return h('div', { class: 'item' },
+    h('div', { class: 'item-h' }, lamp(x.state === 'no_repo' ? 'bad' : 'warn'), h('span', { class: 't' }, x.title), prod, badge(HAND[x.state][0], x.state === 'no_repo' ? 'bad' : 'warn')),
+    small(x.detail || HAND[x.state][2], 'muted'),
+    x.command ? h('code', { class: 'cmd' }, x.command) : null,
+    h('div', { class: 'row' }, btn('Chạy lại', () => act('retry_handoff', { id: x.opportunity }), 'strong'), x.state === 'no_repo' ? linkBtn('Đặt PRODUCT_REPO', SETTINGS('PRODUCT_REPO')) : null));
+}
+function setupNeed(d) {
+  const n = d.next, name = scopeName(d);
+  if (n.code === 'setup') return h('div', { class: 'item' },
+    h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, 'Nối bảng số')),
+    small('Hai cách: (1) địa chỉ bảng số của sản phẩm (SCOREBOARD_URL, khoá PRODUCT_ADMIN_KEY; nhiều sản phẩm thì SCOREBOARD_URLS) hoặc (2) một Soot ghi số mỗi tuần bằng công cụ “Ghi số liệu”. Hướng dẫn nằm trong README của gói.', 'muted'),
+    h('div', { class: 'row' }, btn('Mở Thiết lập', () => open(SETTINGS(n.missing === 'key' ? 'PRODUCT_ADMIN_KEY' : 'SCOREBOARD_URL')), 'strong'),
+      linkBtn('Nhờ Đầu mối ghi số', draft(`Mỗi thứ Hai, đọc số tuần trước của ${name} (doanh thu, đăng ký mới, khách trả tiền lần đầu…) rồi ghi vào trang Công ty bằng công cụ company-loop_metrics_record.`), 'text')));
+  if (n.code === 'key_refused') return h('div', { class: 'item' },
+    h('div', { class: 'item-h' }, lamp('bad'), h('span', { class: 't' }, `Khoá bảng số bị từ chối${d.sync?.since ? ` từ ${dm(d.sync.since)}` : ''}`)),
+    small('Soot thử lại mỗi sáng. Đổi khoá xong bấm Đọc số ngay.', 'muted'),
+    h('div', { class: 'row' }, btn('Đổi khoá trong Thiết lập', () => open(SETTINGS('PRODUCT_ADMIN_KEY')), 'strong'), btn('Đọc số ngay', () => act('sync'))),
+    d.sync?.code ? h('details', {}, h('summary', {}, 'Chi tiết kỹ thuật'), h('p', {}, `${d.sync.code}: ${d.sync.message ?? ''}`)) : null);
+  return null;
+}
+function needsSection(d) {
+  const proposed = d.opportunities.filter(o => o.state === 'proposed');
+  const later = d.opportunities.filter(o => o.state === 'later');
+  const hand = d.handoffs.filter(x => ['delivered', 'task', 'draft_ready', 'no_repo'].includes(x.state));
+  const items = [setupNeed(d), ...hand.filter(x => x.state !== 'delivered').map(x => handoffNeed(x, d)), ...proposed.map(o => oppItem(o, d)), ...hand.filter(x => x.state === 'delivered').map(x => handoffNeed(x, d))].filter(Boolean);
+  return sec('can-ban', `Cần bạn${items.length ? ` · ${items.length}` : ''}`, 'Mỗi mục nói việc gì và làm ở đâu',
+    h('div', { class: 'list' }, items.length ? items : empty(h('span', {}, 'Không có việc nào cần bạn lúc này.'), h('span', { class: 'small' }, 'Bản tin thứ Hai 08:30 sẽ đưa cơ hội mới vào đây.'))),
+    later.length ? h('details', { class: 'later' }, h('summary', {}, `Để sau · ${later.length}`), h('div', { class: 'list' }, later.map(o => oppItem(o, d)))) : null);
+}
+
+// ---------- scorecard ----------
+function delta(t) {
+  if (t.pct === null || t.pct === undefined) return h('span', { class: 'was' }, t.previous === null || t.previous === undefined ? 'Chưa có kỳ trước' : `Kỳ trước ${fmt(t.previous, t.unit)}`);
+  const up = t.pct > 0 ? 1 : t.pct < 0 ? -1 : 0;
+  const tone = !up ? 'flat' : (up > 0) === (t.good !== 'down') ? 'ok' : 'bad';
+  return h('span', { class: 'stack tight' }, h('span', { class: `delta ${tone}` }, `${up > 0 ? '▲ tăng' : up < 0 ? '▼ giảm' : '= bằng'} ${nf.format(Math.abs(t.pct))}%${tone === 'bad' ? ' · chưa tốt' : ''}`), h('span', { class: 'was' }, `Kỳ trước ${fmt(t.previous, t.unit)}`));
+}
+function targetBar(t) {
+  if (!Number.isFinite(t.target) || !Number.isFinite(t.value) || t.target === 0) return null;
+  const met = t.good === 'down' ? t.value <= t.target : t.value >= t.target;
+  const fill = sizeTo(h('span'), 'width', t.good === 'down' ? (t.value > 0 ? (t.target / t.value) * 100 : 100) : (t.value / t.target) * 100);
+  return h('div', { class: 'stack tight' }, h('div', { class: `target ${met ? 'met' : ''}`.trim(), role: 'img', 'aria-label': `Mục tiêu ${fmt(t.target, t.unit)}` }, fill),
+    h('span', { class: 'small muted' }, `Mục tiêu ${fmt(t.target, t.unit)} · ${met ? 'đã đạt' : `còn ${fmt(Math.abs(t.target - t.value), t.unit)}`}`));
+}
+function spark(vals) {
+  const mn = Math.min(...vals), mx = Math.max(...vals), r = mx - mn || 1;
+  return h('div', { class: 'spark', role: 'img', 'aria-label': `Xu hướng ${vals.length} tuần, gần nhất ${nf.format(vals[vals.length - 1])}` },
+    vals.map((v, i) => sizeTo(h('span', { class: i === vals.length - 1 ? 'now' : '' }), 'height', 12 + ((v - mn) / r) * 88)));
+}
+const SOURCE = b => (b.source === 'table' ? `do Soot ghi${b.recorded_source ? ` · ${b.recorded_source}` : ''}` : b.source === 'both' ? 'bảng số sản phẩm và số Soot ghi' : 'bảng số sản phẩm');
+const period = b => `${dm(b.from)}–${dm(b.to)}`;
+function scorecard(d) {
+  if (d.boards) return sec('bang-so', 'Bảng số theo sản phẩm', '7 ngày, so với 7 ngày trước',
+    h('div', { class: 'list boards' }, d.boards.map(x => h('div', { class: 'board' },
+      h('div', { class: 'stack tight' }, h('span', { class: 'strong' }, x.name), h('span', { class: 'small muted' }, x.none ? 'Chưa có số' : `${period(x)} · ${SOURCE(x)}`)),
+      x.none ? small('Chưa có bảng số cho sản phẩm này.') : h('div', { class: 'mini' }, [x.north, ...x.tiles].filter(Boolean).map((t, i) => h('div', {}, h('span', { class: 'small muted' }, t.label), h('span', { class: i ? 'strong' : 'strong big' }, fmt(t.value, t.unit)), delta(t)))),
+      btn('Xem', () => choose(x.product), 'text')))));
+  const b = d.scoreboard;
+  const head = (aside, ...body) => sec('bang-so', 'Bảng số', aside, ...body);
+  if (!b) {
+    if (d.next.code === 'setup') return head(null, h('div', { class: 'card empty' }, h('strong', {}, 'Chưa có bảng số'), h('span', {}, 'Số sẽ hiện ở đây khi Soot đọc được kỳ đầu tiên. Nhãn và đơn vị lấy từ chính dữ liệu.'), btn('Mở Thiết lập', () => open(SETTINGS(d.next.missing === 'key' ? 'PRODUCT_ADMIN_KEY' : 'SCOREBOARD_URL')))));
+    return head(null, h('div', { class: 'card empty' }, h('strong', {}, `${scopeName(d)} chưa có bảng số`),
+      h('span', {}, d.scope.product ? `Thêm một dòng “${d.scope.product.id}=<địa chỉ bảng số>” vào SCOREBOARD_URLS, hoặc để Soot của sản phẩm này ghi số bằng “Ghi số liệu”.` : 'Soot đọc bảng số mỗi sáng 06:15. Bấm Đọc số ngay để đọc bây giờ.'),
+      d.scope.product ? linkBtn('Mở Thiết lập', SETTINGS('SCOREBOARD_URLS'), 'strong') : btn('Đọc số ngay', () => act('sync'), 'strong')));
+  }
+  const stale = d.sync && d.sync.ok === false;
+  const n = b.north;
+  const rest = b.tiles.filter(t => t.key !== n?.key);
+  return head(`${period(b)}, so với 7 ngày trước · ${SOURCE(b)}`,
+    stale ? h('div', { class: 'notice' }, lamp('bad'), h('div', { class: 'stack tight' }, h('span', {}, `Chưa cập nhật từ ${dm(d.sync.since || d.sync.at)}. Số dưới đây là của ${period(b)}.`),
+      d.sync.code ? h('details', {}, h('summary', {}, 'Chi tiết kỹ thuật'), h('p', {}, `${d.sync.code}: ${d.sync.message ?? ''}`)) : null)) : null,
+    n ? h('div', { class: 'card north' }, h('div', { class: 'stack tight' }, h('span', { class: 'small muted' }, `Chỉ số chính · ${n.label}`), h('span', { class: 'v' }, fmt(n.value, n.unit)), delta(n), targetBar(n)), n.trend ? spark(n.trend) : null) : null,
+    rest.length ? h('div', { class: 'tiles' }, rest.map(t => h('div', { class: 'card tile' }, h('span', { class: 'small muted' }, t.label), h('span', { class: 'v' }, fmt(t.value, t.unit)), delta(t), targetBar(t)))) : null,
+    b.source !== 'table' && (!b.cohorts || !b.plans) ? h('details', {}, h('summary', {}, `${!b.cohorts && !b.plans ? 'Nhóm người dùng và gói' : !b.cohorts ? 'Nhóm người dùng' : 'Gói'}: chưa có`), h('p', {}, 'Bảng số chưa trả số theo tuần đăng ký (cohorts) hoặc theo gói (plans); bản tin dùng những gì đang có.')) : null);
+}
+
+// ---------- after Go ----------
+function steps(x) {
+  if (x.state === 'task') return h('div', { class: 'steps' }, h('span', { class: 'done' }, 'Đã Go'), h('span', { class: 'now' }, 'Chờ người làm'), h('span', {}, 'Xong'));
+  const at = HAND[x.state]?.[1] ?? 0;
+  return h('div', { class: 'steps' }, ['Đã Go', 'Đang dựng', 'Chờ bạn duyệt', 'Đã phát hành'].map((s, i) => h('span', { class: i < at ? 'done' : i === at ? 'now' : '' }, s)));
+}
+function pipeItem(x, d) {
+  const tech = [x.team_id && `Đội ${x.team_id}`, x.ticket && `Ticket cha ${x.ticket}`, x.requirement_path && `Yêu cầu ${x.requirement_path}`].filter(Boolean);
+  const live = ['spawned', 'starting', 'building'].includes(x.state);
+  return h('div', { class: 'item' },
+    h('div', { class: 'item-h' }, h('span', { class: 't' }, x.title), many(d) && x.product ? badge(productName(x.product)) : null, x.state === 'blocked' ? badge(HAND.blocked[0], 'bad') : null),
+    steps(x),
+    small(x.state === 'released' && x.released_at ? `Xong ngày ${dm(x.released_at)}. Soot đo kết quả từ ngày đó.` : x.detail || HAND[x.state]?.[2] || ''),
+    tech.length || live ? h('details', {}, h('summary', {}, 'Chi tiết kỹ thuật'), tech.map(t => h('p', {}, t)),
+      live ? h('div', { class: 'row' }, h('input', { class: 'input', id: `t-${x.opportunity}`, placeholder: x.ticket ? `Ticket cha: ${x.ticket}` : 'Mã ticket cha (nếu Soot chưa đọc được)', 'aria-label': 'Mã ticket cha' }),
+        btn('Gắn', () => { const v = document.getElementById(`t-${x.opportunity}`)?.value.trim(); if (v) act('link_ticket', { id: x.opportunity, ticket: v }); }, 'text')) : null) : null);
+}
+function pipeline(d) {
+  const build = d.setup.build;
+  const rows = d.handoffs.filter(x => !['delivered', 'task', 'draft_ready', 'no_repo'].includes(x.state) || !build);
+  const topics = (d.topics ?? []).filter(t => t.state !== 'written').slice(0, 8);
+  return sec('dang-dung', build ? 'Đang dựng' : 'Việc sau Go', build ? null : 'Chưa nối đội dựng · Go ghi quyết định và một việc',
+    h('div', { class: 'list' }, rows.length ? rows.map(x => pipeItem(x, d)) : empty(h('span', {}, build ? 'Chưa có cơ hội sản phẩm nào đang dựng.' : 'Chưa có việc nào sau Go.'))),
+    topics.length ? h('div', { class: 'list' }, topics.map(t => h('div', { class: 'item' }, h('div', { class: 'item-h' }, h('span', { class: 't' }, `Chủ đề: ${t.query}`), badge(TOPIC[t.state]?.[0] ?? t.state, TOPIC[t.state]?.[1] ?? '')),
+      t.state === 'handed' && t.until ? small(`Chưa có bài; quá ${dm(t.until)} vẫn chưa viết thì chủ đề quay lại hàng chờ.`) : null))) : null);
+}
+
+// ---------- decisions ----------
+function verdict(x, d) {
+  if (x.verdict === 'hit' || x.verdict === 'miss') return badge(`${x.verdict === 'hit' ? 'Trúng' : 'Trượt'} · ${signed(x.actual_delta)}`, x.verdict === 'hit' ? 'ok' : 'bad');
+  if (x.verdict === 'unmeasured') return badge('Không đo được');
+  const task = d.handoffs.some(y => y.opportunity === x.ref && y.state === 'task');
+  if (x.verdict === 'waiting') return badge(x.check_at ? `Chờ đo đến ${dm(x.check_at)}` : task ? 'Chờ làm xong' : x.from === 'release' ? 'Chờ phát hành' : 'Chờ đăng bài');
+  return '';
+}
+function decisions(d) {
+  const r = d.hit_rate ?? {};
+  return sec('quyet-dinh', 'Quyết định và kết quả', r.measured ? `Trúng ${r.hits}/${r.measured} (${Math.round(r.rate * 100)}%) · trúng là đạt ít nhất nửa mức kỳ vọng` : 'Chưa đo được quyết định nào',
+    d.decisions.length ? h('div', { class: 'list scroll' }, h('table', { class: 'rows' },
+      h('thead', {}, h('tr', {}, ['Ngày', 'Quyết định', 'Cơ hội', ...(many(d) ? ['Sản phẩm'] : []), 'Kỳ vọng', 'Kết quả'].map(t => h('th', { scope: 'col' }, t)))),
+      h('tbody', {}, d.decisions.map(x => h('tr', {}, h('td', {}, dm(x.at)), h('td', {}, `${DECISION[x.decision] ?? x.decision} · ${x.by === 'soot' ? 'Soot' : 'bạn'}`), h('td', {}, x.title),
+        ...(many(d) ? [h('td', {}, x.product ? productName(x.product) : 'Chưa gắn')] : []),
+        h('td', {}, x.target_outcome ? `${metric(x.target_outcome)} ${signed(x.expected_delta ?? 0)}` : ''), h('td', {}, verdict(x, d)))))))
+      : h('div', { class: 'list' }, empty(h('span', {}, 'Chưa có quyết định nào. Bản tin đầu tiên chạy thứ Hai 08:30.'))));
+}
+
+// ---------- side ----------
+function side(d) {
   const hl = d.health;
-  if (!hl) return h('div', { class: 'card empty' }, 'Chưa có số về vòng lặp. Soot cập nhật mỗi sáng; chưa có thì các bước chưa chạy lần nào.');
-  const rt = hl.runtime?.tokens_7d;
-  return h('div', { class: 'stack' },
-    h('p', { class: 'muted' }, `Số lúc ${when(hl.at)}${hl.age_h > 30 ? ' (đã cũ)' : hl.age_h >= 1 ? ` (${hl.age_h} giờ trước; Soot cập nhật mỗi sáng)` : ''}. ${rt === undefined ? 'Chưa đọc được số token từ Soot.' : `Token 7 ngày: ${nf.format(rt)}.`}`),
-    h('div', { class: 'stack' }, hl.stages.map(st => h('div', { class: 'card stack' },
-      h('div', { class: 'line between' }, h('span', { class: 'strong' }, st.label), badge(st.starving?.length ? `${st.starving.length} nguồn đang đói` : 'đủ nguồn', st.starving?.length ? 'warn' : '')),
-      h('p', { class: 'muted' }, st.external ? 'Chạy trên máy chủ riêng của nhóm; lần chạy và token của nhóm nằm ở đó.' : st.last_run ? `Lần chạy gần nhất: ${st.last_run.name} (${day(st.last_run.at)}, ${st.last_run.status ?? 'chưa rõ'}). Token 7 ngày: ${nf.format(st.tokens_7d ?? 0)}${st.model_wakes_7d != null ? `, gọi model ${st.model_wakes_7d} lần` : ''}${st.budget_daily ? `. Hôm nay đến lúc đó ${nf.format(st.tokens_today ?? 0)}/${nf.format(st.budget_daily)} (${Math.round(st.budget_percent ?? 0)}%)` : ''}.` : 'Chưa có lần chạy nào.'),
-      (st.starving ?? []).map(i => h('p', {}, h('span', { class: 'strong' }, i.label + ': '), i.detail || 'chưa có'))))),
-    h('div', { class: 'card stack' }, h('span', { class: 'strong' }, 'Công sức của bạn (7 ngày)'),
-      h('p', {}, `Quyết định cơ hội: ${hl.effort?.decisions_tapped_7d ?? 0}. Lần nhắn Soot: ${hl.effort?.chat_instructions_7d ?? 'chưa rõ'}. Thẻ Cần bạn đang mở: ${hl.effort?.cards_open ?? 'chưa rõ'}${hl.effort?.cards_answered_7d != null ? `, đã trả lời 7 ngày: ${hl.effort.cards_answered_7d}${hl.effort.median_answer_s != null ? ` (chờ trung vị ${Math.round(hl.effort.median_answer_s)} giây)` : ''}` : ''}.`),
-      h('p', { class: 'muted' }, hl.effort?.note || '')));
+  const teams = hl?.runtime?.via === 'teams';
+  const stage = st => {
+    const state = st.unused ? 'idle' : st.external ? 'idle' : st.starving?.length ? 'warn' : st.last_run?.status === 'failed' ? 'bad' : 'ok';
+    const word = st.unused ? 'chưa dùng' : st.external ? 'máy chủ riêng' : st.starving?.length ? `${st.starving.length} nguồn thiếu` : st.last_run?.status === 'failed' ? 'lần chạy lỗi' : 'đủ nguồn';
+    const last = st.external ? 'Chạy trên máy chủ riêng của nhóm; lần chạy và mức dùng AI nằm ở đó.' : st.unused ? 'Chưa nối kho mã (PRODUCT_REPO) nên bước này không chạy.' : st.last_run ? `${st.last_run.name} · ${when(st.last_run.at)}` : 'Chưa có lần chạy nào.';
+    const ai = !st.external && !st.unused && Number.isFinite(st.tokens_7d) ? ` · Mức dùng AI 7 ngày: ${nf.format(st.tokens_7d)} token` : '';
+    return h('div', { class: 'item' },
+      h('div', { class: 'item-h' }, lamp(state), h('span', { class: 't' }, st.label), badge(word, state === 'warn' || state === 'bad' ? state : '')),
+      small(last + ai), (st.starving ?? []).map(i => h('p', { class: 'small' }, `${i.label}: ${i.detail || 'chưa có'}`)),
+      !st.external && !st.unused && (teams || st.last_run?.schedule) ? h('div', { class: 'row' }, teams ? linkBtn('Xem đội', `nest://team/${encodeURIComponent(st.key)}`) : null, st.last_run?.schedule ? linkBtn('Lịch chạy', `nest://schedules/${encodeURIComponent(st.last_run.schedule)}`) : null) : null);
+  };
+  const e = hl?.effort ?? {};
+  return h('div', { class: 'stack gap' },
+    sec('nhip', 'Nhịp tuần', null, h('div', { class: 'card' }, h('ul', { class: 'rhythm' }, RHYTHM.map(([id, what, at]) => h('li', {}, h('span', { class: 'stack tight' }, h('span', { class: 'strong' }, what), h('span', { class: 'small muted' }, at)), linkBtn('Lịch chạy', `nest://schedules/${id}`)))))),
+    sec('vong-lap', 'Vòng lặp', hl ? `Số lúc ${when(hl.at)}${hl.age_h > 30 ? ' · đã cũ' : ''}` : null,
+      !hl ? h('div', { class: 'list' }, empty(h('span', {}, 'Chưa có số về vòng lặp.'), h('span', { class: 'small' }, 'Soot cập nhật mỗi sáng; chưa có nghĩa là các bước chưa chạy lần nào.'))) : [
+        d.scope.product && hl.split === 'shared' ? small('Vòng lặp chung cho mọi sản phẩm của máy chủ: chưa tách được theo sản phẩm.') : null,
+        hl.split === 'product' && hl.left_out ? small(`Không tính ${hl.left_out} đội của sản phẩm khác.`) : null,
+        h('div', { class: 'list' }, hl.stages.length ? hl.stages.map(stage) : empty(h('span', {}, 'Không có đội nào của sản phẩm này.')))]),
+    hl ? sec('cong-suc', 'Công sức của bạn · 7 ngày', null, h('div', { class: 'card stack' },
+      h('p', {}, [`${e.decisions_tapped_7d ?? 0} quyết định`, e.chat_instructions_7d != null ? `${e.chat_instructions_7d} lần nhắn Soot` : null, e.cards_open != null ? `${e.cards_open} thẻ Cần bạn đang mở` : null].filter(Boolean).join(' · ')),
+      e.median_answer_s != null ? small(`Chờ trả lời trung vị ${Math.round(e.median_answer_s)} giây.`) : null, e.note ? small(e.note) : null,
+      linkBtn('Mở Hộp thư', 'nest://inbox'))) : null);
 }
 
+// ---------- page ----------
 function render() {
   const root = document.getElementById('app');
   root.replaceChildren();
-  if (S.error) { root.append(h('div', { class: 'next bad' }, h('span', {}, S.error), btn('Tải lại', async () => { await load(); render(); }))); return; }
+  if (S.error) {
+    root.append(h('div', { class: 'head' }, h('h1', {}, 'Công ty')),
+      h('div', { class: 'next bad', role: 'alert' }, lamp('bad'), h('div', { class: 'body' }, h('span', { class: 'title' }, 'Chưa tải được trang Công ty'), h('span', { class: 'muted' }, S.error)), h('span', { class: 'act' }, btn('Tải lại', reload, 'primary'))),
+      S.data ? small(`Số cũ lúc ${when(S.data.at)} vẫn còn: bấm Tải lại để xem tiếp.`) : '');
+    return;
+  }
   const d = S.data;
   if (!d) { root.append(h('p', { class: 'muted' }, 'Đang tải…')); return; }
-  const waitingOpps = d.opportunities.filter(o => o.state === 'proposed' || o.state === 'later');
-  const rest = d.opportunities.filter(o => !(o.state === 'proposed' || o.state === 'later'));
-  root.append(
-    h('div', { class: 'line between' }, h('h1', {}, 'Công ty'), h('span', { class: 'line' }, btn('Đọc ngay', () => act('sync'), 'btn ghost'), btn('Tải lại', async () => { await load(); render(); }, 'btn ghost'))),
-    nextBar(d),
-    S.notice && h('p', { class: 'muted', role: 'status' }, S.notice),
-    ...(d.next.code === 'choose' ? [] : [h('h2', {}, 'Số liệu'), tiles(d.scoreboard)]),
-    h('h2', {}, 'Cơ hội'),
-    d.opportunities.length ? h('div', { class: 'stack' }, [...waitingOpps, ...rest].map(o => oppCard(o, d.topics ?? []))) : h('div', { class: 'card empty' }, 'Chưa có cơ hội nào. Soot lập bản tin vào thứ Hai 08:30; nội dung tự chạy, cơ hội sản phẩm chờ bạn bấm Go.'),
-    ...(d.next.code === 'choose' ? [h('h2', {}, 'Số liệu'), tiles(d.scoreboard)] : []),
-    h('h2', {}, 'Bàn giao'),
-    d.handoffs.length ? h('div', { class: 'stack' }, d.handoffs.map(handoffCard)) : h('div', { class: 'card empty' }, 'Chưa có bàn giao nào. Khi bạn bấm Go cho một cơ hội sản phẩm, yêu cầu được viết và đội bbs:team mở ở đây.'),
-    h('h2', {}, 'Vòng lặp'), healthSection(d),
-    h('h2', {}, 'Nhật ký quyết định'), log(d));
+  root.append(header(d), ...scopeLine(d), nextBar(d),
+    S.notice ? h('p', { class: 'small muted', role: 'status' }, S.notice) : '',
+    h('div', { class: 'grid' }, h('div', { class: 'stack gap' }, needsSection(d), scorecard(d), pipeline(d), decisions(d)), side(d)));
 }
 
 async function start() {
   if (S.started) return;
   S.started = true;
-  await load(); render();
+  await reload();
 }
 window.parent.postMessage({ v: 1, type: 'ready' }, '*');
 render();

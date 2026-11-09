@@ -1,8 +1,9 @@
 // CL4.3 / §7: for a go decision past its check_after_days, fill actual_delta from the
 // scoreboard (the target_outcome key is the metric; a content post: its own clicks from its publish day) and keep the hit rate:
 // hit = the change reached at least half of expected_delta.
-import { eq, isNull, iso } from './base.mjs';
-import { latestBoard } from './scoreboard.mjs';
+import { eq, getState, isNull, iso } from './base.mjs';
+import { boardFor } from './scoreboard.mjs';
+import { productId } from './products.mjs';
 
 /** A hit: actual is at least half of expected, in the direction expected points. */
 export const isHit = (actual, expected) => (expected >= 0 ? actual >= expected / 2 : actual <= expected / 2);
@@ -31,7 +32,15 @@ function postSignal(topic, d) {
 export async function review(input, deps) {
   const { store, now } = deps;
   const open = (await store.query('decisions', [eq('decision', 'go'), isNull('actual_delta')], { order: 'at', desc: false, limit: 200 })).filter(d => !d.reviewed_at);
-  const board = await latestBoard(store);
+  // Each decision is measured on its own product's board (an unlabeled one: the host's).
+  const host = productId(await getState(store, 'host_product'));
+  const boards = new Map();
+  const valueOf = async (product, key) => {
+    const p = productId(product) ?? host;
+    if (!boards.has(p)) boards.set(p, await boardFor(store, deps.env ?? {}, p, host));
+    const b = boards.get(p);
+    return b ? [b.north, ...b.tiles].find(t => t?.key === key)?.value : null;
+  };
   const reviewed = [], unmeasured = [];
   let waiting = 0;
   for (const d of open) {
@@ -62,7 +71,7 @@ export async function review(input, deps) {
       continue;
     }
     if (now < from + d.check_after_days * 86_400_000) { waiting++; continue; }
-    const cur = board?.metrics?.[d.target_outcome]?.value;
+    const cur = await valueOf(d.product ?? opp?.product, d.target_outcome);
     if (!Number.isFinite(cur) || !Number.isFinite(d.baseline_value)) {
       await store.update('decisions', d.id, { reviewed_at: iso(now) });
       unmeasured.push(d.opportunity_ref);

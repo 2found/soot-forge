@@ -3,9 +3,9 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.11.23 — 2026-11-10
 
-Pairs with Soot 0.13.27 (unreleased). Browser tools 0.2.3 (`soot-browser`, not yet published: the release publishes it and pins `internal/browserinstall/manifest.json`).
+Baseline: v0.11.22 (97815a6). Pairs with Soot 0.13.27. Browser tools 0.2.3 (`soot-browser`, pinned in 2agent `internal/browserinstall/manifest.json`). company-loop storage version 3 → 4 (additive); the Công ty page reads Nest's new page `context` message (2agent soot-pages §5) and an older Nest keeps working without it.
 
 ### Added
 
@@ -15,6 +15,11 @@ Pairs with Soot 0.13.27 (unreleased). Browser tools 0.2.3 (`soot-browser`, not y
 ### Changed
 
 - **Bots and websites belong to a team.** On Nest 0.13.27+ `nest-lead` sends the person to paste a bot token on the team's Kênh tab (`nest://team/<team>/kenh`) and asks which team answers the bot when none is named, since `nest://settings/channels` is now only an overview; an older Nest keeps `nest://settings/channels`. `soot-nest` `nest-links` lists `nest://team/<team>/kenh|quyen` and `nest://settings/browser` (Nest 0.13.27+).
+- **Công ty follows the product.** The page takes Nest's selected product (new bridge message `context`) and has its own switch when there are two or more products; every section narrows (Cần bạn, the scorecard, what happens after Go, decisions, loop health by the product's teams), and the page says what it leaves out ("Không tính 1 cơ hội, 2 quyết định của sản phẩm khác"). Mọi sản phẩm shows one scorecard row per product, never a sum. `decisions`, `handoffs` and `topics` carry `product`; rows from before read as their opportunity's product, else the host's, and are labeled on the next sync, never dropped.
+- **Per-product scoreboards.** `SCOREBOARD_URLS` (`product=https://…`, comma or newline) sits beside `SCOREBOARD_URL`, which keeps its keys and state. `NORTH_STAR` picks the headline metric.
+- **Numbers without an API.** New tool `metrics_record`: a Soot writes a product's numbers for a period into the pack's `metrics` table, with its own labels, units (`usd`, `percent`, …), direction and target; the page reads them like a scoreboard. Labels and units come from the data, with the Lohi words as defaults for the contract keys.
+- **Build is optional.** Without `PRODUCT_REPO`, a product Go records the decision and a task ("Việc đã ghi": Giao việc opens a drafted conversation, Đánh dấu đã xong starts the outcome clock), instead of a dead "Chưa có kho mã".
+- **The page, rebuilt for a founder.** Full width (up to 1120 px, one column on a phone), one next step on every state with the place to act (`nest://settings/setup?key=…`, `nest://team/…`, `nest://schedules/…`, `nest://new?text=…`), a north star card with trend and target, decisions with Trúng/Trượt/Chờ đo, technical details folded under "Chi tiết kỹ thuật". Colours, radii and fonts are Nest tokens only.
 
 ## 0.11.22 — 2026-11-10
 

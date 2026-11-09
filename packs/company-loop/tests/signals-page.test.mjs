@@ -170,12 +170,12 @@ test('the pack is product neutral: no brand, no product word in the code, skill 
 test('declared outcomes, credentials and tools match what the code emits and reads', () => {
   assert.deepEqual(pack.outcomes.map(o => o.id).sort(), ['opportunity_found', 'requirement_shipped']);
   assert.deepEqual(Object.entries(pack.needs.credentials).map(([n, c]) => [n, c.optional, c.from]).sort(), [['CS_RUNTIME_TOKEN', true, 'operator'], ['PRODUCT_ADMIN_KEY', true, 'operator']]);
-  assert.deepEqual(pack.tools.map(t => t.name).sort(), ['decide', 'digest_save', 'health_sync', 'opportunities_card', 'page_action', 'page_view', 'review', 'scoreboard_sync', 'signals', 'team_watch', 'topic_next', 'topic_sync']);
+  assert.deepEqual(pack.tools.map(t => t.name).sort(), ['decide', 'digest_save', 'health_sync', 'metrics_record', 'opportunities_card', 'page_action', 'page_view', 'review', 'scoreboard_sync', 'signals', 'team_watch', 'topic_next', 'topic_sync']);
   const tables = Object.fromEntries(pack.storage.tables.map(t => [t.name, t]));
   for (const t of ['scoreboard', 'opportunities', 'decisions', 'handoffs', 'topics']) assert.ok(t in tables, t);
 });
 
-test('the page bundle: three plain files, no network, no innerHTML, Vietnamese, 480 px', () => {
+test('the page bundle: three plain files, no network, no innerHTML, Vietnamese, tokens only, follows Nest\'s product', () => {
   const html = readFileSync(new URL('page/index.html', root), 'utf8'), js = readFileSync(new URL('page/app.js', root), 'utf8'), css = readFileSync(new URL('page/app.css', root), 'utf8');
   assert.match(html, /lang="vi"/);
   assert.match(html, /viewport/);
@@ -183,4 +183,13 @@ test('the page bundle: three plain files, no network, no innerHTML, Vietnamese, 
   assert.ok(!/https?:\/\/|@import/.test(css));
   assert.match(js, /request_id/);
   assert.match(js, /Bản tin|Để sau/);
+  // Colours, radii and fonts come from Nest's tokens: no hex, no named font, no style attribute.
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(css), 'a hard-coded colour');
+  assert.ok(!/font-family|border-radius:\s*\d+px\s*;(?!.*999px)/.test(css.replace(/border-radius:\s*999px/g, '')), 'a fixed font or radius');
+  assert.ok(!/setAttribute\('style'|\bstyle:\s*['`]/.test(js), 'an inline style attribute');
+  // The product scope: the context message is read, sent back as view input, and a Go carries the host.
+  assert.match(js, /type === 'context'/);
+  assert.match(js, /products/);
+  assert.match(js, /task_done/);
+  assert.match(js, /nest:\/\/settings\/setup\?key=/);
 });
