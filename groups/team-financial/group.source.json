@@ -113,7 +113,7 @@
         "when": "doanh thu giảm hai tuần liên tiếp"
       },
       {
-        "when": "chi phí Soot của một nhóm tăng nhanh hơn kết quả nhóm làm ra",
+        "when": "đội đã dùng 80% ngân sách token trong ngày",
         "on": "budget_80"
       }
     ],

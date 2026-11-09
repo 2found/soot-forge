@@ -83,18 +83,19 @@ async function resolveParent(h, env) {
   return t ? { ticket: t } : {};
 }
 
-/** The go the founder owes: one Cần bạn card per handover, naming where to give it. */
-async function handoverAsk(h, title, parent, awaiting, store) {
-  const key = `handover:${h.opportunity}:${awaiting.map(p => p.id).sort().join(',')}`;
-  if ((await getState(store, 'asked_go')) === key || (await getState(store, key))) return null;
-  await setState(store, key, '1');
-  await setState(store, 'asked_go', key);
+/**
+ * The go the founder owes: one Cần bạn card per handover, naming where to give it. The runtime files it (no model); the
+ * id is the dedup, so nothing is remembered here and a card that could not be filed is filed on the next tick.
+ */
+const handoverGroup = h => `company:handover:${h.opportunity}`;
+function handoverCard(h, title, parent, awaiting) {
   const phase = awaiting[0];
   const where = phase.ticket ? `ticket giai đoạn ${phase.ticket}` : `ticket cha ${parent}`;
   return {
-    keys: [`company:handover:${h.opportunity}`], summary: `Bản bàn giao ${title} chờ bạn duyệt phát hành`,
-    missing: `Mở terminal của đội ${h.team_id} trong Orca (bbs team list) và đọc bản bàn giao: ${parent}/recap.html trong ~/.babysit. Hài lòng thì cho phép phát hành ở phê duyệt "release" của ${where}: ${phase.ticket ? `BABYSIT_TICKET=${phase.ticket} ` : ''}bbs ticket approval resolve --action approve. Chưa ổn thì --action redirect --note "<góp ý>"; đội tự sửa. Đây là lần bấm cuối cùng của bạn.`,
-    options: [{ label: 'Đã xem', recommended: true }],
+    id: `${handoverGroup(h)}:${awaiting.map(p => p.id).sort().join(',')}`, group: handoverGroup(h),
+    title: `Bản bàn giao ${title} chờ bạn duyệt phát hành`,
+    why: `Mở terminal của đội ${h.team_id} trong Orca (bbs team list) và đọc bản bàn giao: ${parent}/recap.html trong ~/.babysit. Hài lòng thì cho phép phát hành ở phê duyệt "release" của ${where}: ${phase.ticket ? `BABYSIT_TICKET=${phase.ticket} ` : ''}bbs ticket approval resolve --action approve. Chưa ổn thì --action redirect --note "<góp ý>"; đội tự sửa. Đây là lần bấm cuối cùng của bạn.`,
+    options: [{ id: 'seen', label: 'Đã xem', recommended: true }], reraise_after_hours: 72,
   };
 }
 
@@ -116,7 +117,7 @@ export async function team_watch(input, deps) {
   const open = await store.query('handoffs', [inList('state', OPEN)], { order: 'updated_at', limit: 50 });
   if (!open.length) return { done: true };
   const changed = [], outcomes = [];
-  let ask = null;
+  const raise = [], settle = [];
   for (const h of open) {
     const found = await resolveParent(h, env);
     if (h.state === 'draft_ready' && (found.missing || !found.ticket)) {
@@ -143,11 +144,12 @@ export async function team_watch(input, deps) {
       }
       s = summarize(data);
     }
-    if (s.awaiting && !ask) {
+    if (s.awaiting) {
       const opp = await store.one('opportunities', [eq('ref', h.opportunity)]);
-      ask = await handoverAsk(h, opp?.title ?? h.opportunity, parent, s.awaiting, store);
+      raise.push(handoverCard(h, opp?.title ?? h.opportunity, parent, s.awaiting));
     }
     if (s.state === h.state && s.detail === h.detail) continue;
+    if (!s.awaiting) settle.push(handoverGroup(h)); // the state moved off the handover: its card is done
     const set = { state: s.state, detail: s.detail, ...(s.state === 'released' ? { released_at: iso(now) } : {}) };
     await store.update('handoffs', h.id, set);
     changed.push({ ref: h.opportunity, state: s.state });
@@ -157,7 +159,8 @@ export async function team_watch(input, deps) {
       outcomes.push({ id: 'requirement_shipped', count: 1, ref: `req:${h.opportunity}` });
     }
   }
-  if (!changed.length && !ask) return { done: true };
-  const loud = outcomes.length > 0 || !!ask;
-  return { changed, ...(outcomes.length ? { outcomes } : {}), ...(ask ? { ask } : {}), notify: loud, wake: loud };
+  const cards = { ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}) };
+  if (!changed.length && !raise.length && !settle.length) return { done: true };
+  const loud = outcomes.length > 0;
+  return { changed, ...(outcomes.length ? { outcomes } : {}), ...cards, notify: loud, wake: loud };
 }

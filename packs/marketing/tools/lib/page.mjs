@@ -341,7 +341,7 @@ export async function answer(input, deps) {
   const { store } = deps;
   const option = typeof input.option === 'string' ? input.option.trim() : '';
   let key = typeof input.key === 'string' ? input.key : '';
-  if (!key) key = (await store.query('attention', [], { order: 'raised_at', limit: 50 })).find(r => r.reason !== 'signed_out' && !r.key.startsWith('woke:'))?.key ?? '';
+  if (!key) key = (await store.query('attention', [], { order: 'raised_at', limit: 50 })).find(r => r.reason !== 'signed_out' && !r.key.startsWith('woke:') && !r.key.startsWith('inc:'))?.key ?? '';
   const m = /^(channel|uncertain|late|reply):([A-Za-z0-9-]{1,64}):([a-z_]{1,32})$/.exec(key);
   if (!m || !option) fail('invalid_request', 'key is the due.ask key and option one of its options.');
   const [, kind, ref, reason] = m;

@@ -266,7 +266,7 @@
         "on": "chain_failed"
       },
       {
-        "when": "một bài trễ quá stale_after_h",
+        "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ",
         "on": "queue_waiting"
       },
       {

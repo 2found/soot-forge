@@ -84,7 +84,7 @@ on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_im
 | `deployment.example.json` | product `Lohi`, the Soots, the shared Editor/Video workspace, pack grants, the seven schedules, `approvals: {"marketing_claim": "auto"}` |
 | `soots/lohi-*.json` | Ops, Writer, Analyst, Radar and Video, each with a small daily token budget |
 | `soots/*.md` | the Lohi brief (`SOUL.md`) and each role's mission |
-| `packs/company-loop` (Forge) | scoreboard, watch and review to Ops, digest and health to the Analyst (never `decide`), `topic_next` to the Writer; five schedules `company-scoreboard`, `company-digest`, `company-watch`, `company-review`, `company-health` |
+| `packs/company-loop` (Forge) | scoreboard, watch and review to Ops, digest and health to the Analyst (never `decide`), `topic_next` to the Writer; six schedules `company-scoreboard`, `company-digest`, `company-watch`, `company-cards`, `company-review`, `company-health` |
 | `packs/lohi-blog/` | the Lohi-only blog publisher, a local pack: it is not in the Forge catalog |
 
 The topic comes from the tool, not a Soot: `marketing_plan` reads Lohi's public

@@ -339,7 +339,7 @@ const bin = async (d, name) => (await d.run('sh', ['-c', `command -v ${name}`]))
 
 /**
  * What a person must still do for the publisher to work, as one Cần bạn item. Silent when all
- * is ready, and when the list is the same as the last one it raised (no repeat wake).
+ * is ready. The runtime files `ask` as a card by itself (same ask, same card), so no model wakes to relay it.
  */
 export async function ready(env, deps = {}) {
   const d = { ...defaults(env), ...deps };
@@ -364,7 +364,7 @@ export async function ready(env, deps = {}) {
   const changed = sig !== (last ?? '');
   if (file && changed) { await mkdir(env.SOOT_PACK_STATE, { recursive: true }); await writeFile(file, JSON.stringify({ sig, at: new Date(d.now()).toISOString() })); }
   // Nothing missing any more: the runtime closes the Cần bạn card this schedule raised (resolves_need).
-  const out = { ok: missing.length === 0, missing, wake: missing.length > 0 && changed, notify: missing.length > 0 && changed, ...(missing.length === 0 ? { resolves_need: true } : {}) };
+  const out = { ok: missing.length === 0, missing, wake: false, notify: false, ...(missing.length === 0 ? { resolves_need: true } : {}) };
   if (missing.length) {
     out.ask = {
       summary: 'Hoàn tất thiết lập đăng blog Lohi',

@@ -3,7 +3,7 @@
 // reversible, so the digest sends them straight to a topic (auto-go by "soot"); a product
 // opportunity waits for the founder's tap on the operator page.
 import { createHash } from 'node:crypto';
-import { eq, fail, fold, iso, mondayOf, ictDay, short, getState, setState } from './base.mjs';
+import { eq, fail, fold, iso, mondayOf, ictDay, short } from './base.mjs';
 import { latestBoard } from './scoreboard.mjs';
 import { startHandoff } from './handoff.mjs';
 
@@ -60,6 +60,27 @@ export async function queueTopic(store, opp, kind, reason, query) {
   return true;
 }
 
+export const PROPOSALS_GROUP = 'company:proposals';
+
+/**
+ * The one Cần bạn card for the product opportunities still `proposed`, derived from the table on every tick, with no model and
+ * nothing remembered: the id is the set of waiting refs (a new set is a new card that replaces the old one), the count in it is
+ * current, and when none is proposed any more (the founder chose on the Công ty page) the card is settled. `Đã xem` only
+ * acknowledges; it never wakes a model. The link is a structured field, not text in the body.
+ */
+export async function opportunities_card(input, deps) {
+  const waiting = await deps.store.query('opportunities', [eq('state', 'proposed')], { limit: 50 });
+  if (!waiting.length) return { done: true, waiting: 0, settle: [PROPOSALS_GROUP] };
+  const key = createHash('sha1').update(waiting.map(w => w.ref).sort().join(',')).digest('hex').slice(0, 10);
+  const names = waiting.slice(0, 5).map(w => `• ${short(w.title, 100)}`).join('\n');
+  return { done: true, waiting: waiting.length, raise: {
+    id: `${PROPOSALS_GROUP}:${key}`, group: PROPOSALS_GROUP, title: `${waiting.length} cơ hội chờ bạn chọn`,
+    why: `${names}${waiting.length > 5 ? `\n… và ${waiting.length - 5} cơ hội nữa` : ''}\nMở trang Công ty: mỗi cơ hội có nút Go, Để sau, Bỏ. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.`,
+    link: 'nest://page/cong-ty', link_label: 'Mở Công ty',
+    options: [{ id: 'seen', label: 'Đã xem', recommended: true }], reraise_after_hours: 168,
+  } };
+}
+
 const view = o => ({ ref: o.ref, title: o.title, kind: o.kind, state: o.state });
 
 export async function digest_save(input, deps) {
@@ -97,18 +118,7 @@ export async function digest_save(input, deps) {
   const waiting = await store.query('opportunities', [eq('state', 'proposed')], { limit: 50 });
   const out = { saved, skipped, waiting: waiting.length };
   if (fresh) out.outcomes = [{ id: 'opportunity_found', count: fresh, ref: `digest:${week}` }];
-  if (waiting.length) {
-    // One Cần bạn card per set of waiting proposals, filed once.
-    const key = createHash('sha1').update(waiting.map(w => w.ref).sort().join(',')).digest('hex').slice(0, 10);
-    if ((await getState(store, 'asked')) !== key) {
-      await setState(store, 'asked', key);
-      out.ask = {
-        keys: [`company:proposals:${key}`], summary: `${waiting.length} cơ hội chờ bạn chọn`,
-        missing: 'Mở trang Công ty ở thanh bên của Nest: mỗi cơ hội có nút Go, Để sau, Bỏ. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.\nnest://page/cong-ty',
-        options: [{ label: 'Đã xem', recommended: true }],
-      };
-    }
-  }
+  // The Cần bạn card is not filed here: `opportunities_card` (a tool-only schedule) keeps it from the table, no model.
   return out;
 }
 

@@ -112,11 +112,11 @@
           "after": "24h"
         },
         {
-          "when": "độc giả đang chờ một người trả lời",
+          "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ",
           "on": "queue_waiting"
         },
         {
-          "when": "một cơ hội đã chờ người sáng lập một tuần",
+          "when": "một thẻ Cần bạn của đội chờ bạn quá một tuần",
           "on": "queue_waiting",
           "after": "168h"
         }
@@ -208,7 +208,7 @@
           "on": "chain_failed"
         },
         {
-          "when": "một bài trễ quá stale_after_h",
+          "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ",
           "on": "queue_waiting"
         },
         "một phản hồi nói về tiền, tài khoản hoặc khiếu nại"
@@ -305,7 +305,7 @@
       "escalates_when": [
         "doanh thu giảm hai tuần liên tiếp",
         {
-          "when": "chi phí Soot của một nhóm tăng nhanh hơn kết quả nhóm làm ra",
+          "when": "đội đã dùng 80% ngân sách token trong ngày",
           "on": "budget_80"
         }
       ],

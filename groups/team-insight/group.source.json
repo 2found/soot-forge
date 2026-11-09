@@ -260,11 +260,11 @@
         "after": "24h"
       },
       {
-        "when": "độc giả đang chờ một người trả lời",
+        "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ",
         "on": "queue_waiting"
       },
       {
-        "when": "một cơ hội đã chờ người sáng lập một tuần",
+        "when": "một thẻ Cần bạn của đội chờ bạn quá một tuần",
         "on": "queue_waiting",
         "after": "168h"
       }

@@ -5,14 +5,14 @@ import { pathToFileURL } from 'node:url';
 import { storage, LoopError, fail } from './lib/base.mjs';
 import { scoreboard_sync } from './lib/scoreboard.mjs';
 import { signals } from './lib/signals.mjs';
-import { digest_save, decide, topic_next, topic_sync } from './lib/opportunities.mjs';
+import { digest_save, decide, topic_next, topic_sync, opportunities_card } from './lib/opportunities.mjs';
 import { team_watch } from './lib/watch.mjs';
 import { review } from './lib/review.mjs';
 import { page_view, page_action } from './lib/page.mjs';
 import { health_sync } from './lib/health.mjs';
 
 export const TOOLS = {
-  scoreboard_sync, signals, digest_save, topic_next, topic_sync, team_watch, review, page_view, page_action, health_sync,
+  scoreboard_sync, signals, digest_save, opportunities_card, topic_next, topic_sync, team_watch, review, page_view, page_action, health_sync,
   // Through MCP or an approval card: the operator who approves is the decider.
   decide: (input, deps) => decide(input, deps, { by: 'operator' }),
 };

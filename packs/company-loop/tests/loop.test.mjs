@@ -61,14 +61,15 @@ test('content opportunities go by themselves (decision by soot) and queue a topi
   // The product one is only proposed: no requirement, no handoff, no decision, no spawn.
   assert.equal(w.rows('opportunities').find(o => o.kind === 'product').state, 'proposed');
   assert.equal(w.rows('handoffs').length, 0);
-  // One card for N waiting.
+  // The card is not the model's: digest_save returns the count; the cards tick raises it.
   assert.equal(out.waiting, 1);
-  assert.equal(out.ask.summary, '1 cơ hội chờ bạn chọn');
-  assert.match(out.ask.keys[0], /^company:proposals:/);
-  assert.match(out.ask.missing, /trang Công ty/);
-  assert.match(out.ask.missing, /^nest:\/\/page\/cong-ty$/m, 'the card opens the page');
-  assert.ok(out.ask.options.length >= 1);
-  // The same waiting set is not asked twice.
+  assert.equal(out.ask, undefined, 'no Cần bạn ask from the digest: the host raises the card');
+  const card = await w.call('opportunities_card');
+  assert.equal(card.raise.title, '1 cơ hội chờ bạn chọn');
+  assert.match(card.raise.id, /^company:proposals:/);
+  assert.equal(card.raise.link, 'nest://page/cong-ty', 'a structured link, not text');
+  assert.ok(card.raise.options.length >= 1);
+  assert.deepEqual((await w.call('opportunities_card')).raise.id, card.raise.id, 'the same set is the same card id');
   const again = await w.call('digest_save', { opportunities: [ITEM.product] });
   assert.equal(again.ask, undefined);
   assert.equal(w.rows('opportunities').length, 2, 'the same title is the same opportunity');
@@ -382,16 +383,17 @@ test('team_watch: a handover waiting for the release go files ONE Cần bạn ne
   b.snapshot({ phases: [phase('p1', 'released'), { ...phase('p2', 'delivered', 'ask'), ticket: 'bs-phase002' }] });
   const first = await w.call('team_watch');
   assert.deepEqual(first.changed, [{ ref, state: 'delivered' }]);
-  assert.equal(first.ask.summary, `Bản bàn giao ${ITEM.product.title} chờ bạn duyệt phát hành`);
-  assert.match(first.ask.missing, /BABYSIT_TICKET=bs-phase002 bbs ticket approval resolve --action approve/);
-  assert.match(first.ask.missing, new RegExp(w.rows('handoffs')[0].team_id));
-  assert.deepEqual([first.notify, first.wake], [true, true]);
-  for (let i = 0; i < 3; i++) { w.now += 30 * 60_000; assert.deepEqual(await w.call('team_watch'), { done: true }, 'every 30 minutes stays quiet'); }
+  assert.equal(first.raise.length, 1);
+  assert.equal(first.raise[0].title, `Bản bàn giao ${ITEM.product.title} chờ bạn duyệt phát hành`);
+  assert.match(first.raise[0].why, /BABYSIT_TICKET=bs-phase002 bbs ticket approval resolve --action approve/);
+  assert.match(first.raise[0].why, new RegExp(w.rows('handoffs')[0].team_id));
+  assert.deepEqual([first.notify, first.wake], [false, false], 'a card needs no model');
+  for (let i = 0; i < 3; i++) { w.now += 30 * 60_000; { const t = await w.call('team_watch'); assert.deepEqual([t.changed, t.notify, t.wake, t.raise.map(r => r.id)], [[], false, false, first.raise.map(r => r.id)], 'every tick restates the same card id and wakes nobody'); }; }
   assert.equal((await w.call('page_view', {}, { page: 'cong-ty' })).next.code, 'release_go');
   // The go is given; the release lands: the outcome and the launch topic, no second need.
   b.snapshot({ phases: [phase('p1', 'released'), phase('p2', 'released', 'ask')] });
   const out = await w.call('team_watch');
-  assert.deepEqual([out.changed[0].state, out.outcomes[0].id, out.ask], ['released', 'requirement_shipped', undefined]);
+  assert.deepEqual([out.changed[0].state, out.outcomes[0].id, out.raise, out.settle], ['released', 'requirement_shipped', undefined, [`company:handover:${ref}`]]);
   assert.equal(w.rows('topics').filter(t => t.kind === 'launch').length, 1);
 });
 
@@ -518,4 +520,17 @@ test('a product decision is measured from its release, not from the Go', async (
   const out = await w.call('review');
   assert.equal(out.waiting, 0);
   assert.equal(out.unmeasured.length + out.reviewed.length, 1);
+});
+
+test('opportunities_card: closes itself when none is proposed, the count follows the table, a new set is a new card', async () => {
+  const { w } = await ready();
+  assert.deepEqual((await w.call('opportunities_card')).settle, ['company:proposals']);
+  await w.call('digest_save', { opportunities: [ITEM.product] });
+  const one = (await w.call('opportunities_card')).raise;
+  assert.equal(one.title, '1 cơ hội chờ bạn chọn');
+  assert.equal(one.group, 'company:proposals');
+  const ref = refOf(w, 'product');
+  await w.call('decide', { id: ref, decision: 'go' });
+  const done = await w.call('opportunities_card');
+  assert.deepEqual([done.raise, done.settle, done.wake, done.notify], [undefined, ['company:proposals'], undefined, undefined]);
 });
