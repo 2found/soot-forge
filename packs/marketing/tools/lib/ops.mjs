@@ -224,6 +224,63 @@ async function latestCheck(store, p) {
 
 // ---------- the dispatcher's read ----------
 
+const NEST_LINE = /^nest:\/\/\S+$/;
+const slug = i => `o${i + 1}`;
+
+/**
+ * The Cần bạn cards for the needs (`raise`) and the cards to close (`settle`), answered on the schedule's own call so the
+ * runtime files them with no model. A card is one need of one incident: its id is the need key plus the time the need
+ * first showed (an `inc:` row in `attention`, gone when the need is answered or resolves), so a channel that signs out
+ * again later is a new card, and an unanswered one is raised again after 72 hours by the runtime. Each option runs
+ * `marketing_answer` (or, for a sign-in, `marketing_pause {signed_in}`) by itself; only a pick that needs the person's
+ * words wakes the Editor. A need the Editor already filed (`raised`) gets no second card.
+ */
+async function needCards(needs, { store, settings, soot, byKey, replies, raised, now }) {
+  const raise = [];
+  const live = new Set();
+  const marks = new Map(raised.filter(r => r.key.startsWith('inc:')).map(r => [r.key.slice(4), r]));
+  for (const n of needs) {
+    live.add(n.key);
+    if (n.raised) continue;
+    let mark = marks.get(n.key);
+    if (!mark) {
+      mark = { key: 'inc:' + n.key, kind: 'inc-' + n.kind, ref: n.id, reason: n.reason, raised_at: iso(now) };
+      try { await store.insert('attention', mark); } catch (e) { if (e.code !== 'conflict') throw e; }
+    }
+    const id = `need:${n.key}@${Date.parse(mark.raised_at)}`;
+    if (n.login_url) {
+      raise.push({
+        id, group: `need:${n.key}`, title: n.title, why: `${n.steps}. Trang đăng nhập: ${n.login_url}`,
+        ...(n.browser ? { link: n.browser, link_label: 'Mở trình duyệt của Editor' } : {}),
+        options: [{ id: 'signed_in', label: `Đã đăng nhập ${n.platform_label}`, recommended: true, tool: { pack: 'marketing', name: 'pause', input: { channel: n.channel, paused: true, signed_in: true } } }],
+        reraise_after_hours: 72,
+      });
+      continue;
+    }
+    const ask = await askFor(n, { store, settings, soot, byKey, replies });
+    const link = ask.missing.split('\n').map(l => l.trim()).find(l => NEST_LINE.test(l));
+    const labels = ask.options;
+    raise.push({
+      id, group: `need:${n.key}`, title: ask.summary, why: ask.missing.split('\n').filter(l => l.trim() !== link).join('\n'),
+      ...(link ? { link, link_label: 'Mở' } : {}),
+      options: labels.map((o, i) => (n.kind === 'uncertain' && o.label === ANSWERS.uncertain[0]
+        // The person's live link is words only a turn can take: this one pick wakes the Editor.
+        ? { id: slug(i), label: o.label, wake: `The person picked "${o.label}" on ${n.key}. Ask for the post's link with one report_blocker (no options), then marketing_answer {key: "${n.key}", option: "${o.label}", url}.` }
+        : { id: slug(i), label: o.label, recommended: o.recommended, tool: { pack: 'marketing', name: 'answer', input: { key: n.key, option: o.label } } })),
+      reraise_after_hours: 72,
+    });
+  }
+  // Incidents whose need is gone: forget the mark and close the card.
+  const settle = [];
+  for (const [key, row] of marks) {
+    if (live.has(key)) continue;
+    await store.remove('attention', [eq('key', row.key)]);
+    settle.push(`need:${key}`);
+  }
+  return { ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}) };
+}
+
+
 // Cần bạn items (design §5): the dispatcher lists them, the woken Publisher
 // files one report_blocker each and marks it with `raised`, so a schedule
 // wakes once per item, not every 10 minutes.
@@ -321,7 +378,14 @@ export async function due(input, { store, now, soot }) {
     if (next) out.ask = await askFor(next, { store, settings, soot, byKey, replies: open });
   }
   // The runtime's wake_when matches the boolean `notify` (or a string at a path), so both say the same.
-  const fresh = out.needs.filter(n => !n.raised && !n.woken);
+  const scheduled = input.schedule === true;
+  // On the schedule's own call a need is a card the runtime files itself (no model wakes to relay it), so only a need the
+  // Editor's own turn raised before is skipped, and a need that is gone settles its card.
+  const fresh = scheduled ? [] : out.needs.filter(n => !n.raised && !n.woken);
+  if (scheduled) {
+    delete out.ask;
+    Object.assign(out, await needCards(out.needs, { store, settings, soot, byKey, replies: open, raised, now }));
+  }
   // Nothing outstanding any more: the runtime closes the Cần bạn card this schedule raised (resolves_need).
   out.resolves_need = out.needs.length === 0;
   // A due item the Editor was already woken for (and could not finish: it parked on a person) never wakes it again
@@ -332,13 +396,10 @@ export async function due(input, { store, now, soot }) {
   const live = new Set(items.map(i => 'woke:' + i.key));
   for (const r of raised) if (r.kind === 'woke-item' && !live.has(r.key)) await store.remove('attention', [eq('key', r.key)]);
   out.wake = out.notify = freshItems.length > 0 || fresh.length > 0;
-  // The schedule's own call remembers whom it woke for, so an unchanged need costs one model turn, ever.
-  if (input.schedule === true && out.notify) {
+  // The schedule's own call remembers whom it woke for, so an unchanged item costs one model turn, ever.
+  if (scheduled && out.notify) {
     for (const i of freshItems) {
       try { await store.insert('attention', { key: 'woke:' + i.key, kind: 'woke-item', ref: i.q.post, reason: i.q.channel, raised_at: iso(now) }); } catch (e) { if (e.code !== 'conflict') throw e; }
-    }
-    for (const n of fresh) {
-      try { await store.insert('attention', { key: 'woke:' + n.key, kind: 'woke-' + n.kind, ref: n.id, reason: n.reason, raised_at: iso(now) }); } catch (e) { if (e.code !== 'conflict') throw e; }
     }
   }
   return out;

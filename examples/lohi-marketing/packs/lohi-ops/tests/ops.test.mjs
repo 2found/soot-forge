@@ -60,12 +60,14 @@ test('catalog_health: findings table, one card for the actionable ones only, and
   assert.equal(out.ok, true);
   assert.equal(out.counts.stale, 2);
   assert.equal(out.actionable, 2, 'a (70d) and the empty chapter; b (16d) is only listed');
-  assert.ok(out.ask && out.wake && out.notify);
+  assert.ok(out.ask, 'the ask is filed as a card by the runtime');
+  assert.deepEqual([out.wake, out.notify], [false, false], 'no model wakes to relay it');
   assert.equal(store.data.findings.length, 3);
   assert.ok(fetch.calls.every(c => c.host === 'api.test' && c.headers['X-API-Key'] === 'lohi_ak_test'));
-  // Same findings again: the card does not wake a second time.
+  // Same findings again: the same ask (one card by its key), never a wake.
   const again = await go('catalog_health', {}, { store, fetchImpl: fetch });
   assert.equal(again.wake, false);
+  assert.deepEqual(again.ask.keys, out.ask.keys);
   assert.equal(store.data.findings.length, 3, 'upsert, not duplicates');
   // Everything clears: the need resolves.
   const clean = await go('catalog_health', {}, { store, fetchImpl: router({ 'GET api.test/admin/analysis/catalog-health': res({ version: 1, check: 'x', scanned: 1, items: [], next_cursor: null, truncated: false }) }) });
@@ -167,7 +169,8 @@ test('comments: pull stores pending, decide hides only the confident bad, keeps 
   assert.deepEqual(out.kept.map(k => k.id), [ID2]);
   assert.deepEqual(out.escalated.map(k => k.id), [ID3], 'a 0.6 abuse is a person\'s call');
   assert.equal(out.awaiting_person, 1);
-  assert.ok(out.ask && out.wake);
+  assert.ok(out.ask);
+  assert.equal(out.wake, false);
   assert.equal(fetch.calls.filter(c => c.method === 'POST').length, 1, 'only the one hide reached the api (ID2 was not flagged: no call)');
   assert.deepEqual(JSON.parse(fetch.calls.find(c => c.method === 'POST').body), { reason: 'spam' });
   // Pulled again: decided ones are not offered twice.
@@ -352,13 +355,14 @@ test('a missing PRODUCT_ADMIN_KEY or CLI_CATALOG_DB stays a quiet skip but asks 
   const first = await run('catalog_health', { input: {} }, { now: NOW, env: { PRODUCT_API_URL: API }, store, fetchImpl: router({}) });
   assert.equal(first.skipped, true);
   assert.equal(first.reason_code, 'optional_credential');
-  assert.equal(first.wake, true);
+  assert.equal(first.wake, false);
   assert.match(first.ask.summary, /PRODUCT_ADMIN_KEY/);
   assert.match(first.ask.missing, /Cài đặt.*Thiết lập.*PRODUCT_ADMIN_KEY/s);
-  // The next scheduled run is silent: one Cần bạn item, not one per run.
+  // The next scheduled run carries the same ask: the runtime keeps one card per key, no wake.
   const again = await run('catalog_health', { input: {} }, { now: NOW, env: { PRODUCT_API_URL: API }, store, fetchImpl: router({}) });
   assert.equal(again.wake, false);
-  assert.equal(again.notify, false, 'the ask is carried (like every pack card) but does not wake the Soot again');
+  assert.equal(again.notify, false, 'the ask is carried but never wakes the Soot');
+  assert.deepEqual(again.ask.keys, first.ask.keys);
   // The key is entered: the next run closes the item.
   const routes = catalogRoutes();
   const fixed = await run('catalog_health', { input: {} }, { now: NOW, env: ENV, store, fetchImpl: router(routes) });

@@ -144,7 +144,7 @@ test('the pack is product neutral: no brand, no product word in the code, skill 
 test('declared outcomes, credentials and tools match what the code emits and reads', () => {
   assert.deepEqual(pack.outcomes.map(o => o.id).sort(), ['opportunity_found', 'requirement_shipped']);
   assert.deepEqual(Object.entries(pack.needs.credentials).map(([n, c]) => [n, c.optional, c.from]).sort(), [['CS_RUNTIME_TOKEN', true, 'operator'], ['PRODUCT_ADMIN_KEY', true, 'operator']]);
-  assert.deepEqual(pack.tools.map(t => t.name).sort(), ['decide', 'digest_save', 'health_sync', 'page_action', 'page_view', 'review', 'scoreboard_sync', 'signals', 'team_watch', 'topic_next', 'topic_sync']);
+  assert.deepEqual(pack.tools.map(t => t.name).sort(), ['decide', 'digest_save', 'health_sync', 'opportunities_card', 'page_action', 'page_view', 'review', 'scoreboard_sync', 'signals', 'team_watch', 'topic_next', 'topic_sync']);
   const tables = Object.fromEntries(pack.storage.tables.map(t => [t.name, t]));
   for (const t of ['scoreboard', 'opportunities', 'decisions', 'handoffs', 'topics']) assert.ok(t in tables, t);
 });

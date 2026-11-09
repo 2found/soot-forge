@@ -138,32 +138,39 @@ test('facts_sync with no url uses the remembered source, or says to write withou
   assert.ok(again.facts > 0);
 });
 
-test('wake hygiene: the dispatch schedule wakes for a signed-out channel once; an unchanged need never wakes again', async () => {
+test('sign-in cards: the dispatch schedule raises one card per signed-out channel and wakes no model; the same incident keeps the same id', async () => {
   const w = world();
   await w.call('channels_setup', { channels: [{ id: 'x-lohi', account: 'lohi2com' }] });
   const first = await w.call('due', { schedule: true });
-  assert.equal(first.notify, true);
-  assert.ok(first.ask, 'the Editor still gets the ready item to file');
-  // The Editor has not filed it yet (budget out, run blocked): the schedule must not wake it again.
+  assert.ok(first.wake !== true && first.notify !== true, 'a sign-in is a card, not a model run');
+  assert.equal(first.ask, undefined);
+  assert.equal(first.raise.length, 1);
+  const card = first.raise[0];
+  assert.match(card.id, /^need:/);
+  const opt = card.options.find(o => o.tool);
+  assert.deepEqual([opt.tool.pack, opt.tool.name, opt.tool.input.signed_in, opt.wake], ['marketing', 'pause', true, undefined], 'the pick runs the probe, no model');
   w.now += 10 * 60_000;
   const second = await w.call('due', { schedule: true });
-  assert.deepEqual([second.wake, second.notify], [false, false]);
-  assert.ok(second.ask, 'a person asking in chat still sees the item to file');
-  // A new need (another channel signs out) is a change and wakes.
+  assert.equal(second.raise[0].id, card.id, 'a tick later is the same card id (the host files it once)');
+  // Another channel signing out is another card.
   await w.call('channels_setup', { channels: [{ id: 'facebook-lohi', account: 'https://facebook.com/lohi2com' }] });
-  assert.equal((await w.call('due', { schedule: true })).notify, true);
-  // Signing in ends the episode: a later sign-out wakes again.
+  assert.equal((await w.call('due', { schedule: true })).raise.length, 2);
+  // Signing in ends the incident: the card is settled, and a later sign-out is a new id.
   await w.call('pause', { channel: 'x-lohi', paused: true, signed_in: true });
   await w.call('pause', { channel: 'x-lohi', paused: false });
+  const gone = await w.call('due', { schedule: true });
+  assert.ok(gone.settle.some(k => k.includes('x-lohi')), 'the signed-in channel card is settled');
   await w.store.call('channels', 'update', { where: [{ column: 'key', op: 'eq', value: 'x-lohi' }], set: { paused: true, paused_reason: 'signed_out' } });
-  assert.equal((await w.call('due', { schedule: true })).notify, true);
+  w.now += 60_000;
+  const again = await w.call('due', { schedule: true });
+  assert.ok(again.raise.some(r => r.id !== card.id && r.group === card.group));
 });
 
-test('wake hygiene: a model call to due (no schedule flag) never records a wake', async () => {
+test('a model call to due (no schedule flag) raises nothing', async () => {
   const w = world();
   await w.call('channels_setup', { channels: [{ id: 'reddit-lohi', account: 'lohi2com' }] });
-  await w.call('due', {});
-  assert.equal((await w.call('due', { schedule: true })).notify, true);
+  const out = await w.call('due', {});
+  assert.equal(out.raise, undefined);
 });
 
 test('page: one state vocabulary, a checked post is not "waiting", the body shows, the link summary has no empty segment', async () => {

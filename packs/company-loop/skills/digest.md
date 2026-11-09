@@ -54,8 +54,9 @@ sub-agents, no other tool than the ones named here.
 6. Call `company-loop_digest_save {opportunities}` once. If it refuses, fix the
    named items and call again once.
 7. If the answer has `outcomes`, record each with the host outcome tool exactly as
-   given. If it has `ask`, file it as the one Cần bạn card: `report_blocker` with
-   its `summary`, `missing` and `options` as is, and that is the last call.
+   given. Do not file a Cần bạn card: the host raises the card for the
+   opportunities that wait for the founder by itself, and `report_blocker` would
+   only park this run.
 8. End with one line: how many opportunities went to marketing, how many wait
    for the founder.
 

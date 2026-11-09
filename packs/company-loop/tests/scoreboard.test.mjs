@@ -91,7 +91,7 @@ test('a failing bbs is told in the note and the week is tried again; the scorebo
   assert.equal((await w.call('scoreboard_sync')).baseline, 'recorded');
 });
 
-test('a refused key is one plain line naming the key and its role, raised once as a Cần bạn ask', async () => {
+test('a refused key is one plain line naming the key and its role, one card id per incident', async () => {
   reset();
   const w = live({ PRODUCT_ADMIN_KEY: 'a-reader-key' });
   const first = await w.call('scoreboard_sync');
@@ -100,9 +100,10 @@ test('a refused key is one plain line naming the key and its role, raised once a
   assert.match(first.message, /PRODUCT_ADMIN_KEY/);
   assert.match(first.message, /agent_mod/);
   assert.doesNotMatch(first.message, /a-reader-key/);
-  assert.deepEqual([first.notify, first.ask?.keys], [true, ['company:scoreboard:forbidden']]);
+  assert.deepEqual([first.notify, first.wake, first.raise.group], [false, false, 'company:scoreboard:forbidden']);
+  assert.match(first.raise.id, /^company:scoreboard:forbidden:/);
   const again = await w.call('scoreboard_sync');
-  assert.deepEqual([again.ok, again.notify, again.ask], [false, false, undefined], 'the same failure is not raised twice');
+  assert.equal(again.raise.id, first.raise.id, 'the same incident is the same card id: the host files it once');
   assert.equal(w.rows('scoreboard').length, 0);
 });
 
@@ -123,35 +124,32 @@ test('an unreachable or malformed answer keeps old numbers and says so without l
   assert.equal(dead.reason_code, 'unreachable');
 });
 
-test('readers waiting for a person: one Cần bạn ask per bucket change from 5, closed by the sync that finds fewer than 5', async () => {
+test('readers waiting for a person: one card id per bucket, settled by the sync that finds fewer than 5', async () => {
   reset();
   const w = live({ SUPPORT_QUEUE_URL: 'https://lohi2.com/admin/support' });
   const waiting = n => { api.over = { support: { by_state: { soot: 20, waiting_human: n, human: 1, resolved: 3 }, handoff_reasons: [] } }; };
   waiting(4);
   const quiet = await w.call('scoreboard_sync');
-  assert.deepEqual([quiet.done, quiet.ask, quiet.resolves_need], [true, undefined, undefined]);
+  assert.deepEqual([quiet.done, quiet.raise], [true, undefined]);
   waiting(22);
   const first = await w.call('scoreboard_sync');
-  assert.deepEqual([first.notify, first.wake, first.ask.summary, first.ask.keys], [true, true, '22 bạn đọc đang chờ người trả lời', ['company:support:waiting']]);
-  assert.match(first.ask.missing, /https:\/\/lohi2\.com\/admin\/support/);
+  assert.ok(first.wake !== true && first.notify !== true, 'a card needs no model');
+  assert.equal(first.raise.title, '22 bạn đọc đang chờ người trả lời');
+  assert.equal(first.raise.group, 'company:support:waiting');
+  assert.equal(first.raise.link, 'https://lohi2.com/admin/support');
   waiting(24);
   w.now += 86_400_000;
-  assert.equal((await w.call('scoreboard_sync')).ask, undefined, 'same bucket on the next day: not raised again');
+  assert.equal((await w.call('scoreboard_sync')).raise.id, first.raise.id, 'same bucket on the next day: same id, filed once');
   waiting(51);
   w.now += 86_400_000;
-  assert.equal((await w.call('scoreboard_sync')).ask.summary, '51 bạn đọc đang chờ người trả lời');
-  waiting(7);
-  w.now += 86_400_000;
-  assert.equal((await w.call('scoreboard_sync')).ask.summary, '7 bạn đọc đang chờ người trả lời', 'a new bucket is raised once');
+  assert.equal((await w.call('scoreboard_sync')).raise.title, '51 bạn đọc đang chờ người trả lời');
   waiting(2);
   w.now += 86_400_000;
   const closed = await w.call('scoreboard_sync');
-  assert.deepEqual([closed.resolves_need, closed.done, closed.ask], [true, true, undefined]);
-  w.now += 86_400_000;
-  assert.equal((await w.call('scoreboard_sync')).resolves_need, undefined, 'closed once');
+  assert.deepEqual([closed.resolves_need, closed.done, closed.raise, closed.settle], [true, true, undefined, ['company:support:waiting']]);
   waiting(9);
   w.now += 86_400_000;
-  assert.ok((await w.call('scoreboard_sync')).ask, 'and raised again when it climbs back');
+  assert.ok((await w.call('scoreboard_sync')).raise, 'and raised again when it climbs back');
   assert.doesNotMatch(JSON.stringify(first), /agent-mod|PRODUCT_ADMIN/);
   api.over = {};
 });
@@ -161,7 +159,7 @@ test('the digest chain sync never raises or closes the waiting ask', async () =>
   const w = live();
   api.over = { support: { by_state: { soot: 1, waiting_human: 30, human: 0, resolved: 0 }, handoff_reasons: [] } };
   const out = await w.call('scoreboard_sync', { for_digest: true });
-  assert.deepEqual([out.synced, out.ask, out.resolves_need], [true, undefined, undefined]);
+  assert.deepEqual([out.synced, out.raise, out.resolves_need], [true, undefined, undefined]);
   api.over = {};
 });
 

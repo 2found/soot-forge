@@ -113,23 +113,28 @@ async function baseline(store, deps, board) {
   return 'recorded';
 }
 
-// Readers waiting for a person: one Cần bạn ask per change of the count bucket, closed when it falls below WAITING_MIN.
+// Readers waiting for a person: one Cần bạn card per count bucket, closed when it falls below WAITING_MIN.
 export const WAITING_MIN = 5;
 export const waitingBucket = n => (!Number.isFinite(n) ? 0 : n >= 50 ? 50 : n >= 20 ? 20 : n >= 10 ? 10 : n >= WAITING_MIN ? WAITING_MIN : 0);
+export const WAITING_GROUP = 'company:support:waiting';
 
-/** {} (nothing to say), {resolves_need: true} (back under the line) or {ask} (a new bucket). Counts only, never a reader. */
-async function waitingNeed(store, env, board, now) {
+/**
+ * {} (nothing to say), {settle, resolves_need} (back under the line) or {raise}. The runtime files the card itself, with no model:
+ * its id carries the bucket, so the same bucket is one card (the count in it stays current) and a new bucket replaces it.
+ * Nothing is remembered here, so a card that could not be filed is filed on the next sync. Counts only, never a reader.
+ */
+function waitingNeed(env, board) {
   const n = board.support?.by_state?.waiting_human;
   if (!Number.isFinite(n)) return {};
-  const bucket = waitingBucket(n), last = (await getState(store, 'waiting_ask'))?.bucket ?? 0;
-  if (bucket === last) return {};
-  await setState(store, 'waiting_ask', { bucket, count: n, at: iso(now) });
-  if (!bucket) return { resolves_need: true };
-  const where = safeUrl(env.SUPPORT_QUEUE_URL)?.toString() ?? 'trang hỗ trợ trong quản trị sản phẩm';
-  return { ask: {
-    keys: ['company:support:waiting'], summary: `${n} bạn đọc đang chờ người trả lời`,
-    missing: `Mở ${where}, vào các cuộc đang chờ người và trả lời từng bạn. Thẻ này tự đóng khi còn dưới ${WAITING_MIN} bạn đọc chờ; số tăng sang mức mới sẽ nêu lại một lần.`,
-    options: [{ label: 'Đã xử lý', recommended: true }, { label: 'Để sau' }],
+  const bucket = waitingBucket(n);
+  if (!bucket) return { settle: [WAITING_GROUP], resolves_need: true };
+  const where = safeUrl(env.SUPPORT_QUEUE_URL)?.toString();
+  return { raise: {
+    id: `${WAITING_GROUP}:${bucket}`, group: WAITING_GROUP, title: `${n} bạn đọc đang chờ người trả lời`,
+    why: `${where ? `Mở ${where}` : 'Mở trang hỗ trợ trong quản trị sản phẩm'}, vào các cuộc đang chờ người và trả lời từng bạn. Thẻ này tự đóng khi còn dưới ${WAITING_MIN} bạn đọc chờ; số tăng sang mức mới sẽ nêu lại một lần.`,
+    ...(where && /^https?:/.test(where) ? { link: where, link_label: 'Mở hàng chờ hỗ trợ' } : {}),
+    options: [{ id: 'handled', label: 'Đã xử lý', recommended: true }, { id: 'later', label: 'Để sau' }],
+    reraise_after_hours: 72,
   } };
 }
 
@@ -141,15 +146,16 @@ export async function scoreboard_sync(input, deps) {
   const period = lastSevenDays(now);
   const got = await fetchBoard(deps, url, env.PRODUCT_ADMIN_KEY, period);
   if (got.error) {
-    // One plain line, raised once per kind of failure; the page keeps showing it.
+    // One plain line; the card is filed by the runtime, once per incident (an incident ends at the next good read).
     const before = await getState(store, 'sync');
-    const isNew = before?.code !== got.error.code;
-    await setState(store, 'sync', { ok: false, code: got.error.code, message: got.error.message, at: iso(now) });
-    const ask = isNew && got.error.code === 'forbidden'
-      ? { keys: ['company:scoreboard:forbidden'], summary: 'Soot chưa đọc được bảng số của sản phẩm', missing: got.error.message, options: [{ label: 'Đã đổi khoá', recommended: true }, { label: 'Để sau' }] } : undefined;
-    return { ok: false, reason_code: got.error.code, error: { code: got.error.code, message: got.error.message }, message: got.error.message, notify: isNew, wake: isNew, ...(ask ? { ask } : {}) };
+    const since = before?.code === got.error.code && before.since ? before.since : iso(now);
+    await setState(store, 'sync', { ok: false, code: got.error.code, message: got.error.message, at: iso(now), since });
+    const raise = got.error.code === 'forbidden'
+      ? { id: `company:scoreboard:forbidden:${since.slice(0, 10)}`, group: 'company:scoreboard:forbidden', title: 'Soot chưa đọc được bảng số của sản phẩm', why: got.error.message, options: [{ id: 'fixed', label: 'Đã đổi khoá', recommended: true }, { id: 'later', label: 'Để sau' }], reraise_after_hours: 72 } : undefined;
+    return { ok: false, reason_code: got.error.code, error: { code: got.error.code, message: got.error.message }, message: got.error.message, notify: false, wake: false, ...(raise ? { raise } : {}) };
   }
   const row = await save(store, got.board, now);
+  const wasForbidden = (await getState(store, 'sync'))?.code === 'forbidden';
   await setState(store, 'sync', { ok: true, at: iso(now), period: row.key });
   // The finished Monday..Sunday week goes to the company baseline once; the rolling window is the same week on Mondays.
   const lw = lastFullWeek(now);
@@ -160,7 +166,6 @@ export async function scoreboard_sync(input, deps) {
     base = wk.error ? 'week_unreadable' : await baseline(store, deps, wk.board);
   }
   if (input.for_digest) return { ok: true, synced: true, period: row.key, baseline: base };
-  const need = await waitingNeed(store, env, got.board, now);
-  if (need.ask) return { ok: true, period: row.key, baseline: base, ask: need.ask, notify: true, wake: true };
-  return { done: true, period: row.key, baseline: base, ...(need.resolves_need ? { resolves_need: true } : {}) };
+  const need = waitingNeed(env, got.board);
+  return { done: true, period: row.key, baseline: base, ...need, ...(wasForbidden ? { settle: [...(need.settle ?? []), 'company:scoreboard:forbidden'] } : {}) };
 }

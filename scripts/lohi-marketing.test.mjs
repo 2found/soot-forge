@@ -21,7 +21,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   assert.equal(packs.marketing.tools.find(t => t.name === 'claim').run.approval, 'operator', 'the pack stays guarded; only this host relaxes it');
 
   const byId = Object.fromEntries(host.schedules.map(s => [s.id, s]));
-  assert.deepEqual(Object.keys(byId).sort(), ['blog-ready', 'company-digest', 'company-health', 'company-review', 'company-scoreboard', 'company-watch', 'finance-report', 'marketing-blog', 'marketing-campaigns', 'marketing-channels', 'marketing-dispatch', 'marketing-gsc', 'marketing-plan', 'marketing-probe', 'marketing-replies', 'marketing-report', 'marketing-video-stats', 'radar-read']);
+  assert.deepEqual(Object.keys(byId).sort(), ['blog-ready', 'company-cards', 'company-digest', 'company-health', 'company-review', 'company-scoreboard', 'company-watch', 'finance-report', 'marketing-blog', 'marketing-campaigns', 'marketing-channels', 'marketing-dispatch', 'marketing-gsc', 'marketing-plan', 'marketing-probe', 'marketing-replies', 'marketing-report', 'marketing-video-stats', 'radar-read']);
   // Campaigns: a daily api read that wakes the Đầu mối (the Editor) for lead outcomes and the token budget.
   assert.deepEqual([byId['marketing-campaigns'].tool.name, byId['marketing-campaigns'].at, byId['marketing-campaigns'].wake_when, byId['marketing-campaigns'].soot], ['campaign_report', '07:00', { notify: true }, 'lohi-analyst']);
   assert.ok(host.pack_grants.marketing.env.includes('PRODUCT_API_URL'), 'the api address is an operator env, never tool input');
@@ -124,12 +124,12 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   assert.match(await readFile(new URL('examples/lohi-marketing/soots/writer.md', root), 'utf8'), /blog-lohi/);
 });
 
-test('the Lohi recipe: the company loop is Ops plus the Analyst with five schedules, a topic chain into marketing, and no default product repo', async () => {
+test('the Lohi recipe: the company loop is Ops plus the Analyst with six schedules, a topic chain into marketing, and no default product repo', async () => {
   const host = await json('examples/lohi-marketing/deployment.example.json');
   const pack = await json('packs/company-loop/pack.json');
   const byId = Object.fromEntries(host.schedules.map(s => [s.id, s]));
   const mine = host.schedules.filter(x => x.id.startsWith('company-'));
-  assert.deepEqual(mine.map(x => x.id).sort(), ['company-digest', 'company-health', 'company-review', 'company-scoreboard', 'company-watch']);
+  assert.deepEqual(mine.map(x => x.id).sort(), ['company-cards', 'company-digest', 'company-health', 'company-review', 'company-scoreboard', 'company-watch']);
   assert.deepEqual(mine.map(x => [x.id, x.soot]).filter(([i]) => ['company-digest', 'company-health'].includes(i)).sort(), [['company-digest', 'lohi-analyst'], ['company-health', 'lohi-analyst']], 'the digest and the health view are the Analyst\'s');
   assert.deepEqual(byId['company-health'].then.map(x => `${x.pack}_${x.tool}`), ['company-loop_health_sync']);
   assert.equal(byId['company-health'].then[0].input_from, 'previous', 'the starving inputs travel into the health view');

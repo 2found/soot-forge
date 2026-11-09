@@ -57,7 +57,7 @@
   "skills": [
     {
       "name": "company-digest",
-      "description": "Weekly: rank at most five opportunities from the signals packet (content vs product), save them with digest_save, file the one Cần bạn card, end in one line.",
+      "description": "Weekly: rank at most five opportunities from the signals packet (content vs product), save them with digest_save, end in one line (the Cần bạn card is kept by opportunities_card, not by you).",
       "file": "skills/digest.md"
     }
   ],
@@ -394,7 +394,7 @@
     {
       "name": "scoreboard_sync",
       "title": "Đọc bảng số sản phẩm",
-      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.by_state.waiting_human) it answers one Cần bạn ask per change of the count bucket (5, 10, 20, 50), naming SUPPORT_QUEUE_URL, and resolves_need: true once fewer than 5 wait. Answers {done: true}, or with for_digest the sync result for the digest chain.",
+      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.by_state.waiting_human) it answers one Cần bạn card request (raise) per count bucket (5, 10, 20, 50) with a link to SUPPORT_QUEUE_URL, kept current, and settles it once fewer than 5 wait. The runtime files the card; no model wakes. Answers {done: true}, or with for_digest the sync result for the digest chain.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -448,7 +448,7 @@
     {
       "name": "digest_save",
       "title": "Lưu cơ hội của bản tin",
-      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed and returns one ask (Cần bạn card) when something new waits.",
+      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed; the Cần bạn card for it is kept by opportunities_card, not here.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -656,7 +656,7 @@
     {
       "name": "team_watch",
       "title": "Theo dõi đội dựng",
-      "description": "Read bbs team snapshot for each open handoff with no model; the parent ticket is found from the team id (bbs ticket find), `starting` until the kickoff creates it. A handover waiting for the release go returns one ask (Cần bạn card) once. A released team returns outcomes requirement_shipped to record and queues one launch topic; nothing changed answers {done: true}.",
+      "description": "Read bbs team snapshot for each open handoff with no model; the parent ticket is found from the team id (bbs ticket find), `starting` until the kickoff creates it. A handover waiting for the release go returns one raise (Cần bạn card) that the runtime files, and settles it when the go is given. A released team returns outcomes requirement_shipped to record and queues one launch topic; nothing changed answers {done: true}.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -693,6 +693,28 @@
         ],
         "stdin": "context",
         "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "opportunities_card",
+      "title": "Thẻ cơ hội chờ bạn chọn",
+      "description": "Tool-only, no model. Keep the one Cần bạn card for the product opportunities still proposed: raise answers it for the runtime to file (id = the waiting set, count current, link nest://page/cong-ty); settle answers it once none is proposed. Đã xem only acknowledges.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "opportunities_card"
+        ],
+        "stdin": "context",
+        "mode": "read",
         "timeout": "30s",
         "max_output_bytes": 65536
       }

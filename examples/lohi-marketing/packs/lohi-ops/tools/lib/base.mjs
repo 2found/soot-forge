@@ -134,12 +134,16 @@ export async function lohiApi(deps, method, path, { query, body } = {}) {
   return out && typeof out === 'object' ? { out } : { error: { code: 'bad', message: `${base.host} trả lời không đúng dạng JSON.` } };
 }
 
-/** The Cần bạn card shape shared by the tools: wake/notify only when the signature changed. */
+/**
+ * The Cần bạn card shape shared by the tools: `ask` is filed by the runtime itself as a card (the same ask is one
+ * card, a changed one replaces it), so nothing wakes a model to relay it. `resolves_need` closes it once, when the
+ * items are gone.
+ */
 export async function needCard(store, key, { items, summary, lines, options = [{ label: 'Đã xong, kiểm tra lại' }], sig }) {
   const last = (await getState(store, `need:${key}`))?.sig ?? '';
   const signature = sig ?? items.slice().sort().join(',');
-  const changed = items.length > 0 && signature !== last;
-  if (signature !== last || items.length === 0) await setState(store, `need:${key}`, { sig: items.length ? signature : '' });
+  const next = items.length ? signature : '';
+  if (next !== last) await setState(store, `need:${key}`, { sig: next });
   if (!items.length) return { wake: false, notify: false, ...(last ? { resolves_need: true } : {}) };
-  return { wake: changed, notify: changed, ask: { summary, missing: lines.join('\n'), options } };
+  return { wake: false, notify: false, ask: { keys: [`ops:${key}`], summary, missing: lines.join('\n'), options } };
 }
