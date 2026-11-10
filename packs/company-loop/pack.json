@@ -89,7 +89,7 @@
     }
   ],
   "storage": {
-    "version": 5,
+    "version": 6,
     "tables": [
       {
         "name": "scoreboard",

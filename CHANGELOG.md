@@ -3,6 +3,13 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.12.1 — 2026-11-10
+
+Baseline: v0.12.0 (b5e5906). Pairs with Soot 0.14.0.
+
+- **company-loop:** raises `storage.version` to 6 for the `goal` columns added in 0.12.0. Hosts refused 0.12.0 with `storage_incompatible` and kept 0.11.26; they now update by themselves.
+- **Checks:** a new test compares every bundled pack's storage with the previous release tag and fails when a table or column changes without a higher `storage.version`, or when one is dropped or retyped. The catalog CI job now checks out full history so the tag is there.
+
 ## 0.12.0 — 2026-11-10
 
 Baseline: v0.11.26 (7d80538). Pairs with Soot 0.14.0, which adds company goals and recurring tasks; an older runtime ignores the skills' goal steps and refuses `company.goals`. company-loop storage stays 5: the new `goal` columns are nullable and additive.
