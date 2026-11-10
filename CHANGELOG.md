@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.12.3 — 2026-11-10
+
+Baseline: v0.12.2 (e1c7853). Pairs with Soot 0.14.0+ (`soot goals` CLI).
+
+- **company-loop: new tool `goals_checkin`.** A goal's `metric.ref` (`2novel:activated_new`, `company-loop:first_payers`) used to resolve nowhere: the pack read scoreboards and goals never saw them. The tool reads the active goals through the `soot` CLI, finds each ref's product in the stored scoreboards (`SCOREBOARD_URLS` + `SCOREBOARD_KEYS`) or recorded metrics (`metrics_record`), and checks in once per goal and period. Another product gets its numbers into a goal with configuration only. Guardrail refs are reported, not recorded. Storage is unchanged (6).
+
 ## 0.12.2 — 2026-11-10
 
 Baseline: v0.12.1 (b69d36d). Pairs with Soot 0.14.0+.

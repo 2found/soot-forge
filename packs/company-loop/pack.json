@@ -1072,6 +1072,32 @@
       }
     },
     {
+      "name": "goals_checkin",
+      "title": "Ghi số vào mục tiêu",
+      "description": "Gives every active goal whose metric.ref names a scoreboard number its reading, with no per-product code: a ref is <product>:<key> (2novel:activated_new) or company-loop:<key> (the goal's own product, else the host's). The number is that product's newest stored period, from its HTTP scoreboard (SCOREBOARD_URLS) or from metrics_record. Checks in through the workspace soot CLI (LOOP_SOOT_CONFIG), once per goal and period, with a plain note; guardrail refs are reported, not recorded. Chain it after scoreboard_sync. dry_run reads and reports without checking in. No model unless a check-in fails.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "dry_run": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "goals_checkin"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
       "name": "page_view",
       "title": "Xem trang Công ty",
       "description": "Công ty page model: the one next step, Cần bạn, the scorecard (north star and tiles with deltas and targets), handoffs, decision log with hit rate, loop health. Narrowed to one product when product is given, saying what it leaves out",
