@@ -8,6 +8,9 @@ Release notes for Soot Forge pack releases. The version is `package.json`'s;
 Baseline: v0.12.2 (e1c7853). Pairs with Soot 0.14.0+ (`soot goals` CLI).
 
 - **company-loop: new tool `goals_checkin`.** A goal's `metric.ref` (`2novel:activated_new`, `company-loop:first_payers`) used to resolve nowhere: the pack read scoreboards and goals never saw them. The tool reads the active goals through the `soot` CLI, finds each ref's product in the stored scoreboards (`SCOREBOARD_URLS` + `SCOREBOARD_KEYS`) or recorded metrics (`metrics_record`), and checks in once per goal and period. Another product gets its numbers into a goal with configuration only. Guardrail refs are reported, not recorded. Storage is unchanged (6).
+- **company-loop: the waiting card counts readers who are still waiting.** When the support scoreboard serves `support.readers_waiting` (the reader spoke last), the card and the source selection use it instead of `by_state.waiting_human`, which also counts threads a person already answered.
+- **lohi-cs: a failed call names its cause.** `soot-lohi-api` used to answer an empty failure when curl could not connect or the api returned a non-JSON page. It now answers `{code: "transport_<n>", retryable: true}` or `{code: "http_<status>"}` (retryable for 5xx, 408, 429); a JSON refusal is passed through unchanged.
+- **browser-use: a profile held by another process is named.** Browser daemons now idle out after 30 minutes. A live `SingletonLock` owner outside this runtime is refused as `browser_profile_in_use`, with the owner's PID and a close command, instead of Chrome's exit 21. Ships soot-browser 0.2.4.
 
 ## 0.12.2 — 2026-11-10
 
