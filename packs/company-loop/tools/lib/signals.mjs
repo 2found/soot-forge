@@ -135,9 +135,11 @@ export async function packetFor(deps, { voc = false, product = null } = {}) {
   // Awareness levels the content topics of the last 8 weeks spoke to, so the digest keeps a mix.
   const since = addDays(ictDay(deps.now), -56), awareness = {};
   for (const t of topics) if (t.kind === 'content' && t.awareness && String(t.created_at).slice(0, 10) >= since) awareness[t.awareness] = (awareness[t.awareness] ?? 0) + 1;
-  const gaps = await csGaps(deps).catch(() => ({ error: 'failed' }));
+  // CS_RUNTIME_URL is the host product's support runtime: another product's packet never carries its gaps or feedback.
+  const hostCs = !want || want === productId(host);
+  const gaps = hostCs ? await csGaps(deps).catch(() => ({ error: 'failed' })) : null;
   // The contract item cs.voc (read by the digest through the data tool) replaces the desk scrape; the scrape is the fallback when voc is unavailable.
-  const feedback = voc ? null : await csFeedback(deps).catch(() => ({ error: 'failed' }));
+  const feedback = voc || !hostCs ? null : await csFeedback(deps).catch(() => ({ error: 'failed' }));
   const rate = hitRate(decisions);
   const packet = {
     product: board.product, period: [board.period_from, board.period_to],

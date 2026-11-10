@@ -3,6 +3,15 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.26 — 2026-11-10
+
+Baseline: v0.11.25 (4361c70). Pairs with Soot 0.13.29; no storage change.
+
+### Fixed
+
+- **company-loop `signals {product}` no longer carries the host's support data into another product's packet.** `CS_RUNTIME_URL` is the host product's support runtime, so its knowledge gaps and customer feedback appear only in the host's packet (or with no product). Found live: a Lohi support note reached 2Novel's digest.
+- **A part owned by a team on another server keeps its owner in the digest.** `signals` parts now name `team_name` when the part has no local team id (`own` was null).
+
 ## 0.11.25 — 2026-11-10
 
 Baseline: v0.11.24 (fc55db9). Pairs with Soot 0.13.29; needs no runtime change. company-loop storage 4 → 5 (adds the `parts` table; additive), marketing storage 6 → 7 (adds `posts.awareness`; additive). Old rows read as empty.

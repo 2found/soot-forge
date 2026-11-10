@@ -73,7 +73,7 @@ export function worstPart(items) {
 }
 
 /** Compact form for the digest packet: {p, st, m, pct, own}. */
-export const compactParts = items => items.map(x => ({ p: x.part, st: x.status, m: x.metric, pct: x.pct, own: x.team ?? null }));
+export const compactParts = items => items.map(x => ({ p: x.part, st: x.status, m: x.metric, pct: x.pct, own: x.team || x.team_name || null }));
 
 /** Validate and upsert 1-5 parts of one product (all or none). `by` is who changed it: a Soot id or `founder`. */
 export async function setParts(store, productIn, list, by, now) {

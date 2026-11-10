@@ -3,7 +3,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { world, ITEM, T0, DAY } from './world.mjs';
-import { startBoardApi, KEY } from './fixtures.mjs';
+import { startBoardApi, startCsApi, addNotes, KEY } from './fixtures.mjs';
 import { partHealth, worstPart } from '../tools/lib/parts.mjs';
 import { scoreboardKeys, keyFor } from '../tools/lib/products.mjs';
 import { MAX_BYTES } from '../tools/lib/signals.mjs';
@@ -148,6 +148,21 @@ test('signals keeps parts when the packet is far over 3 KiB: everything else giv
   const pk = (await w.call('signals', { product: 'acme' })).packet;
   assert.ok(Buffer.byteLength(JSON.stringify(pk)) <= MAX_BYTES);
   assert.equal(pk.parts.length, 5);
+});
+
+test('signals {product}: a part owned by name only shows that name, and another product never gets the host CS feedback', async () => {
+  const cs = await startCsApi();
+  try {
+    addNotes(cs, [['bug', 'Khách của sản phẩm chủ báo lỗi audio']]);
+    const w = world({ env: { CS_RUNTIME_URL: cs.url, CS_RUNTIME_TOKEN: 'cs-token' } });
+    await acme(w, 'acme'); await acme(w, 'beta');
+    await w.store.insert('state', { key: 'host_product', value: 'acme' }).catch(() => {});
+    await w.call('parts_set', { product: 'beta', parts: [{ part: 'marketing', team: '', team_name: 'Marketing beta (máy chủ khác)' }] });
+    const beta = (await w.call('signals', { product: 'beta' })).packet;
+    assert.equal(beta.parts.find(x => x.p === 'marketing').own, 'Marketing beta (máy chủ khác)');
+    assert.equal(beta.cs_feedback, undefined, 'the host CS runtime is not beta\'s');
+    assert.equal(beta.cs_gaps, undefined);
+  } finally { cs.close(); }
 });
 
 // ---------- the page ----------
