@@ -14,7 +14,7 @@ import { buildGroups, readGroups } from '../groups.mjs';
  * before the lead joins it, so a lead-led team has no entries and the check refuses it with company_invalid ("entries must
  * name 1 to 32 members"); `company create` loads the lead first and is not affected.
  */
-const MIRRORED = ['marketing', 'writing', 'browser-use', 'company-loop'];
+const MIRRORED = ['marketing', 'writing', 'browser-use', 'company-loop', 'team-rhythm'];
 export async function buildLocalGroups(root, dist, version = '0.0.0', { ledByFirstMember = false } = {}) {
   await mkdir(dist, { recursive: true });
   if (ledByFirstMember) {

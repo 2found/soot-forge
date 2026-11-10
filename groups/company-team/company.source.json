@@ -4,6 +4,46 @@
   "name": "Company",
   "description": "Một công ty gồm các nhóm, mỗi nhóm là một giao diện: nhận gì, giao ra gì, tự quyết gì hay quyết cùng người sáng lập, ngân sách token mỗi ngày và khi nào báo bạn. Thêm, bớt hay đổi tên nhóm, hoặc sửa hợp đồng, trong một tệp overlay; không cần sửa mã.",
   "daily_token_ceiling": 550000,
+  "goals": {
+    "cycle_weeks": 6,
+    "max_per_product": 3,
+    "max_per_team": 3,
+    "ops_warn_ratio": 0.3,
+    "approve_team_goals": "person",
+    "approve_waking_repeats": "person",
+    "cadence": [
+      {
+        "id": "weekly-commit",
+        "title": {
+          "vi": "Cam kết tuần",
+          "en": "Weekly commitments"
+        },
+        "cron": "0 8 * * 1",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "text": "Monday commitments. Load the coordinator-rhythm skill if you have it. Read your team's active goals (goal list), last week's check-in, your open tasks and the signals your tools give you. Cancel or park open tasks that serve no active goal and are not operations. Commit at most 5 tasks for the week, each linked to one of your team's goals (operations tasks carry no goal): biggest gap first, a guardrail past its limit first of all. Warn the Lead if operations are more than about 30 % of the week. Report once in the team's thread. With no active goal, do operations only and say so in one line."
+      },
+      {
+        "id": "weekly-checkin",
+        "title": {
+          "vi": "Check-in tuần",
+          "en": "Weekly check-in"
+        },
+        "cron": "0 16 * * 5",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "text": "Friday check-in. Load the coordinator-rhythm skill if you have it. For each active goal of your team, read its metric from the tool that owns the number, then goal checkin with the value, a confidence from 0 to 10 and one sentence. Never estimate a number: say 'chưa đo' when you cannot read it. Mark done only tasks you saw finished. Send the person the wins of the week (two or three lines, each a result with its number and its goal); say so plainly when there was none."
+      },
+      {
+        "id": "cycle-review",
+        "title": {
+          "vi": "Nhìn lại cuối chu kỳ",
+          "en": "Cycle review"
+        },
+        "cron": "0 17 * * 5",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "text": "Cycle review. Load the coordinator-rhythm skill if you have it. This runs every Friday after the check-in because a cron cannot count a cycle. If no active goal of your team ends within the next 7 days, answer 'chưa cuối chu kỳ' in one line and stop. Otherwise score each team goal from 0 to 1 (0.6 to 0.7 is good), compare the bets that pointed at each goal (expected_delta against actual_delta), say keep, drop or change with a reason, and propose next cycle's team goals with goal propose as drafts (at most 3, each with a baseline you read, a target with your reasoning, and a guardrail). Do not approve them. Report once."
+      }
+    ]
+  },
   "teams": [
     {
       "id": "insight",

@@ -47,7 +47,7 @@ test('compile: W2 files go in unchanged; teams, edges, remote, lead and ceiling 
   assert.equal(company.api_version, 'soot/company-template/v1');
   assert.deepEqual(company.teams.map(t => t.id), ['insight', 'marketing', 'cs', 'financial', 'op-catalog'], 'build (Claude Code) has no runtime form and is left out');
   assert.match(notes.join('\n'), /team build runs on claude-code/);
-  assert.deepEqual(company.company, { name: 'Lohi', lead_team: 'insight', daily_token_ceiling: 550000 });
+  assert.deepEqual(company.company, { name: 'Lohi', lead_team: 'insight', daily_token_ceiling: 550000, goals: template.goals });
   assert.deepEqual(company.remotes, { 'cs-server': { url: 'https://soot.lohi2.com', token_env: 'CS_RUNTIME_TOKEN' } });
   const byId = Object.fromEntries(company.teams.map(t => [t.id, t]));
   assert.deepEqual(byId.cs.remote, { runtime: 'cs-server', group: 'support' });
@@ -209,4 +209,30 @@ test('Lohi end to end: setup.mjs builds the recipe, `soot company adopt` moves i
   assert.equal(after.default_groups['lohi-writer'], 'marketing', 'each Soot can still be chatted to directly');
   assert.deepEqual(after.company, { name: 'Lohi', lead_team: 'insight', daily_token_ceiling: 550000 });
   assert.equal(before.groups, undefined, 'the copy taken before the adopt has no teams');
+});
+
+test('the template carries company.goals: a valid block, three cadence tasks with unique ids, and it compiles into the company block', async () => {
+  const g = template.goals;
+  assert.equal(g.cycle_weeks, 6);
+  assert.ok(g.max_per_product >= 1 && g.max_per_team >= 1 && g.ops_warn_ratio > 0 && g.ops_warn_ratio < 1);
+  assert.ok(['person', 'lead'].includes(g.approve_team_goals) && ['person', 'lead_within_budget'].includes(g.approve_waking_repeats));
+  assert.deepEqual(g.cadence.map(c => c.id), ['weekly-commit', 'weekly-checkin', 'cycle-review']);
+  assert.equal(new Set(g.cadence.map(c => c.id)).size, g.cadence.length, 'cadence ids are unique');
+  for (const c of g.cadence) {
+    assert.match(c.id, /^[a-z][a-z0-9-]*$/);
+    assert.ok(c.title.vi && c.title.en, `${c.id} has both titles`);
+    assert.equal(c.timezone, 'Asia/Ho_Chi_Minh');
+    assert.match(c.cron, /^\S+ \S+ \S+ \S+ \S+$/, `${c.id} cron has five fields`);
+    assert.ok(c.text.length > 80 && c.text.length < 2000);
+  }
+  assert.deepEqual(g.cadence.map(c => c.cron), ['0 8 * * 1', '0 16 * * 5', '0 17 * * 5']);
+  // Generic: no company-specific names in the template's goals.
+  assert.doesNotMatch(JSON.stringify(g), /lohi|2found|2novel/i);
+  const { company } = await compileCompany(template, {}, create);
+  assert.deepEqual(company.company.goals, g);
+  // An overlay changes single keys; a company without goals compiles without the key.
+  const six = (await compileCompany(template, { goals: { cycle_weeks: 4, approve_team_goals: 'lead' } }, create)).company.company.goals;
+  assert.equal(six.cycle_weeks, 4); assert.equal(six.approve_team_goals, 'lead'); assert.deepEqual(six.cadence, g.cadence);
+  const { goals, ...bare } = template;
+  assert.equal((await compileCompany(bare, {}, create)).company.company.goals, undefined);
 });

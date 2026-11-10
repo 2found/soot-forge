@@ -61,6 +61,9 @@ sub-agents, no other tool than the ones named here.
    - `pain` (always for `product`, 10 to 200 characters): who suffers from what,
      taken from customer evidence ("người mới đọc: không biết chương nào để bắt đầu").
      No pain from a customer, no product item.
+   - `goal` (optional): the id of the goal this bet pushes, copied from the
+     goal list or the "Mục tiêu và việc" block of this run. Leave it out when no
+     goal fits; never invent an id.
    - `moat` (optional): set it only when the change builds one: `scale`, `network`,
      `counter`, `switching` (only the good kind: it makes the customer's life
      easier, never a lock-in), `brand` (a short promise kept every day), `cornered`

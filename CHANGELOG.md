@@ -3,6 +3,17 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+Pairs with the Soot release that adds company goals and recurring tasks (L19); an older runtime ignores the skills' goal steps and refuses `company.goals`. company-loop storage stays 5: the new `goal` columns are nullable and additive.
+
+### Added
+
+- **Goals in the Lead's skill (nest-lead).** The Lead drafts direction and cycle goals from the person's words as proposals (baseline read from the scoreboard, target with its reasoning, never an invented number), handles a changed or dropped goal (cancels its tasks, asks the Đầu mối to re-propose, proposes structure changes for the person), approves team goals only when `approve_team_goals` is `lead`, makes repeating jobs as recurring tasks, and never edits soul, mission or contract to change behaviour.
+- **`team-rhythm` pack, skill `coordinator-rhythm`.** A generic Đầu mối rhythm: Monday commitments (at most 5 tasks, each linked to a goal; five selection rules), Friday check-in with the wins of the week, cycle review with a score, bets compared by `actual_delta`, and next cycle's team goals proposed as drafts. Selected by the Đầu mối of `team-insight`, `team-marketing` and `team-op`.
+- **`company.goals` in the company template.** `cycle_weeks` 6, caps, `ops_warn_ratio` 0.3, person approvals, and three cadence recurring tasks (`weekly-commit` Mon 08:00, `weekly-checkin` Fri 16:00, `cycle-review` Fri 17:00, acts only in a cycle's last week), titles in Vietnamese and English, Asia/Ho_Chi_Minh. `scripts/company.mjs` compiles it into the company block; an overlay `goals` replaces single keys.
+- **company-loop: a bet points at its goal.** `digest_save` items take an optional `goal` (string id); the opportunity and every decision keep it, `review` leaves it alone, `signals` repeats it as `g` on a decision, the page shows it. A non-string or malformed `goal` is refused naming the field. `signals` never fetches goals.
+
 ## 0.11.26 — 2026-11-10
 
 Baseline: v0.11.25 (4361c70). Pairs with Soot 0.13.29; no storage change.

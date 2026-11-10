@@ -24,7 +24,7 @@ const run = promisify(execFile);
 const clone = x => structuredClone(x);
 export const FORGE_VERSION = 'soot-forge/company-template/v1';
 export const RUNTIME_VERSION = 'soot/company-template/v1';
-const OVERLAY_KEYS = ['extends', 'id', 'name', 'description', 'remove', 'rename', 'teams', 'add', 'contracts', 'daily_token_ceiling'];
+const OVERLAY_KEYS = ['extends', 'id', 'name', 'description', 'remove', 'rename', 'teams', 'add', 'contracts', 'daily_token_ceiling', 'goals'];
 
 /** A refusal with a stable code: the compiler's own (`company_input`) or the runtime's, carried through. */
 export class CompanyError extends Error {
@@ -43,6 +43,8 @@ export function shapeCompany(template, overlay = {}) {
   for (const k of Object.keys(o)) if (!OVERLAY_KEYS.includes(k)) input(`unknown overlay field ${k}`);
   if (o.extends && o.extends !== template.id) input(`overlay extends ${o.extends}, not ${template.id}`);
   for (const k of ['id', 'name', 'description', 'daily_token_ceiling']) if (o[k] !== undefined) c[k] = o[k];
+  // The overlay's goals settings replace the template's key by key (a `cadence` list replaces the whole list).
+  if (o.goals !== undefined) c.goals = { ...c.goals, ...o.goals };
   const explicit = new Set();
   for (const [id, patch] of Object.entries(o.teams ?? {})) {
     const t = c.teams.find(x => x.id === id);
@@ -166,7 +168,7 @@ export async function compileCompany(template, overlay, { mode = 'create', root,
   const lead = c.teams.find(t => t.lead && !dropped.has(t.id));
   const company = {
     api_version: RUNTIME_VERSION, id: c.id, name: c.name, ...(c.description ? { description: c.description } : {}),
-    company: { name: c.name, ...(lead ? { lead_team: lead.id } : {}), ...(c.daily_token_ceiling ? { daily_token_ceiling: c.daily_token_ceiling } : {}) },
+    company: { name: c.name, ...(lead ? { lead_team: lead.id } : {}), ...(c.daily_token_ceiling ? { daily_token_ceiling: c.daily_token_ceiling } : {}), ...(c.goals ? { goals: c.goals } : {}) },
     ...(Object.keys(remotes).length && teams.some(t => t.remote) ? { remotes: Object.fromEntries(teams.filter(t => t.remote).map(t => [t.remote.runtime, { url: remotes[t.remote.runtime].url, token_env: remotes[t.remote.runtime].token_env }])) } : {}),
     teams,
   };
@@ -282,7 +284,7 @@ export function mergeOverlays(a, b) {
   const out = { ...a };
   for (const [k, v] of Object.entries(b)) {
     if (['remove', 'add'].includes(k)) out[k] = [...(a[k] ?? []), ...v];
-    else if (['rename', 'teams'].includes(k)) out[k] = { ...(a[k] ?? {}), ...v };
+    else if (['rename', 'teams', 'goals'].includes(k)) out[k] = { ...(a[k] ?? {}), ...v };
     else if (k === 'contracts') out[k] = { add: [...(a.contracts?.add ?? []), ...(v.add ?? [])], remove: [...(a.contracts?.remove ?? []), ...(v.remove ?? [])] };
     else out[k] = v;
   }

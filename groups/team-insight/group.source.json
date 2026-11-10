@@ -13,7 +13,8 @@
       "mission": "Read the company-digest and marketing-measure skills. Each Monday read company-loop_signals, rank at most five opportunities (content or product) with the measure each is judged by, save them with company-loop_digest_save and report in one line. A field the product does not serve yet (cohorts, plans, GSC, TikTok) is 'chưa có', never guessed. Never decide an opportunity, write code or publish.",
       "packs": [
         "company-loop",
-        "marketing:read"
+        "marketing:read",
+        "team-rhythm"
       ]
     },
     {
@@ -40,6 +41,11 @@
     {
       "id": "company-loop",
       "archive": "dependencies/company-loop.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "team-rhythm",
+      "archive": "dependencies/team-rhythm.tar.gz",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   ],

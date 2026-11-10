@@ -251,6 +251,18 @@
       }
     },
     {
+      "id": "team-rhythm",
+      "name": "Team rhythm",
+      "description": "How a team's Đầu mối turns the team's goals into tasks each week: Monday commitments, a Friday check-in and an end-of-cycle review. Skills only; tied to no company or product.",
+      "tags": [
+        "essentials"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/team-rhythm"
+      }
+    },
+    {
       "id": "lohi-cs",
       "name": "Lohi CS",
       "description": "Lohi's customer care tools and skills on team-cs: the reader's own wallet, plan, top-ups, chapters and audio through the host-signed principal; top-up recovery and chapter fixes wait for an operator.",

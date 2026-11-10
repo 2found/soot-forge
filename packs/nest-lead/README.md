@@ -20,6 +20,14 @@ customer-facing Soot until the person approves it through `manage_gated`
 The morning brief runs read-only: `manage` answers reads and refuses every
 change on that run (`read_only` on the tool call).
 
+Goals: the skill `nest-lead` also tells the Lead how to steer the company with goals
+(the runtime's `goal` and `task` tools, not tools of this pack): draft goals from
+the person's words as proposals, handle a `goal_changed` attention, and create
+repeating jobs as recurring tasks. The weekly rhythm of a team (Monday
+commitments, Friday check-in, cycle review) is the Đầu mối's, in the
+[team-rhythm](../team-rhythm/README.md) pack. Needs a runtime with goals (Soot 0.13.30+); an older
+one has neither tool and the Lead keeps to schedules and drafts.
+
 Needs a Soot runtime with `soot manage`; release the runtime before this pack.
 Where a tool call fails, the `nest-lead` skill falls back to draft links.
 The tool schema lists the actions the runtime accepts (`LeadActions` in 2agent

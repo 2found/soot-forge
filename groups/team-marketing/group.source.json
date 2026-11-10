@@ -13,7 +13,8 @@
       "mission": "Read the marketing-write skill and the team brief. Write from the brief marketing_plan returns and save each piece with marketing_draft_save. The marketing pack's posts table is the one record of what you wrote: never create a table of your own (no `content` table). Never check, schedule or publish.",
       "packs": [
         "marketing",
-        "writing"
+        "writing",
+        "team-rhythm"
       ]
     },
     {
@@ -46,6 +47,11 @@
     {
       "id": "browser-use",
       "archive": "dependencies/browser-use.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "team-rhythm",
+      "archive": "dependencies/team-rhythm.tar.gz",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   ],

@@ -1,0 +1,24 @@
+{
+  "api_version": "soot/v1",
+  "id": "team-rhythm",
+  "label": {
+    "vi": "Nhịp tuần của đội",
+    "en": "Team rhythm"
+  },
+  "keywords": {
+    "vi": ["đầu mối", "mục tiêu", "cam kết tuần", "check-in", "chu kỳ"],
+    "en": ["coordinator", "goals", "weekly commitments", "check-in", "cycle review"]
+  },
+  "description": {
+    "vi": "Cách Đầu mối biến mục tiêu của đội thành việc mỗi tuần: cam kết đầu tuần, check-in cuối tuần, nhìn lại cuối chu kỳ. Không gắn với công ty hay sản phẩm nào.",
+    "en": "How a team's Đầu mối turns the team's goals into tasks each week: Monday commitments, a Friday check-in and a cycle review. Tied to no company or product."
+  },
+  "skills": [
+    {
+      "name": "coordinator-rhythm",
+      "description": "Load it when a recurring cadence task reaches you as the team's Đầu mối (the weekly commitments, the weekly check-in, the cycle review), or when a goal of your team changes: read the team's goals, last check-in, open tasks and signals, then commit at most a few tasks each linked to a goal, cancel or park tasks that serve no active goal, check in with a value, a confidence and one sentence, score the cycle, and propose next cycle's team goals as drafts.",
+      "file": "skills/coordinator-rhythm.md"
+    }
+  ],
+  "tools": []
+}

@@ -234,6 +234,10 @@
           {
             "name": "pain",
             "type": "text"
+          },
+          {
+            "name": "goal",
+            "type": "text"
           }
         ]
       },
@@ -307,6 +311,10 @@
           },
           {
             "name": "moat",
+            "type": "text"
+          },
+          {
+            "name": "goal",
             "type": "text"
           }
         ]
@@ -763,6 +771,11 @@
                   "minLength": 10,
                   "maxLength": 200,
                   "description": "Who suffers from what, from customer evidence. Required for product; optional for content."
+                },
+                "goal": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                  "description": "Optional. The id of the company goal this bet is meant to push (as the goal tool lists it). The loop only carries the id; it never reads goals."
                 }
               },
               "required": [

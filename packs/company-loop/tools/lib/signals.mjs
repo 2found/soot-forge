@@ -157,7 +157,7 @@ export async function packetFor(deps, { voc = false, product = null } = {}) {
     ...(feedback?.error && !gaps?.error ? { cs_error: feedback.error } : {}),
     waiting: opps.filter(o => o.state === 'proposed').slice(0, 5).map(o => ({ ref: o.ref, title: short(o.title, 60), kind: o.kind })),
     later: opps.filter(o => o.state === 'later').slice(0, 3).map(o => ({ ref: o.ref, title: short(o.title, 60) })),
-    decisions: decisions.filter(d => d.decision !== 'later').slice(0, 6).map(d => ({ ref: d.opportunity_ref, d: d.decision, by: d.by, to: d.target_outcome, exp: d.expected_delta, act: d.actual_delta })),
+    decisions: decisions.filter(d => d.decision !== 'later').slice(0, 6).map(d => ({ ref: d.opportunity_ref, d: d.decision, by: d.by, to: d.target_outcome, ...(d.goal ? { g: d.goal } : {}), exp: d.expected_delta, act: d.actual_delta })),
     hit_rate: rate.measured ? { hits: rate.hits, of: rate.measured } : null,
     launched: handoffs.filter(h => h.state === 'released').slice(0, 3).map(h => ({ ref: h.opportunity, at: String(h.released_at ?? h.updated_at).slice(0, 10) })),
     topics_queued: queued.length,

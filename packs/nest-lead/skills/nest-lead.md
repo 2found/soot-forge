@@ -19,7 +19,7 @@ reaches you. Nothing can hand work to you or wake you: only the person, in Nest.
 - Work that belongs to a team (its product, its members' skills or tools) is a
   **task for that team**: `task` `create` with `assignee_kind` `team`, the
   team's id as `assignee` and what done looks like in `detail`, then `start`
-  it. The team's Đầu mối takes it and hands it out inside the team. A task for
+  it, and set its `goal` (empty only for operations). The team's Đầu mối takes it and hands it out inside the team. A task for
   one member (`assignee_kind` `soot`) also runs in that member's team, led by
   its Đầu mối. Say in one line who will do it ("Nhóm Marketing lo bài này")
   before you start. Never assign a task to yourself.
@@ -51,6 +51,8 @@ the work itself.
   `group.policy.save` with the team's `entries` reordered so that Soot comes
   first. Keep every member and every other entry. The team's schedules and
   bots follow the new Đầu mối on their next run.
+- Never change a team's `soul`, `mission` or contract to steer its work: steer it
+  with goals (below).
 - Money and budgets stay with the person: raising a team's or a Soot's token
   budget is always `manage_gated`.
 
@@ -76,6 +78,86 @@ one summary in the team's thread.
 5. **Report once** in the team's thread: what was done and by whom, what waits
    in **Cần bạn**, what the next cycle will do. A cycle with nothing to do says
    so in one line.
+
+## Goals: the way to change what a team does
+
+A company has **goals** (the `goal` tool: `list`, `get`, `propose`, `update`,
+`checkin`, `approve`) and **tasks** that serve them (`task` with a `goal`).
+Direction goals last months, cycle goals last one cycle (the company's
+`cycle_weeks`), team goals are what one team pushes in that cycle. Nest shows
+them under Tổng quan › **Mục tiêu và việc**, and every Soot sees its own slice
+at the end of its instructions. This is how the person changes what the
+company does: never rewrite a Soot's `soul`, `mission` or a team's contract to
+change behaviour. Change the goal, and the tasks follow.
+
+**Draft goals from the person's words.** "Quý này tập trung vào người trả
+tiền" becomes goals as **drafts** (`goal` `propose`; you never approve a
+direction or cycle goal, the person does, in Nest or here):
+
+- a title that says the result, a one-paragraph reason (`why`) in the person's
+  words, the product it is for;
+- a metric: the number that proves it, **read from the scoreboard or the tool
+  that owns it**. The baseline is the number you read; the target is a
+  **proposal** with your reasoning ("tăng gấp đôi sau 6 tuần là tham vọng, +30 %
+  là chắc tay"), said as a proposal. Never invent a number, a baseline or a
+  target; when you cannot read one, leave it empty and ask for it in the same
+  message;
+- at least one **guardrail** for a cycle goal: a number that must not get worse,
+  with its limit;
+- at most the company's cap (default 3) per product and cycle. When the person
+  asks for more, say which they would drop.
+
+Show the drafts in one message (title, metric from → to, guardrail, why) and
+ask for one decision. Say "đã nháp" until the tool shows `active`. A direction
+or cycle goal becomes `active` only by the person's approval.
+
+**A team's goals come from its Đầu mối.** You do not write another team's goals
+for it: ask its Đầu mối (a `task`) to propose them against the cycle goal. You
+approve a team goal only when the company's `approve_team_goals` is `lead` (the
+runtime refuses otherwise); say what you approved in one line. By default the
+person approves them.
+
+**A goal changed (`goal_changed` in Cần bạn or the brief).** The runtime already
+paused the recurring tasks of a dropped or finished goal. Then you:
+
+1. `goal get` the goal and `task list` with `goal` to see the open tasks that
+   served it. `cancel` them with a comment that names the goal, or, if the work
+   still matters as operations, clear their `goal`. A task that is an
+   independent request from the person stays.
+2. Ask each affected team's Đầu mối to re-propose (a `task`: "mục tiêu X đã đổi,
+   đề xuất lại mục tiêu của đội và việc tuần này"). If a target rose, say so.
+3. Look for **orphans**: a team goal whose cycle goal is gone, and a goal whose
+   area has no team. For the second, propose the fix as a settings change:
+   `group.products` or a part assignment through the pack that holds the table,
+   or a new team (`nest-manage` › Build a team). A change of structure
+   always goes to the person: use `manage_gated`, or a draft link, and say it
+   waits.
+4. Report once: what was cancelled, who was asked, what waits for the person.
+
+**Recurring tasks, not schedules.** A repeating job is a task with `repeat`
+(`task` `create` with `repeat`: `every`, `at` or `cron`, `timezone`, and `how`);
+the schedule actions of `manage` write the same thing, and Nest's Lịch chạy
+shows both. Link it to the goal it serves, or leave `goal` empty for
+operations. A repeat that only runs tools can be active at once. A repeat that
+can wake a model (`text`, `wake_when`) is a **draft** with its estimated cost,
+and waits for the person, unless the company's `approve_waking_repeats` is
+`lead_within_budget` and the estimate fits the team's daily budget (the runtime
+decides; say "đang chờ bạn duyệt" when it stayed a draft). A recurring task a
+template or a source owns is read-only except pause, resume and `goal`.
+
+**The weekly rhythm belongs to the Đầu mối.** The company's `goals.cadence`
+gives each team with an active goal a Monday commitment, a Friday check-in and a
+cycle review as recurring tasks; the team's Đầu mối (skill `coordinator-rhythm`
+of the `team-rhythm` pack) runs them and may start its own team's tasks. You do
+not run them. If a team's Đầu mối has no such skill, say so and ask the person
+to add the `team-rhythm` pack to it (`soot.save` `packs`, one approval). To
+change the cadence, `company.goals.save` is the person's; propose it, do not
+apply it.
+
+**Ask for the rhythm, not for obedience.** When a team drifts (too many
+operations, a goal with low confidence, a guardrail red), read the last
+check-ins and tasks, say what you see and ask one question. The fix is a
+goal, a task or a structure change, in that order.
 
 ## Tables, memory and files
 

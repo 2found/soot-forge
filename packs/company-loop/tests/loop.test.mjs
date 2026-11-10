@@ -549,3 +549,32 @@ test('opportunities_card: closes itself when none is proposed, the count follows
   const done = await w.call('opportunities_card');
   assert.deepEqual([done.raise, done.settle, done.wake, done.notify], [undefined, ['company:proposals'], undefined, undefined]);
 });
+
+// ---------- goal ref (L19) ----------
+test('goal is optional on an opportunity, is carried to its decision and survives review', async () => {
+  const { w } = await ready();
+  await w.call('digest_save', { opportunities: [{ ...ITEM.product, goal: 'g_first_payers' }, { ...ITEM.content, title: 'Không gắn mục tiêu nào' }] });
+  const [withGoal, without] = [w.rows('opportunities').find(o => o.kind === 'product'), w.rows('opportunities').find(o => o.kind === 'content')];
+  assert.equal(withGoal.goal, 'g_first_payers');
+  assert.equal(without.goal, null, 'a bet without a goal is valid');
+  await w.call('decide', { id: withGoal.ref, decision: 'go' });
+  const logged = w.rows('decisions').filter(d => d.opportunity_ref === withGoal.ref);
+  assert.ok(logged.length && logged.every(d => d.goal === 'g_first_payers'), 'every decision of the bet points at its goal');
+  assert.equal(w.rows('decisions').find(d => d.opportunity_ref === without.ref).goal, null);
+  const sig = await w.call('signals');
+  assert.equal(sig.packet.decisions.find(d => d.ref === withGoal.ref).g, 'g_first_payers', 'signals hands the ref on without reading any goal');
+  // review fills actual_delta and leaves the goal where it was.
+  const d = w.rows('decisions').find(x => x.opportunity_ref === withGoal.ref && x.decision === 'go');
+  await w.store.update('decisions', d.id, { actual_delta: 5, reviewed_at: new Date(w.now).toISOString() });
+  await w.call('review');
+  assert.equal(w.rows('decisions').find(x => x.id === d.id).goal, 'g_first_payers');
+});
+
+test('a goal that is not a string id is refused with the field named, and nothing is saved', async () => {
+  const { w } = await ready();
+  for (const goal of [42, { id: 'g_1' }, ['g_1'], '', 'có dấu cách', 'x'.repeat(65)]) {
+    await assert.rejects(w.call('digest_save', { opportunities: [{ ...ITEM.content, goal }] }), /Chưa lưu cơ hội nào.*#1 goal/, JSON.stringify(goal));
+  }
+  assert.equal(w.rows('opportunities').length, 0);
+  assert.equal(w.rows('decisions').length, 0);
+});

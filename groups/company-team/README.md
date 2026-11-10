@@ -34,6 +34,25 @@ group's lean profile. `scripts/company.test.mjs` builds Lohi and a second compan
 Another product brings its own scoreboard adapter in the same shape (`SCOREBOARD_URL`,
 contract v1, optional `cohorts` and `plans`) and its own packs.
 
+## Goals and the weekly rhythm
+
+`company.source.json` carries `goals`, which compiles into the runtime company's
+`company.goals`: `cycle_weeks` 6, at most 3 goals per product and per team,
+`ops_warn_ratio` 0.3, goals and waking repeats approved by the person, and
+three `cadence` recurring tasks the runtime gives the Đầu mối of every team with
+an active team goal (Asia/Ho_Chi_Minh):
+
+| id | cron | what the Đầu mối does |
+| --- | --- | --- |
+| `weekly-commit` | `0 8 * * 1` | Monday: read goals, last check-in, open tasks and signals; commit at most 5 tasks, each linked to a goal |
+| `weekly-checkin` | `0 16 * * 5` | Friday: `goal checkin` (value, confidence 0-10, one sentence) and the wins of the week |
+| `cycle-review` | `0 17 * * 5` | Every Friday after the check-in; it acts only when a goal of the team ends within 7 days (a cron cannot count a 6-week cycle, and the quiet weeks cost one line) |
+
+The texts name the `coordinator-rhythm` skill ([team-rhythm](../../packs/team-rhythm/README.md)).
+An overlay `goals` object replaces single keys (a `cadence` list replaces the
+whole list). The compiled block needs a runtime with company goals (Soot 0.13.30+);
+Soot 0.13.29 refuses it as an unknown field.
+
 ## From template to runtime company
 
 Status: experimental, internal. It is not offered as a public catalog item.

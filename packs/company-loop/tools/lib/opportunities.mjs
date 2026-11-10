@@ -14,6 +14,7 @@ const STATES = ['proposed', 'go', 'later', 'drop'];
 
 export const refOf = (kind, title) => `OP-${createHash('sha1').update(`${kind}:${fold(title).replace(/[^a-z0-9]+/g, ' ').trim()}`).digest('hex').slice(0, 8).toUpperCase()}`;
 
+const GOAL_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
 const text = (v, min, max) => typeof v === 'string' && v.trim().length >= min && v.trim().length <= max;
 const num = v => typeof v === 'number' && Number.isFinite(v);
 
@@ -43,6 +44,8 @@ export function itemProblems(it) {
   p.push(...enumProblem('moat', it.moat, MOATS, false));
   // pain: who suffers from what, from customer evidence. A product change without it is a guess.
   if (it.kind === 'product' ? !text(it.pain, 10, 200) : it.pain !== undefined && !text(it.pain, 10, 200)) p.push('pain 10–200 ký tự: ai khổ vì gì (từ lời khách)');
+  // goal: optional ref to the goal this bet pushes. The loop only carries the id; the runtime owns goals.
+  if (it.goal !== undefined && !(typeof it.goal === 'string' && GOAL_ID.test(it.goal))) p.push('goal là mã mục tiêu (chuỗi 1–64 ký tự: chữ, số, _ . : -), hoặc bỏ trống');
   return p;
 }
 
@@ -55,7 +58,7 @@ export async function baselineFor(store, target, product) {
 
 export async function logDecision(store, opp, decision, by, note, now, stage = 'digest') {
   await store.insert('decisions', {
-    at: iso(now), stage, opportunity_ref: opp.ref, product: opp.product ?? null, part: opp.part ?? null, moat: opp.moat ?? null, decision, by, note: note ? short(note, 300) : null,
+    at: iso(now), stage, opportunity_ref: opp.ref, product: opp.product ?? null, part: opp.part ?? null, moat: opp.moat ?? null, goal: opp.goal ?? null, decision, by, note: note ? short(note, 300) : null,
     evidence_refs: opp.evidence_refs ?? [], target_outcome: opp.target_outcome, expected_delta: opp.expected_delta,
     check_after_days: opp.check_after_days, baseline_value: await baselineFor(store, opp.target_outcome, opp.product), actual_delta: null,
   });
@@ -108,7 +111,7 @@ export async function digest_save(input, deps) {
     const row = {
       title: it.title.trim(), product: it.product, kind: it.kind, query: it.query?.trim() ?? null, summary: it.summary?.trim() ?? null,
       evidence_refs: it.evidence_refs, signal_count: it.signal_count, est_effort: it.est_effort, est_value: it.est_value,
-      confidence: it.confidence, part: it.part, awareness: it.awareness ?? null, moat: it.moat ?? null, pain: it.pain?.trim() ?? null, target_outcome: it.target_outcome, expected_delta: it.expected_delta, check_after_days: it.check_after_days, digest_week: week,
+      confidence: it.confidence, part: it.part, awareness: it.awareness ?? null, moat: it.moat ?? null, pain: it.pain?.trim() ?? null, goal: it.goal ?? null, target_outcome: it.target_outcome, expected_delta: it.expected_delta, check_after_days: it.check_after_days, digest_week: week,
     };
     const had = await store.one('opportunities', [eq('ref', ref)]);
     if (had && (had.state === 'go' || had.state === 'drop')) { skipped.push({ ...view(had), why: had.state === 'go' ? 'đã Go' : 'đã Bỏ' }); continue; }
