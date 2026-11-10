@@ -1,5 +1,6 @@
 import { agent } from './agent.mjs';
 import { sendInput, textEvents } from './input.mjs';
+import { idleTimeoutMs, assertProfileFree, sessionNames } from './profile.mjs';
 import { launchSettings, boundedJSON, lock, resolveBrowser } from './launch.mjs';
 import { readFile, writeFile, rm, access, lstat, realpath, open, mkdir } from 'node:fs/promises';
 import { join, resolve, sep, extname } from 'node:path';
@@ -247,7 +248,7 @@ export async function main() {
     const env={...process.env, AGENT_BROWSER_SESSION:ident.session, AGENT_BROWSER_EXECUTABLE_PATH:binary,
       AGENT_BROWSER_ARGS:[...launch.args.map(a=>a.startsWith('--fingerprint=')?`--fingerprint=${seed}`:a),...DENSITY_ARGS].join(','),
       ...STREAM_ENV,
-      AGENT_BROWSER_PROFILE:ident.profile, AGENT_BROWSER_HEADED:'0', AGENT_BROWSER_IDLE_TIMEOUT_MS:'0'};
+      AGENT_BROWSER_PROFILE:ident.profile, AGENT_BROWSER_HEADED:'0', AGENT_BROWSER_IDLE_TIMEOUT_MS:String(idleTimeoutMs())};
     const run=async args=> {
       let stdout;
       try { ({stdout}=await agent(['--session',ident.session,'--json',...args],{env,timeout:60000,maxBuffer:2*1024*1024})); }
@@ -263,6 +264,10 @@ export async function main() {
     const number=(key,min,max)=>{const n=input[key];if(!Number.isInteger(n)||n<min||n>max)throw new Error(`Invalid ${key}`);return String(n);};
     const value=()=>{if(typeof input.text!=='string'||input.text.length>8000)throw new Error('Invalid text');return input.text;};
     const tab=()=>{if(typeof input.tab!=='string'||!/^t[0-9]+$/.test(input.tab))throw new Error('Invalid tab');return input.tab;};
+    // Another process holding the profile (a daemon a moved runtime left
+    // behind) would make Chromium die with an unrelated exit code: say so first.
+    if(input.action!=='close') await assertProfileFree({profile:ident.profile,session:ident.session,label:`the browser profile of ${ident.id}`},
+      {listSessions:async()=>{const {stdout}=await agent(['--session',ident.session,'--json','session','list'],{timeout:10000,maxBuffer:131072});const r=JSON.parse(stdout);if(!r.success)throw new Error('session list failed');return sessionNames(r);}});
     if(input.action!=='close') await rm(closedFile,{force:true});
     if(input.action!=='close') {
       // stream status also proves the named persistent daemon is reachable.

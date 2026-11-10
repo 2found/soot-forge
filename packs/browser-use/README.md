@@ -63,6 +63,13 @@ when the variable is unset, keep one profile per conversation. `soot service`
 passes only the environment it starts with to runtimes, and `soot service start`
 starts from the calling shell: export it there. The start at login does not
 carry it.
+A daemon ends after 30 minutes without a command (`SOOT_BROWSER_IDLE_TIMEOUT_MS`
+changes it when the host passes that variable; `0` keeps it forever). Before a
+launch the adapter checks Chromium's `SingletonLock` on the profile: a lock whose
+process is dead is cleaned up as Chromium would; a live one that is not this
+runtime's own daemon (typically a daemon a moved or retired runtime left behind)
+stops the call with `browser_profile_in_use`, which names the pid and the exact
+`agent-browser --session <name> close` to run. Nothing is ever killed for you.
 Never use global close-all. Keep `.browser/` private and out of backups/archives
 shared with others: profiles contain website credentials.
 
