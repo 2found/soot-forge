@@ -393,3 +393,41 @@ test('a missing PRODUCT_ADMIN_KEY or CLI_CATALOG_DB stays a quiet skip but asks 
   assert.match(c1.ask.summary, /CLI_CATALOG_DB/);
   assert.equal((await run('crawl_watch', { input: {} }, { now: NOW, env: {}, store: crawl })).wake, false);
 });
+
+test('appstore_drafts: the drafted batch is one Cần bạn card that leads to the approved post, and settles when none is left', async () => {
+  const store = fakeStore({ clock: () => NOW });
+  assert.deepEqual(await go('appstore_drafts', {}, { store }), { ok: true, drafted: 0, settle: ['appstore-drafts'] });
+  await go('appstore_sync', {}, { store, fetchImpl: router({ [`GET ${FEED_PATH}`]: res(feed([entry('r1', 2, 'Lỗi', 'Không đọc được'), entry('r2', 1, 'Chậm', 'Tải rất lâu')])) }) });
+  await go('appstore_draft', { rid: 'r1', reply: 'Cảm ơn bạn, mình đã ghi nhận lỗi.' }, { store });
+  const one = await go('appstore_drafts', {}, { store });
+  assert.equal(one.drafted, 1);
+  assert.equal(one.raise.group, 'appstore-drafts');
+  assert.match(one.raise.id, /^appstore-drafts:[0-9a-f]{10}$/);
+  assert.equal(one.raise.title, '1 phản hồi App Store chờ bạn duyệt');
+  assert.match(one.raise.why, /2★ “Lỗi”: Cảm ơn bạn/);
+  const post = one.raise.options.find(o => o.id === 'post');
+  assert.match(post.wake, /lohi-ops_appstore_post .*rid: r1|rid: r1.*lohi-ops_appstore_post/s);
+  assert.match(post.wake, /vẫn chờ người duyệt/);
+  assert.equal(one.raise.options.some(o => o.tool), false, 'no option runs a tool that needs approval');
+  assert.deepEqual(await go('appstore_drafts', {}, { store }), one, 'the same batch is the same card');
+  // A second draft is a new batch: a new id in the same group replaces the open card.
+  await go('appstore_draft', { rid: 'r2', reply: 'Xin lỗi bạn, đội đang xem tốc độ tải.' }, { store });
+  const two = await go('appstore_drafts', {}, { store });
+  assert.equal(two.drafted, 2); assert.notEqual(two.raise.id, one.raise.id); assert.equal(two.raise.group, one.raise.group);
+  // Posted elsewhere: nothing drafted, the card settles.
+    for (const r of store.data.reviews) r.state = 'replied';
+  assert.deepEqual((await go('appstore_drafts', {}, { store })).settle, ['appstore-drafts']);
+  // A draft behind more than 200 older replied reviews still reaches the card.
+  const base = store.data.reviews[0];
+  for (let i = 0; i < 250; i++) store.data.reviews.unshift({ ...base, id: 1000 + i, rid: `old${i}`, posted_at: '2020-01-01T00:00:00Z' });
+  store.data.reviews.find(r => r.rid === 'r2').state = 'drafted';
+  assert.equal((await go('appstore_drafts', {}, { store })).drafted, 1);
+});
+
+test('the catalog and crawl schedules never ask the model to re-file the card the tool raised', () => {
+  const fragment = JSON.parse(readFileSync(new URL('../deployment.fragment.json', import.meta.url), 'utf8'));
+  for (const id of ['ops-catalog-health', 'ops-crawl-watch']) assert.doesNotMatch(fragment.schedules.find(s => s.id === id).text, /report_blocker/, id);
+  const approve = fragment.schedules.find(s => s.id === 'ops-reviews-approve');
+  assert.equal(approve.tool.name, 'appstore_drafts');
+  assert.equal(fragment.approvals['lohi-ops_appstore_post'], 'operator', 'posting stays operator-approved');
+});

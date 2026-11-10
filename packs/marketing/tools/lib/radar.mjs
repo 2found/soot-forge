@@ -43,6 +43,8 @@ const VI_CHARS = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽê
 export const MAX_FAILS = 3;
 export const MAX_WAKE_ITEMS = 15;
 const DAY = 24 * HOUR;
+/** A wake not answered within this is taken as refused (a budget, a stopped Soot): the batch may wake again. */
+export const PENDING_HOLD = 6 * HOUR;
 
 /**
  * Is an item about this product's readers? `keywords` (accent-folded, any one hit) and `lang: 'vi'` (the text carries
@@ -62,7 +64,8 @@ export function relevance(item, { keywords = [], lang = 'any' } = {}) {
  * `sources` table (new keys only; an edit made on the table is never overwritten), reads the sources that are due (oldest
  * first, at most `per_call`), keeps each new item once. Items off topic (keywords, language) are kept as dismissed, so they are
  * never read twice and never reach the model. A source that answers 429 rests a day; after MAX_FAILS failures in a row it is
- * switched off and reported as skipped. Wakes the triage Soot at most once per `wake_gap_hours` (default 20), with at most
+ * switched off and reported as skipped. Wakes the triage Soot at most once per `wake_gap_hours` (default 20), counted from
+ * the last wake it answered (a wake the host refused counts nothing and may repeat after PENDING_HOLD), with at most
  * `max_items` (15) of the best new signals; the surplus is dismissed with a note.
  */
 export async function radar_read(input, { store, now, fetch }) {
@@ -112,16 +115,20 @@ export async function radar_read(input, { store, now, fetch }) {
     if (off_now) skipped.push({ source: src.key, why: `tắt sau ${fails} lần lỗi: ${error}` });
   }
   let waiting = await store.query('signals', [eq('state', 'new')], { limit: 500 });
+  // `at` is the last wake the triage Soot answered (it read or marked the batch); `pending_at` a wake not answered yet.
+  // A wake the host refused (a token budget, a stopped Soot) is never answered, so it does not start the gap: after
+    // PENDING_HOLD (or wake_gap_hours, when shorter; 0 holds nothing) the same batch may wake again.
   const woke = (await store.one('settings', [eq('key', 'radar_woke')]))?.value ?? { at: null };
   const sinceWake = waiting.filter(s => !woke.at || (s.found_at ?? '') > woke.at).length;
   const threshold = Math.min(Math.max(Number(input.wake_at) || 8, 1), 60);
   const gapMs = Math.max(Number(input.wake_gap_hours ?? 20), 0) * HOUR;
   const rested = !woke.at || now - Date.parse(woke.at) >= gapMs;
-  const wake = input.schedule === true && sinceWake >= threshold && rested;
+  const waitingAnswer = woke.pending_at && now - Date.parse(woke.pending_at) < Math.min(PENDING_HOLD, gapMs);
+  const wake = input.schedule === true && sinceWake >= threshold && rested && !waitingAnswer;
   const cap = Math.min(Math.max(Number(input.max_items) || MAX_WAKE_ITEMS, 1), MAX_WAKE_ITEMS);
   let dropped = 0;
   if (wake) {
-    await setSetting(store, 'radar_woke', { at: iso(now) });
+    await setSetting(store, 'radar_woke', { at: woke.at ?? null, pending_at: iso(now) });
     // The triage Soot is shown the best few, never the whole backlog.
     const ranked = [...waiting].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || String(b.found_at).localeCompare(String(a.found_at)));
     for (const s of ranked.slice(cap)) { await store.update('signals', [eq('ref', s.ref)], { state: 'dismissed', note: 'tự bỏ: vượt giới hạn mỗi lần' }); dropped++; }
@@ -130,7 +137,14 @@ export async function radar_read(input, { store, now, fetch }) {
   return { read, new_total: read.reduce((n, r) => n + r.new, 0), waiting: waiting.length, ...(retired.length ? { retired } : {}), ...(skipped.length ? { skipped } : {}), ...(dropped ? { dropped } : {}), ...(wake ? { notify: true, wake: true, wake_items: waiting.length } : { notify: false, wake: false }) };
 }
 
+/** The triage Soot answered the wake: the gap starts at that wake, not at a refused one. */
+async function answeredWake(store) {
+  const woke = (await store.one('settings', [eq('key', 'radar_woke')]))?.value;
+  if (woke?.pending_at) await setSetting(store, 'radar_woke', { at: woke.pending_at });
+}
+
 export async function signals_list(input, { store }) {
+  if (!SIGNAL_STATES.includes(input.state) || input.state === 'new') await answeredWake(store);
   const state = SIGNAL_STATES.includes(input.state) ? input.state : 'new';
   const rows = await store.query('signals', [eq('state', state)], { order: 'found_at', desc: true, limit: Math.min(Number(input.limit) || (state === 'new' ? MAX_WAKE_ITEMS : 20), state === 'new' ? MAX_WAKE_ITEMS : 40) });
   return { state, signals: rows.map(r => ({ ref: r.ref, source: r.source, title: r.title, url: r.url, summary: short(r.summary, 220), ...(r.note ? { note: r.note } : {}) })), more: Math.max(0, (await store.query('signals', [eq('state', state)], { limit: 500 })).length - rows.length) };
@@ -151,6 +165,7 @@ export async function signals_mark(input, { store }) {
     rows.push([row, it]);
   }
   for (const [row, it] of rows) await store.update('signals', [eq('ref', row.ref)], { state: it.state, note: short(it.note, 300) || row.note || null });
+  await answeredWake(store);
   return { marked: rows.length };
 }
 

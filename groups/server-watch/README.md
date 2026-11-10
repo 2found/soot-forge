@@ -1,6 +1,7 @@
 # Server watch
 
-Ask Kamaji in Nest for a server watch. One **Server care** Soot checks your host
+Ask the Lead in Nest for a server watch. One **Server care** Soot, the team's
+Đầu mối, checks your host
 every morning (07:00, Asia/Ho_Chi_Minh), triages each alert and records
 `alert_triaged`.
 

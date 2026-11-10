@@ -5,7 +5,7 @@ Opt-in communication guidance for customer conversations. Select
 `live-chat` before responding. The pack provides one skill, no executable tools,
 ingress, identity, policy, credentials or permissions.
 
-What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/domain/SKILL.md); this pack is kept separate from it on purpose: it is granted to public Soots and must not bring Kamaji's packs with it.
+What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/domain/SKILL.md); this pack is kept separate from it on purpose: it is granted to public Soots and must not bring the Lead's packs with it.
 
 The host owns interactive/autonomous policy, durable acknowledgements, member
 handoff, blocked reports, private projection and publication fences. Use the

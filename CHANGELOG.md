@@ -5,9 +5,21 @@ Release notes for Soot Forge pack releases. The version is `package.json`'s;
 
 ## Unreleased
 
-Pairs with Soot 0.13.28 (Nest Lịch chạy board); an older runtime keeps every existing behavior.
+Target 0.11.24 (`package.json`). Pairs with Soot 0.13.28 (Nest Lịch chạy board, one Lead); an older runtime keeps every existing behavior.
+
+### Changed
+
+- **One Lead, outside every team.** `nest-lead` now speaks as the **Lead**, the person's own assistant in Nest (always named "Lead", formerly Kamaji). It belongs to no team: a team's work goes to the team as a task (`assignee_kind: team`), which the team's **Đầu mối** (its first entry) takes. The Lead no longer answers a team chat or honours `@Tên` inside a team, and on a current runtime team cycles go to the Đầu mối; "Run a team cycle" stays for an older runtime that still sends a team schedule to the Lead, so a cycle text that names it keeps working; it changes a team's Đầu mối with `group.policy.save` (entries reordered). `nest-manage` passes `coordinator` to `group.create` for a template with `asks_coordinator` (one question, "Ai làm Đầu mối của nhóm?"). The morning brief notes its run only reads. A bot is never the Lead's: asked to reach it on Telegram, it offers a bot for a team. With an older runtime the skills still read correctly and team cycles still run.
+- **Team templates know their Đầu mối.** Every root `""` template (`marketing-team`, `support-team`, `server-watch`, `team-*`) drops "led by Kamaji" and gives each member a short paragraph for when it is the team's Đầu mối: take the team's messages, schedules and bots, hand work out as tasks, keep status true, report once in the team thread, never hand work to the Lead. The built `groups.json` carries `root`, so Nest and `soot group create` know which templates ask.
+- **Copy.** `soot` `soot-domain` explains the Lead and the Đầu mối; `nest-lead`, `soot-nest`, `live-chat`, the catalog and template READMEs no longer say Kamaji.
+- **lohi-ops App Store drafts are one Cần bạn card (M7-F1).** New tool `appstore_drafts` (09:40 schedule `ops-reviews-approve`, no model) raises one card for every drafted reply (read by state, so old replied reviews never hide one), superseded as the count changes and settled when none are left; **Đăng** wakes the Soot to post each one, every post still waiting for its approver. `ops-catalog-health` and `ops-crawl-watch` no longer ask the model for `report_blocker` (M7-F4): the tool's card is already the one item for the person.
+
+### Fixed
+
+- **A refused radar wake does not start the gap (M7-F2).** `marketing` `radar_read` records a wake as pending and starts `wake_gap_hours` only from the wake that was answered (`signals_list`/`signals_mark`). A wake the budget refused is retried after at most 6 h (`PENDING_HOLD`, or `wake_gap_hours` when shorter; `0` holds nothing) instead of waiting a whole gap.
 
 ### Added
+
 
 - **The lead sets up a company from a template.** New `nest-lead` skill `nest-company`: four templates as data — Bán hàng online, Nội dung, SaaS and Vòng công ty (company-loop without the build stage). The lead asks at most two questions, proposes products, teams, schedules and read grants in one message, and after consent runs only existing settings actions: `company.product.save`, `group.create` through `manage_gated` (each team waits in Cần bạn), then `group.products`, `schedule.save` and `access.grant` (write grants stay gated). It never sets or raises a budget, and never joins a team or puts a schedule on itself. Evals `company.eval.json` (C1, C2).
 - `manage` / `manage_gated` `schedule` documents `cron` (`0 9 * * 1-5` = Thứ 2–6 lúc 09:00) beside `every`/`at`.

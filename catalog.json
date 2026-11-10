@@ -102,7 +102,7 @@
     {
       "id": "nest-lead",
       "name": "Nest lead",
-      "description": "Kamaji's authority over this Nest: Soots, teams, schedules, approvals, data access, model tiers and updates, with the person approving what only they decide. Only the default Soot may select it.",
+      "description": "The Lead's authority over this Nest: Soots, teams, schedules, approvals, data access, model tiers and updates, with the person approving what only they decide. Only the host's Lead may select it.",
       "tags": [
         "essentials"
       ],

@@ -42,12 +42,12 @@ test('radar_read keeps each new item once, reads the oldest due source first, an
   // The same call again: sources are not due, nothing new, no second wake.
   const again = await w.call('radar_read', { sources: SRC, schedule: true, wake_at: 8 });
   assert.deepEqual([again.read, again.notify], [[], false]);
-  // Later the feeds repeat the same items: stored once, no wake for the old batch even though it is still untriaged.
+  // The triage Soot reads, keeps few, dismisses the rest.
+  const list = await w.call('signals_list', {});
+  // Later the feeds repeat the same items: stored once, no wake for the answered batch.
   w.now += 7 * H;
   const later = await w.call('radar_read', { schedule: true, wake_at: 8 });
   assert.deepEqual([later.new_total, later.waiting, later.notify], [0, 8, false]);
-  // The triage Soot reads, keeps few, dismisses the rest.
-  const list = await w.call('signals_list', {});
   assert.equal(list.signals.length, 8);
   assert.match(list.signals[0].ref, /^RS-[0-9A-F]{8}$/);
   const [first, second, ...rest] = list.signals;
@@ -170,7 +170,7 @@ test('radar wake: at most 15 of the best new items, the surplus dismissed, one w
   w.feeds[NEWS.url] = rss(Array.from({ length: 30 }, (_, i) => [`Đọc truyện dịch số ${i}${i < 5 ? ' webnovel truyện chữ' : ''}`, `https://n.example/${i}`, 'nội dung']));
   const a = await w.call('radar_read', { sources: [NEWS], schedule: true, wake_at: 6, keywords: KW, lang: 'vi' });
   assert.deepEqual([a.wake, a.wake_items, a.waiting, a.dropped], [true, 15, 15, 15]);
-  const shown = (await w.call('signals_list', { limit: 40 })).signals;
+  const shown = (await w.call('signals_list', { limit: 40 })).signals; // the triage Soot answers the wake
   assert.equal(shown.length, 15, 'the list is capped too');
   assert.ok(['https://n.example/0', 'https://n.example/4'].every(u => shown.some(s => s.url === u)), 'the best-matching items are the ones kept');
   assert.equal(w.store.data.signals.filter(s => s.note === 'tự bỏ: vượt giới hạn mỗi lần').length, 15);
@@ -212,4 +212,37 @@ test('radar non-happy: a source answering 429 rests a day and is named in skippe
   const r = await w.call('radar_read', { retire: ['news-vi', 'nope'] });
   assert.deepEqual(r.retired, ['news-vi']);
   assert.equal(w.store.data.signals.length, 1);
+});
+
+// M7-F2: a wake the host refused (a token budget) is never answered; it must not start wake_gap_hours.
+test('radar wake refused by a budget does not count toward the gap: the batch wakes again, and the gap starts at the answered wake', async () => {
+  const w = world();
+  w.feeds[NEWS.url] = rss(Array.from({ length: 8 }, (_, i) => [`Đọc truyện chữ ${i}`, `https://n.example/${i}`, 'x']));
+  const a = await w.call('radar_read', { sources: [NEWS], schedule: true, wake_at: 6, keywords: KW, lang: 'vi' });
+  assert.equal(a.wake, true);
+  // Refused: nobody reads the batch. Inside the hold no second wake (the run may just be queued).
+  w.now += 2 * H;
+  assert.equal((await w.call('radar_read', { schedule: true, wake_at: 6, keywords: KW, lang: 'vi' })).wake, false);
+  // After the hold, well inside wake_gap_hours (20), the same unanswered batch wakes again.
+  w.now += 5 * H;
+  const retry = await w.call('radar_read', { schedule: true, wake_at: 6, keywords: KW, lang: 'vi' });
+  assert.deepEqual([retry.wake, retry.wake_items], [true, 8]);
+  // This time the Soot answers (marks the batch): now the gap counts from that wake.
+  const batch = (await w.call('signals_list', {})).signals;
+  await w.call('signals_mark', { items: batch.map(s => ({ ref: s.ref, state: 'dismissed' })) });
+  w.now += 7 * H;
+  w.feeds[NEWS.url] = rss(Array.from({ length: 8 }, (_, i) => [`Đọc truyện chữ mới ${i}`, `https://n.example/new${i}`, 'x']));
+  assert.equal((await w.call('radar_read', { schedule: true, wake_at: 6, keywords: KW, lang: 'vi' })).wake, false, 'inside the gap of the answered wake');
+  w.now += 14 * H;
+  assert.equal((await w.call('radar_read', { schedule: true, wake_at: 6, keywords: KW, lang: 'vi' })).wake, true);
+});
+
+// wake_gap_hours 0 wakes on every scheduled read with enough new signals: no hold for an unanswered wake.
+test('radar with wake_gap_hours 0 holds nothing', async () => {
+  const w = world();
+  w.feeds[NEWS.url] = rss(Array.from({ length: 8 }, (_, i) => [`Đọc truyện chữ ${i}`, `https://n.example/${i}`, 'x']));
+  const opts = { schedule: true, wake_at: 6, wake_gap_hours: 0, keywords: KW, lang: 'vi' };
+  assert.equal((await w.call('radar_read', { sources: [NEWS], ...opts })).wake, true);
+  w.now += 1 * H;
+  assert.equal((await w.call('radar_read', opts)).wake, true);
 });

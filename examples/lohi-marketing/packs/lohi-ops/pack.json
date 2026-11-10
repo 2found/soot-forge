@@ -403,6 +403,27 @@
       }
     },
     {
+      "name": "appstore_drafts",
+      "title": "Phản hồi chờ duyệt",
+      "description": "Gather every drafted, not yet posted App Store reply into one Cần bạn card (no model): a new batch replaces the open card, none left settles it. Its \"Đăng\" option wakes the Soot to post them with appstore_post, which still waits for an operator's approval. Never posts.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/ops.mjs",
+          "appstore_drafts"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
       "name": "appstore_post",
       "title": "Đăng phản hồi lên App Store",
       "description": "Post one drafted reply through the App Store Connect API (ASC_API_KEY, the founder's key). Without the key it answers needs_credential naming ASC_API_KEY and posts nothing; it never invents a key. Operator approval of the exact reply is expected before calling.",

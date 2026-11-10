@@ -1,6 +1,6 @@
 # Nest lead evals
 
-Dry-run behaviour locks for the Kamaji (`nest-lead`, `nest-manage`). Each case
+Dry-run behaviour locks for the Lead (`nest-lead`, `nest-manage`). Each case
 sends one message from the acceptance scenarios (S1–S4, S7, S8, S10–S13, W1–W5, T5–T6) and
 gates the *decision*: which tool is called, which is not, and what the reply must
 not claim. Evals read tool names only, never arguments or results.
@@ -12,7 +12,7 @@ soot eval --tag needs-runtime        # cases for operations that need the new ru
 ```
 
 The suite has no `soot`, so it runs on the runtime's default Soot: run it in a
-Nest workspace whose default Soot is the Kamaji and holds the `nest-lead` pack.
+Nest workspace whose Lead (its default Soot here) holds the `nest-lead` pack.
 Dry run is the default (`effects: dry_run`): `manage` and `manage_gated` answer
 with a preview or a refusal, never a receipt, so every case also forbids
 "đã tạo", "đã đổi", "đã áp dụng" and similar.

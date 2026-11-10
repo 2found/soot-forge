@@ -5,11 +5,11 @@ import { storage, OpsError, fail } from './lib/base.mjs';
 import { catalog_health } from './lib/catalog.mjs';
 import { crawl_watch } from './lib/crawl.mjs';
 import { comments_pull, comments_decide, comments_resolve } from './lib/comments.mjs';
-import { appstore_sync, appstore_draft, appstore_post } from './lib/appstore.mjs';
+import { appstore_sync, appstore_draft, appstore_drafts, appstore_post } from './lib/appstore.mjs';
 import { seo_report } from './lib/seo.mjs';
 import { pricing_report } from './lib/pricing.mjs';
 
-export const TOOLS = { catalog_health, crawl_watch, comments_pull, comments_decide, comments_resolve, appstore_sync, appstore_draft, appstore_post, seo_report, pricing_report };
+export const TOOLS = { catalog_health, crawl_watch, comments_pull, comments_decide, comments_resolve, appstore_sync, appstore_draft, appstore_drafts, appstore_post, seo_report, pricing_report };
 
 export async function run(name, ctx, { env = process.env, store, now = Date.now(), fetchImpl = fetch, apiTimeoutMs, openDb } = {}) {
   const tool = Object.hasOwn(TOOLS, name) ? TOOLS[name] : null;

@@ -1,6 +1,6 @@
 ---
 name: soot-domain
-description: Everything about Soot itself — what it is, its vocabulary, how Soots, Kamaji, teams, packs, schedules, approvals, tiers and the workspace fit together, where packs and team templates come from, and the avatar lifecycle.
+description: Everything about Soot itself — what it is, its vocabulary, how Soots, the Lead, teams and their Đầu mối, packs, schedules, approvals, tiers and the workspace fit together, where packs and team templates come from, and the avatar lifecycle.
 ---
 
 # Soot
@@ -15,13 +15,15 @@ team, links) the `soot-nest` pack has the steps.
 - **Soot**: the product and the desktop app, and each agent in it; `soot` in
   commands and technical identifiers. A Soot is a soul (how it talks), a mission
   (what it does), a model tier and the packs it selects.
-- **Nest**: the person's workspace, in the Soot app. **Kamaji** is the lead
-  Soot of a Nest (the host's default Soot; the person may rename it): they hand
-  it everything, and it leads every team.
-- **Team** (nhóm, a group): Soots that work together under Kamaji. A **team
+- **Nest**: the person's workspace, in the Soot app. The **Lead** is the
+  person's own assistant in Nest, one per server, always named "Lead" (it was
+  called Kamaji before). They hand it everything. It belongs to no team, no bot
+  reaches it, and only its morning brief runs on a schedule.
+- **Team** (nhóm, a group): Soots that work together. Its **Đầu mối** is its
+  first Soot: it takes the team's messages, tasks, schedules and bots. A **team
   template** (Mẫu Soot in Nest) packages a team's members, the brief it needs,
-  budget profiles and schedules; Kamaji builds a team from one in a single
-  approval. **Swarm** is the idea of many Soots cooperating, not a separate
+  budget profiles and schedules; the Lead builds a team from one in a single
+  approval, asking which member is the Đầu mối when the template leaves it open. **Swarm** is the idea of many Soots cooperating, not a separate
   object to chat with.
 - **Pack**: an installable bundle of skills (know-how in Markdown) and tools
   (programs a Soot may call). A Soot's `packs` list selects whole packs by id;
@@ -38,9 +40,9 @@ team, links) the `soot-nest` pack has the steps.
 - **Packs grant nothing by being installed.** A Soot reaches a pack only
   when its definition selects it. Tools that write or reach out ask the person
   first unless an approval policy lets them run alone.
-- **Approvals.** Deleting things, granting more than the lead holds, relaxing an
+- **Approvals.** Deleting things, granting more than the Lead holds, relaxing an
   approval, a customer-facing Soot, publishing and spending wait for the person
-  under **Cần bạn**. Kamaji does the rest itself and reports once with
+  under **Cần bạn**. The Lead does the rest itself and reports once with
   **Hoàn tác** (undo).
 - **Model tiers** (`flash`, `lite`, `pro`, `max`, plus `tts`, `search`,
   `imagen`) map to providers in Settings. A tier the host has not mapped runs on
@@ -50,8 +52,8 @@ team, links) the `soot-nest` pack has the steps.
   that outlives a reply is a **task** (todo, doing, blocked, review, done) with
   an assignee and a log.
 - **Schedules** send a text to a Soot or a team at a time (`every`, `at`). A
-  schedule for a team with no Soot named runs as its lead, Kamaji: that is a
-  team cycle.
+  schedule for a team with no Soot named runs as its Đầu mối: that is a team
+  cycle. A team with no Đầu mối holds its schedules until the person picks one.
 - **Sources** deploy Soots, packs and teams from a repository; what a source
   owns is changed in the source, not from chat.
 - **Updates.** Packs, team templates, the General preset and the runtime update
@@ -80,7 +82,7 @@ These are pointers for source development, not installed-pack dependencies.
 
 Read https://raw.githubusercontent.com/2found/soot-forge/main/catalog.json
 (version 1) and match `name`, `description` and `tags` to the task; team
-templates are listed in `groups.json` beside it, and in Nest Kamaji reads them
+templates are listed in `groups.json` beside it, and in Nest the Lead reads them
 with `templates.list`. Follow
 https://github.com/2found/soot-forge/blob/main/USAGE.md to derive the GitHub
 folder link from `source`, inspect its README and use `soot add` when the person

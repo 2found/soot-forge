@@ -8,13 +8,17 @@ const packTool = (pack, name) => JSON.parse(readFileSync(new URL(`../packs/${pac
 const packJson = pack => JSON.parse(readFileSync(new URL(`../packs/${pack}/pack.json`, import.meta.url), 'utf8'));
 const source = id => JSON.parse(readFileSync(new URL(`../groups/${id}/group.source.json`, import.meta.url), 'utf8'));
 
-test('the catalog lists the Kamaji-led templates first and every template validates', async () => {
+test('the catalog lists the Đầu mối templates (no root) first and every template validates', async () => {
   const catalog = await readGroups(root);
   assert.deepEqual(catalog.groups.map(g => g.id), ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team', 'society-sim', 'server-watch']);
   for (const id of ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team', 'server-watch']) {
     const t = source(id);
     assert.equal(t.api_version, id.startsWith('team-') ? 'soot/group-template/v3' : 'soot/group-template/v2');
-    assert.equal(t.root, '', `${id} is led by the host's lead`);
+        assert.equal(t.root, '', `${id} asks for its Đầu mối`);
+    for (const m of t.members) {
+      assert.match(m.soul, /Đầu mối/, `${id}/${m.id} knows what to do as the team's Đầu mối`);
+      assert.doesNotMatch(`${m.soul} ${m.mission} ${t.description}`, /Kamaji|\bthe lead\b/, `${id}/${m.id}: the Lead is in no team`);
+    }
     assert.ok(t.inputs.some(i => i.confirm), `${id} confirms something before proposing`);
     for (const p of t.profiles) assert.deepEqual(Object.keys(p.members).sort(), t.members.map(m => m.id).sort(), `${id}/${p.id}`);
   }
@@ -169,4 +173,19 @@ test('v3 fields are refused where the runtime refuses them', () => {
   bad(x => { x.contract.escalates[0].on = 'whenever'; return x; }, 'an unknown trigger');
   bad(x => { x.profiles[0].team_daily_tokens = -1; return x; }, 'a negative team budget');
   bad(x => { x.members[1].packs = ['marketing:tools=Radar-Read']; return x; }, 'a malformed tool list');
+});
+
+test('the built catalog says which templates ask for a Đầu mối (root "")', async () => {
+  const { buildLocalGroups } = await import('./support/local-groups.mjs');
+  const { mkdtemp, rm, readFile: read } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = await mkdtemp(join(tmpdir(), 'forge-groups-root-'));
+  try {
+    const dist = await buildLocalGroups(root, join(work, 'dist'));
+    const built = JSON.parse(await read(join(dist, 'groups.json'), 'utf8'));
+    const byId = Object.fromEntries(built.groups.map(g => [g.id, g]));
+    assert.equal(byId['marketing-team'].root, '', 'no root: the installer picks the Đầu mối');
+    assert.equal(byId['society-sim'].root, 'moderator');
+  } finally { await rm(work, { recursive: true, force: true }); }
 });

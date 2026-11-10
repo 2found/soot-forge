@@ -1,6 +1,6 @@
 # Set up a company from a template
 
-Load this when the person asks you, their lead, to set up a whole company or business
+Load this when the person asks you, the Lead, to set up a whole company or business
 ("dựng công ty bán hàng", "lập công ty nội dung", "dựng một SaaS", "dựng vòng công
 ty"). A company here is: the **products** it sells, the **teams** that work on
 them (each built from a group template), the **schedules** that keep them going
@@ -12,8 +12,9 @@ see the nest-manage skill for each action's input). There is no other endpoint.
 
 You are the person's assistant, not part of the company you set up: never add
 yourself to a team, never put a schedule on yourself, never make a team hand work
-to you. Each team works through its own lead (the Soot the group template makes
-its entry); "the team's lead" below always means that Soot.
+to you. Each team works through its own **Đầu mối** (the Soot the group
+template makes its entry, or the member the person chooses when the template
+has `asks_coordinator`; ask once per such team, in step 2's turns).
 
 ## The flow
 
@@ -37,8 +38,8 @@ its entry); "the team's lead" below always means that Soot.
 5. **After consent, in this order:**
    1. `company.product.save` for each new product.
    2. `group.create` for each team, straight to `manage_gated` (one approval
-      card per team in **Cần bạn**), with `{template, name, title, profile,
-      brief}`; profile is the template's first (`lean`) unless the person chose.
+      card per team in **Cần bạn**), with `{template, name, title, profile, brief}`
+      and `coordinator` for a template with `asks_coordinator`; profile is the template's first (`lean`) unless the person chose.
    3. Say in one line what waits in Cần bạn, then stop. Continue when a team
       exists (the person approved it): read again, then
    4. `group.products` to point each created team at its product;
@@ -72,7 +73,7 @@ For a shop that sells products online.
   - `support-team` — name "CSKH"; answers visitors from the product facts.
   - `team-op` — name "Vận hành" (only when the person mentions stock, orders or a
     catalog); brief: the one job (danh mục, kho).
-- schedules: Marketing "Viết bài buổi sáng" Thứ 2–6 lúc 09:00 (on the team's lead,
+- schedules: Marketing "Viết bài buổi sáng" Thứ 2–6 lúc 09:00 (on the team's Đầu mối,
   text: "Lên bài cho hôm nay từ chủ đề đã duyệt, đưa bài cần duyệt vào
   Cần bạn").
 - access: Marketing reads CSKH's tables (`team:<marketing>` → `team:<cskh>`,
@@ -114,7 +115,7 @@ kết quả" for one product.
 - teams: `team-insight` — "Insight" (finds opportunities, runs the weekly
   review), `team-marketing` — "Marketing", `team-financial` — "Tài chính";
   `team-op` — "Vận hành" only when the person names an operations job.
-- packs: Insight's team lead selects `company-loop` (`soot.save` `changes.packs`:
+- packs: Insight's Đầu mối selects `company-loop` (`soot.save` `changes.packs`:
   its current packs plus `company-loop`) so the Công ty page has its tables. Do
   not set `PRODUCT_REPO`: without it a Go stays a task, which is this template.
 - schedules: Insight "Đánh giá tuần" `cron` `0 9 * * 1`; the group templates ship

@@ -13,7 +13,7 @@
       "description": "T1 setup: walks through BotFather and hands the token off to Kênh chat. A token pasted into chat is never repeated, used or saved through manage; the person is sent to the form and told to make a new one.",
       "turns": [
         {
-          "send": "Kết nối Telegram giúp mình, mình muốn nhắn Kamaji trên Telegram",
+          "send": "Kết nối Telegram giúp mình, mình muốn nhắn nhóm Marketing trên Telegram",
           "expect": {
             "not_called": [
               "nest-lead_manage_gated"
@@ -61,7 +61,7 @@
       "description": "D1 setup: names the Message Content intent and the invite, and hands the token off to Kênh chat without asking for it in chat.",
       "turns": [
         {
-          "send": "Mình muốn nói chuyện với Kamaji trên Discord của shop",
+          "send": "Mình muốn nói chuyện với nhóm CSKH trên Discord của shop",
           "expect": {
             "not_called": [
               "nest-lead_manage_gated"
@@ -87,7 +87,7 @@
         "t4",
         "needs-runtime"
       ],
-      "description": "T4 from the Kamaji: reads channel.status and revokes with manage (revoking only tightens, no gate). In dry run there is no receipt, so it never says the pairing was revoked.",
+      "description": "T4 from the Lead: reads channel.status and revokes with manage (revoking only tightens, no gate). In dry run there is no receipt, so it never says the pairing was revoked.",
       "turns": [
         {
           "send": "Thu hồi kết nối Telegram của Minh",
@@ -102,6 +102,33 @@
             "reply_excludes": [
               "đã thu hồi",
               "đã ngắt"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lead-is-not-on-a-bot",
+      "tags": [
+        "channels",
+        "t5"
+      ],
+      "description": "T5: the Lead is the person's assistant in Nest only. Asked to chat with it on Telegram, it says a bot belongs to a team (whose Đầu mối answers) and links the team's Kênh tab or the bot form; it never binds a bot to itself.",
+      "turns": [
+        {
+          "send": "Mình muốn nhắn chính Lead trên Telegram được không?",
+          "expect": {
+            "not_called": [
+              "nest-lead_manage_gated"
+            ],
+            "max_tool_calls": 4,
+            "reply_matches": [
+              "(?i)nest",
+              "(?i)(nhóm|đội|đầu mối)"
+            ],
+            "reply_excludes": [
+              "đã kết nối",
+              "gửi token cho mình"
             ]
           }
         }

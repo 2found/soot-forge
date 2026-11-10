@@ -91,7 +91,7 @@ function validateV2(t, v2, v3, members, packs, ident, keys, text) {
 }
 // v3: a schedule may run a member's tool chain without a model turn. The chain runs with that member's own grants, so
 // the member selects every pack (and, when narrowed, every tool) the chain calls; a v3 chain without a member is refused
-// here because the lead (Kamaji) holds none of the team's packs.
+// here because no member is named to hold the team's packs (the Lead is in no team).
 const TOOL = /^[a-z0-9][a-z0-9_]{0,63}$/;
 function validateChain(s, members, packs, keys, text) {
   const bad = why => { throw new Error(`Invalid schedule ${s.id}: ${why}`); };
@@ -182,8 +182,9 @@ export async function buildGroups(root, dist, work, version, packs) {
     const filename = `${entry.id}-group_${version}.tar.gz`; await archivePack(dir,join(dist,filename),entry.id);
     const sha256 = createHash('sha256').update(await readFile(join(dist,filename))).digest('hex');
     const archive = { url:`https://github.com/2found/soot-forge/releases/download/v${version}/${filename}`,sha256 };
+    // root: "" asks the installer for the team's Đầu mối (a member role).
     const {inputs,profiles,schedules,contract} = template;
-    groups.push({...entry,members:template.members.map(({id,name,role,channels})=>({id,name,role,...(channels?{channels}:{})})),...(inputs?{inputs}:{}),...(profiles?{profiles}:{}),...(schedules?{schedules}:{}),...(contract?{contract}:{}),archive,install:`soot group add ${archive.url} --sha256 ${sha256}`});
+    groups.push({...entry,root:template.root,members:template.members.map(({id,name,role,channels})=>({id,name,role,...(channels?{channels}:{})})),...(inputs?{inputs}:{}),...(profiles?{profiles}:{}),...(schedules?{schedules}:{}),...(contract?{contract}:{}),archive,install:`soot group add ${archive.url} --sha256 ${sha256}`});
     sums.push(`${sha256}  ${filename}`);
   }
   await writeFile(join(dist,'groups.json'),JSON.stringify({...catalog,groups},null,2)+'\n');

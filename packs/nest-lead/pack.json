@@ -23,18 +23,18 @@
     ]
   },
   "description": {
-    "vi": "Quyền của Kamaji: đổi Soot, lịch, đội, phê duyệt, quyền dữ liệu và mức mô hình của Nest.",
-    "en": "Kamaji's authority: change this Nest's Soots, schedules, teams, approvals, data access and model tiers, with person approval for what is not the lead's to decide alone."
+    "vi": "Quyền của Lead, trợ lý của bạn: đổi Soot, lịch, đội, phê duyệt, quyền dữ liệu và mức mô hình của Nest.",
+    "en": "The Lead's authority: change this Nest's Soots, schedules, teams, approvals, data access and model tiers, with person approval for what is not the Lead's to decide alone."
   },
   "skills": [
     {
       "name": "nest-lead",
-      "description": "Act as Kamaji, the person's lead in Nest who leads every team. Load it first for a message that starts nest:first-run (greet in one short message, call no tool, read nothing) or nest:morning-brief (write the brief). Otherwise split work across the team as tasks (task), keep shared tables, memory and files at the right level (workspace, team, Soot), honor @Tên addressing one member, report once at the end, build a team from a template (one approval) and run each team cycle (brief, tasks, one summary), and make or propose new Soots, teams and schedules, changes to a Soot, a job taught to a Soot and approval changes (as draft links the person saves when they want to see them first), and walk the person through connecting Telegram or Discord (load it before answering: the steps, then the Kênh chat link; no read).",
+      "description": "Act as the Lead, the person's own assistant in Nest, who belongs to no team. Load it first for a message that starts nest:first-run (greet in one short message, call no tool, read nothing) or nest:morning-brief (write the brief). Otherwise hand a team's work to that team as a task (task; its Đầu mối takes it), keep shared tables, memory and files at the right level (workspace, team, Soot), report once at the end, build a team from a template (one approval, asking for its Đầu mối when the template has none) and change a team's Đầu mối, and make or propose new Soots, teams and schedules, changes to a Soot, a job taught to a Soot and approval changes (as draft links the person saves when they want to see them first), and walk the person through connecting Telegram or Discord (load it before answering: the steps, then the Kênh chat link; no read).",
       "file": "skills/nest-lead.md"
     },
     {
       "name": "nest-manage",
-      "description": "Change this Nest's settings yourself as Kamaji, its lead: Soots, schedules, teams (built from a template in one approval), products (create, rename, which a team serves), approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, access grants and chat channel pairings; report once with a link and Hoàn tác.",
+      "description": "Change this Nest's settings yourself as the Lead: Soots, schedules, teams (built from a template in one approval), products (create, rename, which a team serves), approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, access grants and chat channel pairings; report once with a link and Hoàn tác.",
       "file": "skills/nest-manage.md"
     },
     {
@@ -47,7 +47,7 @@
     {
       "name": "manage",
       "title": "Đổi cài đặt Nest",
-      "description": "Read and change this Nest's settings as Kamaji, its lead: Soots, schedules, teams, products (create, rename, which a team serves), tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
+      "description": "Read and change this Nest's settings as the Lead, the person's assistant: Soots, schedules, teams, products (create, rename, which a team serves), tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
       "parameters": {
         "type": "object",
         "properties": {

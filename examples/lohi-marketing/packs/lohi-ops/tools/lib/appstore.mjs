@@ -1,7 +1,7 @@
 // App Store reviews. Reading is Apple's public customer-reviews feed (no sign-in, no key).
 // Posting a reply needs the founder's App Store Connect API key (ASC_API_KEY); without it the
 // tool answers a named credential need and never invents one.
-import { createPrivateKey, sign as cryptoSign } from 'node:crypto';
+import { createHash, createPrivateKey, sign as cryptoSign } from 'node:crypto';
 import { fail, skippedFor, needsCredential, eq, upsert, iso, short } from './base.mjs';
 
 const FEED = 'https://itunes.apple.com';
@@ -58,6 +58,37 @@ export async function appstore_sync(input, deps) {
     stored: open.length,
     // New reviews wake the model once (schedule wake_when notify), with the batch to draft replies for.
     notify: fresh.length > 0,
+  };
+}
+
+// ---------- the drafts batch: one Cần bạn card (no model) ----------
+
+const DRAFTS = 'appstore-drafts';
+/**
+ * Every drafted, not yet posted reply as one Cần bạn card: a new batch replaces the open one (same group), none
+ * left settles it. Choosing "Đăng" wakes the Soot to post them, and each post still waits for the operator's
+ * approval (lohi-ops_appstore_post); this tool never posts.
+ */
+export async function appstore_drafts(_input, deps) {
+  const { store } = deps;
+    const rows = (await store.query('reviews', [eq('state', 'drafted')], { order: 'posted_at', limit: 200 })).filter(r => r.reply_draft);
+  if (!rows.length) return { ok: true, drafted: 0, settle: [DRAFTS] };
+  const rids = rows.map(r => r.rid).sort();
+  const sig = createHash('sha1').update(rids.map(rid => `${rid}:${rows.find(r => r.rid === rid).reply_draft}`).join('\n')).digest('hex').slice(0, 10);
+  const shown = rows.slice(0, 8);
+  const why = shown.map(r => `• ${r.rating}★ “${short(r.title, 60)}”: ${short(r.reply_draft, 140)}`)
+    .concat(rows.length > shown.length ? [`… và ${rows.length - shown.length} phản hồi nữa.`] : []).join('\n');
+  const list = rids.slice(0, 40).join(', ');
+  return {
+    ok: true, drafted: rows.length,
+    raise: {
+      id: `${DRAFTS}:${sig}`, group: DRAFTS, title: `${rows.length} phản hồi App Store chờ bạn duyệt`, why: short(why, 1500),
+      options: [
+        { id: 'post', label: 'Đăng các phản hồi này', recommended: true,
+          wake: `Người duyệt muốn đăng các phản hồi App Store đã soạn (rid: ${list}). Gọi lohi-ops_appstore_post một lần cho mỗi rid; mỗi lần đăng vẫn chờ người duyệt. Không soạn lại. Kết thúc bằng một dòng.` },
+        { id: 'later', label: 'Để sau' },
+      ],
+    },
   };
 }
 

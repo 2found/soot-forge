@@ -25,7 +25,7 @@ wants to see it first (`nest-lead`).
 | `nest://team/<team>/kenh`, `nest://team/<team>/quyen` | that team's Kênh tab (its bots and websites) or Quyền tab (Nest 0.13.27+) |
 | `nest://schedules/<soot>` | a Soot's Lịch chạy |
 | `nest://page/<page>`, `nest://page/<soot>/<page>` | a page a pack serves (`nest://page/cong-ty` is Công ty); without a Soot, the one on this server that serves it (Nest 0.13.18+) |
-| `nest://schedules/nest-morning-brief` | the morning brief's schedule, to turn it off or change the time (the fixed id of Kamaji's brief) |
+| `nest://schedules/nest-morning-brief` | the morning brief's schedule, to turn it off or change the time (the fixed id of the Lead's brief) |
 | `nest://overview`, `tasks`, `chat`, `team`, `data`, `reports` | that page; `tasks` (Việc) is every server's work in one list |
 | `nest://inbox` | Cần bạn, the queue on Tổng quan |
 | `nest://settings` and `/servers`, `/ai`, `/approvals`, `/website`, `/knowledge` | that Settings page |

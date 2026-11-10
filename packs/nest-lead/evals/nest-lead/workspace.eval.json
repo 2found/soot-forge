@@ -11,7 +11,7 @@
         "w1",
         "needs-runtime"
       ],
-      "description": "W1: reading another team's tables is Kamaji's own to grant, so it reads and grants with manage, never sends it to the person, and claims nothing without a receipt.",
+      "description": "W1: reading another team's tables is the Lead's own to grant, so it reads and grants with manage, never sends it to the person, and claims nothing without a receipt.",
       "turns": [
         {
           "send": "Cho Soot but-lohi xem các bảng dữ liệu của nhóm ban-hang",
@@ -39,7 +39,7 @@
         "gated",
         "needs-runtime"
       ],
-      "description": "W2: write access is the person's decision. Kamaji sends it through manage_gated, says it waits for them, and never says it was granted.",
+      "description": "W2: write access is the person's decision. The Lead sends it through manage_gated, says it waits for them, and never says it was granted.",
       "turns": [
         {
           "send": "Cho but-lohi quyền sửa dữ liệu chung của cả workspace",
@@ -87,7 +87,7 @@
         "w4",
         "needs-runtime"
       ],
-      "description": "W4: work a member does on their own becomes a task Kamaji creates for them, not a pasted plan; no task is claimed as started or done in dry run.",
+      "description": "W4: work a member does on their own becomes a task the Lead creates for them (run in the member's team by its Đầu mối), not a pasted plan; no task is claimed as started or done in dry run.",
       "turns": [
         {
           "send": "Giao cho but-lohi viết 3 bài Facebook giới thiệu bộ sưu tập thu, xong trước thứ Sáu",

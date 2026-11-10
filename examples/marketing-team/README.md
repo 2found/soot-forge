@@ -16,7 +16,7 @@ computer, or a Soot runtime on your server (both in preview).
 15:00 schedule ─▶ Radar      afternoon scan, merged into today's brief
 ```
 
-To get a team like this without a repository, ask Kamaji in Nest: it builds
+To get a team like this without a repository, ask the Lead in Nest: it builds
 one from the [Marketing team template](../../groups/marketing-team/README.md),
 whose members use the product-neutral [marketing pack](../../packs/marketing/README.md)
 and a marketing hub. This example stays for a team you keep in git, with your
