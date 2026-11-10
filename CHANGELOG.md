@@ -3,6 +3,14 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.13.0 — 2026-11-11
+
+Baseline: v0.12.6 (fe4f58f). Pairs with Soot 0.13.19+ (team `coordinator` and `entries`). No pack content or storage changes.
+
+- **Five standard teams with English ids.** The group catalog now offers `insight` (Analyst, Radar: numbers, weekly digest, goals and budgets; part `value`), `growth` (Editor as Đầu mối, Writer, Researcher: marketing and sales; parts `marketing`, `sales`), `support` (Feedback desk as Đầu mối, Answerer: delivery to the customer; part `delivery`), `operations` (one Operator per job: delivery on the product side) and `finance` (Controller, read-only: part `finance`). Each catalog entry names the parts the team can own (`parts`, Kaufman's five) and the members that take chats (`entries`, the first is the Đầu mối). `company-team` and the Lohi example company are built from these five.
+- **The old team templates stay installable, marked deprecated.** `marketing-team` and `team-marketing` → `growth`, `team-insight` → `insight`, `support-team` → `support`, `team-financial` → `finance`, `team-op` → `operations`: each keeps its id, so an installed team keeps updating, and carries `stability: deprecated` and `replaced_by`. A runtime reads only the fields it knows, so older hosts list them as before (with "(deprecated)" in the name).
+- **lohi-cs: the support regression set lives here.** 22 cases from the retired 2agent `cs/deploy` (policy, injection, top-up recovery, chapter fixes, train/val/test tags) join the pack as `evals/lohi-cs/support-regression.eval.json`.
+
 ## 0.12.6 — 2026-11-11
 
 Baseline: v0.12.5 (eab2c9c). Storage is unchanged (6).

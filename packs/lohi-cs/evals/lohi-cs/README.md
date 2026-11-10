@@ -28,3 +28,16 @@ reader, `LOHI_CS`, `LOHI_CS_EXEC` and `LOHI_CS_BASE` bound on the host, and the
 case except `anonymous-needs-sign-in` runs as an asserted principal (the eval
 runner signs the conversation); the approval cases end `waiting_approval`
 unless the eval deployment sets those operations to `auto`.
+
+## Regression set (`support-regression.eval.json`)
+
+22 cases moved from the retired `2agent/cs/deploy/evals/support.eval.json`: policy
+(no refund or credit promised, no fix promise, prompt injection, handoff only
+when asked, a tool error is not a handoff), top-up recovery, chapter fixes and
+the train/val/test split used by `soot train`. It runs on a `support` Soot
+(`live-chat` + `lohi-cs`) rather than `cs-triage`, against the same Lohi api
+fixture reader as above; price cases expect the fixture's plan prices.
+
+```sh
+soot eval --soot support
+```
