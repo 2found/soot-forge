@@ -3,9 +3,9 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.12.0 — 2026-11-10
 
-Pairs with the Soot release that adds company goals and recurring tasks (L19); an older runtime ignores the skills' goal steps and refuses `company.goals`. company-loop storage stays 5: the new `goal` columns are nullable and additive.
+Baseline: v0.11.26 (7d80538). Pairs with Soot 0.14.0, which adds company goals and recurring tasks; an older runtime ignores the skills' goal steps and refuses `company.goals`. company-loop storage stays 5: the new `goal` columns are nullable and additive.
 
 ### Added
 

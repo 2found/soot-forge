@@ -19,4 +19,4 @@ It names no company, product or metric. A company brings its numbers in its own
 packs and its cadence in `company.goals.cadence`
 (see [company-team](../../groups/company-team/README.md)). Select it on the
 Đầu mối of any team; the `team-insight`, `team-marketing` and `team-op` templates
-already do. Needs a runtime with the `goal` tool (Soot 0.13.30+).
+already do. Needs a runtime with the `goal` tool (Soot 0.14.0+).

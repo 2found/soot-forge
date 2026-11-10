@@ -25,7 +25,7 @@ Goals: the skill `nest-lead` also tells the Lead how to steer the company with g
 the person's words as proposals, handle a `goal_changed` attention, and create
 repeating jobs as recurring tasks. The weekly rhythm of a team (Monday
 commitments, Friday check-in, cycle review) is the Đầu mối's, in the
-[team-rhythm](../team-rhythm/README.md) pack. Needs a runtime with goals (Soot 0.13.30+); an older
+[team-rhythm](../team-rhythm/README.md) pack. Needs a runtime with goals (Soot 0.14.0+); an older
 one has neither tool and the Lead keeps to schedules and drafts.
 
 Needs a Soot runtime with `soot manage`; release the runtime before this pack.

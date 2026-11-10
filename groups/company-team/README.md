@@ -50,7 +50,7 @@ an active team goal (Asia/Ho_Chi_Minh):
 
 The texts name the `coordinator-rhythm` skill ([team-rhythm](../../packs/team-rhythm/README.md)).
 An overlay `goals` object replaces single keys (a `cadence` list replaces the
-whole list). The compiled block needs a runtime with company goals (Soot 0.13.30+);
+whole list). The compiled block needs a runtime with company goals (Soot 0.14.0+);
 Soot 0.13.29 refuses it as an unknown field.
 
 ## From template to runtime company
