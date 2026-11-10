@@ -3,9 +3,9 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.11.24 — 2026-11-10
 
-Target 0.11.24 (`package.json`). Pairs with Soot 0.13.28 (Nest Lịch chạy board, one Lead); an older runtime keeps every existing behavior.
+Baseline: v0.11.23 (0221bef). Pairs with Soot 0.13.28 (one Lead outside every team, team Đầu mối, Nest Lịch chạy board); an older runtime keeps every existing behavior (skills read correctly and team cycles still run).
 
 ### Changed
 
@@ -14,18 +14,14 @@ Target 0.11.24 (`package.json`). Pairs with Soot 0.13.28 (Nest Lịch chạy boa
 - **Copy.** `soot` `soot-domain` explains the Lead and the Đầu mối; `nest-lead`, `soot-nest`, `live-chat`, the catalog and template READMEs no longer say Kamaji.
 - **lohi-ops App Store drafts are one Cần bạn card (M7-F1).** New tool `appstore_drafts` (09:40 schedule `ops-reviews-approve`, no model) raises one card for every drafted reply (read by state, so old replied reviews never hide one), superseded as the count changes and settled when none are left; **Đăng** wakes the Soot to post each one, every post still waiting for its approver. `ops-catalog-health` and `ops-crawl-watch` no longer ask the model for `report_blocker` (M7-F4): the tool's card is already the one item for the person.
 
-### Fixed
-
-- **A refused radar wake does not start the gap (M7-F2).** `marketing` `radar_read` records a wake as pending and starts `wake_gap_hours` only from the wake that was answered (`signals_list`/`signals_mark`). A wake the budget refused is retried after at most 6 h (`PENDING_HOLD`, or `wake_gap_hours` when shorter; `0` holds nothing) instead of waiting a whole gap.
-
 ### Added
-
 
 - **The lead sets up a company from a template.** New `nest-lead` skill `nest-company`: four templates as data — Bán hàng online, Nội dung, SaaS and Vòng công ty (company-loop without the build stage). The lead asks at most two questions, proposes products, teams, schedules and read grants in one message, and after consent runs only existing settings actions: `company.product.save`, `group.create` through `manage_gated` (each team waits in Cần bạn), then `group.products`, `schedule.save` and `access.grant` (write grants stay gated). It never sets or raises a budget, and never joins a team or puts a schedule on itself. Evals `company.eval.json` (C1, C2).
 - `manage` / `manage_gated` `schedule` documents `cron` (`0 9 * * 1-5` = Thứ 2–6 lúc 09:00) beside `every`/`at`.
 
 ### Fixed
 
+- **A refused radar wake does not start the gap (M7-F2).** `marketing` `radar_read` records a wake as pending and starts `wake_gap_hours` only from the wake that was answered (`signals_list`/`signals_mark`). A wake the budget refused is retried after at most 6 h (`PENDING_HOLD`, or `wake_gap_hours` when shorter; `0` holds nothing) instead of waiting a whole gap.
 - **Company adopt check with Soot 0.13.26+.** `scripts/company.mjs` in adopt mode with `--config` now gives a team without an explicit budget the sum of its members' `execution.daily_tokens` (the value `soot company adopt` derives, never more), so a `budget_80` escalation has a budget to warn against; when no member has a cap, the `budget_80` escalation is left out and named in notes. Without a deployment the output is unchanged.
 
 ## 0.11.23 — 2026-11-10
