@@ -73,3 +73,12 @@ checkpoint, quantized diffusion, Qwen encoder and VAE provenance are pinned in
 `packs/image-gen/model.json`. No upstream model or native inference source is
 vendored. Qwen's Research License applies to these model weights; Forge's code
 license does not replace it. See [verification](docs/office-ocr-image-gen.md).
+
+## Writing: Vietnamese humanizer
+
+`packs/writing/skills/humanize-vi.md` (skill `writing_humanize_vi`) is the
+Vietnamese edition of [blader/humanizer](https://github.com/blader/humanizer)
+4.0.0, adapted in 2found's 2build (`.claude/skills/humanizer-vi`). The upstream
+is MIT; its license text ships beside the skill as
+`packs/writing/LICENSE-humanizer-vi` and is not replaced by this repository's
+Apache 2.0 license.

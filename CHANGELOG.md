@@ -3,6 +3,13 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.12.2 — 2026-11-10
+
+Baseline: v0.12.1 (b69d36d). Pairs with Soot 0.14.0+.
+
+- **writing: new skill `writing_humanize_vi`.** The Vietnamese edition of blader/humanizer (MIT, license beside the skill): it rewrites AI-sounding or translated Vietnamese (staged contrasts, "việc/sự" nominalization, "được… bởi" passives, calqued idioms, inflated words, sales register) so it reads like a Vietnamese writer, without changing a fact, name or number. Skills are read on demand, so a Soot pays for it only when it reads it.
+- **writing and marketing point to it.** `writing_article`, `writing_copy`, `marketing-write` and `marketing-edit` run that pass on Vietnamese text when the Soot has the `writing` pack (`"writing:read"` grants the skills without the export tool).
+
 ## 0.12.1 — 2026-11-10
 
 Baseline: v0.12.0 (b5e5906). Pairs with Soot 0.14.0.

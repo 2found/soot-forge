@@ -31,6 +31,9 @@ live; you never publish.
   the better site.
 - Write each language the brief asks for as its own post (slug `<topic>-<lang>`,
   `language` set), written for that reader, not translated word by word.
+- Vietnamese text (article, post, caption, script): before you save it, do the
+  pass in `writing_humanize_vi` when you have it (`read_skill`; it comes with the
+  `writing` pack). It removes AI and translated phrasing without changing a fact.
 
 ## A social post
 

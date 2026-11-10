@@ -36,6 +36,11 @@
       "description": "Write short marketing or product copy variants with a testable angle."
     },
     {
+      "name": "writing_humanize_vi",
+      "file": "skills/humanize-vi.md",
+      "description": "Read before you save, hand over or review any Vietnamese text (article, post, caption, reply, script): rewrite AI-sounding or translated Vietnamese so it reads like a Vietnamese writer wrote it, without changing a fact, name or number."
+    },
+    {
       "name": "writing_export",
       "file": "skills/export.md",
       "description": "Export a finished draft artifact or bounded text to a sanitized MD or HTML artifact."

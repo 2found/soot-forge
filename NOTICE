@@ -7,3 +7,6 @@ Third-party components keep their own licenses. A pack that downloads or
 references third-party code, models or data documents them in the pack and in
 SOURCE.md; for example, the model weights used by `image-gen` are under Qwen's
 Research License, which this license does not replace.
+
+The `writing` pack's `writing_humanize_vi` skill adapts blader/humanizer (MIT);
+see packs/writing/LICENSE-humanizer-vi.

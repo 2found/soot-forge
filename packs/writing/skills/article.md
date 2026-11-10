@@ -13,12 +13,13 @@ writing discipline; pair it with the `research` pack for sourcing and
 3. Structure: one idea per paragraph; headings that preview the section;
    no filler intros ("In today's fast-paced world…"). Prefer concrete
    numbers, names and quotes over adjectives.
-4. Self-edit pass: cut 10-15% length, remove duplicated points, check each
+4. Vietnamese drafts: run the `writing_humanize_vi` pass before the self-edit.
+5. Self-edit pass: cut 10-15% length, remove duplicated points, check each
    heading still matches its content, verify no claim lost its source.
-5. Output the draft as Markdown. Long drafts belong in an artifact (via
+6. Output the draft as Markdown. Long drafts belong in an artifact (via
    `artifacts_create` when available) so `writing_export` can take the ref;
    never paste a full article into a tool input meant for short text.
-6. When the mission asks for publication, export via `writing_export`
+7. When the mission asks for publication, export via `writing_export`
    (markdown or sanitized html) and report the returned artifact ref —
    do not claim the piece is "published"; export produces a file, not a
    deployment.

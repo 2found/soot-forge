@@ -11,7 +11,8 @@ variants with a testable angle, never a single take.
 3. Constraints are load-bearing: respect stated character limits, tone,
    language (Vietnamese copy defaults to the audience's register), and
    platform conventions. A variant that violates a stated limit does not
-   ship — fix it before output.
+   ship — fix it before output. Vietnamese copy goes through the
+   `writing_humanize_vi` pass before output.
 4. No invented proof: never fabricate numbers, testimonials, awards or
    urgency ("chỉ còn 3 suất") that the mission did not supply. Mark
    placeholders clearly, e.g. `[X người dùng]`.

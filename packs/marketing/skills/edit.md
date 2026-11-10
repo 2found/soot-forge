@@ -12,7 +12,9 @@ own skill and the voice rules in team memory:
 
 - Every product claim is true today; planned things are called planned.
 - Links resolve to the right page; a social `link` is the live article URL.
-- Language and voice fit the audience the brief names.
+- Language and voice fit the audience the brief names. Vietnamese text reads
+  like a Vietnamese person wrote it: check it against `writing_humanize_vi` when
+  you have it, and fix the tells yourself.
 - No price, date or number that no source states.
 - Nothing about a person, a customer or a competitor you would not say to
   their face; no reply to or mention of a stranger's account.

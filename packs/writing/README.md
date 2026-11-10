@@ -7,6 +7,7 @@ thành artifact. Pack được chọn nguyên (`"packs": ["writing"]`):
 | --- | --- |
 | `writing_article` | dàn ý, viết có nguồn, tự biên tập |
 | `writing_copy` | biến thể copy theo angle, tôn trọng giới hạn |
+| `writing_humanize_vi` | sửa văn tiếng Việt nghe như AI viết hoặc văn dịch, giữ nguyên nội dung (bản tiếng Việt của [blader/humanizer](https://github.com/blader/humanizer), MIT — `LICENSE-humanizer-vi`) |
 | `writing_export` | hướng dẫn dùng tool `export` (executable, mode write) |
 
 `"writing:read"` chỉ cấp các skill — tool `export` ghi artifact nên cần id đầy đủ `writing`.
