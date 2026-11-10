@@ -154,6 +154,21 @@ test('readers waiting for a person: one card id per bucket, settled by the sync 
   api.over = {};
 });
 
+test('readers_waiting (reader spoke last) wins over by_state.waiting_human; without it the old count is used', async () => {
+  reset();
+  const w = live({ SUPPORT_QUEUE_URL: 'https://lohi2.com/admin/support' });
+  api.over = { support: { by_state: { soot: 140, waiting_human: 22, human: 1, resolved: 5 }, readers_waiting: 3, handoff_reasons: [] } };
+  const few = await w.call('scoreboard_sync');
+  assert.deepEqual([few.raise, few.resolves_need], [undefined, true], '3 readers really wait: no card, an old one settles');
+  api.over = { support: { by_state: { soot: 140, waiting_human: 22, human: 1, resolved: 5 }, readers_waiting: 6, handoff_reasons: [] } };
+  w.now += 86_400_000;
+  assert.equal((await w.call('scoreboard_sync')).raise.title, '6 bạn đọc đang chờ người trả lời');
+  api.over = { support: { by_state: { soot: 1, waiting_human: 7, human: 0, resolved: 0 }, readers_waiting: 'n/a', handoff_reasons: [] } };
+  w.now += 86_400_000;
+  assert.equal((await w.call('scoreboard_sync')).raise.title, '7 bạn đọc đang chờ người trả lời', 'a malformed readers_waiting falls back');
+  api.over = {};
+});
+
 test('the digest chain sync never raises or closes the waiting ask', async () => {
   reset();
   const w = live();

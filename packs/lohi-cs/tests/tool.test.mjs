@@ -220,3 +220,23 @@ test('only the host names the conversation: a model-supplied input.conversation 
   assert.match(r.stdout + r.stderr, /missing_subject/);
   assert.equal(seen.length, 0);
 });
+
+test('a transport failure or a non-JSON error page is named, not an empty failure', async () => {
+  // Nothing listens on port 9 of loopback: curl fails to connect.
+  const down = await run('lookup', { kind: 'me' }, { env: { LOHI_API_BASE: 'http://127.0.0.1:9' } });
+  assert.notEqual(down.code, 0);
+  const d = JSON.parse(down.stdout.trim());
+  assert.match(d.code, /^transport_\d+$/);
+  assert.equal(d.retryable, true);
+  // A 502 whose body is not a JSON object (a proxy page) is http_502, retryable.
+  answer = () => [502, 'bad gateway'];
+  const bad = await run('lookup', { kind: 'me' });
+  assert.notEqual(bad.code, 0);
+  assert.deepEqual(JSON.parse(bad.stdout.trim()), { code: 'http_502', retryable: true });
+  // The api's own JSON refusal still reaches the model unchanged.
+  answer = () => [404, { code: 'not_found' }];
+  const nf = await run('lookup', { kind: 'me' });
+  assert.notEqual(nf.code, 0);
+  assert.deepEqual(JSON.parse(nf.stdout.trim()), { code: 'not_found' });
+  answer = () => [200, { ok: true }];
+});

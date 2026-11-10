@@ -590,7 +590,7 @@
     {
       "name": "scoreboard_sync",
       "title": "Đọc bảng số sản phẩm",
-      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.by_state.waiting_human) it answers one Cần bạn card request (raise) per count bucket (5, 10, 20, 50) with a link to SUPPORT_QUEUE_URL, kept current, and settles it once fewer than 5 wait. The runtime files the card; no model wakes. Answers {done: true}, or with for_digest the sync result for the digest chain.",
+      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.readers_waiting, else support.by_state.waiting_human) it answers one Cần bạn card request (raise) per count bucket (5, 10, 20, 50) with a link to SUPPORT_QUEUE_URL, kept current, and settles it once fewer than 5 wait. The runtime files the card; no model wakes. Answers {done: true}, or with for_digest the sync result for the digest chain.",
       "parameters": {
         "type": "object",
         "properties": {

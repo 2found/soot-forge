@@ -210,7 +210,7 @@ export const WAITING_GROUP = 'company:support:waiting';
  * Nothing is remembered here, so a card that could not be filed is filed on the next sync. Counts only, never a reader.
  */
 function waitingNeed(env, board) {
-  const n = board.support?.by_state?.waiting_human;
+  const n = waitingCount(board);
   if (!Number.isFinite(n)) return {};
   const bucket = waitingBucket(n);
   if (!bucket) return { settle: [WAITING_GROUP], resolves_need: true };
@@ -222,6 +222,17 @@ function waitingNeed(env, board) {
     options: [{ id: 'handled', label: 'Đã xử lý', recommended: true }, { id: 'later', label: 'Để sau' }],
     reraise_after_hours: 72,
   } };
+}
+
+/**
+ * Readers waiting for a person. A product may serve `support.readers_waiting` (threads waiting for a person whose
+ * reader spoke last); it wins over `by_state.waiting_human`, which also counts threads a person already answered
+ * outside the queue (a direct message) and so overstates who waits.
+ */
+export function waitingCount(board) {
+  const s = board?.support;
+  if (Number.isFinite(s?.readers_waiting)) return s.readers_waiting;
+  return s?.by_state?.waiting_human;
 }
 
 /** One source: read, keep the period, record the finished week. {ok, period, baseline, board} or {ok:false, error, since}. */
@@ -276,7 +287,7 @@ export async function scoreboard_sync(input, deps) {
   const good = results.find(r => r.ok);
   if (input.for_digest) return { ok: true, synced: true, period: good.period, baseline: good.baseline, ...(results.length > 1 ? { sources: list } : {}) };
   // Readers waiting for a person: the first source that reports support numbers files the card.
-  const need = waitingNeed(env, (results.find(r => r.ok && Number.isFinite(r.board.support?.by_state?.waiting_human)) ?? good).board);
+  const need = waitingNeed(env, (results.find(r => r.ok && Number.isFinite(waitingCount(r.board))) ?? good).board);
   const settled = results.some(r => r.ok && r.wasForbidden) && !results.some(r => !r.ok && r.error.code === 'forbidden');
   return { done: true, period: good.period, baseline: good.baseline, ...(results.length > 1 ? { sources: list } : {}), ...need, ...(settled ? { settle: [...(need.settle ?? []), 'company:scoreboard:forbidden'] } : {}) };
 }
