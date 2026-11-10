@@ -28,6 +28,23 @@ export function scoreboardSources(env) {
   }
   return { sources: out.slice(0, 16), bad };
 }
+/**
+ * `SCOREBOARD_KEYS`: `product=key` entries split by comma or newline, one key per product API (a key is never
+ * sent to another product's API). A malformed entry is skipped and counted, never guessed. Keys are never logged.
+ */
+export function scoreboardKeys(env) {
+  const keys = new Map();
+  let bad = 0;
+  for (const raw of String(env.SCOREBOARD_KEYS ?? '').split(/[,\n]/).map(s => s.trim()).filter(Boolean)) {
+    const at = raw.indexOf('=');
+    const product = at > 0 ? productId(raw.slice(0, at)) : null, key = at > 0 ? raw.slice(at + 1).trim() : '';
+    if (!product || !/^[\x21-\x7e]{8,512}$/.test(key) || keys.has(product)) { bad++; continue; }
+    keys.set(product, key);
+  }
+  return { keys, bad };
+}
+/** The key for one source: the legacy single URL keeps PRODUCT_ADMIN_KEY; a mapped source uses only its own entry (else none). */
+export const keyFor = (source, env, keys = scoreboardKeys(env).keys) => (source.legacy ? env.PRODUCT_ADMIN_KEY || null : keys.get(source.product) ?? null);
 /** State keys of one source: the single URL keeps the keys it always had. */
 export const syncKey = s => (s.legacy ? 'sync' : `sync:${s.product}`);
 export const baselineKey = (s, week) => (s.legacy ? `baseline:${week}` : `baseline:${s.product}:${week}`);

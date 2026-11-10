@@ -16,6 +16,16 @@ to you. Each team works through its own **Đầu mối** (the Soot the group
 template makes its entry, or the member the person chooses when the template
 has `asks_coordinator`; ask once per such team, in step 2's turns).
 
+## The five parts
+
+Every product business has five parts: **tạo giá trị** (`value`), **marketing**,
+**bán hàng** (`sales`), **giao giá trị** (`delivery`) and **tài chính**
+(`finance`). When business is hard, one part is broken. Every company you set up
+covers all five with an owner team: a template's `parts:` line says which team
+owns which part. A team may own two parts; never add a team just for a part. A
+part no team can own (the person turned the team down, or the Nest cannot build
+it) is said in one line in the proposal, never hidden.
+
 ## The flow
 
 1. **Pick the template.** Match the request to one template below. If two fit,
@@ -31,7 +41,10 @@ has `asks_coordinator`; ask once per such team, in step 2's turns).
    team or schedule that already exists is reused, never duplicated.
 4. **Propose once, in chat, and wait.** One short message: the products; each
    team with its members and packs (from `templates.list`); the schedules in
-   plain Vietnamese ("Thứ 2–6 lúc 09:00"); who reads what; and the token note:
+   plain Vietnamese ("Thứ 2–6 lúc 09:00"); who reads what; in one short line which
+   team owns which of the five parts ("Giá trị: Insight · Marketing: Marketing ·
+   Bán hàng: Marketing · Giao giá trị: CSKH · Tài chính: Tài chính"), and any part
+   no team can own; and the token note:
    each team's template profile and its `daily_tokens`, "chi phí tiền không ước
    tính được ở đây". End with: "Đồng ý thì mình bắt đầu; tạo nhóm cần bạn duyệt
    trong Cần bạn." Call no change before the person agrees.
@@ -51,6 +64,10 @@ has `asks_coordinator`; ask once per such team, in step 2's turns).
 6. **Report once** with the links (`nest://team/<id>` for each team,
    `nest://schedules`) and Hoàn tác for what you changed yourself. Name what is
    still waiting in Cần bạn and any setup gap a template names (a key, a channel).
+   When teams exist and the company has `company-loop` (the template selects it),
+   add one line: the five parts and their owners are on the Công ty page, section
+   "Khám 5 bộ phận", and the person changes an owner or the number it is measured
+   by with "Đổi" there. You do not set them yourself: no pack tool is yours.
 
 Never set or raise a budget here (`budget.save` is not part of a template), never
 delete anything, and never start an adapter or connect a bot: a bot token is the
@@ -76,6 +93,10 @@ For a shop that sells products online.
 - schedules: Marketing "Viết bài buổi sáng" Thứ 2–6 lúc 09:00 (on the team's Đầu mối,
   text: "Lên bài cho hôm nay từ chủ đề đã duyệt, đưa bài cần duyệt vào
   Cần bạn").
+- parts: value → Marketing (it reads CSKH to learn what customers want), marketing
+  → Marketing, sales → Marketing (or CSKH when there is no Marketing), delivery →
+  Vận hành when it exists, else CSKH, finance → CSKH until the person names
+  someone (say it in the proposal).
 - access: Marketing reads CSKH's tables (`team:<marketing>` → `team:<cskh>`,
   kinds `["data"]`, read) so posts answer what customers ask.
 
@@ -89,6 +110,9 @@ For a creator, a blog or a media page that lives on content.
 - schedules: Nội dung "Lên lịch bài" Thứ 2–6 lúc 08:30; Insight "Tổng kết tuần"
   `cron` `0 17 * * 5` (Thứ 6 lúc 17:00, text: "Viết bản tổng kết tuần: bài nào
   hiệu quả, chủ đề nên làm tiếp").
+- parts: value → Insight, marketing → Nội dung, sales → Nội dung, delivery →
+  Nội dung (it keeps the posting promise), finance → Insight (numbers only; say so:
+  no one watches money yet).
 - access: Nội dung reads Insight (`kinds ["data"]`, read).
 
 ### saas — SaaS
@@ -101,6 +125,8 @@ For a software product sold by subscription.
   `team-financial` — "Tài chính" (read-only revenue and cost).
 - schedules: Insight "Đánh giá tuần" `cron` `0 9 * * 1` (Thứ 2 lúc 09:00);
   Tài chính "Báo cáo doanh thu" mỗi ngày lúc 18:00 (`every 24h`, `at 18:00`).
+- parts: value → Insight, marketing → Marketing, sales → Marketing (Tài chính if
+  there is no Marketing), delivery → CSKH, finance → Tài chính.
 - access: Insight reads Marketing, CSKH and Tài chính (`kinds ["data"]`, read);
   Marketing reads Insight.
 
@@ -120,5 +146,8 @@ kết quả" for one product.
   not set `PRODUCT_REPO`: without it a Go stays a task, which is this template.
 - schedules: Insight "Đánh giá tuần" `cron` `0 9 * * 1`; the group templates ship
   the rest.
+- parts: value → Insight, marketing → Marketing, sales → Marketing (Tài chính if
+  there is no Marketing), delivery → Vận hành when it exists, else Insight (say
+  that no team serves customers yet), finance → Tài chính.
 - access: Marketing and Tài chính read Insight (`kinds ["data"]`, read); Insight
   reads both.

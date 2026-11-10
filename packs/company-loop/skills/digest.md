@@ -27,7 +27,17 @@ sub-agents, no other tool than the ones named here.
    `null` means the product does not serve it yet: say "chưa có", never guess a
    retention or plan number. A cohort whose `w1` falls week over week is evidence
    like any falling metric.
-2. Pick **at most five** opportunities, best first. Rank by evidence first
+   The packet also has `parts`: the 5 parts of the business (`p` value,
+   marketing, sales, delivery, finance), each with `st` (`ok`, `hong` = its
+   metric `m` moved the bad way by 10% or more or is off its target, `chua_do` =
+   no number), `pct` and `own` (the owning team, `null` = chưa giao). `moats`
+   counts past Go decisions by moat; `awareness` counts the content topics of
+   the last 8 weeks by nấc.
+2. Pick **at most five** opportunities, best first. **Customers first:** what
+   customers said or did (voc rows, `reasons`, `cs_gaps`, `support.waiting_human`)
+   ranks above what competitors or the market do. Then a part that is `hong`
+   or `own: null` is evidence: prefer the opportunity that fixes that part and
+   say it in `part`. Then rank by evidence
    (`signal_count`, how many numbers and sources point at it), then value over
    effort, then confidence. Prefer the metric that fell or the gap that repeats
    over a metric that merely moved. Customer-service pain counts as evidence:
@@ -40,7 +50,22 @@ sub-agents, no other tool than the ones named here.
    dropped (`d: "drop"`) and anything whose change is still being measured.
    Fewer than five is fine; none is fine: then end with "Tuần này chưa có cơ
    hội đủ bằng chứng." and call nothing.
-3. Each opportunity is one of two kinds:
+3. Every item carries tags, or `digest_save` refuses the whole call and names the field:
+   - `part` (always): `value`, `marketing`, `sales`, `delivery` or `finance`, the
+     part this change fixes or grows.
+   - `awareness` (always for `content`): which nấc the post speaks to. `unaware`
+     = nấc 1, the reader does not know they have the problem; `problem` = nấc 2,
+     knows it, not how to solve it; `choosing` = nấc 3, picking whom to buy from.
+     Keep a mix over the weeks: if `awareness` shows one nấc taking most topics,
+     write for another.
+   - `pain` (always for `product`, 10 to 200 characters): who suffers from what,
+     taken from customer evidence ("người mới đọc: không biết chương nào để bắt đầu").
+     No pain from a customer, no product item.
+   - `moat` (optional): set it only when the change builds one: `scale`, `network`,
+     `counter`, `switching` (only the good kind: it makes the customer's life
+     easier, never a lock-in), `brand` (a short promise kept every day), `cornered`
+     or `process`. `none` is fine and honest; most items have none.
+   Each opportunity is one of two kinds:
    - `content`: a search phrase readers type, written for the Writer. Needs no
      money and no code and can be undone, so it goes to marketing by itself.
      `query` is a Vietnamese phrase of two or more words ("cách học tiếng Anh

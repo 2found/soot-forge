@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { world, ITEM } from './world.mjs';
 import { startBoardApi, startCsApi, addNotes, fakeBbs, scratchRepo, KEY } from './fixtures.mjs';
-import { MAX_BYTES } from '../tools/lib/signals.mjs';
+import { MAX_BYTES, fit } from '../tools/lib/signals.mjs';
 
 const api = await startBoardApi();
 const cs = await startCsApi();
@@ -169,8 +169,8 @@ test('the pack is product neutral: no brand, no product word in the code, skill 
 
 test('declared outcomes, credentials and tools match what the code emits and reads', () => {
   assert.deepEqual(pack.outcomes.map(o => o.id).sort(), ['opportunity_found', 'requirement_shipped']);
-  assert.deepEqual(Object.entries(pack.needs.credentials).map(([n, c]) => [n, c.optional, c.from]).sort(), [['CS_RUNTIME_TOKEN', true, 'operator'], ['PRODUCT_ADMIN_KEY', true, 'operator']]);
-  assert.deepEqual(pack.tools.map(t => t.name).sort(), ['decide', 'digest_save', 'health_sync', 'metrics_record', 'opportunities_card', 'page_action', 'page_view', 'review', 'scoreboard_sync', 'signals', 'team_watch', 'topic_next', 'topic_sync']);
+  assert.deepEqual(Object.entries(pack.needs.credentials).map(([n, c]) => [n, c.optional, c.from]).sort(), [['CS_RUNTIME_TOKEN', true, 'operator'], ['PRODUCT_ADMIN_KEY', true, 'operator'], ['SCOREBOARD_KEYS', true, 'operator']]);
+  assert.deepEqual(pack.tools.map(t => t.name).sort(), ['decide', 'digest_save', 'health_sync', 'metrics_record', 'opportunities_card', 'page_action', 'page_view', 'parts_set', 'review', 'scoreboard_sync', 'signals', 'team_watch', 'topic_next', 'topic_sync']);
   const tables = Object.fromEntries(pack.storage.tables.map(t => [t.name, t]));
   for (const t of ['scoreboard', 'opportunities', 'decisions', 'handoffs', 'topics']) assert.ok(t in tables, t);
 });
@@ -192,4 +192,17 @@ test('the page bundle: three plain files, no network, no innerHTML, Vietnamese, 
   assert.match(js, /products/);
   assert.match(js, /task_done/);
   assert.match(js, /nest:\/\/settings\/setup\?key=/);
+});
+
+test('fit drops the moat and awareness tallies before the decision history', () => {
+  const decisions = Array.from({ length: 6 }, (_, i) => ({ ref: `OP-${i}`, d: 'go', why: 'x'.repeat(300) }));
+  const packet = { decisions, awareness: { unaware: 3, problem: 2, choosing: 1 }, moats: { process: 2, brand: 1 }, pad: '' };
+  const without = () => Buffer.byteLength(JSON.stringify({ ...packet, awareness: undefined, moats: undefined }));
+  packet.pad = 'y'.repeat(MAX_BYTES - 10 - without());
+  const base = without();
+  assert.ok(base <= MAX_BYTES && Buffer.byteLength(JSON.stringify(packet)) > MAX_BYTES, 'fixture sits on the cap');
+  const out = fit(structuredClone(packet));
+  assert.equal(out.decisions.length, 6);
+  assert.ok(!out.awareness || !out.moats);
+  assert.ok(Buffer.byteLength(JSON.stringify(out)) <= MAX_BYTES);
 });

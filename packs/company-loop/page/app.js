@@ -12,7 +12,7 @@ const isTokens = t => !!t && typeof t === 'object' && !Array.isArray(t) && Objec
 
 const waiting = new Map();
 // local: the page's own switch (undefined = follow Nest; null = every product; an id).
-const S = { data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', ctx: null, local: undefined, started: false, seq: 0 };
+const S = { edit: null, draft: null, data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', ctx: null, local: undefined, started: false, seq: 0 };
 const embedded = window.parent !== window;
 
 const str = (v, max) => typeof v === 'string' && v.length <= max;
@@ -120,6 +120,15 @@ const HAND = {
   no_repo: ['Chưa có kho mã', 0, 'Đặt PRODUCT_REPO cho Soot rồi bấm Chạy lại.'],
   task: ['Chờ người làm', 0, 'Đã ghi quyết định và một việc. Chưa nối đội dựng nên Soot không tự làm.'],
 };
+// The 5 parts of a product business, the 3 reader awareness levels and the 7 moats, in the founder's words.
+const PART = { value: 'Tạo giá trị', marketing: 'Marketing', sales: 'Bán hàng', delivery: 'Giao giá trị', finance: 'Tài chính' };
+const AWARE = { unaware: 'Nấc 1 · chưa biết vấn đề', problem: 'Nấc 2 · biết vấn đề, chưa biết cách giải', choosing: 'Nấc 3 · đang chọn mua' };
+const AWARE_SHORT = { unaware: 'Nấc 1', problem: 'Nấc 2', choosing: 'Nấc 3' };
+const MOAT = { scale: 'Quy mô', network: 'Mạng lưới', counter: 'Định vị ngược', switching: 'Chi phí chuyển đổi', brand: 'Thương hiệu', cornered: 'Nguồn lực độc quyền', process: 'Quy trình' };
+const STATUS = { ok: ['Ổn', 'ok', 'ok'], hong: ['Hỏng', 'bad', 'bad'], chua_do: ['Chưa đo', '', 'idle'] };
+/** Small tags of an opportunity or a decision: part, awareness (content), moat. A row from before these tags has none: nothing is shown, never guessed. */
+const tags = x => [x.part && PART[x.part] ? `Bộ phận: ${PART[x.part]}` : null, x.awareness && AWARE_SHORT[x.awareness] ? AWARE_SHORT[x.awareness] : null, MOAT[x.moat] ? `Hào: ${MOAT[x.moat]}` : null].filter(Boolean);
+const tagRow = x => (tags(x).length ? h('div', { class: 'chips' }, tags(x).map(t => h('span', { class: 'chip' }, t))) : null);
 const TOPIC = { queued: ['Chờ Writer', ''], handed: ['Đã giao Writer', 'warn'], written: ['Đã viết', 'ok'] };
 
 // ---------- dom ----------
@@ -168,6 +177,7 @@ async function act(op, rest = {}) {
     if (!r.ok && r.error.code === 'no_response') S.notice = 'Chưa chắc việc đã xong: bấm Tải lại để xem.';
     else {
       S.pending = null;
+      if (op === 'part_set') { S.edit = null; S.draft = null; }
       try { const o = output(r); S.notice = op === 'sync' ? (o.ok === false ? 'Chưa đọc được số mới.' : 'Đã đọc số mới.') : o.handoff?.note || 'Xong.'; } catch (e) { S.notice = e?.message || 'Không làm được.'; }
       await load();
     }
@@ -191,6 +201,11 @@ function nextOf(d) {
     case 'release_go': return ['warn', 'Bản giao chờ bạn duyệt phát hành', 'Đọc bản bàn giao trong terminal của đội ở Orca; hài lòng thì cho phép phát hành. Đó là lượt bấm cuối của bạn.', ['Xem bản giao', jump('can-ban'), 'primary']];
     case 'building': return ['ok', 'Đội đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi có bản giao cần bạn duyệt.', ['Xem tiến độ', jump('dang-dung'), 'strong']];
     case 'sync_failed': return ['bad', 'Chưa đọc được số mới', 'Bảng số không trả lời ở lần đọc gần nhất. Soot thử lại mỗi sáng; bấm Đọc số ngay để thử lại bây giờ.', ['Đọc số ngay', () => act('sync'), 'primary']];
+    case 'part_hong': {
+      const x = d.parts?.items.find(i => i.part === n.part);
+      const move = x && x.pct !== null && x.pct !== undefined ? `${x.label} ${x.pct > 0 ? 'tăng' : 'giảm'} ${nf.format(Math.abs(x.pct))}%` : x ? `${x.label} chưa đạt mục tiêu` : '';
+      return ['warn', `Bộ phận ${PART[n.part] ?? n.part} đang hỏng${move ? `: ${move}` : ''}`, 'Không có việc nào khác cần bạn. Xem “Khám 5 bộ phận”: giao người phụ trách, rồi chọn việc sửa đúng bộ phận này.', ['Xem 5 bộ phận', jump('5-bo-phan'), 'primary']];
+    }
     case 'topic_handed': return ['ok', `${n.n} chủ đề đã giao Writer, chưa viết`, 'Bài lên ở lượt viết kế tiếp; bạn không phải làm gì.', ['Xem chủ đề', jump('dang-dung'), 'strong']];
     case 'topics': return ['ok', `${n.n} chủ đề đang chờ Writer`, 'Bài sẽ tự lên lịch; bạn không phải làm gì.', ['Xem chủ đề', jump('dang-dung'), 'strong']];
     default: return ['ok', 'Không có việc nào cần bạn', 'Soot đang tự chạy. Bản tin cơ hội kế tiếp: thứ Hai 08:30.', ['Xem lịch chạy', () => open(`nest://schedules/${encodeURIComponent(d.soot || 'company-digest')}`), 'strong']];
@@ -240,6 +255,8 @@ function oppItem(o, d) {
   const later = o.state === 'later';
   return h('div', { class: 'item' },
     h('div', { class: 'item-h' }, lamp(later ? 'idle' : 'warn'), h('span', { class: 't' }, o.title), many(d) && o.product ? badge(productName(o.product)) : null, badge(KIND[o.kind] ?? o.kind), badge(later ? 'Để sau' : 'Chờ bạn chọn', later ? '' : 'warn')),
+    tagRow(o),
+    o.pain ? small(`Ai khổ vì gì: ${o.pain}`) : null,
     o.summary ? h('p', {}, o.summary) : null,
     o.kind === 'content' && o.query ? small(`Chủ đề tìm kiếm: ${o.query}`) : null,
     small(facts),
@@ -336,6 +353,54 @@ function scorecard(d) {
     b.source !== 'table' && (!b.cohorts || !b.plans) ? h('details', {}, h('summary', {}, `${!b.cohorts && !b.plans ? 'Nhóm người dùng và gói' : !b.cohorts ? 'Nhóm người dùng' : 'Gói'}: chưa có`), h('p', {}, 'Bảng số chưa trả số theo tuần đăng ký (cohorts) hoặc theo gói (plans); bản tin dùng những gì đang có.')) : null);
 }
 
+// ---------- 5 parts ----------
+function partRow(x, d) {
+  const [word, tone, lampTone] = STATUS[x.status] ?? STATUS.chua_do;
+  const editing = S.edit === x.part;
+  const owner = x.team_name || x.team;
+  const view = h('div', { class: 'item' },
+    h('div', { class: 'item-h' }, lamp(lampTone), h('span', { class: 't' }, x.name), badge(word, tone), x.chua_giao ? badge('Chưa giao', 'warn') : null),
+    small(`Phụ trách: ${owner || 'chưa giao'}`),
+    x.metric ? h('div', { class: 'row part-metric' }, h('span', { class: 'small muted' }, x.label), h('span', { class: 'strong' }, fmt(x.value, x.unit)), x.value === null ? null : delta(x)) : small('Chưa chọn số liệu để đo bộ phận này.'),
+    x.promise ? small(`Lời hứa: ${x.promise}`, 'small') : null,
+    editing ? null : h('div', { class: 'row' }, btn('Đổi', () => { S.edit = x.part; S.draft = null; render(); }, 'text')));
+  if (editing) view.append(partForm(x, d));
+  return view;
+}
+function partForm(x, d) {
+  const p = d.parts, dr = S.draft ?? {};
+  const id = k => `p-${x.part}-${k}`;
+  const opt = (value, label, on) => h('option', { value, selected: on }, label);
+  const teams = p.teams ?? [];
+  const owner = teams.length
+    ? h('select', { class: 'input', id: id('team'), 'aria-label': 'Đội phụ trách' }, opt('', 'Chưa giao', !(dr.team ?? x.team)), teams.map(t => opt(t.id, t.name, (dr.team ?? x.team) === t.id)))
+    : h('input', { class: 'input', id: id('team'), maxlength: '60', placeholder: 'Tên người hoặc đội phụ trách', 'aria-label': 'Người hoặc đội phụ trách', value: dr.team_name ?? x.team_name ?? '' });
+  const metrics = h('select', { class: 'input', id: id('metric'), 'aria-label': 'Số liệu đo' }, opt('', 'Mặc định', !(dr.metric ?? (x.custom ? x.metric : ''))), p.metrics.map(m => opt(m.key, m.label, (dr.metric ?? (x.custom ? x.metric : '')) === m.key)));
+  const promise = h('input', { class: 'input', id: id('promise'), maxlength: '120', placeholder: 'Lời hứa ngắn, giữ mỗi ngày (ví dụ: chương mới trước 8 giờ)', 'aria-label': 'Lời hứa', value: dr.promise ?? x.promise ?? '' });
+  const save = () => {
+    const v = k => document.getElementById(id(k))?.value ?? '';
+    const team = v('team'), metric = v('metric');
+    // team_name is capped at 60 characters by the tool; a long stage label is cut, not refused.
+    const name = (teams.length ? (teams.find(t => t.id === team)?.name ?? '') : team.trim()).slice(0, 60);
+    S.draft = { team: teams.length ? team : undefined, team_name: teams.length ? undefined : name, metric, promise: v('promise') };
+    const good = p.metrics.find(m => m.key === metric)?.good;
+    // The id is the team, the name is what the page shows; an empty string clears the field.
+    act('part_set', { product: p.product, part: x.part, ...(teams.length ? { team, team_name: name } : { team: '', team_name: name }), metric, ...(good ? { good } : { good: '' }), promise: v('promise').trim() });
+  };
+  return h('div', { class: 'part-form stack' },
+    h('label', { class: 'small muted' }, 'Ai phụ trách'), owner,
+    h('label', { class: 'small muted' }, 'Đo bằng số liệu nào'), metrics,
+    h('label', { class: 'small muted' }, 'Lời hứa (tuỳ chọn)'), promise,
+    h('div', { class: 'row' }, btn('Lưu', save, 'strong'), btn('Huỷ', () => { S.edit = null; S.draft = null; render(); }, 'text')));
+}
+function partsSection(d) {
+  const p = d.parts;
+  if (!p) return null;
+  const bad = p.items.filter(x => x.status === 'hong').length, loose = p.items.filter(x => x.chua_giao).length;
+  const aside = [bad ? `${bad} bộ phận hỏng` : null, loose ? `${loose} chưa giao` : null].filter(Boolean).join(' · ') || 'Mỗi bộ phận có người phụ trách và một số liệu';
+  return sec('5-bo-phan', 'Khám 5 bộ phận', aside, h('div', { class: 'list' }, p.items.map(x => partRow(x, d))));
+}
+
 // ---------- after Go ----------
 function steps(x) {
   if (x.state === 'task') return h('div', { class: 'steps' }, h('span', { class: 'done' }, 'Đã Go'), h('span', { class: 'now' }, 'Chờ người làm'), h('span', {}, 'Xong'));
@@ -373,10 +438,12 @@ function verdict(x, d) {
 }
 function decisions(d) {
   const r = d.hit_rate ?? {};
+  const moats = Object.entries(d.moats ?? {}).filter(([k]) => MOAT[k]).map(([k, n]) => `${MOAT[k]} ${n}`);
   return sec('quyet-dinh', 'Quyết định và kết quả', r.measured ? `Trúng ${r.hits}/${r.measured} (${Math.round(r.rate * 100)}%) · trúng là đạt ít nhất nửa mức kỳ vọng` : 'Chưa đo được quyết định nào',
+    moats.length ? small(`Hào đang xây: ${moats.join(' · ')}`) : null,
     d.decisions.length ? h('div', { class: 'list scroll' }, h('table', { class: 'rows' },
       h('thead', {}, h('tr', {}, ['Ngày', 'Quyết định', 'Cơ hội', ...(many(d) ? ['Sản phẩm'] : []), 'Kỳ vọng', 'Kết quả'].map(t => h('th', { scope: 'col' }, t)))),
-      h('tbody', {}, d.decisions.map(x => h('tr', {}, h('td', {}, dm(x.at)), h('td', {}, `${DECISION[x.decision] ?? x.decision} · ${x.by === 'soot' ? 'Soot' : 'bạn'}`), h('td', {}, x.title),
+      h('tbody', {}, d.decisions.map(x => h('tr', {}, h('td', {}, dm(x.at)), h('td', {}, `${DECISION[x.decision] ?? x.decision} · ${x.by === 'soot' ? 'Soot' : 'bạn'}`), h('td', {}, x.title, tagRow(x)),
         ...(many(d) ? [h('td', {}, x.product ? productName(x.product) : 'Chưa gắn')] : []),
         h('td', {}, x.target_outcome ? `${metric(x.target_outcome)} ${signed(x.expected_delta ?? 0)}` : ''), h('td', {}, verdict(x, d)))))))
       : h('div', { class: 'list' }, empty(h('span', {}, 'Chưa có quyết định nào. Bản tin đầu tiên chạy thứ Hai 08:30.'))));
@@ -424,7 +491,7 @@ function render() {
   if (!d) { root.append(h('p', { class: 'muted' }, 'Đang tải…')); return; }
   root.append(header(d), ...scopeLine(d), nextBar(d),
     S.notice ? h('p', { class: 'small muted', role: 'status' }, S.notice) : '',
-    h('div', { class: 'grid' }, h('div', { class: 'stack gap' }, needsSection(d), scorecard(d), pipeline(d), decisions(d)), side(d)));
+    h('div', { class: 'grid' }, h('div', { class: 'stack gap' }, needsSection(d), scorecard(d), partsSection(d), pipeline(d), decisions(d)), side(d)));
 }
 
 async function start() {

@@ -112,6 +112,11 @@ save the same draft twice:
    (title, author, chapters, status, summary), each linked once to its `url`;
    add `internal_links` until at least two links point into the product.
    Invent no plot, no rating, no price. The keyword is in the title or meta.
+   If the brief has `awareness`, write for that reader and pass it to
+   `marketing_draft_save {awareness}`: `unaware` (nấc 1) tells the problem and
+   what it costs them; `problem` (nấc 2) compares the ways to solve it;
+   `choosing` (nấc 3) says why choose this product. No `awareness` in the brief:
+   leave it out; never guess one.
 3. Prices, percentages, "miễn phí": only when `facts` is `synced` or `fresh`
    and the number is served; otherwise write without any.
 4. `marketing_draft_save` (fresh `request_id`), fix its `lint` once. Then

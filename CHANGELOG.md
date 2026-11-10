@@ -3,6 +3,24 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.11.25 — 2026-11-10
+
+Baseline: v0.11.24 (fc55db9). Pairs with Soot 0.13.29; needs no runtime change. company-loop storage 4 → 5 (adds the `parts` table; additive), marketing storage 6 → 7 (adds `posts.awareness`; additive). Old rows read as empty.
+
+### Added
+
+- **Five parts per product (company-loop).** Every product has five parts — Tạo giá trị, Marketing, Bán hàng, Giao giá trị, Tài chính (Kaufman, *The Personal MBA*) — each with an owner team and a metric. New tool `parts_set` and page action `part_set` (button **Đổi**). The Công ty page shows **Khám 5 bộ phận**: a part is **Hỏng** when its metric moved the wrong way by at least 10 % and at least 3 units against the previous week; **Chưa đo** when no source has the metric; **Chưa giao** when no team owns it. A target is shown but never makes a part broken by itself. The default metrics are the north star or `active_users`, `signups`, `first_payers` then `revenue_vnd`, `support_threads_new`, and `revenue_vnd`. A broken part becomes the page's next step (`part_hong`).
+- **Three labels on every opportunity.** `digest_save` items need `part`, need `awareness` (`unaware|problem|choosing`) for content, need `pain` (10–200 characters, who suffers from what) for a product item, and take an optional `moat` (`scale|network|counter|switching|brand|cornered|process|none`, Helmer's *7 Powers*). A founder Go records the moat; the page lists **Hào đang xây**. `topic_next` returns the topic's `awareness` for the marketing chain.
+- **A digest per product.** `signals {product}` builds the packet for one product only, with its parts, the Go count per moat and the awareness mix of the last 8 weeks. Unlabelled rows count as the host product's.
+- **Per-product scoreboard keys.** New optional credential `SCOREBOARD_KEYS` (`product=key`, comma-separated) for `SCOREBOARD_URLS` sources. A key is only ever sent to its own product's URL; `setup.bad_keys` counts the entries it could not read, never their values.
+- **Awareness mix (marketing).** `plan` and `draft_save` take `awareness`; `inputs_health` reports the mix of the last 14 days; the report adds a note when one level is above 70 % or a level has no posts while at least 5 posts were tagged.
+- **Company templates cover the five parts (nest-lead).** Each `nest-company` template names the owner team of every part without adding a team; Bán hàng goes to the Marketing team.
+
+### Changed — upgrade note
+
+- **A `SCOREBOARD_URLS` source no longer receives `PRODUCT_ADMIN_KEY`.** That key now goes only to the legacy `SCOREBOARD_URL`. A deployment whose mapped products used the shared key must add `product=<key>` entries to `SCOREBOARD_KEYS`; until then, those sources get no key and report "key refused". This stops one product's admin key from reaching another product's URL.
+- The `signals` packet drops the moat and awareness tallies before any decision history when it nears its 3 KiB cap; the parts are compacted last.
+
 ## 0.11.24 — 2026-11-10
 
 Baseline: v0.11.23 (0221bef). Pairs with Soot 0.13.28 (one Lead outside every team, team Đầu mối, Nest Lịch chạy board); an older runtime keeps every existing behavior (skills read correctly and team cycles still run).

@@ -23,11 +23,11 @@ export const ITEM = {
   content: {
     title: 'Truyện tiên hiệp full được tìm nhiều', product: 'lohi', kind: 'content', query: 'truyện tiên hiệp full',
     evidence_refs: ['source:google', 'metric:signups'], signal_count: 3, est_effort: 'S', est_value: 'medium', confidence: 0.6,
-    target_outcome: 'signups', expected_delta: 20, check_after_days: 7,
+    part: 'marketing', awareness: 'problem', target_outcome: 'signups', expected_delta: 20, check_after_days: 7,
   },
   product: {
     title: 'Hoàn tiền tự động trong 7 ngày', product: 'lohi', kind: 'product', summary: 'Cho khách tự yêu cầu hoàn tiền trong ứng dụng để giảm số cuộc chuyển người.',
     evidence_refs: ['reason:refund', 'gap:hoan-tien'], signal_count: 5, est_effort: 'M', est_value: 'high', confidence: 0.7,
-    target_outcome: 'support_handoffs', expected_delta: -3, check_after_days: 30,
+    part: 'delivery', pain: 'Khách muốn hoàn tiền phải chờ người trả lời nhiều ngày', moat: 'switching', target_outcome: 'support_handoffs', expected_delta: -3, check_after_days: 30,
   },
 };

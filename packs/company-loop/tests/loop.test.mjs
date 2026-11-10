@@ -217,7 +217,7 @@ test('topic_next gives the oldest queued topic once, marks it handed, and answer
   assert.deepEqual(await w.call('topic_next'), {});
   await w.call('digest_save', { opportunities: [ITEM.content, { ...ITEM.content, title: 'Truyện ngôn tình hay', query: 'truyện ngôn tình hay' }] });
   const first = await w.call('topic_next');
-  assert.deepEqual(first, { query: 'truyện tiên hiệp full', reason: ITEM.content.title, opportunity_ref: refOf(w, 'content') });
+  assert.deepEqual(first, { query: 'truyện tiên hiệp full', awareness: 'problem', reason: ITEM.content.title, opportunity_ref: refOf(w, 'content') });
   assert.equal((await w.call('topic_next')).query, 'truyện ngôn tình hay');
   assert.deepEqual(await w.call('topic_next'), {});
   assert.deepEqual(w.rows('topics').map(t => t.state), ['handed', 'handed']);
@@ -226,12 +226,12 @@ test('topic_next gives the oldest queued topic once, marks it handed, and answer
 test('in a chain topic_next is only the query (it merges into marketing plan), one handed topic at a time', async () => {
   const { w } = await ready();
   await w.call('digest_save', { opportunities: [ITEM.content, { ...ITEM.content, title: 'Truyện ngôn tình hay', query: 'truyện ngôn tình hay' }] });
-  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện tiên hiệp full' });
+  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện tiên hiệp full', awareness: 'problem' });
   assert.deepEqual(await w.call('topic_next', { chain: true }), {}, 'a second topic waits for the first to be written');
   w.now += 21 * 3_600_000;
   assert.deepEqual(await w.call('topic_next', { chain: true }), {}, 'marketing still holds the first topic (48 h), a second would be lost');
   w.now += 28 * 3_600_000;
-  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện ngôn tình hay' }, 'after the hold the next topic goes');
+  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện ngôn tình hay', awareness: 'problem' }, 'after the hold the next topic goes');
 });
 
 // ---------- topic_sync (F-L6-6) ----------
@@ -263,7 +263,7 @@ test('topic_sync: a topic still unwritten after the 48 h hold returns to the que
   assert.equal((await w.call('topic_sync', {})).topic_sync, undefined, 'still within the hold');
   w.now += 2 * HOUR;
   assert.deepEqual((await w.call('topic_sync', {})).topic_sync, [{ query: 'truyện tiên hiệp full', state: 'queued' }]);
-  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện tiên hiệp full' });
+  assert.deepEqual(await w.call('topic_next', { chain: true }), { query: 'truyện tiên hiệp full', awareness: 'problem' });
 });
 
 test('a row already in the old state taken reads as handed, is written by topic_sync and expires like handed', async () => {

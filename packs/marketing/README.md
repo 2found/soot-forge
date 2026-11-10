@@ -57,6 +57,10 @@ product's own data pack when it has one.
 
 Tests: `node --test packs/marketing/tests/*.test.mjs` (no network, no posts).
 
+## Reader awareness (nấc 1/2/3)
+
+A topic from the company loop may carry `awareness` (`unaware` = nấc 1, the reader does not know the problem; `problem` = nấc 2, knows it, not how to solve it; `choosing` = nấc 3, picking whom to buy from). `plan` keeps it with the handed topic, returns it in the Writer's brief, and the Writer saves it on the post with `draft_save {awareness}` (storage version 7: nullable `posts.awareness`). `inputs_health` (`posts.awareness`) and the daily `report` show the 14-day mix by level; untagged posts count as `chua_gan`, never guessed. One line of note appears when one nấc is above 70% of the tagged posts, or a nấc has no post while at least 5 were tagged.
+
 ## Publishing without a hub
 
 With no `MARKETING_HUB` bound (it is optional), the pack keeps its own work in

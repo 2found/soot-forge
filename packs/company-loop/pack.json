@@ -54,13 +54,19 @@
         "description": "Khoá vận hành của runtime Hỗ trợ (CS_RUNTIME_URL) để đọc những câu khách hỏi mà kho kiến thức chưa trả lời được và những điều bạn đọc muốn có (bàn ghi nhận). Tuỳ chọn: không có thì bản tin bỏ phần này. Nhập trong Nest, không nhập trong chat.",
         "from": "operator",
         "optional": true
+      },
+      "SCOREBOARD_KEYS": {
+        "title": "Khoá bảng số theo sản phẩm",
+        "description": "Mỗi sản phẩm một khoá: các dòng “mã-sản-phẩm=khoá” (xuống dòng hoặc dấu phẩy), dùng cho các địa chỉ trong SCOREBOARD_URLS. Khoá của sản phẩm nào chỉ gửi tới địa chỉ của sản phẩm đó; sản phẩm không có dòng riêng thì không gửi khoá. SCOREBOARD_URL đơn lẻ vẫn dùng PRODUCT_ADMIN_KEY. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
       }
     }
   },
   "skills": [
     {
       "name": "company-digest",
-      "description": "Weekly: rank at most five opportunities from the signals packet (content vs product), save them with digest_save, end in one line (the Cần bạn card is kept by opportunities_card, not by you).",
+      "description": "Weekly: rank at most five opportunities from the signals packet, customer evidence first, tag each with part (and awareness, moat, pain), save them with digest_save, end in one line (the Cần bạn card is kept by opportunities_card, not by you).",
       "file": "skills/digest.md"
     }
   ],
@@ -83,7 +89,7 @@
     }
   ],
   "storage": {
-    "version": 4,
+    "version": 5,
     "tables": [
       {
         "name": "scoreboard",
@@ -211,6 +217,23 @@
           {
             "name": "digest_week",
             "type": "text"
+          },
+          {
+            "name": "part",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "awareness",
+            "type": "text"
+          },
+          {
+            "name": "moat",
+            "type": "text"
+          },
+          {
+            "name": "pain",
+            "type": "text"
           }
         ]
       },
@@ -277,6 +300,14 @@
             "name": "product",
             "type": "text",
             "index": true
+          },
+          {
+            "name": "part",
+            "type": "text"
+          },
+          {
+            "name": "moat",
+            "type": "text"
           }
         ]
       },
@@ -386,6 +417,10 @@
             "name": "product",
             "type": "text",
             "index": true
+          },
+          {
+            "name": "awareness",
+            "type": "text"
           }
         ]
       },
@@ -477,6 +512,52 @@
             "type": "timestamp"
           }
         ]
+      },
+      {
+        "name": "parts",
+        "description": "5 bộ phận của sản phẩm: ai phụ trách, đo bằng số nào, lời hứa ngắn.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "part",
+            "type": "text"
+          },
+          {
+            "name": "team",
+            "type": "text"
+          },
+          {
+            "name": "team_name",
+            "type": "text"
+          },
+          {
+            "name": "metric",
+            "type": "text"
+          },
+          {
+            "name": "good",
+            "type": "text"
+          },
+          {
+            "name": "promise",
+            "type": "text"
+          },
+          {
+            "name": "updated_by",
+            "type": "text"
+          }
+        ]
       }
     ]
   },
@@ -523,20 +604,26 @@
         "timeout": "60s",
         "max_output_bytes": 65536,
         "secret_env": {
-          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "SCOREBOARD_KEYS": "{{cred:SCOREBOARD_KEYS}}"
         }
       }
     },
     {
       "name": "signals",
       "title": "Gói tín hiệu cho bản tin",
-      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps, opportunities and decisions with actual_delta, last launches. Reader feedback comes from the team contract item cs.voc, which the digest reads with the data tool first and reports with voc: true; only when voc is unavailable (voc false or omitted) the packet falls back to the legacy feedback desk scrape (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, needs CS_RUNTIME_TOKEN). Wakes the Lead in a chain.",
+      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps, opportunities and decisions with actual_delta, last launches. Reader feedback comes from the team contract item cs.voc, which the digest reads with the data tool first and reports with voc: true; only when voc is unavailable (voc false or omitted) the packet falls back to the legacy feedback desk scrape (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, needs CS_RUNTIME_TOKEN). Wakes the Lead in a chain. The packet also carries parts [{p, st ok|hong|chua_do, m metric, pct, own team id or null}] (a hong or unowned part is evidence), moats (count of Go decisions by moat) and awareness (content topics by level over 8 weeks). Optional product narrows everything to one product.",
       "parameters": {
         "type": "object",
         "properties": {
           "voc": {
             "type": "boolean",
             "description": "true when cs.voc answered with rows (the digest has the feedback already); false or omitted when it was refused, empty-because-unreachable or not granted: the legacy desk scrape runs instead."
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id: build the packet from that product board and narrow opportunities, decisions, handoffs and topics to it. Omitted: as before."
           }
         },
         "required": [],
@@ -560,7 +647,7 @@
     {
       "name": "digest_save",
       "title": "Lưu cơ hội của bản tin",
-      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed; the Cần bạn card for it is kept by opportunities_card, not here.",
+      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed; the Cần bạn card for it is kept by opportunities_card, not here. Every item carries part (value|marketing|sales|delivery|finance); content needs awareness (unaware|problem|choosing), product needs pain (10-200 chars: who suffers from what); moat (scale|network|counter|switching|brand|cornered|process|none) is optional. The error names the missing field.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -636,6 +723,46 @@
                   "type": "integer",
                   "minimum": 1,
                   "maximum": 180
+                },
+                "part": {
+                  "type": "string",
+                  "enum": [
+                    "value",
+                    "marketing",
+                    "sales",
+                    "delivery",
+                    "finance"
+                  ],
+                  "description": "The business part this change fixes or grows: value, marketing, sales, delivery or finance. Required."
+                },
+                "awareness": {
+                  "type": "string",
+                  "enum": [
+                    "unaware",
+                    "problem",
+                    "choosing"
+                  ],
+                  "description": "Reader awareness the post speaks to: unaware (nấc 1, does not know the problem), problem (nấc 2, knows it, not how to solve) or choosing (nấc 3, picking whom to buy from). Required for content."
+                },
+                "moat": {
+                  "type": "string",
+                  "enum": [
+                    "scale",
+                    "network",
+                    "counter",
+                    "switching",
+                    "brand",
+                    "cornered",
+                    "process",
+                    "none"
+                  ],
+                  "description": "The moat this change builds (switching = the good kind: life easier, not lock-in). Optional; absent or none is honest."
+                },
+                "pain": {
+                  "type": "string",
+                  "minLength": 10,
+                  "maxLength": 200,
+                  "description": "Who suffers from what, from customer evidence. Required for product; optional for content."
                 }
               },
               "required": [
@@ -649,7 +776,8 @@
                 "confidence",
                 "target_outcome",
                 "expected_delta",
-                "check_after_days"
+                "check_after_days",
+                "part"
               ],
               "additionalProperties": false
             },
@@ -720,7 +848,7 @@
     {
       "name": "topic_next",
       "title": "Chủ đề marketing kế tiếp",
-      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked handed (given to marketing, not yet written), or {}. With chain: true only {query}, at most one a day, to merge into marketing plan.",
+      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked handed (given to marketing, not yet written), or {}. With chain: true only {query}, at most one a day, to merge into marketing plan. Carries awareness (unaware|problem|choosing) when the topic has one, also in chain mode.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -838,17 +966,92 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "inputs": {"type": "array", "maxItems": 20, "items": {"type": "object", "properties": {"key": {"type": "string", "maxLength": 24}, "label": {"type": "string", "maxLength": 60}, "starving": {"type": "boolean"}, "detail": {"type": "string", "maxLength": 400}, "rows": {"type": "integer"}}, "additionalProperties": false}},
-          "posts": {"type": "object", "additionalProperties": true},
-          "daily_report": {"type": "object", "additionalProperties": true},
-          "stages": {"type": "array", "maxItems": 8, "items": {"type": "object", "properties": {"key": {"type": "string", "maxLength": 24}, "label": {"type": "string", "maxLength": 60}, "schedules": {"type": "array", "items": {"type": "string", "maxLength": 64}, "maxItems": 40}, "prefixes": {"type": "array", "items": {"type": "string", "maxLength": 32}, "maxItems": 10}, "external": {"type": "boolean"}}, "required": ["key"], "additionalProperties": false}}
+          "inputs": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "maxLength": 24
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "starving": {
+                  "type": "boolean"
+                },
+                "detail": {
+                  "type": "string",
+                  "maxLength": 400
+                },
+                "rows": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "posts": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "daily_report": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "stages": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "maxLength": 24
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "schedules": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "maxItems": 40
+                },
+                "prefixes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "maxItems": 10
+                },
+                "external": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key"
+              ],
+              "additionalProperties": false
+            }
+          }
         },
         "required": [],
         "additionalProperties": false
       },
       "run": {
         "program": "node",
-        "args": ["tools/loop.mjs", "health_sync"],
+        "args": [
+          "tools/loop.mjs",
+          "health_sync"
+        ],
         "stdin": "context",
         "mode": "write",
         "timeout": "90s",
@@ -927,7 +1130,7 @@
     {
       "name": "page_action",
       "title": "Đổi trang Công ty",
-      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval), retry_handoff, task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the parent ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id.",
+      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval), retry_handoff, task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the parent ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -940,7 +1143,8 @@
               "retry_handoff",
               "link_ticket",
               "sync",
-              "task_done"
+              "task_done",
+              "part_set"
             ]
           },
           "request_id": {
@@ -962,6 +1166,44 @@
           "host": {
             "type": "string",
             "maxLength": 64
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "part": {
+            "type": "string",
+            "enum": [
+              "value",
+              "marketing",
+              "sales",
+              "delivery",
+              "finance"
+            ]
+          },
+          "team": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "team_name": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "metric": {
+            "type": "string",
+            "maxLength": 48
+          },
+          "good": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              ""
+            ]
+          },
+          "promise": {
+            "type": "string",
+            "maxLength": 120
           }
         },
         "required": [
@@ -981,7 +1223,8 @@
         "timeout": "90s",
         "max_output_bytes": 65536,
         "secret_env": {
-          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "SCOREBOARD_KEYS": "{{cred:SCOREBOARD_KEYS}}"
         }
       }
     },
@@ -1081,6 +1324,84 @@
         "args": [
           "tools/loop.mjs",
           "metrics_record"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "parts_set",
+      "title": "Giao 5 bộ phận",
+      "description": "Set who owns each of the 5 parts of a product business and which scoreboard metric watches it: parts [{part value|marketing|sales|delivery|finance, team (team id), team_name, metric (scoreboard key), good up|down, promise (<=120 chars, the short public promise for delivery or brand)}], 1-5 per call, all or none, upserted by product and part. A missing field keeps its value; an empty string clears it. Defaults when a part has no row are only used if that metric is on the board.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "parts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "properties": {
+                "part": {
+                  "type": "string",
+                  "enum": [
+                    "value",
+                    "marketing",
+                    "sales",
+                    "delivery",
+                    "finance"
+                  ]
+                },
+                "team": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "team_name": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "metric": {
+                  "type": "string",
+                  "maxLength": 48
+                },
+                "good": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "down",
+                    ""
+                  ]
+                },
+                "promise": {
+                  "type": "string",
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "part"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "product",
+          "parts"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "parts_set"
         ],
         "stdin": "context",
         "mode": "write",

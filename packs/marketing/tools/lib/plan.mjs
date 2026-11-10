@@ -13,6 +13,10 @@ import { fold, platformOf, defaultsFor } from './guard.mjs';
 import { performance, rank, topPosts } from './insight.mjs';
 import { targetOf } from './campaign.mjs';
 import { keptSignals } from './radar.mjs';
+import { AWARENESS } from './health.mjs';
+
+/** A reader awareness level the company loop attached to a topic, or null (anything else is dropped, never guessed). */
+const levelOf = v => (AWARENESS.includes(v) ? v : null);
 
 const HOUR = 3_600_000, DAY = 24 * HOUR;
 const iso = ms => new Date(ms).toISOString();
@@ -40,7 +44,7 @@ async function planConfig(store, input) {
 async function keepTopic(store, input, now, posts) {
   const kept = (await store.one('settings', [eq('key', 'plan_topic')]))?.value;
   const live = kept?.query && now - Date.parse(kept.at) < 48 * HOUR && !posts.some(p => fold(p.brief?.keyword ?? '') === fold(kept.query));
-  if (input.wake && input.query && !live) { await setSetting(store, 'plan_topic', { query: input.query, at: iso(now) }); return input.query; }
+  if (input.wake && input.query && !live) { await setSetting(store, 'plan_topic', { query: input.query, awareness: levelOf(input.awareness), at: iso(now) }); return input.query; }
   return live ? kept.query : null;
 }
 
@@ -61,6 +65,12 @@ export async function writtenKeywords(store, chKey, posts, now) {
     const n = perf.get(p.ref);
     return { ...base, url: p.url, ...(at ? { published_at: at } : {}), ...(n?.read && Number.isFinite(n.clicks) ? { clicks: n.clicks } : {}), ...(n?.read && Number.isFinite(n.signups) ? { signups: n.signups } : {}) };
   });
+}
+
+/** The awareness level of the topic the Writer plans for: given with the query, else the one kept with the handed topic. */
+async function topicLevel(store, input, handed) {
+  if (input.query) return levelOf(input.awareness);
+  return handed ? levelOf((await store.one('settings', [eq('key', 'plan_topic')]))?.value?.awareness) : null;
 }
 
 const short = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
@@ -295,11 +305,14 @@ export async function plan(input, deps) {
     return { channel: ch.key, date: today, mode: 'social', social, ...f, note: 'Không viết bài blog mới. Mỗi mục trong social: một bản nháp cho từng kênh (kind social, link đúng như đã cho, brief.from là mã bài blog), rồi check và schedule.' };
   }
   const handed = input.query ? null : await keepTopic(store, input, now, posts);
+  const level = await topicLevel(store, input, handed);
   const { topic, novels, brief } = await pickTopic(store, cfg, posts, now, fetch, handed ? { ...input, query: handed } : input);
   const links = [...novels.map(n => n.url), ...(cfg.catalog?.links ?? [])].filter(Boolean);
   return {
     channel: ch.key, series: ch.rules?.series ?? 'truyen-hay', date: today,
     topic: topic.title, keyword: topic.keyword, angle: topic.angle, source: topic.source, genre: topic.genre,
+    // nấc 1/2/3 the post speaks to, when the company loop said; the Writer passes it to draft_save.
+    ...(level ? { awareness: level } : {}),
     novels, internal_links: [...new Set(links)].slice(0, 8),
     avoid: posts.slice(0, 8).map(p => short(p.brief?.title ?? p.title, 70)).filter(Boolean),
     ...f, ...brief,

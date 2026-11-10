@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { eq, fail, fold, getState, iso, mondayOf, ictDay, short } from './base.mjs';
 import { boardFor } from './scoreboard.mjs';
 import { startHandoff } from './handoff.mjs';
+import { PARTS, AWARENESS, MOATS, enumProblem } from './parts.mjs';
 
 export const KINDS = ['content', 'product'];
 const OUTCOME_ID = /^[a-z][a-z0-9_]{1,47}$/;
@@ -36,6 +37,12 @@ export function itemProblems(it) {
   if (it.kind === 'product' && !text(it.summary, 20, 600)) p.push('product cần summary 20–600 ký tự: dựng gì và vì sao');
   if (it.summary !== undefined && !text(it.summary, 1, 600)) p.push('summary tối đa 600 ký tự');
   if (it.query !== undefined && !text(it.query, 3, 120)) p.push('query tối đa 120 ký tự');
+  // Five parts, three awareness levels, seven moats: each tag is one word from a closed list, named in the error.
+  p.push(...enumProblem('part', it.part, PARTS, true));
+  p.push(...enumProblem('awareness', it.awareness, AWARENESS, it.kind === 'content'));
+  p.push(...enumProblem('moat', it.moat, MOATS, false));
+  // pain: who suffers from what, from customer evidence. A product change without it is a guess.
+  if (it.kind === 'product' ? !text(it.pain, 10, 200) : it.pain !== undefined && !text(it.pain, 10, 200)) p.push('pain 10–200 ký tự: ai khổ vì gì (từ lời khách)');
   return p;
 }
 
@@ -48,7 +55,7 @@ export async function baselineFor(store, target, product) {
 
 export async function logDecision(store, opp, decision, by, note, now, stage = 'digest') {
   await store.insert('decisions', {
-    at: iso(now), stage, opportunity_ref: opp.ref, product: opp.product ?? null, decision, by, note: note ? short(note, 300) : null,
+    at: iso(now), stage, opportunity_ref: opp.ref, product: opp.product ?? null, part: opp.part ?? null, moat: opp.moat ?? null, decision, by, note: note ? short(note, 300) : null,
     evidence_refs: opp.evidence_refs ?? [], target_outcome: opp.target_outcome, expected_delta: opp.expected_delta,
     check_after_days: opp.check_after_days, baseline_value: await baselineFor(store, opp.target_outcome, opp.product), actual_delta: null,
   });
@@ -57,7 +64,7 @@ export async function logDecision(store, opp, decision, by, note, now, stage = '
 export async function queueTopic(store, opp, kind, reason, query) {
   const q = short(query || opp.query || opp.title, 120);
   if (await store.one('topics', [eq('opportunity_ref', opp.ref), eq('kind', kind)])) return false;
-  await store.insert('topics', { query: q, reason: short(reason, 200), opportunity_ref: opp.ref, product: opp.product ?? null, kind, state: 'queued' });
+  await store.insert('topics', { query: q, reason: short(reason, 200), opportunity_ref: opp.ref, product: opp.product ?? null, awareness: opp.awareness ?? null, kind, state: 'queued' });
   return true;
 }
 
@@ -101,7 +108,7 @@ export async function digest_save(input, deps) {
     const row = {
       title: it.title.trim(), product: it.product, kind: it.kind, query: it.query?.trim() ?? null, summary: it.summary?.trim() ?? null,
       evidence_refs: it.evidence_refs, signal_count: it.signal_count, est_effort: it.est_effort, est_value: it.est_value,
-      confidence: it.confidence, target_outcome: it.target_outcome, expected_delta: it.expected_delta, check_after_days: it.check_after_days, digest_week: week,
+      confidence: it.confidence, part: it.part, awareness: it.awareness ?? null, moat: it.moat ?? null, pain: it.pain?.trim() ?? null, target_outcome: it.target_outcome, expected_delta: it.expected_delta, check_after_days: it.check_after_days, digest_week: week,
     };
     const had = await store.one('opportunities', [eq('ref', ref)]);
     if (had && (had.state === 'go' || had.state === 'drop')) { skipped.push({ ...view(had), why: had.state === 'go' ? 'đã Go' : 'đã Bỏ' }); continue; }
@@ -173,7 +180,9 @@ export async function topic_next(input, deps) {
   const next = (await store.query('topics', [eq('state', 'queued')], { order: 'created_at', desc: false, limit: 1 }))[0];
   if (!next) return {};
   await store.update('topics', next.id, { state: 'handed' });
-  return input.chain ? { query: next.query } : { query: next.query, reason: next.reason, opportunity_ref: next.opportunity_ref };
+  // The awareness level rides with the topic (only when it has one) so marketing writes the post for that nấc.
+  const aw = next.awareness ? { awareness: next.awareness } : {};
+  return input.chain ? { query: next.query, ...aw } : { query: next.query, reason: next.reason, opportunity_ref: next.opportunity_ref, ...aw };
 }
 
 /**

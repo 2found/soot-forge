@@ -63,7 +63,7 @@ test('back-compat: rows from storage v3 have no product; they read as the host p
 });
 
 test('new rows carry their product; scope narrows every section and counts what it leaves out', async () => {
-  const w = world({ env: { SCOREBOARD_URL: api.url, PRODUCT_ADMIN_KEY: KEY, SCOREBOARD_URLS: `sach-hay=${other.url}`, PRODUCT_REPO: scratchRepo(), BBS_BIN: fakeBbs().bin } });
+  const w = world({ env: { SCOREBOARD_URL: api.url, PRODUCT_ADMIN_KEY: KEY, SCOREBOARD_URLS: `sach-hay=${other.url}`, SCOREBOARD_KEYS: `sach-hay=${KEY}`, PRODUCT_REPO: scratchRepo(), BBS_BIN: fakeBbs().bin } });
   await w.call('scoreboard_sync');
   await w.call('digest_save', { opportunities: [ITEM.content, ITEM.product, SACH] });
   const sachRef = w.rows('opportunities').find(o => o.product === 'sach-hay').ref;
@@ -105,7 +105,7 @@ test('new rows carry their product; scope narrows every section and counts what 
 });
 
 test('a refused key on one product source is that product\'s next step, not the other\'s', async () => {
-  const w = world({ env: { SCOREBOARD_URL: api.url, PRODUCT_ADMIN_KEY: KEY, SCOREBOARD_URLS: `sach-hay=${other.url}` } });
+  const w = world({ env: { SCOREBOARD_URL: api.url, PRODUCT_ADMIN_KEY: KEY, SCOREBOARD_URLS: `sach-hay=${other.url}`, SCOREBOARD_KEYS: `sach-hay=${KEY}` } });
   other.mode = 'forbidden';
   try {
     const out = await w.call('scoreboard_sync');
@@ -135,7 +135,7 @@ test('no scoreboard address: a Soot records numbers (metrics_record) with its ow
   assert.deepEqual(out, { ok: true, saved: 3, product: 'acme', period: '2026-11-02..2026-11-08' });
   const v = await view(w, { product: 'acme' });
   assert.equal(v.setup.table, true);
-  assert.equal(v.next.code, 'idle');
+  assert.notEqual(v.next.code, 'part_hong', 'a north star under a stretch target is not a broken part');
   const b = v.scoreboard;
   assert.equal(b.source, 'table');
   assert.equal(b.recorded_source, 'Stripe export');

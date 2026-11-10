@@ -6,7 +6,7 @@
 // address has a Soot write its numbers with metrics_record (the `metrics` table);
 // the page reads both through boardFor.
 import { eq, fail, getState, setState, getJson, safeUrl, skippedFor, iso, lastSevenDays, lastFullWeek, short, addDays } from './base.mjs';
-import { scoreboardSources, syncKey, baselineKey, productId, rememberHost, adoptProducts, northStarOf } from './products.mjs';
+import { scoreboardSources, scoreboardKeys, keyFor, syncKey, baselineKey, productId, rememberHost, adoptProducts, northStarOf } from './products.mjs';
 import { runBbs } from './bbs.mjs';
 import { execFile } from 'node:child_process';
 import { isAbsolute } from 'node:path';
@@ -62,10 +62,13 @@ const valid = b => b && b.version === 1 && b.metrics && typeof b.metrics === 'ob
   && /^\d{4}-\d{2}-\d{2}$/.test(b.range?.from ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(b.range?.to ?? '')
   && Object.values(b.metrics).every(m => m && typeof m === 'object' && (m.value === null || Number.isFinite(m.value)) && (m.previous == null || Number.isFinite(m.previous)));
 
-async function fetchBoard(deps, url, key, { from, to }) {
-  const u = new URL(url.toString());
+// A mapped source names its product when its key is refused: each product API has its own key.
+const whyFor = source => (source.legacy ? WHY : { ...WHY, forbidden: host => `${host} từ chối khoá của sản phẩm ${source.product}: nhập dòng ${source.product}=<khoá agent_mod> cho SCOREBOARD_KEYS ở Thiết lập.` });
+
+async function fetchBoard(deps, source, key, { from, to }) {
+  const u = new URL(source.url.toString());
   u.searchParams.set('from', from); u.searchParams.set('to', to);
-  const r = await getJson(deps, u, { 'X-API-Key': key }, WHY);
+  const r = await getJson(deps, u, key ? { 'X-API-Key': key } : {}, whyFor(source));
   if (r.error) return r;
   return valid(r.out) ? { board: r.out } : { error: { code: 'bad', host: u.host, message: WHY.bad(u.host) } };
 }
@@ -225,7 +228,7 @@ function waitingNeed(env, board) {
 async function syncSource(deps, source, key) {
   const { store, now } = deps;
   const period = lastSevenDays(now);
-  const got = await fetchBoard(deps, source.url, key, period);
+  const got = await fetchBoard(deps, source, key, period);
   const sk = syncKey(source);
   if (got.error) {
     // An incident lasts until the next good read: `since` keeps its first day, so one card is filed per incident.
@@ -243,7 +246,7 @@ async function syncSource(deps, source, key) {
   let base = await getState(store, baselineKey(source, lw.from)) ? 'already' : null;
   if (!base) {
     const same = got.board.range.from === lw.from && got.board.range.to === lw.to;
-    const wk = same ? { board: got.board } : await fetchBoard(deps, source.url, key, lw);
+    const wk = same ? { board: got.board } : await fetchBoard(deps, source, key, lw);
     base = wk.error ? 'week_unreadable' : await baseline(store, deps, wk.board, source);
   }
   return { ok: true, period: row.key, baseline: base, board: got.board, wasForbidden };
@@ -252,10 +255,12 @@ async function syncSource(deps, source, key) {
 export async function scoreboard_sync(input, deps) {
   const { store, env } = deps;
   const { sources } = scoreboardSources(env);
-  if (!env.PRODUCT_ADMIN_KEY) return skippedFor('PRODUCT_ADMIN_KEY');
+  const { keys } = scoreboardKeys(env);
+  if (!env.PRODUCT_ADMIN_KEY && !keys.size) return skippedFor('PRODUCT_ADMIN_KEY');
   if (!sources.length) return skippedFor('SCOREBOARD_URL');
   const results = [];
-  for (const source of sources) results.push({ source, ...(await syncSource(deps, source, env.PRODUCT_ADMIN_KEY)) });
+  // A source with no key of its own sends none (the product answers 401/403 and the refusal names it).
+  for (const source of sources) results.push({ source, ...(await syncSource(deps, source, keyFor(source, env, keys))) });
   // Rows from before products get their product once the host is known.
   await adoptProducts(store, await getState(store, 'host_product'));
   const first = results[0];

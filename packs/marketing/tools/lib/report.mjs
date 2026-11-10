@@ -5,6 +5,7 @@ import { eq, gte } from './store.mjs';
 import { performance, topPosts } from './insight.mjs';
 import { getSettings, setSetting } from './ops.mjs';
 import { plan } from './plan.mjs';
+import { awarenessMix } from './health.mjs';
 
 const HOUR = 3_600_000, DAY = 24 * HOUR;
 const TZ = 'Asia/Ho_Chi_Minh';
@@ -56,6 +57,10 @@ export async function report(input, deps) {
   const signedOut = (await store.query('channels', [], { limit: 50 })).filter(c => c.kind === 'social' && c.paused && c.paused_reason === 'signed_out');
   if (signedOut.length && lines.length < 6) lines.push(`${signedOut.map(c => c.platform ?? c.key).join(', ')} chưa đăng nhập: chưa tạo bài cho ${signedOut.length > 1 ? 'các kênh này' : 'kênh này'}.`);
   if (settings.paused_all && lines.length < 6) lines.push('Đang tạm dừng đăng mọi kênh.');
+
+  // The mix of reader awareness (nấc 1/2/3) over 14 days, only when it is lopsided.
+  const mix = await awarenessMix(store, now);
+  if (mix.note && lines.length < 6) lines.push(mix.note[0].toUpperCase() + mix.note.slice(1));
 
   const out = lines.slice(0, 6);
   await setSetting(store, 'daily_report', { at: new Date(now).toISOString(), lines: out });

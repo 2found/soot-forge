@@ -72,9 +72,11 @@ async function guardInputs(store, p, now) {
 // ---------- write side ----------
 
 export async function draft_save(input, { store, now, soot }) {
-  const { request_id, id, expected_revision, kind, channel: chKey, campaign, parent, brief, body, link, asset_ids } = input;
+  const { request_id, id, expected_revision, kind, channel: chKey, campaign, parent, brief, body, link, asset_ids, awareness } = input;
   if (!['article', 'social', 'video', 'reply'].includes(kind)) fail('invalid_request', 'kind is article, social, video or reply.');
   if (typeof body !== 'string' || !body.trim()) fail('invalid_request', 'body is required.');
+  // nấc 1/2/3 the post speaks to; a post saved without it stays untagged (counted as chưa gắn, never guessed).
+  if (awareness !== undefined && !['unaware', 'problem', 'choosing'].includes(awareness)) fail('invalid_request', 'awareness is unaware, problem or choosing.');
   const ch = await channel(store, chKey);
   if (!id && request_id) {
     const seen = await store.one('posts', [eq('request_id', request_id)]);
@@ -97,7 +99,7 @@ export async function draft_save(input, { store, now, soot }) {
     // The same words saved again (a repeated call) are the draft already there, not a duplicate to refuse.
     const same = await store.one('posts', [eq('content_hash', hashOf(fields)), eq('channel', ch.key)]);
     if (same && ['draft', 'checking', 'ready', 'scheduled'].includes(same.state)) return { id: same.ref, revision: same.revision, content_hash: same.content_hash, state: same.state, lint, replayed: true, ...extra };
-    const row = { ...fields, ref: ref(), request_id: request_id ?? null, content_hash: hashOf(fields), state: 'draft', reason: null, revision: 1, author_soot: soot ?? null };
+    const row = { ...fields, ref: ref(), request_id: request_id ?? null, content_hash: hashOf(fields), state: 'draft', reason: null, revision: 1, author_soot: soot ?? null, awareness: awareness ?? null };
     await store.insert('posts', row);
     return { id: row.ref, revision: 1, content_hash: row.content_hash, state: 'draft', lint, ...extra };
   }
@@ -112,7 +114,7 @@ export async function draft_save(input, { store, now, soot }) {
   }
   if (expected_revision !== cur.revision) fail('revision_conflict', `Bài đang ở bản ${cur.revision}.`);
   const revision = cur.revision + 1;
-  const n = await store.update('posts', [eq('ref', id), eq('revision', cur.revision)], { ...fields, content_hash: hashOf(fields), state: 'draft', reason: cur.kind === 'video' && cur.brief?.hold ? cur.reason : null, revision });
+  const n = await store.update('posts', [eq('ref', id), eq('revision', cur.revision)], { ...fields, content_hash: hashOf(fields), state: 'draft', reason: cur.kind === 'video' && cur.brief?.hold ? cur.reason : null, revision, ...(awareness ? { awareness } : {}) });
   if (!n) fail('revision_conflict', 'Bài vừa được sửa ở nơi khác.');
   await store.remove('queue', [eq('post', id), isNull('intent_id')]);
   return { id, revision, content_hash: hashOf(fields), state: 'draft', lint, ...extra };

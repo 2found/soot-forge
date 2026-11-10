@@ -12,8 +12,8 @@ export const boardFor = ({ from, to }, over = {}) => ({
   version: 1, product: 'lohi', timezone: 'Asia/Ho_Chi_Minh', range: { from, to }, comparison: { from: '2026-10-26', to: '2026-11-01' },
   metrics: {
     revenue_vnd: { label: 'Doanh thu', unit: 'vnd', value: 1_200_000, previous: 1_000_000 },
-    topups: metric(12, 10), payers: metric(9, 8), first_payers: metric(3, 4), subscriptions_started: metric(2, 1), subscriptions_active: metric(14, 13),
-    signups: metric(120, 100), active_readers: metric(900, 850), support_threads_new: metric(30, 20), support_handoffs: metric(7, 5),
+    topups: metric(12, 10), payers: metric(9, 8), first_payers: metric(3, 3), subscriptions_started: metric(2, 1), subscriptions_active: metric(14, 13),
+    signups: metric(120, 100), active_readers: metric(900, 850), support_threads_new: metric(30, 30), support_handoffs: metric(7, 5),
   },
   support: { by_state: { soot: 20, waiting_human: 3, human: 4, resolved: 3 }, handoff_reasons: [{ reason: 'billing', count: 4 }, { reason: 'refund', count: 3 }] },
   sources: [{ source: 'facebook', signups: 40, first_payers: 1 }, { source: 'google', signups: 30, first_payers: 2 }],

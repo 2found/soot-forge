@@ -167,7 +167,7 @@
       "name": "draft_save",
       "title": "Lưu bản nháp",
       "description": "Save a post draft in the pack's own storage (no hub): article, social, video or reply. A new draft needs request_id; an edit needs id and expected_revision. Returns the brief lint (title 30–60, meta 120–160, slug, ≥2 internal links, keyword). Never publishes.",
-      "parameters": {"type":"object","properties":{"request_id":{"type":"string","maxLength":64},"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},"expected_revision":{"type":"integer","minimum":1},"kind":{"type":"string","enum":["article","social","video","reply"]},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"campaign":{"type":"string","maxLength":64},"parent":{"type":"string","maxLength":16,"description":"For kind \"reply\": the saved reply (R-…) it answers; only safe replies, or the fixed support pointer for an account question."},"brief":{"type":"object","properties":{"keyword":{"type":"string","maxLength":120},"title":{"type":"string","maxLength":200},"meta":{"type":"string","maxLength":400},"slug":{"type":"string","maxLength":80},"series":{"type":"string","maxLength":64,"pattern":"^[a-z0-9-]{1,64}$"},"internal_links":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":500}},"subreddit":{"type":"string","maxLength":21,"pattern":"^[A-Za-z0-9_]{2,21}$"}},"required":[],"additionalProperties":false},"body":{"type":"string","maxLength":40000},"link":{"type":"string","maxLength":500},"asset_ids":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":64}}},"required":["kind","channel","body"],"additionalProperties":false},
+      "parameters": {"type":"object","properties":{"request_id":{"type":"string","maxLength":64},"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"},"expected_revision":{"type":"integer","minimum":1},"kind":{"type":"string","enum":["article","social","video","reply"]},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"campaign":{"type":"string","maxLength":64},"parent":{"type":"string","maxLength":16,"description":"For kind \"reply\": the saved reply (R-…) it answers; only safe replies, or the fixed support pointer for an account question."},"brief":{"type":"object","properties":{"keyword":{"type":"string","maxLength":120},"title":{"type":"string","maxLength":200},"meta":{"type":"string","maxLength":400},"slug":{"type":"string","maxLength":80},"series":{"type":"string","maxLength":64,"pattern":"^[a-z0-9-]{1,64}$"},"internal_links":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":500}},"subreddit":{"type":"string","maxLength":21,"pattern":"^[A-Za-z0-9_]{2,21}$"}},"required":[],"additionalProperties":false},"body":{"type":"string","maxLength":40000},"link":{"type":"string","maxLength":500},"awareness":{"type":"string","enum":["unaware","problem","choosing"],"description":"nấc 1/2/3 the post speaks to; from the plan brief. Optional."},"asset_ids":{"type":"array","maxItems":10,"items":{"type":"string","maxLength":64}}},"required":["kind","channel","body"],"additionalProperties":false},
       "run": { "program": "node", "args": ["tools/marketing.mjs","draft_save"], "stdin": "context", "mode": "write", "timeout": "20s", "max_output_bytes": 262144, "max_input_bytes": 65536 }
     },
     {
@@ -265,7 +265,7 @@
       "name": "plan",
       "title": "Kế hoạch bài hôm nay",
       "description": "The daily content plan. wake: true is the schedule, tool-only: it queues a checked draft nobody scheduled, and wakes the Writer only for a free blog slot or a published post still to share on a signed-in social channel. Without wake it is the Writer's ready brief (query: a subject asked for): topic, keyword, angle, real novels with links, internal_links, titles to avoid, social (posts to share per channel). Saves the catalog it was given.",
-      "parameters": {"type":"object","properties":{"wake":{"type":"boolean"},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"facts_url":{"type":"string","maxLength":500},"depth":{"type":"integer","minimum":1,"maximum":5},"query":{"type":"string","maxLength":120},"catalog":{"type":"object","properties":{"feed":{"type":"string","maxLength":500},"genres":{"type":"string","maxLength":500},"search":{"type":"string","maxLength":500},"page":{"type":"string","maxLength":500},"links":{"type":"array","maxItems":6,"items":{"type":"string","maxLength":500}}},"required":[],"additionalProperties":false}},"required":[],"additionalProperties":false},
+      "parameters": {"type":"object","properties":{"wake":{"type":"boolean"},"channel":{"type":"string","maxLength":32,"pattern":"^[a-z0-9-]{1,32}$"},"facts_url":{"type":"string","maxLength":500},"depth":{"type":"integer","minimum":1,"maximum":5},"query":{"type":"string","maxLength":120},"awareness":{"type":"string","enum":["unaware","problem","choosing"],"description":"nấc 1/2/3 of the handed topic; returned in the brief."},"catalog":{"type":"object","properties":{"feed":{"type":"string","maxLength":500},"genres":{"type":"string","maxLength":500},"search":{"type":"string","maxLength":500},"page":{"type":"string","maxLength":500},"links":{"type":"array","maxItems":6,"items":{"type":"string","maxLength":500}}},"required":[],"additionalProperties":false}},"required":[],"additionalProperties":false},
       "run": { "program": "node", "args": ["tools/marketing.mjs","plan"], "stdin": "context", "mode": "write", "rerun": "safe", "timeout": "60s", "max_output_bytes": 65536 }
     },
     {
@@ -278,7 +278,7 @@
     {
       "name": "report",
       "title": "Báo cáo hằng ngày",
-      "description": "The Editor's daily report in at most six plain Vietnamese lines: what went out, the top posts by clicks or sign-ups, what the plan does next, stale drafts (once). Say the lines as they are.",
+      "description": "The Editor's daily report in at most six plain Vietnamese lines: what went out, the top posts by clicks or sign-ups, what the plan does next, stale drafts (once). Say the lines as they are. Adds one line when the 14-day mix by awareness level (nấc 1/2/3) is lopsided.",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
       "run": { "program": "node", "args": ["tools/marketing.mjs","report"], "stdin": "context", "mode": "write", "timeout": "60s", "max_output_bytes": 16384 }
     },
@@ -313,7 +313,7 @@
     {
       "name": "inputs_health",
       "title": "Đầu vào còn thiếu",
-      "description": "Which inputs of the marketing stage are starving, in plain Vietnamese (Search Console, market signals, TikTok and YouTube numbers). Read-only; chain it into company-loop health_sync.",
+      "description": "Which inputs of the marketing stage are starving, in plain Vietnamese (Search Console, market signals, TikTok and YouTube numbers). Read-only; chain it into company-loop health_sync. posts.awareness is the 14-day mix of posts by awareness level (unaware, problem, choosing, chua_gan = untagged) with a one-line note when one nấc is over 70% of the tagged posts or a nấc has none while 5 or more were tagged.",
       "parameters": {"type":"object","properties":{},"required":[],"additionalProperties":false},
       "run": { "program": "node", "args": ["tools/marketing.mjs","inputs_health"], "stdin": "context", "mode": "read", "timeout": "20s", "max_output_bytes": 65536 }
     },
@@ -415,7 +415,7 @@
     {"id":"lead","label":{"vi":"Khách tiềm năng","en":"Lead"},"unit":"lead"}
   ],
   "storage": {
-    "version": 6,
+    "version": 7,
     "tables": [
       {
         "name": "settings",
@@ -489,7 +489,8 @@
           {"name":"url","type":"text","index":true},
           {"name":"platform_id","type":"text"},
           {"name":"revision","type":"integer","required":true},
-          {"name":"author_soot","type":"text"}
+          {"name":"author_soot","type":"text"},
+          {"name":"awareness","type":"text"}
         ]
       },
       {

@@ -9,13 +9,14 @@ import { hitRate, isHit } from './review.mjs';
 import { decide, HOLD_MS, HANDED } from './opportunities.mjs';
 import { startHandoff, bbsReady, isTask } from './handoff.mjs';
 import { healthView } from './health.mjs';
-import { adoptProducts, hostProduct, productId, rememberHost, rowProduct, scoreboardSources, syncKey } from './products.mjs';
+import { setParts, partHealth, partsOf, worstPart } from './parts.mjs';
+import { adoptProducts, hostProduct, productId, rememberHost, rowProduct, scoreboardKeys, scoreboardSources, syncKey } from './products.mjs';
 
 const DAY = 86_400_000;
 const BUILDING = ['spawned', 'starting', 'building', 'blocked'];
 
 /** The one next step as a code: {code, n?, ref?}. */
-export function nextStep({ setup, sync, proposals, handoffs, topics, handed = 0, product = null, hasData = true }) {
+export function nextStep({ setup, sync, proposals, handoffs, topics, handed = 0, product = null, hasData = true, hong = null }) {
   const configured = (setup.key && setup.url) || setup.table;
   if (!configured) return { code: 'setup', missing: setup.url ? 'key' : 'source' };
   if (sync && sync.ok === false && sync.code === 'forbidden') return { code: 'key_refused' };
@@ -29,6 +30,8 @@ export function nextStep({ setup, sync, proposals, handoffs, topics, handed = 0,
   if (delivered) return { code: 'release_go', ref: delivered.opportunity };
   if (handoffs.some(h => BUILDING.includes(h.state))) return { code: 'building' };
   if (sync && sync.ok === false) return { code: 'sync_failed' };
+  // A broken part is named only when nothing above needs the founder; it replaces the "all quiet" lines, not a real ask.
+  if (hong) return { code: 'part_hong', part: hong.part };
   if (handed) return { code: 'topic_handed', n: handed };
   if (topics) return { code: 'topics', n: topics };
   return { code: 'idle' };
@@ -101,7 +104,7 @@ export async function page_view(input, { store, env, now, soot }) {
   const anySync = sync ?? (await Promise.all(sources.map(s => getState(store, syncKey(s))))).find(Boolean) ?? null;
   const recorded = (await store.query('metrics', [], { limit: 1 })).length > 0;
   // A read tool holds no credential: a sync that ran is the proof the key is there.
-  const setup = { key: !!env.PRODUCT_ADMIN_KEY || !!anySync, url: sources.length > 0, table: recorded, sources: sources.length, bad: bad.length,
+  const setup = { key: !!env.PRODUCT_ADMIN_KEY || !!env.SCOREBOARD_KEYS || !!anySync, url: sources.length > 0, table: recorded, sources: sources.length, bad: bad.length, bad_keys: scoreboardKeys(env).bad,
     repo: !!env.PRODUCT_REPO, bbs: bbsReady(env), build: !!env.PRODUCT_REPO };
 
   // The scorecard: one product's board, or with every product in view and two or more of them, one row each.
@@ -114,6 +117,20 @@ export async function page_view(input, { store, env, now, soot }) {
       return b ? { product: id, name: nameOf(id), from: b.from, to: b.to, source: b.source, north: b.north, tiles: b.tiles.filter(x => x.key !== b.north?.key).slice(0, 3) } : { product: id, name: nameOf(id), none: true };
     }));
   } else scoreboard = await boardFor(store, env, withNumbers[0] ?? null, host);
+
+  // The 5 parts of the one product in view (the chosen one, or the only one): owner, metric, status.
+  const partsProduct = want ?? (boards ? null : productId(scoreboard?.product) ?? (ids.length === 1 ? ids[0] : null));
+  let parts = null;
+  if (partsProduct) {
+    const board = scoreboard && productId(scoreboard.product) === partsProduct ? scoreboard : await boardFor(store, env, partsProduct, host);
+    const labels = new Map((health?.stages ?? []).map(s => [s.key, s.label]));
+    const teamIds = ctx.find(p => p.id === partsProduct)?.teams ?? [];
+    parts = { product: partsProduct, items: partHealth(await partsOf(store, partsProduct), board),
+      teams: teamIds.map(id => ({ id, name: labels.get(id) ?? id })), metrics: (board?.tiles ?? []).map(x => ({ key: x.key, label: x.label, good: x.good })) };
+  }
+  // The moats the Go decisions are building, one count per opportunity (none is not a moat).
+  const moats = {};
+  for (const x of d.keep) if (x.decision === 'go' && x.moat && x.moat !== 'none') moats[x.moat] = (moats[x.moat] ?? 0) + 1;
 
   const topics = t.keep.map(x => {
     const state = HANDED.includes(x.state) ? 'handed' : x.state;
@@ -137,11 +154,12 @@ export async function page_view(input, { store, env, now, soot }) {
       products: ids.map(id => ({ id, name: nameOf(id), waiting: oppsAll.filter(x => x.product === id && x.state === 'proposed').length + handoffsAll.filter(x => x.product === id && (x.state === 'delivered' || isTask(x))).length })),
       left_out: { opportunities: o.out, handoffs: h.out, decisions: d.out, topics: t.out }, unlabeled,
     },
-    next: nextStep({ setup, sync, proposals, handoffs, topics: queued.length, handed: handed.length, product: want, hasData }),
+    next: nextStep({ setup, sync, proposals, handoffs, topics: queued.length, handed: handed.length, product: want, hasData, hong: parts ? worstPart(parts.items) : null }),
+    parts, moats,
     scoreboard, boards,
-    opportunities: o.keep.map(x => ({ ref: x.ref, product: x.product, title: x.title, kind: x.kind, state: x.state, summary: x.summary, query: x.query, evidence_refs: x.evidence_refs, signal_count: x.signal_count, est_effort: x.est_effort, est_value: x.est_value, confidence: x.confidence, target_outcome: x.target_outcome, expected_delta: x.expected_delta, check_after_days: x.check_after_days })),
+    opportunities: o.keep.map(x => ({ ref: x.ref, product: x.product, title: x.title, kind: x.kind, state: x.state, summary: x.summary, query: x.query, evidence_refs: x.evidence_refs, signal_count: x.signal_count, est_effort: x.est_effort, est_value: x.est_value, confidence: x.confidence, part: x.part ?? null, awareness: x.awareness ?? null, moat: x.moat ?? null, pain: x.pain ?? null, target_outcome: x.target_outcome, expected_delta: x.expected_delta, check_after_days: x.check_after_days })),
     handoffs,
-    decisions: d.keep.slice(0, 40).map(x => ({ at: x.at, stage: x.stage, ref: x.opportunity_ref, product: x.product, title: titleOf(x.opportunity_ref), kind: oppOf.get(x.opportunity_ref)?.kind ?? null, decision: x.decision, by: x.by, note: x.note, target_outcome: x.target_outcome, expected_delta: x.expected_delta, check_after_days: x.check_after_days, baseline_value: x.baseline_value, actual_delta: x.actual_delta,
+    decisions: d.keep.slice(0, 40).map(x => ({ at: x.at, stage: x.stage, ref: x.opportunity_ref, product: x.product, title: titleOf(x.opportunity_ref), kind: oppOf.get(x.opportunity_ref)?.kind ?? null, decision: x.decision, by: x.by, part: x.part ?? null, moat: x.moat ?? null, note: x.note, target_outcome: x.target_outcome, expected_delta: x.expected_delta, check_after_days: x.check_after_days, baseline_value: x.baseline_value, actual_delta: x.actual_delta,
       ...verdictOf(x, oppOf.get(x.opportunity_ref), handoffOf.get(x.opportunity_ref), topicOf.get(x.opportunity_ref)) })),
     // Names for the outcome keys an opportunity is measured by: the contract's words, then the data's own labels.
     metric_labels: { ...Object.fromEntries(Object.keys(METRICS).map(k => [k, labelOf(k)])), ...Object.fromEntries(tiles.map(x => [x.key, x.label])), waiting_human: 'Bạn đọc chờ người' },
@@ -186,10 +204,16 @@ export async function page_action(input, deps) {
       await store.update('handoffs', h.id, { ticket: input.ticket });
       return { ok: true, linked: input.ticket };
     }
+    case 'part_set': {
+      // The founder changes who owns a part and what watches it, on the page.
+      const { part, team, team_name, metric, good, promise } = input;
+      const one = Object.fromEntries(Object.entries({ part, team, team_name, metric, good, promise }).filter(([, v]) => v !== undefined));
+      return setParts(store, input.product, [one], 'founder', now);
+    }
     case 'sync': {
       const out = await scoreboard_sync({ for_digest: true }, deps);
       return { ok: out.ok !== false, ...out };
     }
   }
-  return fail('invalid_request', 'op là go, later, drop, retry_handoff, task_done, link_ticket hoặc sync.');
+  return fail('invalid_request', 'op là go, later, drop, retry_handoff, task_done, link_ticket, part_set hoặc sync.');
 }
