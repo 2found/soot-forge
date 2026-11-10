@@ -3,6 +3,19 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+Pairs with Soot 0.13.28 (Nest Lịch chạy board); an older runtime keeps every existing behavior.
+
+### Added
+
+- **The lead sets up a company from a template.** New `nest-lead` skill `nest-company`: four templates as data — Bán hàng online, Nội dung, SaaS and Vòng công ty (company-loop without the build stage). The lead asks at most two questions, proposes products, teams, schedules and read grants in one message, and after consent runs only existing settings actions: `company.product.save`, `group.create` through `manage_gated` (each team waits in Cần bạn), then `group.products`, `schedule.save` and `access.grant` (write grants stay gated). It never sets or raises a budget, and never joins a team or puts a schedule on itself. Evals `company.eval.json` (C1, C2).
+- `manage` / `manage_gated` `schedule` documents `cron` (`0 9 * * 1-5` = Thứ 2–6 lúc 09:00) beside `every`/`at`.
+
+### Fixed
+
+- **Company adopt check with Soot 0.13.26+.** `scripts/company.mjs` in adopt mode with `--config` now gives a team without an explicit budget the sum of its members' `execution.daily_tokens` (the value `soot company adopt` derives, never more), so a `budget_80` escalation has a budget to warn against; when no member has a cap, the `budget_80` escalation is left out and named in notes. Without a deployment the output is unchanged.
+
 ## 0.11.23 — 2026-11-10
 
 Baseline: v0.11.22 (97815a6). Pairs with Soot 0.13.27. Browser tools 0.2.3 (`soot-browser`, pinned in 2agent `internal/browserinstall/manifest.json`). company-loop storage version 3 → 4 (additive); the Công ty page reads Nest's new page `context` message (2agent soot-pages §5) and an older Nest keeps working without it.

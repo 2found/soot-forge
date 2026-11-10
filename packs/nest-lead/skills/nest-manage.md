@@ -133,7 +133,8 @@ change they want now.
 
 ## Build a team
 
-The person asks for a team ("lập cho tôi một nhóm …"). The team's know-how is
+The person asks for a team ("lập cho tôi một nhóm …"); for a whole company
+(products, several teams, schedules and grants) load the `nest-company` skill. The team's know-how is
 in its template; you choose the template, collect its brief and propose it in
 one approval. Never invent members, souls or missions for a request a template
 covers.

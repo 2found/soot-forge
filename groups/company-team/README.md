@@ -56,6 +56,9 @@ node scripts/company.mjs check   --mode adopt --overlay ... --config <workspace>
 
 - `create`: each team is pinned to a built group archive (`--groups <dir>`).
 - `adopt`: the teams are the Soot ids of an existing workspace; `soot company adopt` moves it.
+  With `--config`, a team the overlay gives no budget gets the sum of its members'
+  `execution.daily_tokens` (what adopt derives, never more); with no member cap its
+  `budget_80` escalation is left out and named in notes.
 - Overlay `remove` and `rename` go to the runtime unchanged, so it refuses a removal that a
   required edge depends on (`company_edge_required`) or that removes the lead.
 - A team with an entry in `--remotes` becomes a remote team (cs, `https://soot.lohi2.com`,

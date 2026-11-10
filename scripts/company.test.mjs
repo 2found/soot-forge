@@ -85,6 +85,26 @@ test('compile: adopt mode names the Soots of the overlay, leaves budgets to the 
   assert.equal(byId.financial.members.length, 1);
 });
 
+test('compile: adopt with the deployment derives each team budget from its members\' caps, else drops budget_80', async () => {
+  // Pure: a minimal deployment whose Soot files carry (or omit) execution.daily_tokens, as setup.mjs writes them.
+  const ws = mkdtempSync(join(work, 'caps-'));
+  const ids = ['lohi-analyst', 'lohi-radar', 'lohi-writer', 'lohi-editor', 'lohi-finance', 'lohi-catalog'];
+  const cap = { 'lohi-analyst': 60000, 'lohi-radar': 40000, 'lohi-finance': 0 };
+  mkdirSync(join(ws, 'soots'));
+  for (const id of ids) writeFileSync(join(ws, 'soots', `${id}.json`), JSON.stringify({ id, ...(cap[id] ? { execution: { daily_tokens: cap[id] } } : {}) }));
+  writeFileSync(join(ws, 'deployment.json'), JSON.stringify({ soots: ids.map(id => `soots/${id}.json`) }));
+  const { company, notes } = await compileCompany(template, lohi, { mode: 'adopt', root, remotes, config: join(ws, 'deployment.json') });
+  const byId = Object.fromEntries(company.teams.map(t => [t.id, t]));
+  assert.equal(byId.insight.contract.budget.daily_tokens, 100000, 'the sum of the members\' caps, the value adopt derives');
+  assert.equal(byId.marketing.contract.budget.daily_tokens, 250000, 'an explicit budget is kept as set');
+  assert.equal(byId.financial.contract.budget, undefined, 'no member cap: no budget is invented');
+  assert.ok(!(byId.financial.contract.escalates ?? []).some(e => e.on === 'budget_80'), 'budget_80 without a budget is left out');
+  assert.match(notes.join('\n'), /team financial: no member has a daily token cap/);
+  // Without the deployment nothing changes: adopt derives the budget when it applies.
+  const { company: plain } = await compileCompany(template, lohi, { mode: 'adopt', root, remotes });
+  assert.equal(plain.teams.find(t => t.id === 'insight').contract.budget, undefined);
+});
+
 test('compile: remove and rename go to the runtime as its overlay, patches and adds are shaped here; nothing is validated', async () => {
   const { company } = await compileCompany(template, shop, create);
   assert.deepEqual(company.overlay, { remove: ['financial', 'cs'], rename: { marketing: 'growth' } }, 'the runtime removes what it holds; build has no runtime form and is not its to remove');

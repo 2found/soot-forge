@@ -17,7 +17,7 @@
 import { execFile } from 'node:child_process';
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
@@ -90,11 +90,14 @@ async function groupSource(root, id) {
  * `remotes`, a map from a forge team's external runtime to `{url, token_env, group?}`. An external team with no remote
  * entry has no runtime representation (build, which is Claude Code through `bbs team`); it is left out and named in notes.
  */
-export async function compileCompany(template, overlay, { mode = 'create', root, pins = {}, remotes = {} } = {}) {
+export async function compileCompany(template, overlay, { mode = 'create', root, pins = {}, remotes = {}, config } = {}) {
   if (template.api_version !== FORGE_VERSION) input(`api_version must be ${FORGE_VERSION}`);
   if (!['create', 'adopt'].includes(mode)) input('mode is create or adopt');
   const { company: c, explicit } = shapeCompany(template, overlay);
   const notes = [];
+  // Adopting with the deployment at hand: a team the overlay gives no budget gets the sum of its members' caps, the
+  // value `soot company adopt` derives itself (never more), so a budget_80 escalation has a budget to warn against.
+  const caps = mode === 'adopt' && config ? await memberCaps(config) : null;
   const kept = [], dropped = new Set();
   for (const t of c.teams) {
     if (t.external && !remotes[t.external.runtime]) { dropped.add(t.id); notes.push(`team ${t.id} runs on ${t.external.runtime}, which has no runtime representation: left out with its edges`); } else kept.push(t);
@@ -147,6 +150,16 @@ export async function compileCompany(template, overlay, { mode = 'create', root,
       contract.escalates = t.escalates_when.map(w => (typeof w === 'string' ? (known.get(w) ?? { when: w }) : w));
     }
     if (t.daily_tokens > 0 && (mode === 'create' || explicit.has(t.id)) && !t.external) contract.budget = { daily_tokens: t.daily_tokens };
+    else if (caps && !t.external) {
+      const sum = t.soots.reduce((n, s) => n + (caps.get(s.id) ?? 0), 0);
+      if (sum > 0) contract.budget = { daily_tokens: sum };
+    }
+    if (caps && !contract.budget && contract.escalates?.some(e => e.on === 'budget_80')) {
+      // No member has a cap, so there is no budget to warn at 80% of: the warning goes, the budget is not invented.
+      contract.escalates = contract.escalates.filter(e => e.on !== 'budget_80');
+      if (!contract.escalates.length) delete contract.escalates;
+      notes.push(`team ${t.id}: no member has a daily token cap, so its budget_80 escalation is left out`);
+    }
     out.contract = contract;
     teams.push(out);
   }
@@ -167,6 +180,17 @@ export async function compileCompany(template, overlay, { mode = 'create', root,
   if (Object.keys(rename).length) rt.rename = rename;
   if (Object.keys(rt).length) company.overlay = rt;
   return { company, notes };
+}
+
+/** Each Soot's `execution.daily_tokens` (0 when it sets none), from the deployment's Soot files. */
+async function memberCaps(config) {
+  const host = JSON.parse(await readFile(config, 'utf8'));
+  const caps = new Map();
+  for (const rel of host.soots ?? []) {
+    const def = JSON.parse(await readFile(resolve(dirname(config), rel), 'utf8'));
+    if (def.id && !def.archived) caps.set(def.id, def.execution?.daily_tokens > 0 ? def.execution.daily_tokens : 0);
+  }
+  return caps;
 }
 
 async function catalogName(root, id) {

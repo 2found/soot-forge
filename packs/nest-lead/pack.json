@@ -36,6 +36,11 @@
       "name": "nest-manage",
       "description": "Change this Nest's settings yourself as Kamaji, its lead: Soots, schedules, teams (built from a template in one approval), products (create, rename, which a team serves), approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, access grants and chat channel pairings; report once with a link and Hoàn tác.",
       "file": "skills/nest-manage.md"
+    },
+    {
+      "name": "nest-company",
+      "description": "Set up a whole company for the person from a template (bán hàng online, nội dung, SaaS, vòng công ty without a build stage): ask at most two questions, propose products, teams, schedules and read grants in one chat message, and only after consent create them with manage (products, schedules, read grants) and manage_gated (each team, waiting in Cần bạn). Load it when asked to dựng/lập a company or business.",
+      "file": "skills/nest-company.md"
     }
   ],
   "tools": [
@@ -108,7 +113,7 @@
           "schedule": {
             "type": "object",
             "additionalProperties": true,
-            "description": "schedule.save: {soot, name, text, every, at, timezone, group, paused}; every like 24h, at like 08:00."
+            "description": "schedule.save: {soot, name, text, every, at, cron, timezone, group, paused}; every like 24h, at like 08:00, or cron like 0 9 * * 1-5 (Thứ 2–6 lúc 09:00) instead of every."
           },
           "approval": {
             "type": "string",
@@ -408,7 +413,7 @@
           "schedule": {
             "type": "object",
             "additionalProperties": true,
-            "description": "schedule.save: {soot, name, text, every, at, timezone, group, paused}; every like 24h, at like 08:00."
+            "description": "schedule.save: {soot, name, text, every, at, cron, timezone, group, paused}; every like 24h, at like 08:00, or cron like 0 9 * * 1-5 (Thứ 2–6 lúc 09:00) instead of every."
           },
           "approval": {
             "type": "string",

@@ -2,9 +2,11 @@
 
 The lead pack for Nest. It gives Kamaji, the lead, two tools, `manage` and
 `manage_gated`, that run `soot manage` to change the host's Soots, schedules,
-teams, approvals, data access and model tiers, and two skills: `nest-lead`
-(how the lead works with the person and its teams) and `nest-manage` (how to
-read, change, report and undo).
+teams, approvals, data access and model tiers, and three skills: `nest-lead`
+(how the lead works with the person and its teams), `nest-manage` (how to
+read, change, report and undo) and `nest-company` (company templates as data:
+bán hàng online, nội dung, SaaS, vòng công ty without a build stage, proposed in
+one message and created after consent through the same actions).
 
 Only the host's default Soot may select this pack (`"packs": ["nest-lead"]`); the
 Nest general template does that for the lead and nobody else. Both tools are
