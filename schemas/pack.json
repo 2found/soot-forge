@@ -617,6 +617,21 @@
             "array",
             "null"
           ]
+        },
+        "runtime": {
+          "description": "Runtime API scopes the pack's tools call back through SOOT_RUNTIME_URL and SOOT_RUNTIME_TOKEN, such as goals.read or goals.checkin. Nothing is issued until the host grants them.",
+          "items": {
+            "enum": [
+              "goals.read",
+              "goals.checkin"
+            ],
+            "type": "string"
+          },
+          "maxItems": 16,
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "type": [

@@ -26,6 +26,10 @@
     "en": "A product-agnostic company loop: reads the scoreboard, makes a weekly digest of opportunities, sends content to marketing by itself, hands a founder-approved product change to bbs:team and watches it to release."
   },
   "needs": {
+    "runtime": [
+      "goals.read",
+      "goals.checkin"
+    ],
     "env": [
       "LOOP_SOOT_BIN",
       "LOOP_SOOT_CONFIG",
@@ -1074,7 +1078,7 @@
     {
       "name": "goals_checkin",
       "title": "Ghi số vào mục tiêu",
-      "description": "Gives every active goal whose metric.ref names a scoreboard number its reading, with no per-product code: a ref is <product>:<key> (2novel:activated_new) or company-loop:<key> (the goal's own product, else the host's). The number is that product's newest stored period, from its HTTP scoreboard (SCOREBOARD_URLS) or from metrics_record. Checks in through the workspace soot CLI (LOOP_SOOT_CONFIG), once per goal and period, with a plain note; guardrail refs are reported, not recorded. Chain it after scoreboard_sync. dry_run reads and reports without checking in. No model unless a check-in fails.",
+      "description": "Gives every active goal whose metric.ref names a scoreboard number its reading, with no per-product code: a ref is <product>:<key> (2novel:activated_new) or company-loop:<key> (the goal's own product, else the host's). The number is that product's newest stored period, from its HTTP scoreboard (SCOREBOARD_URLS) or from metrics_record. Reads goals and checks in through the soot CLI with the per-call runtime token the host grants (needs.runtime; never the operator token), once per goal and period, with a plain note; guardrail refs are reported, not recorded. Chain it after scoreboard_sync. dry_run reads and reports without checking in. No model unless a check-in fails.",
       "parameters": {
         "type": "object",
         "properties": {

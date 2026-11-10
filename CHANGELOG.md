@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.12.4 — 2026-11-11
+
+Baseline: v0.12.3 (d0e0e07). **Requires Soot 0.15.5+**: the pack declares `needs.runtime`, a field older runtimes refuse as an unknown field; an older host reports company-loop `blocked` and keeps 0.12.3.
+
+- **company-loop: `goals_checkin` calls its own runtime with a per-call token, not the operator token.** The pack declares `needs.runtime: ["goals.read", "goals.checkin"]`; once the host grants it (`soot grant company-loop`, Nest **Cấp quyền**), the runtime gives each call `SOOT_RUNTIME_URL` and `SOOT_RUNTIME_TOKEN`, valid only for goal list/get and goal check-in, as that Soot, until the call ends. The tool passes them to `soot goals` and no longer passes `--config`, so it no longer depends on `connections.json` (on a server runtime the child could not authenticate and answered `goals_unreadable`; on a laptop it borrowed the operator token). With no token (runtime without the grant) it keeps the quiet `skipped` / `goals_unreadable` answer and does not run `soot`. `LOOP_SOOT_CONFIG` stays for `health_sync`. Storage is unchanged (6).
+
 ## 0.12.3 — 2026-11-10
 
 Baseline: v0.12.2 (e1c7853). Pairs with Soot 0.14.0+ (`soot goals` CLI).

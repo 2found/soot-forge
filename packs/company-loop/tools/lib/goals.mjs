@@ -2,10 +2,11 @@
 // other than the host's reaches the goal without code in Soot. A ref is `<product>:<key>` (`2novel:activated_new`)
 // or `company-loop:<key>` (the goal's own product, else the host's). The number is the newest stored period of that
 // product from either source, an HTTP scoreboard or recorded metrics, so one rule covers both. The reading goes in
-// through the workspace's `soot goals checkin` (the same route a person or the Đầu mối uses); nothing else about the
-// goal changes. Guardrail refs resolve the same way but are only reported: a check-in holds one value.
+// through `soot goals checkin` against this tool's own runtime, with the per-call token the host grants for
+// `needs.runtime` (SOOT_RUNTIME_URL + SOOT_RUNTIME_TOKEN: goals.read and goals.checkin only, revoked when the call ends).
+// The tool never borrows the operator token or reads connections.json, and passes no --config; a runtime that issues
+// no token leaves the quiet `goals_unreadable` skip. Nothing else about the goal changes. Guardrail refs resolve the same way but are only reported: a check-in holds one value.
 import { execFile } from 'node:child_process';
-import { isAbsolute } from 'node:path';
 import { iso, short, skippedFor } from './base.mjs';
 import { findSoot } from './health.mjs';
 import { boardFor } from './scoreboard.mjs';
@@ -16,8 +17,8 @@ const REF = /^([a-z0-9][a-z0-9_-]{0,63}):([a-z][a-z0-9_]{0,47})$/;
 const AUTO_CONFIDENCE = 5;
 const PAGE = 200, MAX_PAGES = 5;
 
-const cli = (bin, config, args) => new Promise(resolve => {
-  execFile(bin, [...args, '--json', '--config', config], { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME } }, (err, stdout) => {
+const cli = (bin, call, args) => new Promise(resolve => {
+  execFile(bin, [...args, '--json'], { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, SOOT_RUNTIME_URL: call.url, SOOT_RUNTIME_TOKEN: call.token } }, (err, stdout) => {
     try { resolve({ ok: !err, json: JSON.parse(stdout) }); } catch { resolve({ ok: false, json: null }); }
   });
 });
@@ -35,12 +36,13 @@ const fmt = n => String(Math.round(n * 100) / 100);
 
 export async function goals_checkin(input, deps) {
   const { store, env, now } = deps;
-  const bin = findSoot(env), config = env.LOOP_SOOT_CONFIG;
-  if (!bin || !config || !isAbsolute(config)) return { ...skippedFor('LOOP_SOOT_CONFIG'), reason: !bin ? 'no_soot' : 'no_config' };
+  const bin = findSoot(env), call = { url: env.SOOT_RUNTIME_URL, token: env.SOOT_RUNTIME_TOKEN };
+  if (!call.url || !call.token) return { ok: true, skipped: true, reason_code: 'goals_unreadable', reason: 'no_runtime_token', notify: false, wake: false };
+  if (!bin) return { ...skippedFor('LOOP_SOOT_BIN'), reason: 'no_soot' };
   const host = await hostProduct(store, null);
   const goals = [];
   for (let page = 0; page < MAX_PAGES; page++) {
-    const got = await cli(bin, config, ['goals', 'list', '--status', 'active', '--limit', String(PAGE), '--cursor', String(page * PAGE)]);
+    const got = await cli(bin, call, ['goals', 'list', '--status', 'active', '--limit', String(PAGE), '--cursor', String(page * PAGE)]);
     if (!got.ok || !Array.isArray(got.json?.goals)) return page === 0 ? { ok: true, skipped: true, reason_code: 'goals_unreadable', notify: false, wake: false } : { ok: false, reason_code: 'goals_unreadable', message: 'Không đọc hết danh sách mục tiêu.' };
     goals.push(...got.json.goals);
     if (got.json.goals.length < PAGE) break;
@@ -72,7 +74,7 @@ export async function goals_checkin(input, deps) {
     const tile = m.board.tiles.find(t => t.key === m.key);
     const note = short(`${mark}: ${fmt(m.value)}${Number.isFinite(tile?.previous) ? ` (kỳ trước ${fmt(tile.previous)})` : ''}`, 300);
     if (input.dry_run) { checked.push({ goal: g.id, ref: g.metric.ref, value: m.value, period: `${m.board.from}..${m.board.to}`, dry_run: true }); continue; }
-    const out = await cli(bin, config, ['goals', 'checkin', g.id, '--value', String(m.value), '--confidence', String(AUTO_CONFIDENCE), '--note', note]);
+    const out = await cli(bin, call, ['goals', 'checkin', g.id, '--value', String(m.value), '--confidence', String(AUTO_CONFIDENCE), '--note', note]);
     if (out.ok) checked.push({ goal: g.id, ref: g.metric.ref, value: m.value, period: `${m.board.from}..${m.board.to}` });
     else failed.push({ goal: g.id, ref: g.metric.ref, code: short(String(out.json?.error?.code ?? out.json?.code ?? 'checkin_failed'), 40) });
   }
