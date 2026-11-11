@@ -14,7 +14,8 @@ import { buildGroups, readGroups } from '../groups.mjs';
  * before the lead joins it, so a lead-led team has no entries and the check refuses it with company_invalid ("entries must
  * name 1 to 32 members"); `company create` loads the lead first and is not affected.
  */
-const MIRRORED = ['marketing', 'writing', 'browser-use', 'company-loop', 'team-rhythm'];
+const MIRRORED = ['marketing', 'writing', 'browser-use', 'company-loop', 'team-rhythm', 'research'];
+const COMPANY_TEAMS = ['insight', 'growth', 'operations', 'finance']; // support is external in the company (its live-chat pack is not mirrored)
 export async function buildLocalGroups(root, dist, version = '0.0.0', { ledByFirstMember = false } = {}) {
   await mkdir(dist, { recursive: true });
   if (ledByFirstMember) {
@@ -22,7 +23,7 @@ export async function buildLocalGroups(root, dist, version = '0.0.0', { ledByFir
     try {
       await cp(join(root, 'groups'), join(mirror, 'groups'), { recursive: true });
       const list = JSON.parse(await readFile(join(root, 'groups.json'), 'utf8'));
-      list.groups = list.groups.filter(g => g.id.startsWith('team-')); // the company's teams; the others need packs the mirror leaves out
+      list.groups = list.groups.filter(g => COMPANY_TEAMS.includes(g.id)); // the company's teams; the others need packs the mirror leaves out
       await writeFile(join(mirror, 'groups.json'), JSON.stringify(list));
       const catalog = JSON.parse(await readFile(join(root, 'catalog.json'), 'utf8'));
       catalog.packs = catalog.packs.filter(p => MIRRORED.includes(p.id)); delete catalog.retired;

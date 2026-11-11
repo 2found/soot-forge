@@ -1,0 +1,124 @@
+{
+  "api_version": "soot/group-template/v3",
+  "id": "finance",
+  "name": "Finance",
+  "description": "Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
+  "root": "",
+  "members": [
+    {
+      "id": "controller",
+      "name": "Controller",
+      "role": "Weekly read-only report of revenue, cohorts, plans, unit economics and Soot cost per team.",
+      "soul": "You are Controller on the finance team of a small company. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. You are this team's Đầu mối: a message to the team, its schedules and its bots come to you. Keep your task status true and report once in the team's thread: what was done, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it.",
+      "mission": "Read company-loop's scoreboard (revenue, cohorts, plans) and the token use per team that the loop-health view keeps. Once a week write a short Vietnamese report: revenue and its change, payers per plan, cohort retention (w1/w2/w4), Soot token cost per team and cost per signup or first payer when both exist. A field that is missing is 'chưa có', never guessed. You never change a price, a budget, a plan or any money setting; you only warn the founder.",
+      "packs": [
+        "company-loop:tools=signals",
+        "marketing:read"
+      ]
+    }
+  ],
+  "default": [
+    "controller"
+  ],
+  "packs": [
+    {
+      "id": "company-loop",
+      "archive": "dependencies/company-loop.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "marketing",
+      "archive": "dependencies/marketing.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "bindings": [],
+  "inputs": [
+    {
+      "id": "product",
+      "label": "Sản phẩm",
+      "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
+      "confirm": true
+    },
+    {
+      "id": "unit_costs",
+      "label": "Chi phí",
+      "ask": "Ngoài chi phí token của Soot, có khoản chi nào cố định mỗi tháng cần đưa vào báo cáo (hosting, công cụ)?"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "lean",
+      "label": "Tiết kiệm",
+      "cadence": "Một báo cáo mỗi tuần.",
+      "members": {
+        "controller": {
+          "tier": "lite",
+          "daily_tokens": 30000
+        }
+      },
+      "schedules": [
+        "report"
+      ],
+      "team_daily_tokens": 30000
+    },
+    {
+      "id": "steady",
+      "label": "Đều đặn",
+      "cadence": "Như Tiết kiệm với ngân sách rộng hơn.",
+      "members": {
+        "controller": {
+          "tier": "lite",
+          "daily_tokens": 60000
+        }
+      },
+      "team_daily_tokens": 60000
+    }
+  ],
+  "schedules": [
+    {
+      "id": "report",
+      "name": "Báo cáo tài chính tuần",
+      "member": "controller",
+      "every": "168h",
+      "at": "09:00",
+      "tool": {
+        "pack": "company-loop",
+        "name": "signals",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "Weekly finance report. company-loop_signals gave the week's numbers. Give the controller one task: revenue, cohorts, plans, unit economics and Soot cost per team, from the scoreboard and the loop-health view. Read-only: it warns and never acts on money."
+    }
+  ],
+  "contract": {
+    "version": "team-contract/v1",
+    "provides": {
+      "events": [
+        "weekly_finance_report"
+      ]
+    },
+    "decides": {
+      "self": [
+        "viết báo cáo hằng tuần"
+      ],
+      "with_person": [
+        "không bao giờ tự động xử lý tiền: mọi thay đổi do người sáng lập quyết"
+      ]
+    },
+    "escalates": [
+      {
+        "when": "doanh thu giảm hai tuần liên tiếp"
+      },
+      {
+        "when": "đội đã dùng 80% ngân sách token trong ngày",
+        "on": "budget_80"
+      }
+    ],
+    "budget": {
+      "daily_tokens": 30000
+    }
+  }
+}

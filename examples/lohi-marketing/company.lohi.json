@@ -2,7 +2,7 @@
   "extends": "company-team",
   "id": "lohi",
   "name": "Lohi",
-  "description": "Lohi như một công ty gồm các nhóm. Mã Soot theo công thức; op-catalog là Soot lohi-catalog mà gói lohi-ops mang theo; nhóm hỗ trợ và bàn tiếp nhận chạy trên máy chủ CS, chỉ khai báo ở đây, setup không triển khai.",
+  "description": "Lohi như một công ty gồm năm nhóm chuẩn (Insight, Growth, Support, Operations, Finance). Mã Soot theo công thức; Operations là Soot lohi-catalog mà gói lohi-ops mang theo; nhóm Support và bàn tiếp nhận chạy trên máy chủ CS, chỉ khai báo ở đây, setup không triển khai.",
   "teams": {
     "insight": {
       "soots": [
@@ -16,47 +16,41 @@
         }
       ]
     },
-    "marketing": {
+    "growth": {
       "soots": [
+        {
+          "id": "lohi-editor",
+          "role": "editor"
+        },
         {
           "id": "lohi-writer",
           "role": "writer"
-        },
-        {
-          "id": "lohi-editor",
-          "role": "publisher"
         }
       ],
       "daily_tokens": 250000
     },
-    "cs": {
+    "support": {
       "soots": [
-        {
-          "id": "support",
-          "role": "answers readers"
-        },
         {
           "id": "desk",
           "role": "sorts feedback"
+        },
+        {
+          "id": "support",
+          "role": "answers readers"
         }
       ]
     },
-    "financial": {
+    "finance": {
       "soots": [
         {
           "id": "lohi-finance",
-          "role": "finance"
+          "role": "controller"
         }
       ]
-    }
-  },
-  "add": [
-    {
-      "id": "op-catalog",
-      "name": "Danh mục",
+    },
+    "operations": {
       "description": "Giữ danh mục truyện sạch, duyệt bình luận, theo dõi đánh giá.",
-      "kind": "group",
-      "group": "team-op",
       "soots": [
         {
           "id": "lohi-catalog",
@@ -67,7 +61,7 @@
         {
           "from": "insight",
           "what": "cơ hội danh mục đã duyệt",
-          "contract": "catalog-requests",
+          "contract": "job-requests",
           "optional": true
         }
       ],
@@ -106,24 +100,5 @@
       ],
       "slot": "examples/lohi-marketing/packs/lohi-ops"
     }
-  ],
-  "contracts": {
-    "add": [
-      {
-        "id": "catalog-requests",
-        "owner": "insight",
-        "reader": "op-catalog",
-        "table": "opportunities",
-        "pack": "company-loop",
-        "mode": "read",
-        "fields": [
-          "ref",
-          "title",
-          "kind",
-          "state"
-        ],
-        "optional": true
-      }
-    ]
   }
 }

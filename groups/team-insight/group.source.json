@@ -1,8 +1,8 @@
 {
   "api_version": "soot/group-template/v3",
   "id": "team-insight",
-  "name": "Insight team",
-  "description": "Đôi mắt và đầu mối gọn của công ty: Analyst đọc số liệu và viết bản tổng hợp hằng tuần, Radar theo dõi thị trường ở chế độ chỉ đọc. Nhóm cũng đặt mục tiêu, chạy buổi xem lại hằng tuần và chia ngân sách token giữa các nhóm; người sáng lập quyết.",
+  "name": "Insight team (deprecated)",
+  "description": "Deprecated, use `insight`. Đôi mắt và đầu mối gọn của công ty: Analyst đọc số liệu và viết bản tổng hợp hằng tuần, Radar theo dõi thị trường ở chế độ chỉ đọc. Nhóm cũng đặt mục tiêu, chạy buổi xem lại hằng tuần và chia ngân sách token giữa các nhóm; người sáng lập quyết.",
   "root": "",
   "members": [
     {

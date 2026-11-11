@@ -126,8 +126,12 @@ export async function compileCompany(template, overlay, { mode = 'create', root,
     } else if (mode === 'create') {
       const pin = pins[t.group] ?? input(`team ${t.id}: no pinned archive for group ${t.group}; pass --groups <dir with groups.json>`);
       out.template = pin; out.profile = 'lean';
+      // The team's Đầu mối: a template member role (the standard teams each name one; Support's desk is first and its answerer joins as a second entry after install).
+      if (t.coordinator) out.coordinator = t.coordinator;
     } else {
       out.members = t.soots.map(s => s.id);
+      // The Soots people can chat to; without it the runtime makes every member an entry. The first is the Đầu mối.
+      if (t.entries?.length) out.entries = t.entries;
     }
     const contract = { version: 'team-contract/v1' };
     const tables = items(t).filter(g => !unowned(t, g)).map(g => ({ name: g.table, pack: g.pack, table: g.table, fields: g.fields, ...(g.note ? { note: g.note } : {}), tenant: 'all' }));

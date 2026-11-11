@@ -1,8 +1,8 @@
 {
   "api_version": "soot/group-template/v3",
   "id": "team-financial",
-  "name": "Financial team",
-  "description": "Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
+  "name": "Financial team (deprecated)",
+  "description": "Deprecated, use `finance`. Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
   "root": "",
   "members": [
     {

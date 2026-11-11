@@ -1,0 +1,95 @@
+{
+  "api_version": "soot/group-template/v3",
+  "id": "operations",
+  "name": "Operations",
+  "description": "Giao giá trị phía sản phẩm: mỗi việc vận hành của công ty (danh mục, theo dõi máy chủ, nhập nội dung) là một Soot riêng trong nhóm này. Mẫu mang một Operator đầu tiên; gói của việc đến từ sản phẩm nên mẫu không mang sẵn, và mỗi việc sau thêm một Soot.",
+  "root": "",
+  "members": [
+    {
+      "id": "operator",
+      "name": "Operator",
+      "role": "Runs one operational job through the product's own pack, tool chains first. Each further job of the product is another Soot in this team.",
+      "soul": "You are Operator on the operations team of a small company. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. You are this team's Đầu mối: a message to the team, its schedules and its bots come to you. Keep your task status true and report once in the team's thread: what was done, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it.",
+      "mission": "Read the team brief for your job. Run it through the pack the product gave you; when a tool answers with an ask, file it as one Cần bạn item with report_blocker exactly as given. As the team's Đầu mối you take a request for a job that has no Soot yet, and say so: a person adds that job as a new Soot. You change nothing the brief does not name, and you never touch money or accounts.",
+      "packs": [
+        "team-rhythm"
+      ]
+    }
+  ],
+  "default": [
+    "operator"
+  ],
+  "packs": [
+    {
+      "id": "team-rhythm",
+      "archive": "dependencies/team-rhythm.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "bindings": [],
+  "inputs": [
+    {
+      "id": "product",
+      "label": "Sản phẩm",
+      "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
+      "confirm": true
+    },
+    {
+      "id": "job",
+      "label": "Việc vận hành",
+      "ask": "Soot đầu tiên của nhóm lo việc vận hành nào (ví dụ danh mục truyện), và pack nào của sản phẩm làm việc đó? Mỗi việc sau là một Soot thêm vào nhóm.",
+      "confirm": true
+    }
+  ],
+  "profiles": [
+    {
+      "id": "lean",
+      "label": "Tiết kiệm",
+      "cadence": "Chuỗi công cụ theo lịch; model chỉ dậy khi cần người.",
+      "members": {
+        "operator": {
+          "tier": "flash",
+          "daily_tokens": 80000
+        }
+      },
+      "team_daily_tokens": 80000
+    },
+    {
+      "id": "steady",
+      "label": "Đều đặn",
+      "cadence": "Như Tiết kiệm với ngân sách rộng hơn.",
+      "members": {
+        "operator": {
+          "tier": "flash",
+          "daily_tokens": 200000
+        }
+      },
+      "team_daily_tokens": 200000
+    }
+  ],
+  "schedules": [],
+  "contract": {
+    "version": "team-contract/v1",
+    "decides": {
+      "self": [
+        "việc thường lệ trong giới hạn của gói công việc"
+      ],
+      "with_person": [
+        "mọi việc xóa hoặc đăng lại nội dung",
+        "mọi việc liên quan đến tiền hoặc tài khoản"
+      ]
+    },
+    "escalates": [
+      {
+        "when": "một nguồn đang hỏng",
+        "on": "chain_failed"
+      },
+      {
+        "when": "một việc sắp gỡ nội dung"
+      }
+    ],
+    "budget": {
+      "daily_tokens": 80000
+    }
+  }
+}

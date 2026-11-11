@@ -1,8 +1,8 @@
 {
   "api_version": "soot/group-template/v3",
   "id": "team-marketing",
-  "name": "Marketing team (company)",
-  "description": "Tiếng nói của công ty: Writer chỉ viết, Publisher đăng những gì đã qua kiểm tra. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này, không phải nhóm riêng.",
+  "name": "Marketing team (company) (deprecated)",
+  "description": "Deprecated, use `growth`. Tiếng nói của công ty: Writer chỉ viết, Publisher đăng những gì đã qua kiểm tra. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này, không phải nhóm riêng.",
   "root": "",
   "members": [
     {

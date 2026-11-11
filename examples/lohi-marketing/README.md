@@ -21,7 +21,7 @@ repository, since 0.11.12). See [Set it up](#set-it-up) below.
 
 ## The lean team (by job)
 
-The Soots are grouped into **teams** in [company.lohi.json](company.lohi.json), an overlay on the Forge's [company template](../../groups/company-team/README.md): insight (analyst, radar), marketing (writer, Ops as publisher), financial (finance), cs (support and desk on the CS server, declared and not deployed by setup), build (Claude Code through `bbs team`, a contract) and `op-catalog`, a slot for the `lohi-ops` pack. Chains such as publish, probe and GSC are schedules of marketing, not teams.
+The Soots are grouped into **teams** in [company.lohi.json](company.lohi.json), an overlay on the Forge's [company template](../../groups/company-team/README.md): insight (analyst, radar), growth (Editor, the Đầu mối, and Writer), finance (the controller), support (support and desk on the CS server, declared and not deployed by setup), build (Claude Code through `bbs team`, a contract) and `operations`, a slot for the `lohi-ops` pack. Chains such as publish, probe and GSC are schedules of growth, not teams.
 
 | Soot | tier, daily tokens | does | wakes on |
 | --- | --- | --- | --- |

@@ -9,11 +9,19 @@ export async function readGroups(root) {
   if (catalog.version !== 1 || catalog.repository !== '2found/soot-forge' || !Array.isArray(catalog.groups) || catalog.groups.length > 64 || Object.keys(catalog).some(k => !['version', 'repository', 'groups', 'companies'].includes(k))) throw new Error('Invalid group catalog');
   const ids = new Set();
   for (const entry of catalog.groups) {
-    if (!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(entry.id) || ids.has(entry.id) || Object.keys(entry).some(k => !['id','name','description','source','stability','audience'].includes(k)) || !stability(entry)) throw new Error('Invalid group entry'); ids.add(entry.id);
+    if (!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(entry.id) || ids.has(entry.id) || Object.keys(entry).some(k => !['id','name','description','source','stability','audience','parts','entries','replaced_by'].includes(k)) || !stability(entry)) throw new Error('Invalid group entry'); ids.add(entry.id);
     if (entry.source !== `groups/${entry.id}/group.source.json`) throw new Error('Invalid group source');
     const template = JSON.parse(await readFile(join(root, safePath(entry.source)), 'utf8'));
     validateGroup(template);
     if (entry.id !== template.id || entry.name !== template.name || entry.description !== template.description) throw new Error('Group catalog metadata mismatch');
+    // parts: which of Kaufman's five parts the team can own. entries: the members that take chats, the first being the Đầu mối.
+    if (entry.parts !== undefined && (!Array.isArray(entry.parts) || !entry.parts.length || new Set(entry.parts).size !== entry.parts.length || entry.parts.some(p => !PARTS.includes(p)))) throw new Error(`Invalid parts of group ${entry.id}`);
+    if (entry.entries !== undefined && (!Array.isArray(entry.entries) || !entry.entries.length || new Set(entry.entries).size !== entry.entries.length || entry.entries.some(e => !template.members.some(m => m.id === e)))) throw new Error(`Invalid entries of group ${entry.id}`);
+  }
+  // A deprecated template names the live template that replaces it; the old id stays installable so installs keep updating.
+  for (const entry of catalog.groups) {
+    if ((entry.stability === 'deprecated') !== (entry.replaced_by !== undefined)) throw new Error(`Group ${entry.id}: replaced_by goes with stability deprecated`);
+    if (entry.replaced_by !== undefined && !catalog.groups.some(g => g.id === entry.replaced_by && g.stability !== 'deprecated')) throw new Error(`Group ${entry.id} is replaced by an unknown or deprecated group`);
   }
   // Company templates are listed apart from groups, and a catalog entry never offers one publicly: they are internal and
   // experimental until a founder decides otherwise (Soot's branding has no "company OS").
@@ -25,7 +33,11 @@ export async function readGroups(root) {
   }
   return catalog;
 }
-const stability = e => (e.stability === undefined && e.audience === undefined) || (e.stability === 'experimental' && e.audience === 'internal');
+const stability = e => (e.stability === undefined && e.audience === undefined) || (e.stability === 'experimental' && e.audience === 'internal') || (e.stability === 'deprecated' && [undefined, 'internal'].includes(e.audience));
+// Kaufman's five parts of a business (The Personal MBA), the ids company-loop tags opportunities and parts with.
+export const PARTS = ['value', 'marketing', 'sales', 'delivery', 'finance'];
+/** Which live templates can own each part: `{part: [template id]}`, from the catalog's `parts`. Deprecated templates own nothing. */
+export const partOwners = catalog => Object.fromEntries(PARTS.map(p => [p, catalog.groups.filter(g => g.stability !== 'deprecated' && (g.parts ?? []).includes(p)).map(g => g.id)]));
 // A member selects a pack whole ("id"), read-only ("id:read") or narrowed to named tools ("id:tools=a,b"), as the runtime's PackRef reads it.
 const PACK_REF = /^[a-z0-9][a-z0-9_-]{0,47}(:read|:tools=[a-z0-9_]{1,64}(,[a-z0-9_]{1,64})*)?$/;
 export const refPack = u => u.split(':')[0];

@@ -1,8 +1,8 @@
 {
   "api_version": "soot/group-template/v2",
   "id": "support-team",
-  "name": "Support team",
-  "description": "A website answerer and a feedback desk: visitors get answers from your product facts, and what they ask, report or want lands as voice-of-customer rows for you.",
+  "name": "Support team (deprecated)",
+  "description": "Deprecated, use `support`. A website answerer and a feedback desk: visitors get answers from your product facts, and what they ask, report or want lands as voice-of-customer rows for you.",
   "root": "",
   "members": [
     {

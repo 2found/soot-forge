@@ -1,8 +1,8 @@
 {
   "api_version": "soot/group-template/v2",
   "id": "marketing-team",
-  "name": "Marketing team",
-  "description": "A radar, a writer and an editor who research, write, check, publish and learn for one product from the marketing pack's own storage, with each publish approved by you unless you say otherwise.",
+  "name": "Marketing team (deprecated)",
+  "description": "Deprecated, use `growth`. A radar, a writer and an editor who research, write, check, publish and learn for one product from the marketing pack's own storage, with each publish approved by you unless you say otherwise.",
   "root": "",
   "members": [
     {

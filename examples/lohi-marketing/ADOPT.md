@@ -1,7 +1,7 @@
 # Adopt: move the Lohi workspace onto teams
 
 Experimental, internal. Lohi is a single product `lohi`; nothing extra is declared.
-Teams: insight (lead), marketing, financial, op-catalog (Soot `lohi-catalog`), and cs as a
+Teams (the five standard ones): insight (lead), growth, finance, operations (Soot `lohi-catalog`), and support as a
 remote team at `https://soot.lohi2.com`. Build stays outside Soot (Claude Code with
 `bbs team`), so it is not in the compiled company; the compiler says so.
 
@@ -44,14 +44,15 @@ soot company adopt lohi.company.json --config <ws>/deployment.json
 
 ## What changes
 
-- `groups` appear: insight, marketing, financial, op-catalog, and cs as a remote team.
+- `groups` appear: insight, growth, finance, operations, and support as a remote team. (The live Mac Nest was adopted
+  before the standard and keeps its ids `marketing`, `financial`, `op-catalog` and `cs`; see the 2found Soot migration plan.)
 - Every schedule gets a `group` (the `company-*` schedules and the other `lohi-editor`
-  schedules land in marketing).
-- A team budget is the sum of its members' daily caps (insight 130000, marketing 250000,
-  financial 30000, op-catalog 80000 in the lean profile).
+  schedules land in growth).
+- A team budget is the sum of its members' daily caps (insight 130000, growth 250000,
+  finance 30000, operations 80000 in the lean profile).
 - Each old `soot:` scope gets a `team:<id>` read grant, and `default_groups` is set so each
   Soot can still be chatted to.
-- cs needs `CS_RUNTIME_TOKEN` in Nest.
+- support needs `CS_RUNTIME_TOKEN` in Nest.
 
 ## 5. Verify
 

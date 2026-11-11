@@ -3,48 +3,72 @@
   "repository": "2found/soot-forge",
   "groups": [
     {
-      "id": "marketing-team",
-      "name": "Marketing team",
-      "description": "A radar, a writer and an editor who research, write, check, publish and learn for one product from the marketing pack's own storage, with each publish approved by you unless you say otherwise.",
-      "source": "groups/marketing-team/group.source.json"
-    },
-    {
-      "id": "team-insight",
-      "name": "Insight team",
+      "id": "insight",
+      "name": "Insight",
       "description": "Đôi mắt và đầu mối gọn của công ty: Analyst đọc số liệu và viết bản tổng hợp hằng tuần, Radar theo dõi thị trường ở chế độ chỉ đọc. Nhóm cũng đặt mục tiêu, chạy buổi xem lại hằng tuần và chia ngân sách token giữa các nhóm; người sáng lập quyết.",
-      "source": "groups/team-insight/group.source.json",
+      "source": "groups/insight/group.source.json",
       "stability": "experimental",
-      "audience": "internal"
+      "audience": "internal",
+      "parts": [
+        "value"
+      ],
+      "entries": [
+        "analyst"
+      ]
     },
     {
-      "id": "team-marketing",
-      "name": "Marketing team (company)",
-      "description": "Tiếng nói của công ty: Writer chỉ viết, Publisher đăng những gì đã qua kiểm tra. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này, không phải nhóm riêng.",
-      "source": "groups/team-marketing/group.source.json",
-      "stability": "experimental",
-      "audience": "internal"
+      "id": "growth",
+      "name": "Growth",
+      "description": "Marketing và bán hàng của công ty: Researcher tìm tín hiệu và nguồn, Writer chỉ viết, Editor kiểm tra rồi đăng những gì đã qua kiểm tra và là Đầu mối. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này, không phải nhóm riêng.",
+      "source": "groups/growth/group.source.json",
+      "parts": [
+        "marketing",
+        "sales"
+      ],
+      "entries": [
+        "editor"
+      ]
     },
     {
-      "id": "team-financial",
-      "name": "Financial team",
+      "id": "support",
+      "name": "Support",
+      "description": "Giao giá trị phía khách: Answerer trả lời khách từ dữ kiện của sản phẩm trên website và các kênh chat; Feedback desk (Đầu mối) gom điều khách hỏi, báo hoặc muốn thành các dòng voice-of-customer cho bạn.",
+      "source": "groups/support/group.source.json",
+      "parts": [
+        "delivery"
+      ],
+      "entries": [
+        "desk",
+        "answerer"
+      ]
+    },
+    {
+      "id": "operations",
+      "name": "Operations",
+      "description": "Giao giá trị phía sản phẩm: mỗi việc vận hành của công ty (danh mục, theo dõi máy chủ, nhập nội dung) là một Soot riêng trong nhóm này. Mẫu mang một Operator đầu tiên; gói của việc đến từ sản phẩm nên mẫu không mang sẵn, và mỗi việc sau thêm một Soot.",
+      "source": "groups/operations/group.source.json",
+      "stability": "experimental",
+      "audience": "internal",
+      "parts": [
+        "delivery"
+      ],
+      "entries": [
+        "operator"
+      ]
+    },
+    {
+      "id": "finance",
+      "name": "Finance",
       "description": "Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
-      "source": "groups/team-financial/group.source.json",
+      "source": "groups/finance/group.source.json",
       "stability": "experimental",
-      "audience": "internal"
-    },
-    {
-      "id": "team-op",
-      "name": "Operations team (one job)",
-      "description": "Nhóm cho một việc vận hành của công ty (danh mục, kho hàng, nhập nội dung). Dùng một lần cho mỗi việc: gói của việc đó đến từ sản phẩm nên mẫu không mang sẵn.",
-      "source": "groups/team-op/group.source.json",
-      "stability": "experimental",
-      "audience": "internal"
-    },
-    {
-      "id": "support-team",
-      "name": "Support team",
-      "description": "A website answerer and a feedback desk: visitors get answers from your product facts, and what they ask, report or want lands as voice-of-customer rows for you.",
-      "source": "groups/support-team/group.source.json"
+      "audience": "internal",
+      "parts": [
+        "finance"
+      ],
+      "entries": [
+        "controller"
+      ]
     },
     {
       "id": "society-sim",
@@ -57,6 +81,58 @@
       "name": "Server watch",
       "description": "One server-care Soot checks your host every morning and files remediations that wait for your approval; nothing runs until you resume the schedule and approve each fix.",
       "source": "groups/server-watch/group.source.json"
+    },
+    {
+      "id": "marketing-team",
+      "name": "Marketing team (deprecated)",
+      "description": "Deprecated, use `growth`. A radar, a writer and an editor who research, write, check, publish and learn for one product from the marketing pack's own storage, with each publish approved by you unless you say otherwise.",
+      "source": "groups/marketing-team/group.source.json",
+      "stability": "deprecated",
+      "replaced_by": "growth"
+    },
+    {
+      "id": "support-team",
+      "name": "Support team (deprecated)",
+      "description": "Deprecated, use `support`. A website answerer and a feedback desk: visitors get answers from your product facts, and what they ask, report or want lands as voice-of-customer rows for you.",
+      "source": "groups/support-team/group.source.json",
+      "stability": "deprecated",
+      "replaced_by": "support"
+    },
+    {
+      "id": "team-insight",
+      "name": "Insight team (deprecated)",
+      "description": "Deprecated, use `insight`. Đôi mắt và đầu mối gọn của công ty: Analyst đọc số liệu và viết bản tổng hợp hằng tuần, Radar theo dõi thị trường ở chế độ chỉ đọc. Nhóm cũng đặt mục tiêu, chạy buổi xem lại hằng tuần và chia ngân sách token giữa các nhóm; người sáng lập quyết.",
+      "source": "groups/team-insight/group.source.json",
+      "stability": "deprecated",
+      "audience": "internal",
+      "replaced_by": "insight"
+    },
+    {
+      "id": "team-marketing",
+      "name": "Marketing team (company) (deprecated)",
+      "description": "Deprecated, use `growth`. Tiếng nói của công ty: Writer chỉ viết, Publisher đăng những gì đã qua kiểm tra. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này, không phải nhóm riêng.",
+      "source": "groups/team-marketing/group.source.json",
+      "stability": "deprecated",
+      "audience": "internal",
+      "replaced_by": "growth"
+    },
+    {
+      "id": "team-financial",
+      "name": "Financial team (deprecated)",
+      "description": "Deprecated, use `finance`. Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
+      "source": "groups/team-financial/group.source.json",
+      "stability": "deprecated",
+      "audience": "internal",
+      "replaced_by": "finance"
+    },
+    {
+      "id": "team-op",
+      "name": "Operations team (one job) (deprecated)",
+      "description": "Deprecated, use `operations`. Nhóm cho một việc vận hành của công ty (danh mục, kho hàng, nhập nội dung). Dùng một lần cho mỗi việc: gói của việc đó đến từ sản phẩm nên mẫu không mang sẵn.",
+      "source": "groups/team-op/group.source.json",
+      "stability": "deprecated",
+      "audience": "internal",
+      "replaced_by": "operations"
     }
   ],
   "companies": [

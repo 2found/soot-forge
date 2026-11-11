@@ -1,8 +1,8 @@
 {
   "api_version": "soot/group-template/v3",
   "id": "team-op",
-  "name": "Operations team (one job)",
-  "description": "Nhóm cho một việc vận hành của công ty (danh mục, kho hàng, nhập nội dung). Dùng một lần cho mỗi việc: gói của việc đó đến từ sản phẩm nên mẫu không mang sẵn.",
+  "name": "Operations team (one job) (deprecated)",
+  "description": "Deprecated, use `operations`. Nhóm cho một việc vận hành của công ty (danh mục, kho hàng, nhập nội dung). Dùng một lần cho mỗi việc: gói của việc đó đến từ sản phẩm nên mẫu không mang sẵn.",
   "root": "",
   "members": [
     {

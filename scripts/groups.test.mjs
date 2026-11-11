@@ -1,19 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readGroups, validateGroup, refPack, refTools } from './groups.mjs';
+import { readGroups, validateGroup, refPack, refTools, partOwners, PARTS } from './groups.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const packTool = (pack, name) => JSON.parse(readFileSync(new URL(`../packs/${pack}/pack.json`, import.meta.url), 'utf8')).tools.find(t => t.name === name);
 const packJson = pack => JSON.parse(readFileSync(new URL(`../packs/${pack}/pack.json`, import.meta.url), 'utf8'));
 const source = id => JSON.parse(readFileSync(new URL(`../groups/${id}/group.source.json`, import.meta.url), 'utf8'));
 
-test('the catalog lists the Đầu mối templates (no root) first and every template validates', async () => {
+const STANDARD = ['insight', 'growth', 'support', 'operations', 'finance'];
+const DEPRECATED = { 'marketing-team': 'growth', 'support-team': 'support', 'team-insight': 'insight', 'team-marketing': 'growth', 'team-financial': 'finance', 'team-op': 'operations' };
+
+test('the catalog lists the five standard teams first, then the utilities, then the deprecated ids; every template validates', async () => {
   const catalog = await readGroups(root);
-  assert.deepEqual(catalog.groups.map(g => g.id), ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team', 'society-sim', 'server-watch']);
-  for (const id of ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team', 'server-watch']) {
+  assert.deepEqual(catalog.groups.map(g => g.id), [...STANDARD, 'society-sim', 'server-watch', ...Object.keys(DEPRECATED)]);
+  for (const id of [...STANDARD, 'server-watch', ...Object.keys(DEPRECATED)]) {
     const t = source(id);
-    assert.equal(t.api_version, id.startsWith('team-') ? 'soot/group-template/v3' : 'soot/group-template/v2');
+    assert.equal(t.api_version, STANDARD.includes(id) || id.startsWith('team-') ? 'soot/group-template/v3' : 'soot/group-template/v2');
         assert.equal(t.root, '', `${id} asks for its Đầu mối`);
     for (const m of t.members) {
       assert.match(m.soul, /Đầu mối/, `${id}/${m.id} knows what to do as the team's Đầu mối`);
@@ -25,7 +28,7 @@ test('the catalog lists the Đầu mối templates (no root) first and every tem
 });
 
 test('templates carry no credentials, grants or approvals', () => {
-  for (const id of ['marketing-team', 'team-insight', 'team-marketing', 'team-financial', 'team-op', 'support-team']) {
+  for (const id of [...STANDARD, ...Object.keys(DEPRECATED)]) {
     const raw = readFileSync(new URL(`../groups/${id}/group.source.json`, import.meta.url), 'utf8');
     assert.doesNotMatch(raw, /service_token|"token"|approvals|host_use|host_packs|access"/, id);
   }
@@ -84,28 +87,39 @@ test('marketing-team is hubless and asks for publish approval, required by defau
   assert.equal(lohi.approvals.marketing_claim, 'auto', 'the Lohi recipe is publish_approval none');
 });
 
-test('company team groups: one group per team, roles by job, no private content table, support is not a member, lean budgets below the old ceiling', () => {
-  const g = Object.fromEntries(['team-insight', 'team-marketing', 'team-financial', 'team-op'].map(id => [id, validateGroup(source(id))]));
-  assert.deepEqual(g['team-insight'].members.map(m => m.id), ['analyst', 'radar']);
-  assert.deepEqual(g['team-marketing'].members.map(m => m.id), ['writer', 'publisher']);
-  assert.deepEqual(g['team-financial'].members.map(m => m.id), ['finance']);
-  assert.deepEqual(g['team-financial'].members[0].packs, ['company-loop:tools=signals', 'marketing:read'], 'finance is read-only: one read tool and a read-only pack');
+test('company team groups: one group per team, roles by job, no private content table, lean budgets below the old ceiling', () => {
+  const g = Object.fromEntries(STANDARD.map(id => [id, validateGroup(source(id))]));
+  assert.deepEqual(g.insight.members.map(m => m.id), ['analyst', 'radar']);
+  assert.deepEqual(g.growth.members.map(m => m.id), ['editor', 'writer', 'researcher']);
+  assert.deepEqual(g.support.members.map(m => m.id), ['desk', 'answerer']);
+  assert.deepEqual(g.operations.members.map(m => m.id), ['operator']);
+  assert.deepEqual(g.finance.members.map(m => m.id), ['controller']);
+  assert.deepEqual(g.finance.members[0].packs, ['company-loop:tools=signals', 'marketing:read'], 'the controller is read-only: one read tool and a read-only pack');
   assert.equal(packTool('company-loop', 'signals').run.mode, 'read');
-  assert.match(g['team-financial'].members[0].mission, /never change a price|never change a price, a budget/i);
-  assert.match(g['team-marketing'].members[0].mission, /no `content` table/);
-  assert.match(g['team-marketing'].members[0].mission, /Never check, schedule or publish/);
-  assert.deepEqual(g['team-insight'].members[1].packs, ['marketing:tools=radar_read,signals_list,signals_mark'], 'the radar carries three tools of the pack, not forty');
-  assert.match(g['team-insight'].members[1].mission, /Never post, reply, sign in/);
+  assert.match(g.finance.members[0].mission, /never change a price|never change a price, a budget/i);
+  const writer = g.growth.members.find(m => m.id === 'writer'), editor = g.growth.members.find(m => m.id === 'editor'), researcher = g.growth.members.find(m => m.id === 'researcher');
+  assert.match(writer.mission, /no `content` table/);
+  assert.match(writer.mission, /Never check, schedule or publish/);
+  assert.deepEqual(researcher.packs, ['marketing:tools=radar_read,signals_list,signals_mark', 'research'], 'the researcher reads: three tools of the marketing pack and the web, no posting');
+  assert.match(researcher.mission, /Never post, reply, sign in/);
+  assert.deepEqual(editor.packs, ['marketing', 'browser-use', 'team-rhythm'], 'the Đầu mối holds the posting tools and the rhythm skill; the writer does not');
+  assert.deepEqual(g.growth.bindings.map(b => [b.member, b.name]), [['editor', 'MARKETING_CLAIM_KEY']]);
+  assert.deepEqual(g.insight.members[1].packs, ['marketing:tools=radar_read,signals_list,signals_mark'], 'the radar carries three tools of the pack, not forty');
+  assert.match(g.insight.members[1].mission, /Never post, reply, sign in/);
   assert.doesNotMatch(JSON.stringify(g), /team table `content`/);
+  // The answerer reads only the product's knowledge: no workspace pack, no write tool but record_feedback.
+  assert.deepEqual(g.support.members.find(m => m.id === 'answerer').packs, ['live-chat']);
   const lean = Object.values(g).flatMap(x => Object.values(x.profiles.find(p => p.id === 'lean').members));
-  assert.ok(lean.reduce((n, m) => n + m.daily_tokens, 0) < 550000, 'below the old Writer 250k + Editor 300k');
-  assert.ok(lean.every(m => m.tier === 'lite' || m.tier === 'flash'));
-  const bad = fn => assert.throws(() => validateGroup(fn(structuredClone(g['team-insight']))));
+  assert.ok(lean.every(m => ['lite', 'flash'].includes(m.tier)));
+  const leanTeams = Object.fromEntries(STANDARD.map(id => [id, g[id].profiles.find(p => p.id === 'lean').team_daily_tokens]));
+  assert.deepEqual(leanTeams, { insight: 130000, growth: 250000, support: 400000, operations: 80000, finance: 30000 });
+  assert.ok(leanTeams.insight + leanTeams.growth + leanTeams.operations + leanTeams.finance <= 550000, 'the company teams (support runs on its own server) stay under the company ceiling');
+  const bad = fn => assert.throws(() => validateGroup(fn(structuredClone(g.insight))));
   bad(x => { x.members[1].packs = ['marketing', 'nope']; return x; });
   bad(x => { x.profiles[0].members.radar.tier = 'huge'; return x; });
 });
 
-const TEAMS = ['team-insight', 'team-marketing', 'team-financial', 'team-op'];
+const TEAMS = STANDARD;
 
 test('v3: the team templates carry a contract, a team budget per profile and member tool-chain schedules', () => {
   for (const id of TEAMS) {
@@ -114,6 +128,7 @@ test('v3: the team templates carry a contract, a team budget per profile and mem
     assert.equal(t.contract.version, 'team-contract/v1', id);
     assert.ok(t.contract.decides.self.length && t.contract.escalates.length, `${id} says what it decides and when it escalates`);
     assert.deepEqual([t.contract.consumes, t.contract.requests], [undefined, undefined], `${id}: edges are the company's, a group alone has no other team`);
+    assert.equal(t.root, '', `${id}: the installer names the Đầu mối`);
     for (const p of t.profiles) {
       assert.ok(p.team_daily_tokens >= Object.values(p.members).reduce((n, m) => n + m.daily_tokens, 0), `${id}/${p.id}: the team budget holds its members' caps`);
     }
@@ -157,7 +172,7 @@ test('v3: contract tables name real columns of their packs, and a member of the 
 });
 
 test('v3 fields are refused where the runtime refuses them', () => {
-  const t = source('team-insight');
+  const t = source('insight');
   const bad = (change, why) => assert.throws(() => validateGroup(change(structuredClone(t))), undefined, why);
   bad(x => ({ ...x, api_version: 'soot/group-template/v2' }), 'a contract on v2');
   bad(x => { delete x.schedules[1].member; return x; }, 'a chain nobody runs: the lead holds none of the team packs');
@@ -188,4 +203,63 @@ test('the built catalog says which templates ask for a Đầu mối (root "")', 
     assert.equal(byId['marketing-team'].root, '', 'no root: the installer picks the Đầu mối');
     assert.equal(byId['society-sim'].root, 'moderator');
   } finally { await rm(work, { recursive: true, force: true }); }
+});
+
+// ---- the standard set: five teams, one Đầu mối each, the five parts of a business ------------------------------------
+
+test('standard teams: each names the parts it owns and its entries (the Đầu mối first), and together they own all five parts', async () => {
+  const catalog = await readGroups(root);
+  const by = Object.fromEntries(catalog.groups.map(g => [g.id, g]));
+  assert.deepEqual(Object.fromEntries(STANDARD.map(id => [id, by[id].parts])), { insight: ['value'], growth: ['marketing', 'sales'], support: ['delivery'], operations: ['delivery'], finance: ['finance'] });
+  assert.deepEqual(Object.fromEntries(STANDARD.map(id => [id, by[id].entries])), { insight: ['analyst'], growth: ['editor'], support: ['desk', 'answerer'], operations: ['operator'], finance: ['controller'] });
+  assert.deepEqual(STANDARD.map(id => by[id].name), ['Insight', 'Growth', 'Support', 'Operations', 'Finance'], 'English team names');
+  // Every part has an owning team template; company-loop's part check maps a part to the team that holds it.
+  const owners = partOwners(catalog);
+  assert.deepEqual(Object.keys(owners), PARTS);
+  for (const part of PARTS) assert.ok(owners[part].length >= 1, `${part} has an owning team template`);
+  assert.deepEqual(owners, { value: ['insight'], marketing: ['growth'], sales: ['growth'], delivery: ['support', 'operations'], finance: ['finance'] });
+  // Only the entry team that takes chats lists two entries: a member that is not an entry cannot be chatted to (2agent conversation.resolveGroup).
+  assert.deepEqual(STANDARD.filter(id => by[id].entries.length > 1), ['support']);
+  for (const id of STANDARD) assert.ok(by[id].entries.every(e => source(id).members.some(m => m.id === e)), id);
+  // The utilities own no part and are not part of the standard set.
+  for (const id of ['society-sim', 'server-watch']) assert.equal(by[id].parts, undefined, id);
+  // The first member of a standard template is its Đầu mối (the compiler's mirror and the runtime's adopt order read it).
+  for (const id of STANDARD) assert.equal(source(id).members[0].id, by[id].entries[0], `${id}: the first member is the Đầu mối`);
+});
+
+test('deprecated ids stay installable unchanged and name the template that replaces them', async () => {
+  const catalog = await readGroups(root);
+  for (const [old, now] of Object.entries(DEPRECATED)) {
+    const e = catalog.groups.find(g => g.id === old), t = validateGroup(source(old));
+    assert.equal(e.stability, 'deprecated', old);
+    assert.equal(e.replaced_by, now, old);
+    assert.ok(STANDARD.includes(now), `${old} is replaced by a standard team`);
+    assert.match(t.description, new RegExp(`^Deprecated, use \`${now}\``), old);
+    assert.equal(e.parts, undefined, `${old} owns no part`);
+  }
+  assert.deepEqual(partOwners(catalog).marketing, ['growth'], 'a deprecated template owns nothing');
+});
+
+test('the catalog refuses a bad part, a foreign entry and an unmatched replaced_by', async () => {
+  const { mkdtemp, cp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'forge-catalog-'));
+  try {
+    await cp(join(root, 'groups'), join(dir, 'groups'), { recursive: true });
+    const base = JSON.parse(readFileSync(join(root, 'groups.json'), 'utf8'));
+    const refuses = async (change, why) => {
+      const c = structuredClone(base); change(c.groups);
+      await writeFile(join(dir, 'groups.json'), JSON.stringify(c));
+      await assert.rejects(readGroups(dir), undefined, why);
+    };
+    await writeFile(join(dir, 'groups.json'), JSON.stringify(base));
+    await readGroups(dir);
+    await refuses(g => { g[0].parts = ['money']; }, 'an unknown part');
+    await refuses(g => { g[0].parts = ['value', 'value']; }, 'a repeated part');
+    await refuses(g => { g[0].entries = ['nobody']; }, 'an entry that is not a member');
+    await refuses(g => { g.find(x => x.id === 'team-op').replaced_by = 'team-insight'; }, 'replaced by a deprecated template');
+    await refuses(g => { delete g.find(x => x.id === 'team-op').replaced_by; }, 'deprecated without a replacement');
+    await refuses(g => { g[0].replaced_by = 'growth'; }, 'replaced_by on a live template');
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
