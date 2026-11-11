@@ -5,9 +5,11 @@
 // through `soot goals checkin` against this tool's own runtime, with the per-call token the host grants for
 // `needs.runtime` (SOOT_RUNTIME_URL + SOOT_RUNTIME_TOKEN: goals.read and goals.checkin only, revoked when the call ends).
 // The tool never borrows the operator token or reads connections.json, and passes no --config; a runtime that issues
-// no token leaves the quiet `goals_unreadable` skip. Nothing else about the goal changes. Guardrail refs resolve the same way but are only reported: a check-in holds one value.
+// no token leaves the quiet `goals_unreadable` skip. Nothing else about the goal changes. Guardrail refs resolve the same way and are never recorded (a check-in holds one value):
+// a breached one raises a card for its period and wakes the Đầu mối once; back inside its limit, the card settles.
 import { execFile } from 'node:child_process';
-import { iso, short, skippedFor } from './base.mjs';
+import { createHash } from 'node:crypto';
+import { getState, iso, setState, short, skippedFor } from './base.mjs';
 import { findSoot } from './health.mjs';
 import { boardFor } from './scoreboard.mjs';
 import { productId, hostProduct } from './products.mjs';
@@ -18,8 +20,10 @@ const AUTO_CONFIDENCE = 5;
 const PAGE = 200, MAX_PAGES = 5;
 
 const cli = (bin, call, args) => new Promise(resolve => {
-  execFile(bin, [...args, '--json'], { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, SOOT_RUNTIME_URL: call.url, SOOT_RUNTIME_TOKEN: call.token } }, (err, stdout) => {
-    try { resolve({ ok: !err, json: JSON.parse(stdout) }); } catch { resolve({ ok: false, json: null }); }
+  execFile(bin, [...args, '--json'], { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, SOOT_RUNTIME_URL: call.url, SOOT_RUNTIME_TOKEN: call.token } }, (err, stdout, stderr) => {
+    // stderr is the CLI's own error line (it never prints the token); kept short so a broken host says why.
+    const why = short(String(stderr ?? '') || (err ? err.message : ''), 200);
+    try { resolve({ ok: !err, json: JSON.parse(stdout), why }); } catch { resolve({ ok: false, json: null, why }); }
   });
 });
 
@@ -43,7 +47,7 @@ export async function goals_checkin(input, deps) {
   const goals = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const got = await cli(bin, call, ['goals', 'list', '--status', 'active', '--limit', String(PAGE), '--cursor', String(page * PAGE)]);
-    if (!got.ok || !Array.isArray(got.json?.goals)) return page === 0 ? { ok: true, skipped: true, reason_code: 'goals_unreadable', notify: false, wake: false } : { ok: false, reason_code: 'goals_unreadable', message: 'Không đọc hết danh sách mục tiêu.' };
+    if (!got.ok || !Array.isArray(got.json?.goals)) return page === 0 ? { ok: true, skipped: true, reason_code: 'goals_unreadable', reason: 'soot_failed', ...(got.why ? { detail: got.why } : {}), notify: false, wake: false } : { ok: false, reason_code: 'goals_unreadable', message: 'Không đọc hết danh sách mục tiêu.' };
     goals.push(...got.json.goals);
     if (got.json.goals.length < PAGE) break;
   }
@@ -56,13 +60,21 @@ export async function goals_checkin(input, deps) {
     const tile = b?.tiles.find(t => t.key === r.key);
     return { ...r, board: b, value: Number.isFinite(tile?.value) ? tile.value : null };
   };
-  const checked = [], skipped = [], guardrails = [], failed = [];
+  const checked = [], skipped = [], guardrails = [], failed = [], raise = [], settle = [];
+  let woke = false;
   for (const g of goals) {
     for (const r of g.guardrails ?? []) {
       const gm = await reading(r.ref, g.product);
       if (gm?.value === null || !gm) continue;
       const worse = Number.isFinite(r.limit) && (r.good === 'down' ? gm.value > r.limit : gm.value < r.limit);
       guardrails.push({ goal: g.id, ref: r.ref, value: gm.value, limit: Number.isFinite(r.limit) ? r.limit : null, breached: worse });
+      if (input.dry_run) continue;
+      const group = guardGroup(g, r);
+      if (!worse) { settle.push(group); continue; }
+      const period = `${gm.board.from}..${gm.board.to}`;
+      raise.push(guardCard(g, r, gm, period));
+      // The card is filed once per period by the runtime; the Đầu mối is woken once per period too.
+      if (await getState(store, group) !== period) { await setState(store, group, period); woke = true; }
     }
     const m = await reading(g.metric?.ref, g.product);
     if (!m) { skipped.push({ goal: g.id, why: 'not_scoreboard_ref' }); continue; }
@@ -78,5 +90,23 @@ export async function goals_checkin(input, deps) {
     if (out.ok) checked.push({ goal: g.id, ref: g.metric.ref, value: m.value, period: `${m.board.from}..${m.board.to}` });
     else failed.push({ goal: g.id, ref: g.metric.ref, code: short(String(out.json?.error?.code ?? out.json?.code ?? 'checkin_failed'), 40) });
   }
-  return { done: true, at: iso(now), checked, skipped, failed, guardrails, notify: false, wake: failed.length > 0 };
+  return { done: true, at: iso(now), checked, skipped, failed, guardrails, ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}), notify: false, wake: failed.length > 0 || woke };
+}
+
+/** A breached guardrail is the one reading a person must see: one card per goal, ref and period, settled when the
+ * number is back inside its limit. The runtime files a card id once, so a daily run does not repeat it. */
+// A card id is at most 128 characters and the period adds 23: a long goal id or ref is replaced by its digest.
+const guardGroup = (g, r) => {
+  const plain = `company:guardrail:${g.id}:${r.ref}`;
+  return plain.length <= 100 ? plain : `company:guardrail:${createHash('sha256').update(`${g.id}\0${r.ref}`).digest('hex').slice(0, 24)}`;
+};
+function guardCard(g, r, gm, period) {
+  const name = short(g.title || g.id, 80);
+  const side = r.good === 'down' ? 'vượt trần' : 'dưới sàn';
+  return {
+    id: `${guardGroup(g, r)}:${period}`, group: guardGroup(g, r),
+    title: short(`${r.ref} ${side}: ${fmt(gm.value)} (giới hạn ${fmt(r.limit)})`, 120),
+    why: `Mục tiêu "${name}" có ngưỡng an toàn ${r.ref} ${r.good === 'down' ? 'không quá' : 'không dưới'} ${fmt(r.limit)}; bảng số ${gm.product} kỳ ${period} ghi ${fmt(gm.value)}. Đầu mối của mục tiêu xem nguyên nhân và đề xuất cách xử lý; số về lại trong ngưỡng thì thẻ tự đóng.`,
+    options: [{ id: 'seen', label: 'Đã xem', recommended: true }],
+  };
 }

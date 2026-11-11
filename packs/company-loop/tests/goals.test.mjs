@@ -102,6 +102,51 @@ test('guardrails are reported against their limit, not recorded; dry_run writes 
   assert.deepEqual(out.guardrails, [{ goal: 'g_a', ref: '2novel:refunds', value: 30, limit: 25, breached: true }]);
   assert.equal(out.checked[0].dry_run, true);
   assert.equal(cli.checkins().length, 0);
+  assert.equal(out.raise, undefined);
+  assert.equal(out.wake, false);
+});
+
+test('a breached guardrail raises one card for its period and wakes once; back inside its limit the card settles', async () => {
+  const cli = stubSoot([goal('g_a', '2novel:activated_new', { title: 'Người mới dịch chương đầu', guardrails: [{ ref: '2novel:refunds', good: 'down', limit: 25 }] })]);
+  const w = mk(cli);
+  await w.call('scoreboard_sync');
+  const first = await w.call('goals_checkin');
+  assert.equal(first.raise.length, 1);
+  const card = first.raise[0];
+  assert.equal(card.group, 'company:guardrail:g_a:2novel:refunds');
+  assert.ok(card.id.startsWith(`${card.group}:`) && card.id.length > card.group.length + 1, card.id);
+  assert.match(card.title, /2novel:refunds vượt trần: 30 \(giới hạn 25\)/);
+  assert.match(card.why, /Người mới dịch chương đầu/);
+  assert.equal(first.wake, true);
+  assert.equal(first.notify, false);
+  // The same period again: the card is offered again (the runtime files an id once) but nobody is woken twice.
+  const again = await w.call('goals_checkin');
+  assert.equal(again.raise[0].id, card.id);
+  assert.equal(again.wake, false);
+  // The number back inside its limit settles the group and raises nothing.
+  const before = novel.over.metrics.refunds;
+  novel.over.metrics.refunds = { ...before, value: 20 };
+  try {
+    await w.call('scoreboard_sync');
+    const ok = await w.call('goals_checkin');
+    assert.equal(ok.raise, undefined);
+    assert.deepEqual(ok.settle, ['company:guardrail:g_a:2novel:refunds']);
+    assert.equal(ok.wake, false);
+  } finally { novel.over.metrics.refunds = before; }
+});
+
+test('a guardrail card id stays inside the runtime limit for the longest goal id and ref', async () => {
+  const longRef = `2novel:refunds_${'x'.repeat(40)}`;
+  novel.over.metrics[longRef.split(':')[1]] = { label: 'Dài', unit: 'count', value: 9, previous: 1, good: 'down' };
+  try {
+    const cli = stubSoot([goal(`g_${'a'.repeat(60)}`, '2novel:activated_new', { guardrails: [{ ref: longRef, good: 'down', limit: 1 }] })]);
+    const w = mk(cli);
+    await w.call('scoreboard_sync');
+    const out = await w.call('goals_checkin');
+    const card = out.raise[0];
+    assert.match(card.id, /^[A-Za-z0-9][A-Za-z0-9:._@-]{0,127}$/);
+    assert.ok(card.group.length <= 128 && card.id.startsWith(card.group));
+  } finally { delete novel.over.metrics[longRef.split(':')[1]]; }
 });
 
 test('without a reachable soot CLI the tool answers a quiet skipped and touches nothing', async () => {
@@ -110,9 +155,12 @@ test('without a reachable soot CLI the tool answers a quiet skipped and touches 
   assert.equal(out.skipped, true);
   assert.equal(out.wake, false);
   const broken = stubSoot([]);
-  writeFileSync(broken.bin, '#!/bin/sh\nexit 1\n');
+  writeFileSync(broken.bin, '#!/bin/sh\necho "soot: \\$HOME is not defined" >&2\nexit 1\n');
   const out2 = await mk(broken).call('goals_checkin');
   assert.equal(out2.reason_code, 'goals_unreadable');
+  assert.equal(out2.reason, 'soot_failed');
+  assert.match(out2.detail, /HOME is not defined/);
+  assert.equal(out2.wake, false);
 });
 
 test('a runtime that issues no token leaves the quiet goals_unreadable skip and never runs soot', async () => {

@@ -3,6 +3,13 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.12.5 — 2026-11-11
+
+Baseline: v0.12.4 (79f67cb). Pairs with Soot 0.15.6+ (a pack tool runs `soot goals` with its per-call token and no settings directory; on 0.15.5 server runtimes `goals_checkin` still answered `goals_unreadable`). Storage is unchanged (6).
+
+- **company-loop: a breached guardrail reaches a person.** `goals_checkin` already measured each goal's guardrails against their limit but only listed them, with no wake and no card, so a breach was seen by nobody (on soot.2found.dev, `2novel:subscriptions_canceling` read 4 against a limit of 2). It now raises one card per goal, guardrail ref and scoreboard period (`company:guardrail:<goal>:<ref>:<from>..<to>`, an id the runtime files once), wakes the Đầu mối once for that period (remembered in `state`), and settles the card group once the number is back inside its limit. `dry_run` raises, wakes and stores nothing.
+- **company-loop: `goals_unreadable` says why.** When `soot goals list` fails, the quiet skip now carries `reason: "soot_failed"` and `detail`, the CLI's error line (at most 200 characters; the CLI never prints the token). Before, a host-side failure such as the 0.15.5 `$HOME is not defined` gave an empty answer.
+
 ## 0.12.4 — 2026-11-11
 
 Baseline: v0.12.3 (d0e0e07). **Requires Soot 0.15.5+**: the pack declares `needs.runtime`, a field older runtimes refuse as an unknown field; an older host reports company-loop `blocked` and keeps 0.12.3.
