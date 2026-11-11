@@ -14,6 +14,7 @@ import { delimiter, isAbsolute, join } from 'node:path';
 import { getState, setState, iso, short } from './base.mjs';
 import { latestBoard } from './scoreboard.mjs';
 import { scoreboardSources, syncKey } from './products.mjs';
+import { hasBuild } from './handoff.mjs';
 
 const DAY = 86_400_000;
 export const STAGES = [
@@ -159,8 +160,8 @@ export async function health_sync(input, deps) {
   // Support row (a remote team is not in `teams health`, so it stays a line of its own).
   const base = runtime.ok ? runtime.stages : stages.map(s => ({ key: s.key, label: s.label }));
   const withCs = runtime.ok && runtime.via === 'teams' && !base.some(r => r.key === 'cs' || r.key === 'support') ? [...base, { key: 'cs', label: 'Hỗ trợ khách', external: true }] : base;
-  // A company without a build stage (no PRODUCT_REPO) has nothing to watch there: said, not counted as hunger.
-  const noBuild = !env.PRODUCT_REPO;
+  // A company without a build stage (no product project) has nothing to watch there: said, not counted as hunger.
+  const noBuild = !hasBuild(env);
   const rows = withCs.map(st => {
     const mine = inputs.filter(i => i.starving && (st.key === 'insight' ? ['scoreboard', 'cohorts', 'plans'].includes(i.key) : st.key === 'cs' ? i.key === 'cs' : st.key === 'marketing' ? ['gsc', 'signals', 'tiktok', 'youtube'].includes(i.key) : false))
       .map(i => ({ key: i.key, label: i.label, detail: i.detail }));

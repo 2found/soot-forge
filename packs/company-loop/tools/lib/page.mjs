@@ -7,7 +7,7 @@ import { eq, fail, getState, iso, short } from './base.mjs';
 import { boardFor, dataProducts, labelOf, METRICS, scoreboard_sync } from './scoreboard.mjs';
 import { hitRate, isHit } from './review.mjs';
 import { decide, HOLD_MS, HANDED } from './opportunities.mjs';
-import { startHandoff, bbsReady, isTask } from './handoff.mjs';
+import { startHandoff, bbsReady, hasBuild, isTask, projectOf, PERSON_PREFIX } from './handoff.mjs';
 import { healthView } from './health.mjs';
 import { setParts, partHealth, partsOf, worstPart } from './parts.mjs';
 import { adoptProducts, hostProduct, productId, rememberHost, rowProduct, scoreboardKeys, scoreboardSources, syncKey } from './products.mjs';
@@ -105,7 +105,7 @@ export async function page_view(input, { store, env, now, soot }) {
   const recorded = (await store.query('metrics', [], { limit: 1 })).length > 0;
   // A read tool holds no credential: a sync that ran is the proof the key is there.
   const setup = { key: !!env.PRODUCT_ADMIN_KEY || !!env.SCOREBOARD_KEYS || !!anySync, url: sources.length > 0, table: recorded, sources: sources.length, bad: bad.length, bad_keys: scoreboardKeys(env).bad,
-    repo: !!env.PRODUCT_REPO, bbs: bbsReady(env), build: !!env.PRODUCT_REPO };
+    repo: hasBuild(env), bbs: bbsReady(env), build: hasBuild(env) };
 
   // The scorecard: one product's board, or with every product in view and two or more of them, one row each.
   let scoreboard = null, boards = null;
@@ -141,7 +141,7 @@ export async function page_view(input, { store, env, now, soot }) {
   const proposals = o.keep.filter(x => x.state === 'proposed').length;
   const titleOf = ref => oppOf.get(ref)?.title ?? ref;
   const handoffs = h.keep.map(x => ({ opportunity: x.opportunity, product: x.product, title: titleOf(x.opportunity), summary: oppOf.get(x.opportunity)?.summary ?? null,
-    state: isTask(x) ? 'task' : x.state, requirement_path: x.requirement_path, team_id: x.team_id, ticket: x.ticket, command: x.command, note: x.note, detail: x.detail, released_at: x.released_at ?? null }));
+    state: isTask(x) ? 'task' : x.state, build: !!projectOf(env, x.product), person: x.state === 'task' && String(x.note ?? '').startsWith(PERSON_PREFIX), repo: x.repo ?? null, requirement_path: x.requirement_path, team_id: x.team_id, ticket: x.ticket, command: x.command, note: x.note, detail: x.detail, released_at: x.released_at ?? null }));
   const hasData = !!scoreboard || o.keep.length > 0 || h.keep.length > 0 || d.keep.length > 0;
   const handoffOf = new Map(handoffsAll.map(x => [x.opportunity, x]));
   const topicOf = new Map(topicsAll.filter(x => x.kind === 'content').map(x => [x.opportunity_ref, x]));
@@ -157,7 +157,7 @@ export async function page_view(input, { store, env, now, soot }) {
     next: nextStep({ setup, sync, proposals, handoffs, topics: queued.length, handed: handed.length, product: want, hasData, hong: parts ? worstPart(parts.items) : null }),
     parts, moats,
     scoreboard, boards,
-    opportunities: o.keep.map(x => ({ ref: x.ref, product: x.product, title: x.title, kind: x.kind, state: x.state, summary: x.summary, query: x.query, evidence_refs: x.evidence_refs, signal_count: x.signal_count, est_effort: x.est_effort, est_value: x.est_value, confidence: x.confidence, part: x.part ?? null, awareness: x.awareness ?? null, moat: x.moat ?? null, pain: x.pain ?? null, goal: x.goal ?? null, target_outcome: x.target_outcome, expected_delta: x.expected_delta, check_after_days: x.check_after_days })),
+    opportunities: o.keep.map(x => ({ ref: x.ref, product: x.product, build: !!projectOf(env, x.product), title: x.title, kind: x.kind, state: x.state, summary: x.summary, query: x.query, evidence_refs: x.evidence_refs, signal_count: x.signal_count, est_effort: x.est_effort, est_value: x.est_value, confidence: x.confidence, part: x.part ?? null, awareness: x.awareness ?? null, moat: x.moat ?? null, pain: x.pain ?? null, goal: x.goal ?? null, target_outcome: x.target_outcome, expected_delta: x.expected_delta, check_after_days: x.check_after_days })),
     handoffs,
     decisions: d.keep.slice(0, 40).map(x => ({ at: x.at, stage: x.stage, ref: x.opportunity_ref, product: x.product, title: titleOf(x.opportunity_ref), kind: oppOf.get(x.opportunity_ref)?.kind ?? null, decision: x.decision, by: x.by, part: x.part ?? null, moat: x.moat ?? null, goal: x.goal ?? null, note: x.note, target_outcome: x.target_outcome, expected_delta: x.expected_delta, check_after_days: x.check_after_days, baseline_value: x.baseline_value, actual_delta: x.actual_delta,
       ...verdictOf(x, oppOf.get(x.opportunity_ref), handoffOf.get(x.opportunity_ref), topicOf.get(x.opportunity_ref)) })),
@@ -180,7 +180,7 @@ export async function page_action(input, deps) {
   await adoptProducts(store, await hostProduct(store, input.host));
   switch (input.op) {
     case 'go': case 'later': case 'drop': {
-      const out = await decide({ id: input.id, decision: input.op, note: input.note }, deps, { by: 'founder' });
+      const out = await decide({ id: input.id, decision: input.op, note: input.note, build: input.build }, deps, { by: 'founder' });
       return { ok: true, ...out };
     }
     case 'retry_handoff': {
@@ -189,6 +189,16 @@ export async function page_action(input, deps) {
       if (!opp || !['draft_ready', 'no_repo', 'task', 'approved'].includes(h.state)) fail('invalid_request', 'Không có bàn giao nào chờ chạy lại.');
       const out = await startHandoff(opp, deps);
       return { ok: true, handoff: { state: out.state, note: out.note, command: out.command } };
+    }
+    case 'to_person': {
+      // The founder takes a build that is not running away from Soot: it becomes a task a person does and marks done.
+      const h = await store.one('handoffs', [eq('opportunity', String(input.id))]);
+      if (!h || !['draft_ready', 'no_repo', 'approved', 'blocked'].includes(h.state)) fail('invalid_request', 'Không có bản dựng nào đang dừng để giao cho người với mã này.');
+      // A team that stopped midway left its changes in the checkout: the note says where, and the row keeps the repo and team.
+      const left = h.state === 'blocked' && h.repo;
+      const set = { state: 'task', command: null, detail: null, note: `${PERSON_PREFIX}${left ? ` Phần đội ${h.team_id ?? ''} đã làm còn nằm chưa commit trong ${h.repo}.` : ''} Xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó, hoặc bấm Để Soot dựng để Soot nhận lại.` };
+      await store.update('handoffs', h.id, set);
+      return { ok: true, handoff: { state: 'task', note: set.note }, settle: [`company:handover:${h.opportunity}`, `company:unstarted:${h.opportunity}`] };
     }
     case 'task_done': {
       // A task done by a person: the outcome is measured from today, as a release would be.
@@ -215,5 +225,5 @@ export async function page_action(input, deps) {
       return { ok: out.ok !== false, ...out };
     }
   }
-  return fail('invalid_request', 'op là go, later, drop, retry_handoff, task_done, link_ticket, part_set hoặc sync.');
+  return fail('invalid_request', 'op là go, later, drop, retry_handoff, to_person, task_done, link_ticket, part_set hoặc sync.');
 }

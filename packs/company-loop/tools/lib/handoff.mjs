@@ -4,11 +4,14 @@
 // handoff is `draft_ready` with the exact command, never a silent drop. A runtime with no
 // build stage (no PRODUCT_REPO, the always-on server) records the Go as `approved` with the requirement;
 // the runtime that has the repo pulls it (builds_pull). With no such runtime a person does the
-// work, and marking it done (page op task_done) starts the outcome clock.
+// work, and marking it done (page op task_done) starts the outcome clock. Each product builds in its own project
+// (`PRODUCT_REPOS`, else `PRODUCT_REPO`); the founder can also give a Go to a person (`person`), and take a build that
+// is not running away from Soot later (page op to_person).
 import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { eq, iso, short } from './base.mjs';
 import { runBbs, findBbs, shq } from './bbs.mjs';
+import { productId } from './products.mjs';
 
 export const reqName = ref => `REQ-${ref}.md`;
 export const teamIdOf = ref => `loop-${ref.toLowerCase()}`;
@@ -91,17 +94,56 @@ export function requirementDir(env, repo) {
 export const nextText = (teamId, reqPath) =>
   `Bước tiếp: đội ${teamId} đọc yêu cầu (${reqPath}), tự làm rõ, thiết kế và dựng trong Orca; tiến độ hiện ở trang Công ty. Kho mã của bạn không bị ghi gì. Lần duy nhất cần bạn là cho phép phát hành, và việc đó làm trong terminal Orca của đội (bbs ticket approval resolve --action approve), không làm ở Nest.`;
 
-/** Does this runtime build for this product? It needs PRODUCT_REPO, and when the run is a product's own (SOOT_PRODUCT) that must be the same product. */
-export const buildsHere = (env, product) => !!env.PRODUCT_REPO && !(env.SOOT_PRODUCT && product && env.SOOT_PRODUCT !== product);
+/**
+ * The project a product builds in: its `PRODUCT_REPOS` entry (`product=<project>`, split by comma or newline), else
+ * `PRODUCT_REPO`; '' when none. A runtime that sets only PRODUCT_REPO behaves as before: that one repo is every product's.
+ */
+export function projectOf(env, product) {
+  const id = productId(product);
+  for (const raw of String(env.PRODUCT_REPOS ?? '').split(/[,\n]/)) {
+    const at = raw.indexOf('=');
+    if (id && at > 0 && productId(raw.slice(0, at)) === id && raw.slice(at + 1).trim()) return raw.slice(at + 1).trim();
+  }
+  return String(env.PRODUCT_REPO ?? '').trim();
+}
+const explicit = (env, product) => { const id = productId(product); return !!id && String(env.PRODUCT_REPOS ?? '').split(/[,\n]/).some(raw => { const at = raw.indexOf('='); return at > 0 && productId(raw.slice(0, at)) === id && !!raw.slice(at + 1).trim(); }); };
+/** Does this runtime have a build stage at all (any project)? */
+export const hasBuild = env => !!String(env.PRODUCT_REPO ?? '').trim() || /=\s*\S/.test(String(env.PRODUCT_REPOS ?? ''));
+
+/**
+ * Does this runtime build for this product? A `PRODUCT_REPOS` entry names the product, so it is its own. The PRODUCT_REPO
+ * fallback is every product's, except that a product's own run (SOOT_PRODUCT) must be the same product.
+ */
+export const buildsHere = (env, product) => explicit(env, product) || (!!String(env.PRODUCT_REPO ?? '').trim() && !(env.SOOT_PRODUCT && product && env.SOOT_PRODUCT !== product));
+
+/**
+ * A project is an absolute path, or a bbs registry workspace by name (`ws`, or `ws/<repo folder>` when it lists several):
+ * the name is the same on every machine, bbs knows where it is on this one. {repo} or {why}.
+ */
+export async function resolveProject(env, project) {
+  if (project.startsWith('/')) return { repo: project };
+  const [ws, name, ...rest] = project.split('/');
+  if (!/^[\w.-]+$/.test(ws) || rest.length) return { why: `"${short(project, 60)}" không phải đường dẫn tuyệt đối hay tên workspace bbs.` };
+  const r = await runBbs(env, ['config', 'workspace', 'show', ws]);
+  if (r.missing) return { why: `Máy này chưa có bbs nên không tìm được workspace ${ws}.` };
+  if (!r.ok) return { why: `bbs không có workspace ${ws} trên máy này.` };
+  const paths = r.stdout.split('\n').map(l => /^\s+\S+\s{2}(\/.*?)(?:\s{2}role=\S+)?$/.exec(l)?.[1]).filter(Boolean);
+  const hit = name ? paths.filter(p => basename(p) === name) : paths;
+  if (hit.length === 1) return { repo: hit[0] };
+  return { why: name ? `Workspace ${ws} không có kho ${name} trên máy này.` : `Workspace ${ws} có ${paths.length} kho trên máy này; ghi rõ ${ws}/<tên thư mục kho>.` };
+}
 
 /**
  * Write the requirement (never over a file a person may have edited) and spawn the team. Pure of the pack store: it
  * returns the row to keep, `{state, repo, requirement_path, team_id, command, note}`. The one place both halves use.
+ * The repo is the product's project (`product`), resolved on this machine; one that cannot be is `no_repo` with the reason.
  */
-export async function launchBuild({ ref, requirement }, { env }) {
-  const repo = String(env.PRODUCT_REPO ?? '');
+export async function launchBuild({ ref, requirement, product = null }, { env }) {
+  const project = projectOf(env, product);
+  const found = project ? await resolveProject(env, project) : { why: 'Chưa đặt PRODUCT_REPOS hay PRODUCT_REPO.' };
+  const repo = found.repo ?? '';
   if (!repo.startsWith('/') || !existsSync(repo) || !statSync(repo).isDirectory()) {
-    return { repo: repo || null, requirement_path: null, team_id: null, state: 'no_repo', note: 'Chưa đặt PRODUCT_REPO (đường dẫn tuyệt đối tới kho mã của sản phẩm).', command: null };
+    return { repo: repo || project || null, requirement_path: null, team_id: null, state: 'no_repo', note: `Chưa tìm được kho mã của sản phẩm${product ? ` ${product}` : ''} trên máy này. ${found.why ?? `Không có thư mục ${repo}.`} Sửa PRODUCT_REPOS (hoặc PRODUCT_REPO) rồi bấm Chạy lại, hoặc giao việc này cho người.`, command: null };
   }
   // A requirement a person already put in the repo is used as it is; a new one goes beside the tickets, so a Go never dirties the working tree.
   const inRepo = join(repo, 'docs', 'requirements', reqName(ref));
@@ -127,21 +169,25 @@ export async function launchBuild({ ref, requirement }, { env }) {
 }
 
 /**
- * The founder's Go on a product opportunity. With a build stage here (PRODUCT_REPO of this product) the requirement is written
+ * The founder's Go on a product opportunity. With a build stage here (the product's project: PRODUCT_REPOS, else PRODUCT_REPO) the requirement is written
  * and the team spawned now. Without one (the always-on server) nothing is written or spawned: the handoff is `approved` and
  * carries the requirement, product and target outcome for a runtime that has the repo (`builds_pull`); a company with no such
  * runtime treats it as a task for a person (`task_done`).
  */
-export async function startHandoff(opp, { store, env, now }, { baseline = null } = {}) {
+export async function startHandoff(opp, { store, env, now }, { baseline = null, person = false } = {}) {
   const requirement = requirementText(opp, { baseline, at: iso(now) });
+  // The founder gave this Go to a person: the decision is logged and the work is a task, which no build runtime pulls.
+  if (person) return upsert(store, opp, { repo: null, requirement_path: null, team_id: null, state: 'task', note: PERSON_NOTE, command: null });
   if (!buildsHere(env, opp.product)) {
     return upsert(store, opp, { repo: null, requirement_path: null, team_id: null, state: 'approved', note: TASK_NOTE, command: null, requirement, target_outcome: opp.target_outcome ?? null, expected_delta: Number.isFinite(opp.expected_delta) ? opp.expected_delta : null });
   }
-  return upsert(store, opp, await launchBuild({ ref: opp.ref, requirement }, { env }));
+  return upsert(store, opp, await launchBuild({ ref: opp.ref, requirement, product: opp.product }, { env }));
 }
 
 export const bbsReady = env => !!findBbs(env);
 
-export const TASK_NOTE = 'Đã ghi quyết định và yêu cầu. Máy này không có kho mã (PRODUCT_REPO) nên không tự dựng: máy dựng của sản phẩm sẽ nhận yêu cầu; nếu công ty không có máy dựng, giao việc cho người trong nhóm, xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó.';
+export const TASK_NOTE = 'Đã ghi quyết định và yêu cầu. Máy này không có kho mã (PRODUCT_REPOS hoặc PRODUCT_REPO) nên không tự dựng: máy dựng của sản phẩm sẽ nhận yêu cầu; nếu công ty không có máy dựng, giao việc cho người trong nhóm, xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó.';
+export const PERSON_PREFIX = 'Đã ghi quyết định và một việc cho người làm.';
+export const PERSON_NOTE = PERSON_PREFIX + ' Bạn chọn giao việc này cho người: xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó, hoặc bấm Để Soot dựng để Soot nhận lại.';
 /** A handoff waiting for a person or for a build runtime: `approved`, the older `task`, or `no_repo` written before tasks existed with no repo set. */
 export const isTask = h => h.state === 'approved' || h.state === 'task' || (h.state === 'no_repo' && !h.repo);

@@ -37,6 +37,7 @@
       "LOOP_SOOT_CONFIG",
       "SCOREBOARD_URL",
       "PRODUCT_REPO",
+      "PRODUCT_REPOS",
       "BBS_BIN",
       "BBS_TEAM_AGENT",
       "CS_RUNTIME_URL",
@@ -958,7 +959,7 @@
     {
       "name": "decide",
       "title": "Quyết định một cơ hội",
-      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go on a runtime with a build stage (PRODUCT_REPO of that product) writes REQ-<id>.md beside the tickets and spawns bbs team (never land or release); without bbs or Orca the handoff is draft_ready with the exact command. On a runtime with no PRODUCT_REPO (the server) nothing is written or spawned: the handoff is approved and carries the requirement, product and target outcome for builds_pull on the runtime that has the repo. Needs the operator approval; the Công ty page does the same on the founder tap. With product (input, else SOOT_PRODUCT) an opportunity of another product is refused.",
+      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go on a runtime with a build stage (the product's project: its PRODUCT_REPOS entry, else PRODUCT_REPO) writes REQ-<id>.md beside the tickets and spawns bbs team (never land or release); without bbs or Orca the handoff is draft_ready with the exact command. On a runtime with no project for the product (the server) nothing is written or spawned: the handoff is approved and carries the requirement, product and target outcome for builds_pull on the runtime that has the repo. With build person the Go is recorded as a task for a person and no build runtime pulls it. Needs the operator approval; the Công ty page does the same on the founder tap. With product (input, else SOOT_PRODUCT) an opportunity of another product is refused.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -982,6 +983,13 @@
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
             "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
+          },
+          "build": {
+            "type": "string",
+            "enum": [
+              "person"
+            ],
+            "description": "person: a product Go that is not built by Soot but recorded as a task for a person (the founder's Go: giao người làm)."
           }
         },
         "required": [
@@ -1342,7 +1350,7 @@
     {
       "name": "page_action",
       "title": "Đổi trang Công ty",
-      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval), retry_handoff, task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the parent ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field. retry_handoff also takes an approved handoff.",
+      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval; build person records it as a task for a person instead of building), retry_handoff, to_person (a build that is not running, i.e. draft_ready, no_repo, approved (waiting for a build runtime) or blocked, becomes a task for a person; a task goes back to Soot with retry_handoff), task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the parent ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field. retry_handoff also takes an approved handoff.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1356,7 +1364,14 @@
               "link_ticket",
               "sync",
               "task_done",
+              "to_person",
               "part_set"
+            ]
+          },
+          "build": {
+            "type": "string",
+            "enum": [
+              "person"
             ]
           },
           "request_id": {
@@ -1622,7 +1637,7 @@
     {
       "name": "builds_pull",
       "title": "Nhận yêu cầu đã duyệt để dựng",
-      "description": "Tool-only, no model, no approval of its own (the founder's Go on the server is the approval). On the runtime that has PRODUCT_REPO (and bbs): reads the approved handoffs of the insight team (soot data query --team INSIGHT_TEAM --item handoffs, filter state approved, and product when given), skips those already in the local builds table, writes the requirement beside the tickets, starts bbs team spawn exactly as a local Go does, records a builds row and inserts a started event into the insight team's handoff_events queue. A repo that cannot be written is the only loud answer. Quiet skipped without PRODUCT_REPO, a runtime token (needs.runtime data.read, data.insert) or the soot CLI. Chain team_watch after it.",
+      "description": "Tool-only, no model, no approval of its own (the founder's Go on the server is the approval). On the runtime that has a project for the product (PRODUCT_REPOS, else PRODUCT_REPO) and bbs: reads the approved handoffs of the insight team (soot data query --team INSIGHT_TEAM --item handoffs, filter state approved, and product when given), skips those already in the local builds table, writes the requirement beside the tickets, starts bbs team spawn exactly as a local Go does, records a builds row and inserts a started event into the insight team's handoff_events queue. A repo that cannot be written is the only loud answer. Quiet skipped without PRODUCT_REPO, a runtime token (needs.runtime data.read, data.insert) or the soot CLI. Chain team_watch after it.",
       "parameters": {
         "type": "object",
         "properties": {

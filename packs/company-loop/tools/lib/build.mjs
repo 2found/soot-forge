@@ -8,7 +8,7 @@
 // The founder's Go is the only approval; pulling adds none, and nothing here lands, releases, integrates or seals.
 import { eq, getState, gte, iso, setState, short, skippedFor } from './base.mjs';
 import { dataQuery, dataInsert, runtimeOf } from './runtime.mjs';
-import { launchBuild } from './handoff.mjs';
+import { buildsHere, hasBuild, launchBuild } from './handoff.mjs';
 import { productId, scopeProduct } from './products.mjs';
 import { queueTopic } from './opportunities.mjs';
 
@@ -61,7 +61,7 @@ export async function pushEvents(deps, rows, rt = runtimeOf(deps.env, 'events_un
  */
 export async function builds_pull(input, deps) {
   const { store, env } = deps;
-  if (!env.PRODUCT_REPO) return skippedFor('PRODUCT_REPO');
+  if (!hasBuild(env)) return skippedFor('PRODUCT_REPO');
   const rt = runtimeOf(env, 'handoffs_unreadable');
   if (rt.skip) return rt.skip;
   const want = scopeProduct(input, env);
@@ -74,12 +74,12 @@ export async function builds_pull(input, deps) {
     const requirement = typeof h?.requirement === 'string' ? h.requirement : '';
     if (typeof key !== 'string' || !REF.test(key)) { skipped.push({ why: 'bad_key' }); continue; }
     // A repo belongs to one product: a row of another product, or one that is not approved, is never built here.
-    if ((want && product !== want) || (env.SOOT_PRODUCT && product && product !== env.SOOT_PRODUCT)) { skipped.push({ handoff: key, why: 'other_product' }); continue; }
+    if ((want && product !== want) || !buildsHere(env, product)) { skipped.push({ handoff: key, why: 'other_product' }); continue; }
     if (h.state !== 'approved') { skipped.push({ handoff: key, why: 'not_approved' }); continue; }
     if (!requirement.startsWith('# REQ-') || requirement.length > 20_000) { skipped.push({ handoff: key, why: 'bad_requirement' }); continue; }
     const had = await store.one('builds', [eq('handoff', key)]);
     if (had && had.state !== 'no_repo') { skipped.push({ handoff: key, why: 'already_pulled' }); continue; }
-    const out = await launchBuild({ ref: key, requirement }, { env });
+    const out = await launchBuild({ ref: key, requirement, product }, { env });
     const title = short((/^# REQ-OP-[0-9A-F]{8}: (.+)$/m.exec(requirement) ?? [])[1] ?? key, 140);
     const row = await upsertBuild(store, key, { product, title, ...out, detail: null });
     if (out.state === 'no_repo') { failed.push({ handoff: key, why: 'no_repo', note: out.note }); continue; }
@@ -109,7 +109,8 @@ export async function handoff_events_apply(input, deps) {
     if (!mapped || !h) { skipped.push({ handoff: ev.handoff ?? null, why: !mapped ? 'bad_state' : 'unknown_handoff' }); continue; }
     if (ev.product && h.product && ev.product !== h.product) { skipped.push({ handoff: h.opportunity, why: 'other_product' }); continue; }
     if (want && productId(h.product) !== want) continue;
-    if (h.state === 'released' || RANK[mapped] < (RANK[h.state] ?? 0)) continue;
+    // A handoff the founder gave to a person is not moved by the build runtime's events: the person closes it.
+    if (h.state === 'released' || h.state === 'task' || RANK[mapped] < (RANK[h.state] ?? 0)) continue;
     const at = Number.isFinite(Date.parse(ev.at)) ? new Date(ev.at).toISOString() : iso(now);
     const note = ev.note ? short(ev.note, 300) : null;
     const set = { state: mapped, team_id: ev.team_id || h.team_id || null, detail: ev.state === 'failed' ? short(`Đội dựng báo lỗi: ${note ?? 'không rõ'}`, 300) : note ?? h.detail ?? null, ...(ev.url ? { url: short(ev.url, 300) } : {}), ...(mapped === 'released' ? { released_at: at } : {}) };

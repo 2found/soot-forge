@@ -117,7 +117,7 @@ const HAND = {
   delivered: ['Chờ bạn duyệt', 2, 'Duyệt bản giao rồi cho phép phát hành trong bbs:team. Soot không phát hành thay bạn.'],
   released: ['Đã phát hành', 3, 'Soot đo kết quả từ ngày phát hành.'],
   draft_ready: ['Bản nháp sẵn', 0, 'Soot đã viết yêu cầu nhưng chưa mở được đội dựng.'],
-  no_repo: ['Chưa có kho mã', 0, 'Đặt PRODUCT_REPO cho Soot rồi bấm Chạy lại.'],
+  no_repo: ['Chưa có kho mã', 0, 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa PRODUCT_REPOS rồi bấm Chạy lại, hoặc giao việc cho người.'],
   task: ['Chờ người làm', 0, 'Đã ghi quyết định và một việc. Chưa nối đội dựng nên Soot không tự làm.'],
 };
 // The 5 parts of a product business, the 3 reader awareness levels and the 7 moats, in the founder's words.
@@ -196,7 +196,7 @@ function nextOf(d) {
     case 'no_data': return ['idle', `${name} chưa có số liệu hay cơ hội nào`, 'Nối bảng số cho sản phẩm này (SCOREBOARD_URLS) hoặc để Soot ghi số, rồi bản tin thứ Hai sẽ đưa cơ hội vào đây. Các mục của sản phẩm khác đang được ẩn.', ['Xem mọi sản phẩm', () => choose(null), 'strong']];
     case 'choose': return ['warn', `${n.n} cơ hội chờ bạn chọn`, 'Chọn Go, Để sau hoặc Bỏ ở từng cơ hội. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.', [`Xem ${n.n} cơ hội`, jump('can-ban'), 'primary']];
     case 'draft_ready': return ['warn', 'Yêu cầu đã viết, đội dựng chưa mở', 'Soot chưa mở được đội bbs:team. Mở Orca rồi bấm Chạy lại, hoặc chạy lệnh trong mục Cần bạn.', ['Chạy lại', () => act('retry_handoff', { id: n.ref }), 'primary']];
-    case 'no_repo': return ['bad', 'Chưa có kho mã để ghi yêu cầu', 'Đặt PRODUCT_REPO cho Soot rồi bấm Chạy lại ở mục Cần bạn.', ['Mở Thiết lập', () => open(SETTINGS('PRODUCT_REPO')), 'primary']];
+    case 'no_repo': return ['bad', 'Chưa có kho mã để ghi yêu cầu', 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa PRODUCT_REPOS rồi bấm Chạy lại, hoặc giao việc cho người ở mục Cần bạn.', ['Mở Thiết lập', () => open(SETTINGS('PRODUCT_REPOS')), 'primary']];
     case 'task': return ['warn', `${n.n} việc đã ghi chờ người làm`, 'Máy này không có kho mã, nên sau Go Soot ghi quyết định và yêu cầu. Máy dựng của sản phẩm sẽ tự nhận; chưa có máy dựng thì giao việc cho người trong nhóm, xong thì đánh dấu để Soot đo kết quả từ ngày đó.', ['Giao việc', () => open(taskDraft(task)), 'primary']];
     case 'release_go': return ['warn', 'Bản giao chờ bạn duyệt phát hành', 'Đọc bản bàn giao trong terminal của đội ở Orca; hài lòng thì cho phép phát hành. Đó là lượt bấm cuối của bạn.', ['Xem bản giao', jump('can-ban'), 'primary']];
     case 'building': return ['ok', 'Đội đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi có bản giao cần bạn duyệt.', ['Xem tiến độ', jump('dang-dung'), 'strong']];
@@ -261,9 +261,18 @@ function oppItem(o, d) {
     o.kind === 'content' && o.query ? small(`Chủ đề tìm kiếm: ${o.query}`) : null,
     small(facts),
     h('div', { class: 'row' },
-      btn(o.kind === 'product' ? (d.setup.build ? 'Go: bắt đầu dựng' : 'Go: ghi thành việc') : 'Go', () => act('go', { id: o.ref }), 'strong'),
+      ...goButtons(o, d),
       later ? null : btn('Để sau', () => act('later', { id: o.ref })), btn('Bỏ', () => act('drop', { id: o.ref }), 'text'),
       (o.evidence_refs ?? []).length ? h('details', {}, h('summary', {}, 'Bằng chứng'), h('div', { class: 'chips' }, o.evidence_refs.map(r => h('span', { class: 'chip' }, evidenceRef(r))))) : null));
+}
+// A product with a project gets both ways to Go; a large one (L, XL) leads with the person, since one unattended team rarely lands it.
+function goButtons(o, d) {
+  if (o.kind !== 'product') return [btn('Go', () => act('go', { id: o.ref }), 'strong')];
+  if (!o.build) return [btn(d.setup.build ? 'Go: bắt đầu dựng' : 'Go: ghi thành việc', () => act('go', { id: o.ref }), 'strong')];
+  const person = strong => btn('Go: giao người làm', () => act('go', { id: o.ref, build: 'person' }), strong ? 'strong' : undefined);
+  const big = ['L', 'XL'].includes(String(o.est_effort ?? '').trim().toUpperCase());
+  const soot = btn('Go: Soot dựng', () => act('go', { id: o.ref }), big ? undefined : 'strong');
+  return big ? [person(true), soot] : [soot, person(false)];
 }
 function handoffNeed(x, d) {
   const prod = many(d) && x.product ? badge(productName(x.product)) : null;
@@ -275,13 +284,16 @@ function handoffNeed(x, d) {
     h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, x.title), prod, badge('Việc đã ghi', 'warn')),
     x.summary ? h('p', {}, x.summary) : null,
     small('Đã Go: quyết định đã vào nhật ký. Yêu cầu chờ máy dựng nhận (hoặc người làm); xong thì Soot đo kết quả từ ngày đó.'),
-    h('div', { class: 'row' }, btn('Giao việc', () => open(taskDraft(x)), 'strong'), btn('Đánh dấu đã xong', () => act('task_done', { id: x.opportunity }))));
+    x.person && x.note ? small(x.note, 'muted') : null,
+    h('div', { class: 'row' }, btn('Giao việc', () => open(taskDraft(x)), 'strong'), btn('Đánh dấu đã xong', () => act('task_done', { id: x.opportunity })),
+      x.person ? btn('Để Soot dựng', () => act('retry_handoff', { id: x.opportunity }), 'text') : null));
   // draft_ready, no_repo
   return h('div', { class: 'item' },
     h('div', { class: 'item-h' }, lamp(x.state === 'no_repo' ? 'bad' : 'warn'), h('span', { class: 't' }, x.title), prod, badge(HAND[x.state][0], x.state === 'no_repo' ? 'bad' : 'warn')),
     small(x.detail || HAND[x.state][2], 'muted'),
     x.command ? h('code', { class: 'cmd' }, x.command) : null,
-    h('div', { class: 'row' }, btn('Chạy lại', () => act('retry_handoff', { id: x.opportunity }), 'strong'), x.state === 'no_repo' ? linkBtn('Đặt PRODUCT_REPO', SETTINGS('PRODUCT_REPO')) : null));
+    h('div', { class: 'row' }, btn('Chạy lại', () => act('retry_handoff', { id: x.opportunity }), 'strong'), btn('Giao người làm', () => act('to_person', { id: x.opportunity })),
+      x.state === 'no_repo' ? linkBtn('Đặt PRODUCT_REPOS', SETTINGS('PRODUCT_REPOS')) : null));
 }
 function setupNeed(d) {
   const n = d.next, name = scopeName(d);
@@ -414,6 +426,7 @@ function pipeItem(x, d) {
     h('div', { class: 'item-h' }, h('span', { class: 't' }, x.title), many(d) && x.product ? badge(productName(x.product)) : null, x.state === 'blocked' ? badge(HAND.blocked[0], 'bad') : null),
     steps(x),
     small(x.state === 'released' && x.released_at ? `Xong ngày ${dm(x.released_at)}. Soot đo kết quả từ ngày đó.` : x.detail || HAND[x.state]?.[2] || ''),
+    x.state === 'blocked' ? h('div', { class: 'row' }, btn('Giao người làm', () => act('to_person', { id: x.opportunity }))) : null,
     tech.length || live ? h('details', {}, h('summary', {}, 'Chi tiết kỹ thuật'), tech.map(t => h('p', {}, t)),
       live ? h('div', { class: 'row' }, h('input', { class: 'input', id: `t-${x.opportunity}`, placeholder: x.ticket ? `Ticket cha: ${x.ticket}` : 'Mã ticket cha (nếu Soot chưa đọc được)', 'aria-label': 'Mã ticket cha' }),
         btn('Gắn', () => { const v = document.getElementById(`t-${x.opportunity}`)?.value.trim(); if (v) act('link_ticket', { id: x.opportunity, ticket: v }); }, 'text')) : null) : null);
@@ -456,7 +469,7 @@ function side(d) {
   const stage = st => {
     const state = st.unused ? 'idle' : st.external ? 'idle' : st.starving?.length ? 'warn' : st.last_run?.status === 'failed' ? 'bad' : 'ok';
     const word = st.unused ? 'chưa dùng' : st.external ? 'máy chủ riêng' : st.starving?.length ? `${st.starving.length} nguồn thiếu` : st.last_run?.status === 'failed' ? 'lần chạy lỗi' : 'đủ nguồn';
-    const last = st.external ? 'Chạy trên máy chủ riêng của nhóm; lần chạy và mức dùng AI nằm ở đó.' : st.unused ? 'Chưa nối kho mã (PRODUCT_REPO) nên bước này không chạy.' : st.last_run ? `${st.last_run.name} · ${when(st.last_run.at)}` : 'Chưa có lần chạy nào.';
+    const last = st.external ? 'Chạy trên máy chủ riêng của nhóm; lần chạy và mức dùng AI nằm ở đó.' : st.unused ? 'Chưa nối kho mã (PRODUCT_REPOS) nên bước này không chạy.' : st.last_run ? `${st.last_run.name} · ${when(st.last_run.at)}` : 'Chưa có lần chạy nào.';
     const ai = !st.external && !st.unused && Number.isFinite(st.tokens_7d) ? ` · Mức dùng AI 7 ngày: ${nf.format(st.tokens_7d)} token` : '';
     return h('div', { class: 'item' },
       h('div', { class: 'item-h' }, lamp(state), h('span', { class: 't' }, st.label), badge(word, state === 'warn' || state === 'bad' ? state : '')),

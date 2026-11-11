@@ -3,6 +3,14 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.14.2 — 2026-11-12
+
+Baseline: v0.14.1. Pairs with Soot 0.16.2+. No storage changes (company-loop `storage.version` stays 7).
+
+- **company-loop: one project per product.** New env `PRODUCT_REPOS` (`product=<project>` lines, comma- or newline-separated); a product without a line falls back to `PRODUCT_REPO`, so a deployment that sets only `PRODUCT_REPO` behaves as before. A project is an absolute path or a bbs workspace name (`<workspace>` or `<workspace>/<repo dir>`). A project the machine cannot resolve stops at "Chưa có kho mã" with the reason and offers Chạy lại or Giao người làm. Products in different repos build in parallel.
+- **company-loop: hand a task to a person.** At Go, a product with a project shows "Go: Soot dựng" and "Go: giao người làm" (the person first for L/XL). "Giao người làm" is also offered on draft-ready, no-repo, approved (waiting for a workshop) and blocked handoffs; a person's task has "Để Soot dựng". A person's task is never pulled by `builds_pull`, and workshop events do not overwrite it.
+- Known gap: the "Cần bạn" card of a handoff given to a person stays until it is marked seen (a page action's `settle` is not applied by the runtime yet). The weekly release count still reads only `PRODUCT_REPO`.
+
 ## 0.14.1 — 2026-11-12
 
 Baseline: v0.14.0. Pairs with Soot 0.16.2+ (an older Soot ignores the new files). No storage changes.
