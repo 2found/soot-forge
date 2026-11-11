@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.14.1 — 2026-11-12
+
+Baseline: v0.14.0. Pairs with Soot 0.16.2+ (an older Soot ignores the new files). No storage changes.
+
+- **nest-lead ships the Lead's prompts.** `packs/nest-lead/lead/SOUL.md` and `lead/MISSION.md` are the soul and mission a Nest gives the Lead it creates for a workspace from before the Lead. They were compiled into Soot until 0.16.1; Soot 0.16.2 copies them from the installed pack instead, so the Lead's words change with a Forge release. The text is unchanged.
+
 ## 0.14.0 — 2026-11-11
 
 Baseline: v0.13.0. Pairs with Soot 0.16.0+ (`data.read` and `data.insert` runtime scopes, the `SOOT_PRODUCT` run product). **Storage of `company-loop` goes 6 → 7** (only adds tables and columns).
