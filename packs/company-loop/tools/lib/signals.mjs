@@ -5,7 +5,7 @@
 import { eq, getJson, getState, safeUrl, short, addDays, ictDay } from './base.mjs';
 import { latestBoard, labelOf, boardFor, dataProducts } from './scoreboard.mjs';
 import { hitRate } from './review.mjs';
-import { productId, rowProduct } from './products.mjs';
+import { productId, rowProduct, scopeProduct } from './products.mjs';
 import { partHealth, partsOf, compactParts } from './parts.mjs';
 
 export const MAX_BYTES = 3072;
@@ -169,7 +169,7 @@ export async function packetFor(deps, { voc = false, product = null } = {}) {
 }
 
 export async function signals(input, deps) {
-  const packet = await packetFor(deps, { voc: input?.voc === true, product: input?.product });
+  const packet = await packetFor(deps, { voc: input?.voc === true, product: scopeProduct(input, deps.env) });
   if (!packet) return { done: true, empty: true, note: 'Chưa có số liệu nào để lập bản tin.' };
   return { packet, notify: true, wake: true };
 }

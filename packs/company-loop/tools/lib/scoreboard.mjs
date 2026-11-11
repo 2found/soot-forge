@@ -6,7 +6,7 @@
 // address has a Soot write its numbers with metrics_record (the `metrics` table);
 // the page reads both through boardFor.
 import { eq, fail, getState, setState, getJson, safeUrl, skippedFor, iso, lastSevenDays, lastFullWeek, short, addDays } from './base.mjs';
-import { scoreboardSources, scoreboardKeys, keyFor, syncKey, baselineKey, productId, rememberHost, adoptProducts, northStarOf } from './products.mjs';
+import { scoreboardSources, scoreboardKeys, keyFor, syncKey, baselineKey, productId, rememberHost, adoptProducts, northStarOf, scopeProduct, hostProduct } from './products.mjs';
 import { runBbs } from './bbs.mjs';
 import { execFile } from 'node:child_process';
 import { isAbsolute } from 'node:path';
@@ -265,10 +265,16 @@ async function syncSource(deps, source, key) {
 
 export async function scoreboard_sync(input, deps) {
   const { store, env } = deps;
-  const { sources } = scoreboardSources(env);
+  const all = scoreboardSources(env).sources;
   const { keys } = scoreboardKeys(env);
+  // One product (input, else the run's SOOT_PRODUCT): its mapped source, and the single SCOREBOARD_URL only when it is that
+  // product's (the host's, or not known yet and the product has no source of its own). No product: every source, as before.
+  const want = scopeProduct(input, env);
+  const host = want ? await hostProduct(store, null) : null;
+  const mapped = want && all.some(s => s.product === want);
+  const sources = want ? all.filter(s => (s.legacy ? host === want || (!host && !mapped) : s.product === want)) : all;
   if (!env.PRODUCT_ADMIN_KEY && !keys.size) return skippedFor('PRODUCT_ADMIN_KEY');
-  if (!sources.length) return skippedFor('SCOREBOARD_URL');
+  if (!sources.length) return { ...skippedFor('SCOREBOARD_URL'), ...(want ? { product: want, reason: 'no_source_for_product' } : {}) };
   const results = [];
   // A source with no key of its own sends none (the product answers 401/403 and the refusal names it).
   for (const source of sources) results.push({ source, ...(await syncSource(deps, source, keyFor(source, env, keys))) });
@@ -303,8 +309,7 @@ const UNITS = /^[\p{L}\p{N} %$€£¥₫/.-]{1,12}$/u;
  */
 export async function metrics_record(input, deps) {
   const { store, now, soot } = deps;
-  const product = productId(input.product);
-  if (!product) fail('invalid_request', 'product là mã sản phẩm (a-z, 0-9, -, _).');
+  const product = scopeProduct(input, deps.env) ?? fail('invalid_request', 'product là mã sản phẩm (a-z, 0-9, -, _).');
   const period = input.period ?? lastSevenDays(now);
   if (!dayOk(period?.from) || !dayOk(period?.to) || period.from > period.to || Date.parse(period.to) - Date.parse(period.from) > 31 * 86_400_000) fail('invalid_request', 'period là {from, to} dạng YYYY-MM-DD, tối đa 31 ngày.');
   const list = Array.isArray(input.metrics) ? input.metrics : [];

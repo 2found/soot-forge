@@ -541,7 +541,9 @@
       }
     },
     "env": [
-      "LOHI_CS_LEGACY_SCOPE"
+      "LOHI_CS_LEGACY_SCOPE",
+      "LOHI_PRODUCT",
+      "LOHI_BINDINGS"
     ]
   }
 }

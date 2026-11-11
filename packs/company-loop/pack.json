@@ -28,7 +28,9 @@
   "needs": {
     "runtime": [
       "goals.read",
-      "goals.checkin"
+      "goals.checkin",
+      "data.read",
+      "data.insert"
     ],
     "env": [
       "LOOP_SOOT_BIN",
@@ -44,7 +46,8 @@
       "PATH",
       "HOME",
       "SCOREBOARD_URLS",
-      "NORTH_STAR"
+      "NORTH_STAR",
+      "INSIGHT_TEAM"
     ],
     "credentials": {
       "PRODUCT_ADMIN_KEY": {
@@ -93,7 +96,7 @@
     }
   ],
   "storage": {
-    "version": 6,
+    "version": 7,
     "tables": [
       {
         "name": "scoreboard",
@@ -325,7 +328,7 @@
       },
       {
         "name": "handoffs",
-        "description": "Bàn giao sang đội dựng (bbs:team): yêu cầu, mã đội, trạng thái.",
+        "description": "Bàn giao sang đội dựng (bbs:team): yêu cầu, mã đội, trạng thái. Trạng thái approved: đã Go trên máy không có kho mã, kèm yêu cầu cho máy dựng nhận.",
         "columns": [
           {
             "name": "opportunity",
@@ -374,6 +377,22 @@
             "name": "product",
             "type": "text",
             "index": true
+          },
+          {
+            "name": "requirement",
+            "type": "text"
+          },
+          {
+            "name": "target_outcome",
+            "type": "text"
+          },
+          {
+            "name": "expected_delta",
+            "type": "number"
+          },
+          {
+            "name": "url",
+            "type": "text"
           }
         ]
       },
@@ -570,6 +589,114 @@
             "type": "text"
           }
         ]
+      },
+      {
+        "name": "handoff_events",
+        "description": "Hàng đợi chỉ thêm: máy dựng báo tiến độ của một bàn giao (handoff = mã cơ hội): started, progress, handover, shipped, failed. handoff_events_apply gộp vào handoffs.",
+        "columns": [
+          {
+            "name": "handoff",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "team_id",
+            "type": "text"
+          },
+          {
+            "name": "url",
+            "type": "text"
+          },
+          {
+            "name": "note",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "index": true
+          }
+        ]
+      },
+      {
+        "name": "builds",
+        "description": "Việc dựng trên máy có kho mã: một dòng cho mỗi bàn giao đã nhận (handoff = mã cơ hội), trạng thái đội, và sự kiện đã báo cho nhóm insight.",
+        "columns": [
+          {
+            "name": "handoff",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "title",
+            "type": "text"
+          },
+          {
+            "name": "repo",
+            "type": "text"
+          },
+          {
+            "name": "requirement_path",
+            "type": "text"
+          },
+          {
+            "name": "team_id",
+            "type": "text"
+          },
+          {
+            "name": "ticket",
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "command",
+            "type": "text"
+          },
+          {
+            "name": "note",
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "url",
+            "type": "text"
+          },
+          {
+            "name": "released_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "pushed",
+            "type": "text"
+          },
+          {
+            "name": "pushed_detail",
+            "type": "text"
+          }
+        ]
       }
     ]
   },
@@ -594,12 +721,17 @@
     {
       "name": "scoreboard_sync",
       "title": "Đọc bảng số sản phẩm",
-      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.readers_waiting, else support.by_state.waiting_human) it answers one Cần bạn card request (raise) per count bucket (5, 10, 20, 50) with a link to SUPPORT_QUEUE_URL, kept current, and settles it once fewer than 5 wait. The runtime files the card; no model wakes. Answers {done: true}, or with for_digest the sync result for the digest chain.",
+      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.readers_waiting, else support.by_state.waiting_human) it answers one Cần bạn card request (raise) per count bucket (5, 10, 20, 50) with a link to SUPPORT_QUEUE_URL, kept current, and settles it once fewer than 5 wait. The runtime files the card; no model wakes. Answers {done: true}, or with for_digest the sync result for the digest chain. With product (input, else SOOT_PRODUCT) it reads only that product's source: its SCOREBOARD_URLS entry with its own key, or the single SCOREBOARD_URL when that is its board.",
       "parameters": {
         "type": "object",
         "properties": {
           "for_digest": {
             "type": "boolean"
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
           }
         },
         "required": [],
@@ -659,7 +791,7 @@
     {
       "name": "digest_save",
       "title": "Lưu cơ hội của bản tin",
-      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed; the Cần bạn card for it is kept by opportunities_card, not here. Every item carries part (value|marketing|sales|delivery|finance); content needs awareness (unaware|problem|choosing), product needs pain (10-200 chars: who suffers from what); moat (scale|network|counter|switching|brand|cornered|process|none) is optional. The error names the missing field.",
+      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed; the Cần bạn card for it is kept by opportunities_card, not here. Every item carries part (value|marketing|sales|delivery|finance); content needs awareness (unaware|problem|choosing), product needs pain (10-200 chars: who suffers from what); moat (scale|network|counter|switching|brand|cornered|process|none) is optional. The error names the missing field. product is the digest's product (or SOOT_PRODUCT): items may omit theirs; one of another product is refused.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -784,7 +916,6 @@
               },
               "required": [
                 "title",
-                "product",
                 "kind",
                 "evidence_refs",
                 "signal_count",
@@ -800,6 +931,11 @@
             },
             "minItems": 1,
             "maxItems": 5
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "The product of the whole digest (input, else SOOT_PRODUCT): an item may leave its own product out, and an item of another product is refused."
           }
         },
         "required": [
@@ -822,7 +958,7 @@
     {
       "name": "decide",
       "title": "Quyết định một cơ hội",
-      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go writes docs/requirements/REQ-<id>.md in PRODUCT_REPO and spawns bbs team (never land or release); without bbs or Orca the handoff is draft_ready with the exact command. Needs the operator approval; the Công ty page does the same on the founder tap.",
+      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go on a runtime with a build stage (PRODUCT_REPO of that product) writes REQ-<id>.md beside the tickets and spawns bbs team (never land or release); without bbs or Orca the handoff is draft_ready with the exact command. On a runtime with no PRODUCT_REPO (the server) nothing is written or spawned: the handoff is approved and carries the requirement, product and target outcome for builds_pull on the runtime that has the repo. Needs the operator approval; the Công ty page does the same on the founder tap. With product (input, else SOOT_PRODUCT) an opportunity of another product is refused.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -841,6 +977,11 @@
           "note": {
             "type": "string",
             "maxLength": 300
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
           }
         },
         "required": [
@@ -865,12 +1006,17 @@
     {
       "name": "topic_next",
       "title": "Chủ đề marketing kế tiếp",
-      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked handed (given to marketing, not yet written), or {}. With chain: true only {query}, at most one a day, to merge into marketing plan. Carries awareness (unaware|problem|choosing) when the topic has one, also in chain mode.",
+      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked handed (given to marketing, not yet written), or {}. With chain: true only {query}, at most one a day, to merge into marketing plan. Carries awareness (unaware|problem|choosing) when the topic has one, also in chain mode. With product it hands out only that product's topics.",
       "parameters": {
         "type": "object",
         "properties": {
           "chain": {
             "type": "boolean"
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
           }
         },
         "required": [],
@@ -913,10 +1059,16 @@
     {
       "name": "team_watch",
       "title": "Theo dõi đội dựng",
-      "description": "Read bbs team snapshot for each open handoff with no model; the parent ticket is found from the team id (bbs ticket find), `starting` until the kickoff creates it. A handover waiting for the release go returns one raise (Cần bạn card) that the runtime files, and settles it when the go is given. A released team returns outcomes requirement_shipped to record and queues one launch topic; nothing changed answers {done: true}.",
+      "description": "Read bbs team snapshot for each open handoff with no model; the parent ticket is found from the team id (bbs ticket find), `starting` until the kickoff creates it. A handover waiting for the release go returns one raise (Cần bạn card) that the runtime files, and settles it when the go is given. A released team returns outcomes requirement_shipped to record and queues one launch topic; nothing changed answers {done: true}. With product it watches only that product's handoffs and builds. Builds (rows of builds_pull) are reported to the insight team as handoff_events.",
       "parameters": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
+          }
+        },
         "required": [],
         "additionalProperties": false
       },
@@ -935,10 +1087,16 @@
     {
       "name": "review",
       "title": "Chấm kết quả quyết định",
-      "description": "For go decisions past check_after_days fill actual_delta from the scoreboard (the target_outcome key is the metric) and return the hit rate: a hit is actual at least half of expected.",
+      "description": "For go decisions past check_after_days fill actual_delta from the scoreboard (the target_outcome key is the metric) and return the hit rate: a hit is actual at least half of expected. With product it reviews and scores only that product's decisions.",
       "parameters": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
+          }
+        },
         "required": [],
         "additionalProperties": false
       },
@@ -957,10 +1115,16 @@
     {
       "name": "opportunities_card",
       "title": "Thẻ cơ hội chờ bạn chọn",
-      "description": "Tool-only, no model. Keep the one Cần bạn card for the product opportunities still proposed: raise answers it for the runtime to file (id = the waiting set, count current, link nest://page/cong-ty); settle answers it once none is proposed. Đã xem only acknowledges.",
+      "description": "Tool-only, no model. Keep the one Cần bạn card for the product opportunities still proposed: raise answers it for the runtime to file (id = the waiting set, count current, link nest://page/cong-ty); settle answers it once none is proposed. Đã xem only acknowledges. With product the card is that product's own (group company:proposals:<product>).",
       "parameters": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
+          }
+        },
         "required": [],
         "additionalProperties": false
       },
@@ -1078,12 +1242,17 @@
     {
       "name": "goals_checkin",
       "title": "Ghi số vào mục tiêu",
-      "description": "Gives every active goal whose metric.ref names a scoreboard number its reading, with no per-product code: a ref is <product>:<key> (2novel:activated_new) or company-loop:<key> (the goal's own product, else the host's). The number is that product's newest stored period, from its HTTP scoreboard (SCOREBOARD_URLS) or from metrics_record. Reads goals and checks in through the soot CLI with the per-call runtime token the host grants (needs.runtime; never the operator token), once per goal and period, with a plain note; guardrail refs are reported, not recorded; a breached guardrail raises one card per period and wakes the Đầu mối once, and the card settles when the number is back inside its limit. Chain it after scoreboard_sync. dry_run reads and reports without checking in. No model unless a check-in fails or a guardrail is first breached in a period: then it answers notify true and no done, so a schedule with wake_when.notify wakes its Soot.",
+      "description": "Gives every active goal whose metric.ref names a scoreboard number its reading, with no per-product code: a ref is <product>:<key> (2novel:activated_new) or company-loop:<key> (the goal's own product, else the host's). The number is that product's newest stored period, from its HTTP scoreboard (SCOREBOARD_URLS) or from metrics_record. Reads goals and checks in through the soot CLI with the per-call runtime token the host grants (needs.runtime; never the operator token), once per goal and period, with a plain note; guardrail refs are reported, not recorded; a breached guardrail raises one card per period and wakes the Đầu mối once, and the card settles when the number is back inside its limit. Chain it after scoreboard_sync. dry_run reads and reports without checking in. No model unless a check-in fails or a guardrail is first breached in a period: then it answers notify true and no done, so a schedule with wake_when.notify wakes its Soot. With product it checks in only that product's goals.",
       "parameters": {
         "type": "object",
         "properties": {
           "dry_run": {
             "type": "boolean"
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
           }
         },
         "required": [],
@@ -1173,7 +1342,7 @@
     {
       "name": "page_action",
       "title": "Đổi trang Công ty",
-      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval), retry_handoff, task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the parent ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field.",
+      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval), retry_handoff, task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the parent ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field. retry_handoff also takes an approved handoff.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1274,7 +1443,7 @@
     {
       "name": "metrics_record",
       "title": "Ghi số liệu",
-      "description": "Record a product's numbers for one period in this pack's own metrics table, for a company with no scoreboard address: a Soot that reads the numbers elsewhere (a sheet, a payment dashboard, a data table) writes them here, and the Công ty page shows them with their own labels, units and targets. One row per product, period and metric; writing again replaces it. Aggregate numbers only, never a person. Answers {ok, saved, period}.",
+      "description": "Record a product's numbers for one period in this pack's own metrics table, for a company with no scoreboard address: a Soot that reads the numbers elsewhere (a sheet, a payment dashboard, a data table) writes them here, and the Công ty page shows them with their own labels, units and targets. One row per product, period and metric; writing again replaces it. Aggregate numbers only, never a person. Answers {ok, saved, period}. product defaults to the run's SOOT_PRODUCT.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1357,7 +1526,6 @@
           }
         },
         "required": [
-          "product",
           "metrics"
         ],
         "additionalProperties": false
@@ -1377,7 +1545,7 @@
     {
       "name": "parts_set",
       "title": "Giao 5 bộ phận",
-      "description": "Set who owns each of the 5 parts of a product business and which scoreboard metric watches it: parts [{part value|marketing|sales|delivery|finance, team (team id), team_name, metric (scoreboard key), good up|down, promise (<=120 chars, the short public promise for delivery or brand)}], 1-5 per call, all or none, upserted by product and part. A missing field keeps its value; an empty string clears it. Defaults when a part has no row are only used if that metric is on the board.",
+      "description": "Set who owns each of the 5 parts of a product business and which scoreboard metric watches it: parts [{part value|marketing|sales|delivery|finance, team (team id), team_name, metric (scoreboard key), good up|down, promise (<=120 chars, the short public promise for delivery or brand)}], 1-5 per call, all or none, upserted by product and part. A missing field keeps its value; an empty string clears it. Defaults when a part has no row are only used if that metric is on the board. product defaults to the run's SOOT_PRODUCT.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1435,7 +1603,6 @@
           }
         },
         "required": [
-          "product",
           "parts"
         ],
         "additionalProperties": false
@@ -1449,6 +1616,62 @@
         "stdin": "context",
         "mode": "write",
         "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "builds_pull",
+      "title": "Nhận yêu cầu đã duyệt để dựng",
+      "description": "Tool-only, no model, no approval of its own (the founder's Go on the server is the approval). On the runtime that has PRODUCT_REPO (and bbs): reads the approved handoffs of the insight team (soot data query --team INSIGHT_TEAM --item handoffs, filter state approved, and product when given), skips those already in the local builds table, writes the requirement beside the tickets, starts bbs team spawn exactly as a local Go does, records a builds row and inserts a started event into the insight team's handoff_events queue. A repo that cannot be written is the only loud answer. Quiet skipped without PRODUCT_REPO, a runtime token (needs.runtime data.read, data.insert) or the soot CLI. Chain team_watch after it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "builds_pull"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "120s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "handoff_events_apply",
+      "title": "Gộp tiến độ dựng vào bàn giao",
+      "description": "Tool-only, no model. Folds the insert-only handoff_events queue (handoff, state started|progress|handover|shipped|failed, team_id, url, note, at) into handoffs in order, never moving a handoff backwards. A shipped event records requirement_shipped and queues the launch topic once. Answers {done: true} when nothing changed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "handoff_events_apply"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
         "max_output_bytes": 65536
       }
     }

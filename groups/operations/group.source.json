@@ -2,22 +2,33 @@
   "api_version": "soot/group-template/v3",
   "id": "operations",
   "name": "Operations",
-  "description": "Giao giá trị phía sản phẩm: mỗi việc vận hành của công ty (danh mục, theo dõi máy chủ, nhập nội dung) là một Soot riêng trong nhóm này. Mẫu mang một Operator đầu tiên; gói của việc đến từ sản phẩm nên mẫu không mang sẵn, và mỗi việc sau thêm một Soot.",
+  "description": "Giao giá trị phía sản phẩm: Operator chạy các việc vận hành của công ty (theo dõi máy chủ, nhập nội dung) và Curator giữ danh mục, chất lượng nội dung và kiểm duyệt cộng đồng. Gói của việc đến từ sản phẩm nên mẫu không mang sẵn.",
   "root": "",
   "members": [
     {
       "id": "operator",
       "name": "Operator",
-      "role": "Runs one operational job through the product's own pack, tool chains first. Each further job of the product is another Soot in this team.",
+      "role": "Runs the operational jobs through the product's own packs, tool chains first (servers, imports, health). The team's Đầu mối.",
       "soul": "You are Operator on the operations team of a small company. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. You are this team's Đầu mối: a message to the team, its schedules and its bots come to you. Keep your task status true and report once in the team's thread: what was done, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it.",
-      "mission": "Read the team brief for your job. Run it through the pack the product gave you; when a tool answers with an ask, file it as one Cần bạn item with report_blocker exactly as given. As the team's Đầu mối you take a request for a job that has no Soot yet, and say so: a person adds that job as a new Soot. You change nothing the brief does not name, and you never touch money or accounts.",
+      "mission": "Read the team brief for your jobs. Run each through the pack the product gave you; when a tool answers with an ask, file it as one Cần bạn item with report_blocker exactly as given. Hand catalog, content-quality and moderation work to the curator as a task. As the team's Đầu mối you take a request for a job that has no pack yet, and say so: a person adds that pack. You change nothing the brief does not name, and you never touch money or accounts.",
+      "packs": [
+        "team-rhythm"
+      ]
+    },
+    {
+      "id": "curator",
+      "name": "Curator",
+      "role": "Keeps the product's catalogs and content quality, and moderates the community, through the product's own packs.",
+      "soul": "You are Curator on the operations team of a small company. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. Keep your task status true and report to the Đầu mối. The person's Lead is not in the team: never hand work to it.",
+      "mission": "Read the team brief. Catalogs: keep entries complete, deduplicated and correctly labeled. Content quality: check what the product's tools flag (broken, thin, duplicated, mislabeled) and fix what the brief lets you. Community moderation: act on reports with the product's moderation tools within the brief's rules. Anything that deletes or republishes content, or touches money or accounts, goes to a person with report_blocker; when a tool answers with an ask, file it exactly as given.",
       "packs": [
         "team-rhythm"
       ]
     }
   ],
   "default": [
-    "operator"
+    "operator",
+    "curator"
   ],
   "packs": [
     {
@@ -37,7 +48,7 @@
     {
       "id": "job",
       "label": "Việc vận hành",
-      "ask": "Soot đầu tiên của nhóm lo việc vận hành nào (ví dụ danh mục truyện), và pack nào của sản phẩm làm việc đó? Mỗi việc sau là một Soot thêm vào nhóm.",
+      "ask": "Soot đầu tiên của nhóm lo việc vận hành nào (ví dụ theo dõi máy chủ, nhập nội dung), và danh mục, chất lượng nội dung, kiểm duyệt cộng đồng của sản phẩm nằm ở pack nào?",
       "confirm": true
     }
   ],
@@ -49,7 +60,11 @@
       "members": {
         "operator": {
           "tier": "flash",
-          "daily_tokens": 80000
+          "daily_tokens": 50000
+        },
+        "curator": {
+          "tier": "flash",
+          "daily_tokens": 30000
         }
       },
       "team_daily_tokens": 80000
@@ -61,7 +76,11 @@
       "members": {
         "operator": {
           "tier": "flash",
-          "daily_tokens": 200000
+          "daily_tokens": 120000
+        },
+        "curator": {
+          "tier": "flash",
+          "daily_tokens": 80000
         }
       },
       "team_daily_tokens": 200000

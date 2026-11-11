@@ -3,11 +3,25 @@
 // writes carries `product`. A row written before storage v4 has none. It reads as its opportunity's
 // product, else the host's (Nest's context, else the product of the single SCOREBOARD_URL board),
 // and the next write labels it. Nothing is dropped.
-import { eq, isNull, getState, setState, safeUrl } from './base.mjs';
+import { eq, isNull, getState, setState, safeUrl, fail } from './base.mjs';
 
 /** A product id as the data carries it (Nest sends the same id in the page context). */
 export const PRODUCT = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 export const productId = v => (typeof v === 'string' && PRODUCT.test(v.trim()) ? v.trim() : null);
+
+/**
+ * The product a call is about: its `product` input, else the run's own (`SOOT_PRODUCT`, set when the run came from a goal,
+ * a task or a schedule of a product), else null (every product, as a single-product deployment always did). An input that
+ * is not a product id is refused, never guessed.
+ */
+export function scopeProduct(input, env) {
+  if (input?.product !== undefined && input.product !== null && input.product !== '') {
+    const p = productId(input.product);
+    if (!p) fail('invalid_request', 'product là mã sản phẩm (a-z, 0-9, -, _).');
+    return p;
+  }
+  return productId(env?.SOOT_PRODUCT);
+}
 
 /**
  * The HTTP scoreboard sources. `SCOREBOARD_URL` is the single source of before: its board names its own

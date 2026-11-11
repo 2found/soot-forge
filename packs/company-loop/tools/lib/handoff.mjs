@@ -1,9 +1,10 @@
 // CL2: an approved product opportunity becomes a requirement file (in the ticket home, not the product repo) and
 // a `bbs team` project. The founder's Go on the operator-only page is the approval; this
 // file never calls land, release, integrate or seal. When bbs or Orca is not there the
-// handoff is `draft_ready` with the exact command, never a silent drop. A company with no
-// build stage (no PRODUCT_REPO) gets a `task`: the Go and the task are recorded, a person does
-// the work, and marking it done (page op task_done) starts the outcome clock.
+// handoff is `draft_ready` with the exact command, never a silent drop. A runtime with no
+// build stage (no PRODUCT_REPO, the always-on server) records the Go as `approved` with the requirement;
+// the runtime that has the repo pulls it (builds_pull). With no such runtime a person does the
+// work, and marking it done (page op task_done) starts the outcome clock.
 import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { eq, iso, short } from './base.mjs';
@@ -90,39 +91,57 @@ export function requirementDir(env, repo) {
 export const nextText = (teamId, reqPath) =>
   `Bước tiếp: đội ${teamId} đọc yêu cầu (${reqPath}), tự làm rõ, thiết kế và dựng trong Orca; tiến độ hiện ở trang Công ty. Kho mã của bạn không bị ghi gì. Lần duy nhất cần bạn là cho phép phát hành, và việc đó làm trong terminal Orca của đội (bbs ticket approval resolve --action approve), không làm ở Nest.`;
 
-/** Write the requirement (never over a file a person may have edited) and spawn the team. */
-export async function startHandoff(opp, { store, env, now }, { baseline = null } = {}) {
+/** Does this runtime build for this product? It needs PRODUCT_REPO, and when the run is a product's own (SOOT_PRODUCT) that must be the same product. */
+export const buildsHere = (env, product) => !!env.PRODUCT_REPO && !(env.SOOT_PRODUCT && product && env.SOOT_PRODUCT !== product);
+
+/**
+ * Write the requirement (never over a file a person may have edited) and spawn the team. Pure of the pack store: it
+ * returns the row to keep, `{state, repo, requirement_path, team_id, command, note}`. The one place both halves use.
+ */
+export async function launchBuild({ ref, requirement }, { env }) {
   const repo = String(env.PRODUCT_REPO ?? '');
-  // No build stage at all: the decision is logged and the work is a task for a person, not a failure.
-  if (!repo) return upsert(store, opp, { repo: null, requirement_path: null, team_id: null, state: 'task', note: TASK_NOTE, command: null });
   if (!repo.startsWith('/') || !existsSync(repo) || !statSync(repo).isDirectory()) {
-    return upsert(store, opp, { repo: repo || null, requirement_path: null, team_id: null, state: 'no_repo', note: 'Chưa đặt PRODUCT_REPO (đường dẫn tuyệt đối tới kho mã của sản phẩm).', command: null });
+    return { repo: repo || null, requirement_path: null, team_id: null, state: 'no_repo', note: 'Chưa đặt PRODUCT_REPO (đường dẫn tuyệt đối tới kho mã của sản phẩm).', command: null };
   }
   // A requirement a person already put in the repo is used as it is; a new one goes beside the tickets, so a Go never dirties the working tree.
-  const inRepo = join(repo, 'docs', 'requirements', reqName(opp.ref));
+  const inRepo = join(repo, 'docs', 'requirements', reqName(ref));
   const dir = requirementDir(env, repo);
   if (!existsSync(inRepo) && !dir) {
-    return upsert(store, opp, { repo, requirement_path: null, team_id: null, state: 'no_repo', note: 'Không có thư mục ticket (BABYSIT_HOME hoặc HOME) để ghi yêu cầu.', command: null });
+    return { repo, requirement_path: null, team_id: null, state: 'no_repo', note: 'Không có thư mục ticket (BABYSIT_HOME hoặc HOME) để ghi yêu cầu.', command: null };
   }
-  const reqPath = existsSync(inRepo) ? inRepo : join(dir, reqName(opp.ref));
+  const reqPath = existsSync(inRepo) ? inRepo : join(dir, reqName(ref));
   let wrote = false;
   try {
-    if (!existsSync(reqPath)) { mkdirSync(dirname(reqPath), { recursive: true }); writeFileSync(reqPath, requirementText(opp, { baseline, at: iso(now) }), { flag: 'wx' }); wrote = true; }
+    if (!existsSync(reqPath)) { mkdirSync(dirname(reqPath), { recursive: true }); writeFileSync(reqPath, requirement, { flag: 'wx' }); wrote = true; }
   } catch (e) {
-    return upsert(store, opp, { repo, requirement_path: null, team_id: null, state: 'no_repo', note: `Không ghi được ${reqName(opp.ref)}: ${short(e.message, 100)}`, command: null });
+    return { repo, requirement_path: null, team_id: null, state: 'no_repo', note: `Không ghi được ${reqName(ref)}: ${short(e.message, 100)}`, command: null };
   }
-  const teamId = teamIdOf(opp.ref);
+  const teamId = teamIdOf(ref);
   const cmd = spawnCommand(repo, teamId, reqPath, env.BBS_TEAM_AGENT || 'claude');
   const r = await runBbs(env, cmd.argv, { cwd: repo, timeoutMs: 60_000 });
   const base = { repo, requirement_path: reqPath, team_id: teamId, command: cmd.text };
   const next = nextText(teamId, reqPath);
-  if (r.missing) return upsert(store, opp, { ...base, state: 'draft_ready', note: `Máy này chưa có bbs nên đội chưa bắt đầu: bạn chạy lệnh dưới đây một lần. Soot tiếp tục theo dõi và sẽ báo nếu đội vẫn chưa bắt đầu. ${next}` });
-  if (!r.ok) return upsert(store, opp, { ...base, state: 'draft_ready', note: `bbs team spawn không chạy được (${short(r.stderr, 140)}); bạn chạy lệnh dưới đây khi Orca đã mở. Soot tiếp tục theo dõi và sẽ báo nếu đội vẫn chưa bắt đầu. ${next}` });
-  return upsert(store, opp, { ...base, state: 'spawned', note: `${wrote ? 'Đã ghi yêu cầu và mở đội bbs:team.' : 'Yêu cầu đã có sẵn; đã mở đội bbs:team.'} ${next}` });
+  if (r.missing) return { ...base, state: 'draft_ready', note: `Máy này chưa có bbs nên đội chưa bắt đầu: bạn chạy lệnh dưới đây một lần. Soot tiếp tục theo dõi và sẽ báo nếu đội vẫn chưa bắt đầu. ${next}` };
+  if (!r.ok) return { ...base, state: 'draft_ready', note: `bbs team spawn không chạy được (${short(r.stderr, 140)}); bạn chạy lệnh dưới đây khi Orca đã mở. Soot tiếp tục theo dõi và sẽ báo nếu đội vẫn chưa bắt đầu. ${next}` };
+  return { ...base, state: 'spawned', note: `${wrote ? 'Đã ghi yêu cầu và mở đội bbs:team.' : 'Yêu cầu đã có sẵn; đã mở đội bbs:team.'} ${next}` };
+}
+
+/**
+ * The founder's Go on a product opportunity. With a build stage here (PRODUCT_REPO of this product) the requirement is written
+ * and the team spawned now. Without one (the always-on server) nothing is written or spawned: the handoff is `approved` and
+ * carries the requirement, product and target outcome for a runtime that has the repo (`builds_pull`); a company with no such
+ * runtime treats it as a task for a person (`task_done`).
+ */
+export async function startHandoff(opp, { store, env, now }, { baseline = null } = {}) {
+  const requirement = requirementText(opp, { baseline, at: iso(now) });
+  if (!buildsHere(env, opp.product)) {
+    return upsert(store, opp, { repo: null, requirement_path: null, team_id: null, state: 'approved', note: TASK_NOTE, command: null, requirement, target_outcome: opp.target_outcome ?? null, expected_delta: Number.isFinite(opp.expected_delta) ? opp.expected_delta : null });
+  }
+  return upsert(store, opp, await launchBuild({ ref: opp.ref, requirement }, { env }));
 }
 
 export const bbsReady = env => !!findBbs(env);
 
-export const TASK_NOTE = 'Đã ghi quyết định và một việc cần làm. Chưa nối đội dựng (PRODUCT_REPO) nên Soot không tự làm: giao việc cho người trong nhóm, xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó.';
-/** A handoff waiting for a person: `task`, or `no_repo` written before tasks existed with no repo set. */
-export const isTask = h => h.state === 'task' || (h.state === 'no_repo' && !h.repo);
+export const TASK_NOTE = 'Đã ghi quyết định và yêu cầu. Máy này không có kho mã (PRODUCT_REPO) nên không tự dựng: máy dựng của sản phẩm sẽ nhận yêu cầu; nếu công ty không có máy dựng, giao việc cho người trong nhóm, xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó.';
+/** A handoff waiting for a person or for a build runtime: `approved`, the older `task`, or `no_repo` written before tasks existed with no repo set. */
+export const isTask = h => h.state === 'approved' || h.state === 'task' || (h.state === 'no_repo' && !h.repo);

@@ -3,6 +3,15 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.14.0 — 2026-11-11
+
+Baseline: v0.13.0. Pairs with Soot 0.16.0+ (`data.read` and `data.insert` runtime scopes, the `SOOT_PRODUCT` run product). **Storage of `company-loop` goes 6 → 7** (only adds tables and columns).
+
+- **company-loop: several products, two runtimes.** Every product-bound tool (`scoreboard_sync`, `review`, `opportunities_card`, `team_watch`, `goals_checkin`, `decide`, `topic_next`, `digest_save`, `signals`, `metrics_record`, `parts_set`, `page_view`) takes an optional `product`, defaulting to `SOOT_PRODUCT`, and works on that product's rows only; with neither it behaves as before. `digest_save` refuses an item of another product; `scoreboard_sync` reads the source mapped to the product.
+- **company-loop: the Go splits across runtimes.** A runtime with no `PRODUCT_REPO`/`bbs` records the founder's Go as a `handoffs` row in state `approved` with the requirement, product and target outcome (no repo write, no spawn). New tool-only `builds_pull` (runtime with the repo) reads the approved rows with `soot data query`, writes the requirement, starts `bbs team spawn`, records a local `builds` row and inserts a `started` event; `team_watch` inserts `progress`, `handover`, `shipped` and `failed`; `handoff_events_apply` folds the events into `handoffs` (a `shipped` event records `requirement_shipped` and queues the launch topic once). One runtime holding both halves keeps today's direct path. New tables `handoff_events` and `builds`; `handoffs` gains `requirement`, `target_outcome`, `expected_delta`, `url`. New `needs.env` `INSIGHT_TEAM`; `needs.runtime` adds `data.read`, `data.insert`.
+- **lohi-cs: product gate.** Its tools refuse with `not_lohi_conversation` before any network call when `SOOT_PRODUCT` or the ToolCall product is not `LOHI_PRODUCT` (default `lohi`), or when `LOHI_BINDINGS` is set and the event binding is not in it; `report-content` also needs a principal. New `needs.env` `LOHI_PRODUCT`, `LOHI_BINDINGS`.
+- **Lean standard teams.** `support` keeps the Answerer and the Feedback desk (the runtime refuses a Soot as its own feedback desk, and a public chat gets no pack tools); `insight` is the analyst alone, with a per-product digest and a weekly read-only money review (schedule `money`); `growth` is editor + writer, the writer carries the radar and `research` and the `radar` schedule moved here (Growth provides `signals`); `operations` is operator + curator (catalogs, content quality, community moderation); `finance` stays installable and is marked optional. New template `workshop` (builder, poster) for a computer with a browser and a coding agent: `company-team` replaces its `build` team with it (contracts `build-request` read, `handoff-events` write).
+
 ## 0.13.0 — 2026-11-11
 
 Baseline: v0.12.6 (fe4f58f). Pairs with Soot 0.13.19+ (team `coordinator` and `entries`). No pack content or storage changes.

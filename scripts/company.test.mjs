@@ -33,7 +33,7 @@ const check = (overlay, options = create) => checkCompany(template, overlay, { .
 // A second company from the same template: three teams (the Operations job is stock), no finance, no support, renamed growth.
 const shop = {
   extends: 'company-team', id: 'shop', name: 'Shop',
-  remove: ['finance', 'support', 'build'],
+  remove: ['finance', 'support', 'workshop'],
   rename: { growth: 'content' },
   teams: {
     insight: { soots: [{ id: 'shop-analyst', role: 'analyst' }] },
@@ -47,8 +47,8 @@ const shop = {
 test('compile: W2 files go in unchanged; teams, edges, remote, lead and ceiling come out as the runtime names them', async () => {
   const { company, notes } = await compileCompany(template, lohi, create);
   assert.equal(company.api_version, 'soot/company-template/v1');
-  assert.deepEqual(company.teams.map(t => t.id), ['insight', 'growth', 'support', 'operations', 'finance'], 'build (Claude Code) has no runtime form and is left out');
-  assert.match(notes.join('\n'), /team build runs on claude-code/);
+  assert.deepEqual(company.teams.map(t => t.id), ['insight', 'growth', 'support', 'operations', 'finance'], 'workshop (a remote Mac) has no remote here and is left out');
+  assert.match(notes.join('\n'), /team workshop runs on founder-mac/);
   assert.deepEqual(company.company, { name: 'Lohi', lead_team: 'insight', daily_token_ceiling: 550000, goals: template.goals });
   assert.deepEqual(company.remotes, { 'cs-server': { url: 'https://soot.lohi2.com', token_env: 'CS_RUNTIME_TOKEN' } });
   const byId = Object.fromEntries(company.teams.map(t => [t.id, t]));
@@ -116,7 +116,7 @@ test('compile: adopt with the deployment derives each team budget from its membe
 
 test('compile: remove and rename go to the runtime as its overlay, patches and adds are shaped here; nothing is validated', async () => {
   const { company } = await compileCompany(template, shop, create);
-  assert.deepEqual(company.overlay, { remove: ['finance', 'support'], rename: { growth: 'content' } }, 'the runtime removes what it holds; build has no runtime form and is not its to remove');
+  assert.deepEqual(company.overlay, { remove: ['finance', 'support'], rename: { growth: 'content' } }, 'the runtime removes what it holds; workshop has no remote here and is not its to remove');
   assert.deepEqual((await compileCompany(template, shop, { mode: 'create', root, pins })).company.overlay, { remove: ['finance'], rename: { growth: 'content' } }, 'support without a remote is left out by the compiler');
   assert.deepEqual(company.teams.map(t => t.id), ['insight', 'growth', 'support', 'operations', 'finance']);
   const { company: ex } = await compileCompany(template, { remove: ['growth', 'finance'] }, create);

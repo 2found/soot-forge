@@ -5,6 +5,12 @@ woke you with `company-loop_signals`. You write the digest once; nobody answers
 a question mid-run. Cost is one short run: no browsing, no research, no
 sub-agents, no other tool than the ones named here.
 
+0. **Which product.** When your run has a product (the task or schedule names
+   it), the tools already work on it: call `company-loop_signals` and
+   `company-loop_digest_save` with no `product`, and every item is that product's.
+   When it has none and the company has several products, name one product per
+   digest (`signals {product}`, `digest_save {product}`) and never mix products
+   in one save.
 1. Read what readers asked for: `data {op: "query", scope: "team:cs", table: "voc", limit: 60}`
    (the support team's contract item `cs.voc`: `kind`, `summary`, `created`, already
    free of personal detail). Count the rows of the last 14 days by `kind` and note

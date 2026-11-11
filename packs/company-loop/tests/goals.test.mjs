@@ -184,8 +184,8 @@ test('a runtime that issues no token leaves the quiet goals_unreadable skip and 
   assert.equal(cli.envs().length, 0);
 });
 
-test('the pack declares the runtime scopes goals_checkin uses, and only those', () => {
+test('the pack declares the runtime scopes its tools use, and only those (goals, and the contract items the build half reads and writes)', () => {
   const pack = JSON.parse(readFileSync(new URL('../pack.json', import.meta.url), 'utf8'));
-  assert.deepEqual(pack.needs.runtime, ['goals.read', 'goals.checkin']);
+  assert.deepEqual(pack.needs.runtime, ['goals.read', 'goals.checkin', 'data.read', 'data.insert']);
   assert.equal(pack.tools.find(t => t.name === 'goals_checkin').run.mode, 'write');
 });

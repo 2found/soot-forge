@@ -4,7 +4,7 @@
 // so both name the same broken part. A part with no row still has a default metric, used only when that
 // metric exists on the product's board.
 import { eq, fail, short } from './base.mjs';
-import { productId } from './products.mjs';
+import { productId, scopeProduct } from './products.mjs';
 
 export const PARTS = ['value', 'marketing', 'sales', 'delivery', 'finance'];
 export const PART_NAMES = { value: 'Tạo giá trị', marketing: 'Marketing', sales: 'Bán hàng', delivery: 'Giao giá trị', finance: 'Tài chính' };
@@ -110,7 +110,7 @@ export async function setParts(store, productIn, list, by, now) {
 /** parts_set: the owner team, the watching metric and the public promise of up to 5 parts of a product. */
 export async function parts_set(input, deps) {
   const by = typeof deps.soot === 'string' && deps.soot ? deps.soot : 'soot';
-  return setParts(deps.store, input.product, input.parts, by, deps.now);
+  return setParts(deps.store, scopeProduct(input, deps.env) ?? input.product, input.parts, by, deps.now);
 }
 
 export const partsOf = (store, product) => store.query('parts', [eq('product', product)], { limit: 10 });

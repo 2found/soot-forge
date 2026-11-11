@@ -24,6 +24,17 @@ api resolves to the bound support thread (`403 thread_unbound` otherwise).
 `chapter_tts` are public. Write routes keep their bodies and add the header.
 Neither the key nor the token is ever put on a command line or printed.
 
+## Product gate
+
+One runtime may serve several products. A conversation that is not Lohi's is
+refused with `{"code":"not_lohi_conversation","detail":"..."}` before any request:
+`SOOT_PRODUCT` (or the ToolCall's `product`) names another product than
+`LOHI_PRODUCT` (default `lohi`), or the conversation's `event.binding` is outside
+`LOHI_BINDINGS` (comma list, optional). `lohi_report_content_issue` proves no
+reader, so without a principal or the legacy scope it also needs a positive Lohi
+signal (the product or a listed binding). Public reads stay open on a
+conversation that carries no product at all.
+
 ## Approvals
 
 `lohi_recover_topup` credits LT and `lohi_fix_chapter` changes a chapter: both

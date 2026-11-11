@@ -5,20 +5,29 @@ of roles: it is **teams**, and each team is an interface.
 
 | team | group | Soots | gives out (tables others may read) |
 | --- | --- | --- | --- |
-| insight (also the thin company lead) | [team-insight](../team-insight/group.source.json) | analyst, radar | `opportunities`, `topics`, `scoreboard`, `handoffs` |
-| marketing | [team-marketing](../team-marketing/group.source.json) | writer, publisher | `posts`, `metrics`, `signals` |
-| cs | external (the [support team](../support-team/README.md), on the CS server) | support, desk | `voc` |
-| financial | [team-financial](../team-financial/group.source.json) | finance (read-only) | the weekly report |
-| build | external: Claude Code through `bbs team` | claude-code | `handoffs` (shipped / release state) |
-| op-`<job>` | [team-op](../team-op/group.source.json), once per job | operator | whatever the job's pack owns |
+| insight (also the thin company lead) | [insight](../insight/group.source.json) | analyst (numbers per product, signals packet, digest, decisions, review, weekly money review) | `opportunities`, `topics`, `scoreboard`, `handoffs`, queue `handoff_events` |
+| growth | [growth](../growth/group.source.json) | editor, writer (the writer watches the radar, then writes) | `posts`, `metrics`, `signals` |
+| support | external (the [support team](../support-team/README.md), on the CS server) or [support](../support/group.source.json) | answerer, desk (the desk files what the answerer records: a public-facing Soot never holds the write tools) | `voc` |
+| operations | [operations](../operations/group.source.json) | operator, curator (catalogs, content quality, community moderation) | whatever the jobs' packs own |
+| finance (optional) | [finance](../finance/group.source.json) | controller (read-only), for a company that wants a separate controller | the weekly report |
+| workshop | external: the founder's Mac ([workshop](../workshop/group.source.json)) | builder, poster | reads `insight.handoffs`, writes `insight.handoff_events` |
+
+The workshop runs where a browser and a coding agent are (the founder's computer). The server
+cannot reach it, so it **pulls**: the founder's Go on the server leaves a `handoffs` row in
+state `approved`; `builds_pull` on the Mac reads it (`soot data query`), starts the build and
+inserts `started`, `progress`, `handover`, `shipped` or `failed` events into the insight team's
+`handoff_events` queue; `handoff_events_apply` folds them back. Its edges are the contracts
+`build-request` (read) and `handoff-events` (write). Without a `remotes` entry for `founder-mac`
+the compiler leaves the team out and says so in its notes.
 
 Each team declares what it **takes in**, what it **gives out**, what it **decides alone**
 and **with the founder**, its **daily token budget** and **when it escalates**. A team
 starts with one or two Soots; a tool-only chain (publish, probe, GSC, scoreboard, radar
 read, video stats) is a schedule of the team that owns the outcome, not a team. Insight
 sets goals, runs the weekly review and proposes the budget split; the founder decides.
-The lean budgets total 410k tokens a day (insight 130k, marketing 250k, financial 30k)
-against the old Writer 250k + Editor 300k, plus 80k for each op team.
+The lean budgets total 410k tokens a day (insight 130k, growth 250k, finance 30k, optional)
+against the old Writer 250k + Editor 300k, plus 80k for operations and 100k for the workshop
+(on its own computer).
 
 ## Customize per company
 

@@ -55,6 +55,29 @@ case $hook:$cmd in
   tool.preflight:recover-topup|tool.preflight:fix-chapter|tool.call:*) ;;
   *) err '{"error":"bad_toolcall","detail":"preflight not supported"}' ;;
 esac
+# Product gate. One runtime may serve several products, and this pack's tools
+# only know Lohi. A conversation that belongs to another product (the host's
+# SOOT_PRODUCT or the ToolCall's product is not LOHI_PRODUCT, default "lohi") or
+# arrives on a binding outside LOHI_BINDINGS (a comma list; unset = any) is
+# refused here, before any request. A write that proves no reader (no principal,
+# no legacy scope) also needs a positive Lohi signal: the product or the binding.
+want_product=${LOHI_PRODUCT:-lohi}
+have_product=$(printf '%s\n' "$call" | jq -r '.product // empty')
+binding=$(printf '%s\n' "$call" | jq -r '.event.binding // empty')
+not_lohi() { jq -cn --arg d "$1" '{code: "not_lohi_conversation", detail: $d}'; exit 1; }
+for p in "${SOOT_PRODUCT:-}" "$have_product"; do
+  [ -z "$p" ] || [ "$p" = "$want_product" ] || not_lohi "this conversation belongs to $p; the Lohi tools answer only Lohi conversations"
+done
+if [ -n "$binding" ] && [ -n "${LOHI_BINDINGS:-}" ]; then
+  case ",$(printf '%s' "$LOHI_BINDINGS" | tr -d ' ')," in
+    *",$binding,"*) ;;
+    *) not_lohi "binding $binding is not a Lohi binding" ;;
+  esac
+fi
+positive=0
+[ -z "${SOOT_PRODUCT:-$have_product}" ] || positive=1
+[ -z "$binding" ] || [ -z "${LOHI_BINDINGS:-}" ] || positive=1
+
 # The conversation comes from the host-set event only, never from the model's
 # input. The subject card is scoped by the principal alone, so it is the one
 # command that runs without it; every other command needs the conversation.
@@ -357,6 +380,10 @@ case $cmd in
     req POST "$base/agent/support/requests" "$body" && printf '%s' "$rid" >"$rid_file"
     ;;
   report-content)
+    # No reader is proven here (the api verifies the defect itself), so the
+    # conversation must be positively Lohi's: a principal, the legacy scope,
+    # or the product/binding signal above.
+    [ -n "$principal" ] || [ "$legacy" = 1 ] || [ "$positive" = 1 ] || not_lohi "no Lohi principal, product or binding on this conversation"
     state_dir=$(pack_state)
     # Idempotency per (conversation, novel, kind, from): a retry reuses the
     # stored id. Persist only AFTER a successful POST so a rejected id never sticks.

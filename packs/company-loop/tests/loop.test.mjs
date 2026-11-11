@@ -179,13 +179,16 @@ test('a spawn that fails (Orca not running) is draft_ready with the reason; Cháº
   assert.equal(w.rows('handoffs').length, 1, 'one handoff per opportunity');
 });
 
-test('a product Go with no PRODUCT_REPO records the decision and a task, spawns nothing, and task_done starts the outcome clock', async () => {
+test('a product Go with no PRODUCT_REPO records the decision and an approved handoff with the requirement, spawns nothing, and task_done starts the outcome clock', async () => {
   const { w, b } = await ready({ repo: false });
   await w.call('digest_save', { opportunities: [ITEM.product] });
   const ref = refOf(w, 'product');
   const out = await w.call('decide', { id: ref, decision: 'go' });
-  assert.equal(out.handoff.state, 'task');
+  assert.equal(out.handoff.state, 'approved');
   assert.match(out.handoff.note, /PRODUCT_REPO/);
+  const row = w.rows('handoffs')[0];
+  assert.match(row.requirement, /^# REQ-OP-[0-9A-F]{8}: /);
+  assert.deepEqual([row.product, row.target_outcome, row.repo, row.requirement_path], ['lohi', 'support_handoffs', null, null], 'no repo write: the requirement travels in the row');
   assert.equal(b.calls().filter(c => c.argv[1] === 'spawn').length, 0);
   assert.equal(w.rows('decisions').filter(d => d.decision === 'go' && d.opportunity_ref === ref).length, 1, 'the Go is in the decision log');
   const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });

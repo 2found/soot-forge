@@ -7,6 +7,7 @@ import { eq, fail, fold, getState, iso, mondayOf, ictDay, short } from './base.m
 import { boardFor } from './scoreboard.mjs';
 import { startHandoff } from './handoff.mjs';
 import { PARTS, AWARENESS, MOATS, enumProblem } from './parts.mjs';
+import { scopeProduct, productId, hostProduct } from './products.mjs';
 
 export const KINDS = ['content', 'product'];
 const OUTCOME_ID = /^[a-z][a-z0-9_]{1,47}$/;
@@ -80,12 +81,16 @@ export const PROPOSALS_GROUP = 'company:proposals';
  * acknowledges; it never wakes a model. The link is a structured field, not text in the body.
  */
 export async function opportunities_card(input, deps) {
-  const waiting = await deps.store.query('opportunities', [eq('state', 'proposed')], { limit: 50 });
-  if (!waiting.length) return { done: true, waiting: 0, settle: [PROPOSALS_GROUP] };
+  // One product (input, else SOOT_PRODUCT) keeps its own card (its own group), so products never settle each other's.
+  const want = scopeProduct(input, deps.env);
+  const group = want ? `${PROPOSALS_GROUP}:${want}` : PROPOSALS_GROUP;
+  const host = want ? await hostProduct(deps.store, null) : null;
+  const waiting = (await deps.store.query('opportunities', [eq('state', 'proposed')], { limit: 50 })).filter(o => !want || (productId(o.product) ?? host) === want);
+  if (!waiting.length) return { done: true, waiting: 0, settle: [group] };
   const key = createHash('sha1').update(waiting.map(w => w.ref).sort().join(',')).digest('hex').slice(0, 10);
   const names = waiting.slice(0, 5).map(w => `• ${short(w.title, 100)}`).join('\n');
   return { done: true, waiting: waiting.length, raise: {
-    id: `${PROPOSALS_GROUP}:${key}`, group: PROPOSALS_GROUP, title: `${waiting.length} cơ hội chờ bạn chọn`,
+    id: `${group}:${key}`, group, title: `${waiting.length} cơ hội chờ bạn chọn`,
     why: `${names}${waiting.length > 5 ? `\n… và ${waiting.length - 5} cơ hội nữa` : ''}\nMở trang Công ty: mỗi cơ hội có nút Go, Để sau, Bỏ. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.`,
     link: 'nest://page/cong-ty', link_label: 'Mở Công ty',
     options: [{ id: 'seen', label: 'Đã xem', recommended: true }], reraise_after_hours: 168,
@@ -96,9 +101,13 @@ const view = o => ({ ref: o.ref, title: o.title, kind: o.kind, state: o.state })
 
 export async function digest_save(input, deps) {
   const { store, now } = deps;
-  const items = input.opportunities;
+  const scope = scopeProduct(input, deps.env);
+  // `product` (input, else the run's SOOT_PRODUCT) is the product of the whole digest: an item may leave its own out, and an
+  // item of another product is refused rather than filed under the wrong one.
+  const items = Array.isArray(input.opportunities) ? input.opportunities.map(it => (it && typeof it === 'object' && !Array.isArray(it) && scope && it.product === undefined ? { ...it, product: scope } : it)) : input.opportunities;
   if (!Array.isArray(items) || !items.length || items.length > 5) fail('invalid_request', 'opportunities là danh sách 1–5 cơ hội.');
   const problems = items.flatMap((it, i) => itemProblems(it).map(m => `#${i + 1} ${m}`));
+  if (scope) items.forEach((it, i) => { if (it?.product && it.product !== scope) problems.push(`#${i + 1} product ${it.product} không phải ${scope}`); });
   const refs = items.map(it => refOf(it?.kind, it?.title));
   if (new Set(refs).size !== refs.length) problems.push('hai cơ hội trùng nhau');
   if (problems.length) fail('invalid_request', `Chưa lưu cơ hội nào (tất cả hoặc không): ${problems.join('; ')}.`);
@@ -139,6 +148,8 @@ export async function decide(input, deps, { by = 'operator' } = {}) {
   if (!['go', 'later', 'drop'].includes(input.decision)) fail('invalid_request', 'decision là go, later hoặc drop.');
   const opp = typeof input.id === 'string' ? await store.one('opportunities', [eq('ref', input.id)]) : null;
   if (!opp) fail('not_found', `Không có cơ hội ${input.id}.`);
+  const scope = scopeProduct(input, deps.env);
+  if (scope && opp.product && opp.product !== scope) fail('invalid_request', `Cơ hội ${opp.ref} thuộc sản phẩm ${opp.product}, không phải ${scope}.`);
   const note = typeof input.note === 'string' ? input.note : null;
   if (input.decision !== 'go') {
     if (opp.state === 'go') fail('invalid_request', 'Cơ hội này đã Go, không đổi lại được.');
@@ -171,16 +182,20 @@ export const HANDED = ['handed', 'taken'];
 /** The oldest queued topic, marked handed. In a chain (`chain: true`) it is only the query, one at a time and at most one a day. */
 export async function topic_next(input, deps) {
   const { store, now } = deps;
+  // One product (input, else SOOT_PRODUCT) takes only its own topics (an unlabeled one reads as the host's); none takes any.
+  const want = scopeProduct(input, deps.env);
+  const host = want ? await hostProduct(store, null) : null;
+  const mine = t => !want || (productId(t.product) ?? host) === want;
   if (input.chain) {
     // Marketing keeps one handed topic at a time, so a second would be lost: wait until it is written or the hold ends.
     for (const st of HANDED) {
-      const held = (await store.query('topics', [eq('state', st)], { order: 'updated_at', limit: 1 }))[0];
+      const held = (await store.query('topics', [eq('state', st)], { order: 'updated_at', limit: 50 })).find(mine);
       if (held && now - Date.parse(held.updated_at) < HOLD_MS) return {};
     }
-    const last = (await store.query('topics', [eq('state', 'written')], { order: 'updated_at', limit: 1 }))[0];
+    const last = (await store.query('topics', [eq('state', 'written')], { order: 'updated_at', limit: 50 })).find(mine);
     if (last && now - Date.parse(last.updated_at) < 20 * HOUR) return {};
   }
-  const next = (await store.query('topics', [eq('state', 'queued')], { order: 'created_at', desc: false, limit: 1 }))[0];
+  const next = (await store.query('topics', [eq('state', 'queued')], { order: 'created_at', desc: false, limit: want ? 100 : 1 })).find(mine);
   if (!next) return {};
   await store.update('topics', next.id, { state: 'handed' });
   // The awareness level rides with the topic (only when it has one) so marketing writes the post for that nấc.

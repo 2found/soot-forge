@@ -6,9 +6,15 @@
 // a hidden manual override. No parent yet is `starting`, never an error.
 // A released team is the outcome `requirement_shipped` (the Lead records it) and one
 // `launch` topic for the marketing plan (CL3). Nothing changed answers {done: true}.
+// Two sets are watched. `handoffs` this runtime spawned itself (the single-runtime path: it owns the whole lifecycle) and
+// `builds`, the rows of builds_pull on the runtime with the repo: those are reported to the insight team as `handoff_events`
+// (progress, handover, shipped, failed) and the server folds them into its own handoffs; a build never records an outcome or
+// a topic here. One product (input, else SOOT_PRODUCT) watches only its own rows.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { eq, inList, iso, short } from './base.mjs';
+import { productId, scopeProduct, hostProduct } from './products.mjs';
+import { pushEvents } from './build.mjs';
 import { runBbs } from './bbs.mjs';
 import { queueTopic } from './opportunities.mjs';
 
@@ -87,12 +93,13 @@ async function resolveParent(h, env) {
  * The go the founder owes: one Cần bạn card per handover, naming where to give it. The runtime files it (no model); the
  * id is the dedup, so nothing is remembered here and a card that could not be filed is filed on the next tick.
  */
-const handoverGroup = h => `company:handover:${h.opportunity}`;
-function handoverCard(h, title, parent, awaiting) {
+const handoverGroup = it => `company:handover:${it.key}`;
+function handoverCard(it, title, parent, awaiting) {
+  const h = it.row;
   const phase = awaiting[0];
   const where = phase.ticket ? `ticket giai đoạn ${phase.ticket}` : `ticket cha ${parent}`;
   return {
-    id: `${handoverGroup(h)}:${awaiting.map(p => p.id).sort().join(',')}`, group: handoverGroup(h),
+    id: `${handoverGroup(it)}:${awaiting.map(p => p.id).sort().join(',')}`, group: handoverGroup(it),
     title: `Bản bàn giao ${title} chờ bạn duyệt phát hành`,
     why: `Mở terminal của đội ${h.team_id} trong Orca (bbs team list) và đọc bản bàn giao: ${parent}/recap.html trong ~/.babysit. Hài lòng thì cho phép phát hành ở phê duyệt "release" của ${where}: ${phase.ticket ? `BABYSIT_TICKET=${phase.ticket} ` : ''}bbs ticket approval resolve --action approve. Chưa ổn thì --action redirect --note "<góp ý>"; đội tự sửa. Đây là lần bấm cuối cùng của bạn.`,
     options: [{ id: 'seen', label: 'Đã xem', recommended: true }], reraise_after_hours: 72,
@@ -101,11 +108,12 @@ function handoverCard(h, title, parent, awaiting) {
 
 /** One reminder card per handoff that never started: the command to run. The runtime files it once (the id is the
  * dedup and a closed id is never raised again), so nothing is remembered here. */
-const unstartedId = h => `company:unstarted:${h.opportunity}`;
-function unstartedCard(h, title, now) {
+const unstartedId = it => `company:unstarted:${it.key}`;
+function unstartedCard(it, title, now) {
+  const h = it.row;
   if (now - Date.parse(h.updated_at ?? h.created_at ?? 0) < NUDGE_AFTER_MS) return null;
   return {
-    id: unstartedId(h), title: `Đội dựng "${title}" chưa bắt đầu`,
+    id: unstartedId(it), title: `Đội dựng "${title}" chưa bắt đầu`,
     why: `Bạn đã Go nhưng đội ${h.team_id} chưa mở (máy chưa có bbs hoặc Orca chưa chạy). Chạy lệnh này một lần trong terminal: ${h.command ?? '(mở trang Công ty và bấm Chạy lại)'}\nSau đó Soot tự theo dõi tiếp; việc còn lại của bạn là cho phép phát hành trong terminal Orca của đội.`,
     options: [{ id: 'seen', label: 'Đã xem', recommended: true }],
   };
@@ -113,25 +121,35 @@ function unstartedCard(h, title, now) {
 
 export async function team_watch(input, deps) {
   const { store, env, now } = deps;
-  const open = await store.query('handoffs', [inList('state', OPEN)], { order: 'updated_at', limit: 50 });
-  if (!open.length) return { done: true };
+  const want = scopeProduct(input, env);
+  const host = want ? await hostProduct(store, null) : null;
+  const mine = r => !want || (productId(r.product) ?? host) === want;
+  // A handoff folded from events (no repo of its own) belongs to the runtime that has the repo, never to this watch.
+  const handoffs = (await store.query('handoffs', [inList('state', OPEN)], { order: 'updated_at', limit: 50 })).filter(h => h.repo && mine(h));
+  const builds = (await store.query('builds', [inList('state', OPEN)], { order: 'updated_at', limit: 50 })).filter(mine);
+  const items = [
+    ...handoffs.map(row => ({ row, table: 'handoffs', key: row.opportunity, build: false })),
+    ...builds.map(row => ({ row, table: 'builds', key: row.handoff, build: true })),
+  ];
   const changed = [], outcomes = [];
   const raise = [], settle = [];
-  for (const h of open) {
+  const titleOf = async it => (it.build ? it.row.title : (await store.one('opportunities', [eq('ref', it.key)]))?.title) ?? it.key;
+  for (const it of items) {
+    const h = it.row;
     const found = await resolveParent(h, env);
     if (h.state === 'draft_ready' && (found.missing || !found.ticket)) {
       // The team does not exist yet: keep the row, remind once, never fail the other handoffs.
-      const card = unstartedCard(h, (await store.one('opportunities', [eq('ref', h.opportunity)]))?.title ?? h.opportunity, now);
+      const card = unstartedCard(it, await titleOf(it), now);
       if (card) raise.push(card);
       continue;
     }
     if (found.missing) return { done: true, note: 'bbs_missing' };
     let s;
-    let parent = found.ticket;
+    const parent = found.ticket;
     if (!parent) {
       s = { state: 'starting', detail: STARTING };
     } else {
-      if (!h.ticket) await store.update('handoffs', h.id, { ticket: parent });
+      if (!h.ticket) await store.update(it.table, h.id, { ticket: parent });
       const r = await runBbs(env, ['team', 'snapshot', parent, '--json'], { cwd: h.repo || undefined, timeoutMs: 30_000 });
       if (r.missing) return { done: true, note: 'bbs_missing' };
       let data = null;
@@ -139,29 +157,28 @@ export async function team_watch(input, deps) {
       if (body) data = body.ok === false ? null : (body.data ?? body);
       if (!r.ok || !data) {
         const detail = `Chưa đọc được trạng thái đội (${short(r.stderr || r.stdout, 100) || 'không có trả lời'}).`;
-        if (detail !== h.detail) await store.update('handoffs', h.id, { detail });
+        if (detail !== h.detail) await store.update(it.table, h.id, { detail });
         continue;
       }
       s = summarize(data);
     }
-    if (s.awaiting) {
-      const opp = await store.one('opportunities', [eq('ref', h.opportunity)]);
-      raise.push(handoverCard(h, opp?.title ?? h.opportunity, parent, s.awaiting));
-    }
+    if (s.awaiting) raise.push(handoverCard(it, await titleOf(it), parent, s.awaiting));
     if (s.state === h.state && s.detail === h.detail) continue;
-    if (!s.awaiting) settle.push(handoverGroup(h)); // the state moved off the handover: its card is done
-    if (h.state === 'draft_ready') settle.push(unstartedId(h)); // the team exists now: the reminder is done
+    if (!s.awaiting) settle.push(handoverGroup(it)); // the state moved off the handover: its card is done
+    if (h.state === 'draft_ready') settle.push(unstartedId(it)); // the team exists now: the reminder is done
     const set = { state: s.state, detail: s.detail, ...(s.state === 'released' ? { released_at: iso(now) } : {}) };
-    await store.update('handoffs', h.id, set);
-    changed.push({ ref: h.opportunity, state: s.state });
-    if (s.state === 'released') {
-      const opp = await store.one('opportunities', [eq('ref', h.opportunity)]);
+    await store.update(it.table, h.id, set);
+    changed.push({ ref: it.key, state: s.state });
+    if (s.state === 'released' && !it.build) {
+      const opp = await store.one('opportunities', [eq('ref', it.key)]);
       if (opp) await queueTopic(store, opp, 'launch', `Tính năng mới đã ra: ${opp.title}`, opp.query || opp.title);
-      outcomes.push({ id: 'requirement_shipped', count: 1, ref: `req:${h.opportunity}` });
+      outcomes.push({ id: 'requirement_shipped', count: 1, ref: `req:${it.key}` });
     }
   }
+  // Builds tell the insight team where they stand (also the ones whose last report could not be sent).
+  const sync = await pushEvents(deps, (await store.query('builds', [], { order: 'updated_at', limit: 100 })).filter(mine));
   const cards = { ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}) };
-  if (!changed.length && !raise.length && !settle.length) return { done: true };
+  if (!changed.length && !raise.length && !settle.length && !sync.sent) return { done: true, ...(sync.unsent ? { events_unsent: sync.unsent } : {}) };
   const loud = outcomes.length > 0;
-  return { changed, ...(outcomes.length ? { outcomes } : {}), ...cards, notify: loud, wake: loud };
+  return { changed, ...(outcomes.length ? { outcomes } : {}), ...cards, ...(sync.sent || sync.unsent ? { events: sync } : {}), notify: loud, wake: loud };
 }

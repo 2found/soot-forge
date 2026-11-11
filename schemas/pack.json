@@ -619,11 +619,13 @@
           ]
         },
         "runtime": {
-          "description": "Runtime API scopes the pack's tools call back through SOOT_RUNTIME_URL and SOOT_RUNTIME_TOKEN, such as goals.read or goals.checkin. Nothing is issued until the host grants them.",
+          "description": "Runtime API scopes the pack's tools call back through SOOT_RUNTIME_URL and SOOT_RUNTIME_TOKEN, such as goals.read, goals.checkin, data.read or data.insert (team-contract items). Nothing is issued until the host grants them.",
           "items": {
             "enum": [
               "goals.read",
-              "goals.checkin"
+              "goals.checkin",
+              "data.read",
+              "data.insert"
             ],
             "type": "string"
           },

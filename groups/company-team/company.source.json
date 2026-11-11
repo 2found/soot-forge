@@ -48,23 +48,19 @@
     {
       "id": "insight",
       "name": "Insight",
-      "description": "Đọc số liệu, tìm cơ hội.",
+      "description": "Đọc số liệu từng sản phẩm, tìm cơ hội, rà soát tiền hằng tuần.",
       "kind": "group",
       "group": "insight",
       "soots": [
         {
           "id": "analyst",
           "role": "analyst"
-        },
-        {
-          "id": "radar",
-          "role": "radar"
         }
       ],
       "takes_in": [
         {
           "from": "growth",
-          "what": "bài đã đăng và số liệu của bài (metrics, posts)",
+          "what": "bài đã đăng, số liệu của bài và tín hiệu thị trường (metrics, posts, signals)",
           "contract": "marketing-numbers"
         },
         {
@@ -74,9 +70,10 @@
           "optional": true
         },
         {
-          "from": "build",
-          "what": "tình trạng phát hành của cơ hội đã duyệt",
-          "contract": "build-state"
+          "from": "workshop",
+          "what": "sự kiện dựng của yêu cầu đã duyệt (handoff_events)",
+          "contract": "handoff-events",
+          "optional": true
         }
       ],
       "gives_out": [
@@ -124,18 +121,21 @@
           "pack": "company-loop",
           "fields": [
             "opportunity",
+            "product",
+            "requirement",
+            "target_outcome",
+            "expected_delta",
             "requirement_path",
             "state",
             "ticket",
             "released_at"
           ],
-          "note": "yêu cầu làm sản phẩm và tình trạng"
+          "note": "yêu cầu làm sản phẩm đã duyệt và tình trạng (xưởng kéo về)"
         }
       ],
       "decides": {
         "alone": [
           "xếp hạng và xếp hàng chủ đề nội dung",
-          "radar đọc những nguồn nào",
           "đề xuất cách chia ngân sách"
         ],
         "with_founder": [
@@ -170,7 +170,7 @@
     {
       "id": "growth",
       "name": "Growth",
-      "description": "Marketing và bán hàng: tìm tín hiệu, viết, kiểm tra và đăng.",
+      "description": "Marketing và bán hàng: đọc radar, viết, kiểm tra và đăng.",
       "kind": "group",
       "group": "growth",
       "soots": [
@@ -181,10 +181,6 @@
         {
           "id": "writer",
           "role": "writer"
-        },
-        {
-          "id": "researcher",
-          "role": "researcher"
         }
       ],
       "takes_in": [
@@ -241,7 +237,8 @@
       "decides": {
         "alone": [
           "viết và lên lịch trong các bước kiểm tra và giới hạn",
-          "tạm dừng một kênh"
+          "tạm dừng một kênh",
+          "radar đọc những nguồn nào"
         ],
         "with_founder": [
           "đăng bài khi còn yêu cầu publish_approval",
@@ -270,17 +267,13 @@
     {
       "id": "support",
       "name": "Support",
-      "description": "Giao giá trị phía khách: trả lời độc giả, gom phản hồi.",
+      "description": "Giao giá trị phía khách: một Soot trả lời độc giả và gom phản hồi.",
       "kind": "external",
       "group": "",
       "soots": [
         {
-          "id": "desk",
-          "role": "sorts feedback"
-        },
-        {
           "id": "support",
-          "role": "answers readers"
+          "role": "answers readers and sorts feedback"
         }
       ],
       "takes_in": [
@@ -327,7 +320,7 @@
     {
       "id": "operations",
       "name": "Operations",
-      "description": "Giao giá trị phía sản phẩm: mỗi việc vận hành (danh mục, máy chủ, nhập nội dung) là một Soot.",
+      "description": "Giao giá trị phía sản phẩm: Operator chạy việc vận hành, Curator giữ danh mục, chất lượng nội dung và kiểm duyệt cộng đồng.",
       "kind": "group",
       "group": "operations",
       "parts": [
@@ -338,6 +331,10 @@
         {
           "id": "operator",
           "role": "operator"
+        },
+        {
+          "id": "curator",
+          "role": "curator"
         }
       ],
       "takes_in": [
@@ -371,7 +368,7 @@
     {
       "id": "finance",
       "name": "Finance",
-      "description": "Theo dõi doanh thu và chi phí, chỉ đọc.",
+      "description": "Tùy chọn: kiểm soát tài chính riêng, chỉ đọc (mặc định bản rà soát tiền do Analyst của Insight viết).",
       "kind": "group",
       "group": "finance",
       "soots": [
@@ -416,55 +413,53 @@
       "coordinator": "controller"
     },
     {
-      "id": "build",
-      "name": "Build",
-      "description": "Làm sản phẩm.",
+      "id": "workshop",
+      "name": "Workshop",
+      "description": "Xưởng trên máy người sáng lập: dựng yêu cầu đã duyệt và đăng bài bằng trình duyệt.",
       "kind": "external",
-      "group": "",
+      "group": "workshop",
       "soots": [
         {
-          "id": "claude-code",
-          "role": "builds a requirement"
+          "id": "builder",
+          "role": "builder"
+        },
+        {
+          "id": "poster",
+          "role": "poster"
         }
       ],
       "takes_in": [
         {
           "from": "insight",
-          "what": "một tệp REQUIREMENT cùng một cơ hội sản phẩm đã duyệt",
+          "what": "yêu cầu sản phẩm đã được người sáng lập duyệt (handoffs ở trạng thái approved), xưởng tự kéo về",
           "contract": "build-request"
         }
       ],
-      "gives_out": [
-        {
-          "table": "handoffs",
-          "pack": "company-loop",
-          "fields": [
-            "opportunity",
-            "state",
-            "ticket",
-            "released_at"
-          ],
-          "note": "tình trạng đã phát hành hoặc đang chờ phát hành"
-        }
-      ],
+      "gives_out": [],
       "decides": {
         "alone": [
-          "làm và kiểm tra trong phạm vi yêu cầu"
+          "dựng yêu cầu đã được người sáng lập duyệt",
+          "đăng bài đã có claim đã ký"
         ],
         "with_founder": [
-          "lệnh phát hành"
+          "lệnh phát hành",
+          "đăng bài khi còn yêu cầu publish_approval"
         ]
       },
-      "daily_tokens": 0,
+      "daily_tokens": 100000,
       "escalates_when": [
         "một bản bàn giao đang chờ lệnh phát hành",
-        "việc làm sản phẩm bị chặn"
+        "việc dựng bị chặn hoặc sản phẩm chưa có kho mã trên máy này"
       ],
       "external": {
-        "runtime": "claude-code",
+        "runtime": "founder-mac",
         "via": "bbs team",
-        "note": "hiện chỉ là hợp đồng: company-loop viết yêu cầu và đọc tình trạng; không có gì ở đây triển khai Claude Code"
-      }
+        "note": "chạy trên máy người sáng lập (trình duyệt và agent lập trình); máy chủ không với tới, xưởng tự kéo việc từ insight"
+      },
+      "coordinator": "builder",
+      "parts": [
+        "delivery"
+      ]
     }
   ],
   "contracts": [
@@ -519,29 +514,16 @@
     {
       "id": "build-request",
       "owner": "insight",
-      "reader": "build",
-      "table": "handoffs",
-      "pack": "company-loop",
-      "mode": "write",
-      "fields": [
-        "opportunity",
-        "requirement_path",
-        "state"
-      ],
-      "optional": true
-    },
-    {
-      "id": "build-state",
-      "owner": "build",
-      "reader": "insight",
+      "reader": "workshop",
       "table": "handoffs",
       "pack": "company-loop",
       "mode": "read",
       "fields": [
         "opportunity",
-        "state",
-        "ticket",
-        "released_at"
+        "product",
+        "requirement",
+        "target_outcome",
+        "state"
       ],
       "optional": true
     },
@@ -571,6 +553,24 @@
         "title",
         "kind",
         "state"
+      ],
+      "optional": true
+    },
+    {
+      "id": "handoff-events",
+      "owner": "insight",
+      "reader": "workshop",
+      "table": "handoff_events",
+      "pack": "company-loop",
+      "mode": "write",
+      "fields": [
+        "handoff",
+        "state",
+        "team_id",
+        "url",
+        "note",
+        "at",
+        "product"
       ],
       "optional": true
     }

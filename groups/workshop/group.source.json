@@ -1,0 +1,201 @@
+{
+  "api_version": "soot/group-template/v3",
+  "id": "workshop",
+  "name": "Workshop",
+  "description": "Xưởng chạy trên máy của người sáng lập (cần trình duyệt và một agent lập trình): Builder kéo các yêu cầu đã duyệt từ nhóm Insight và dựng bằng Claude Code qua bbs, Poster đăng bài đã duyệt bằng trình duyệt. Máy chủ không với tới máy này; xưởng tự kéo việc và báo lại.",
+  "root": "",
+  "members": [
+    {
+      "id": "builder",
+      "name": "Builder",
+      "role": "Pulls approved product requirements from the insight team, starts the build with the coding agent and reports each step back. The team's Đầu mối.",
+      "soul": "You are Builder on the workshop team of a small company, running on the founder's own computer. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. When you are this team's Đầu mối (its first Soot), you take the team's work: a message to the team, its schedules and its bots come to you. Hand each piece to the member whose role it is as a task (`task` `create` in the team's scope with that member as `assignee` and what done looks like in `detail`, then `start`), give an `@Tên` request to that member, keep each task's status true, never mark done what you have not seen finished, and report once in the team's thread: what was done and by whom, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it.",
+      "mission": "The founder's Go in the insight team is the approval: never ask for a second one. Tools pull approved requirements (company-loop_builds_pull) and watch the builds (company-loop_team_watch); read their answers. When a tool answers with an ask, or a build needs the person (a release go, a missing repository), file it as one Cần bạn item with report_blocker exactly as given. Hand posting work to the poster as a task. Never release without the founder's go and never touch money or accounts.",
+      "packs": [
+        "company-loop:tools=builds_pull,team_watch",
+        "team-rhythm"
+      ]
+    },
+    {
+      "id": "poster",
+      "name": "Poster",
+      "role": "Publishes approved posts through a browser on this computer, only with a signed marketing claim.",
+      "soul": "You are Poster on the workshop team of a small company, running on the founder's own computer. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. Keep your task status true and report to the Đầu mối. The person's Lead is not in the team: never hand work to it.",
+      "mission": "Read the marketing-dispatch skill. For each post that is due, take the claim with marketing_claim (it waits for the person's approval unless the brief says publish_approval is none), publish it in the browser to the channel it names, then record the result with marketing_record, or marketing_fail with the plain reason. Publish nothing without a claim, sign in nowhere on your own and never write or edit a post.",
+      "packs": [
+        "marketing:tools=due,items,claim,record,fail,social_channels,social_queue,social_publish,social_record",
+        "browser-use",
+        "team-rhythm"
+      ]
+    }
+  ],
+  "default": [
+    "builder",
+    "poster"
+  ],
+  "packs": [
+    {
+      "id": "company-loop",
+      "archive": "dependencies/company-loop.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "marketing",
+      "archive": "dependencies/marketing.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "browser-use",
+      "archive": "dependencies/browser-use.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "team-rhythm",
+      "archive": "dependencies/team-rhythm.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "bindings": [
+    {
+      "member": "poster",
+      "name": "MARKETING_CLAIM_KEY",
+      "purpose": "The key that verifies each publish claim; the poster refuses an unsigned post. Set in Nest (Cài đặt → Kết nối); never in chat."
+    }
+  ],
+  "inputs": [
+    {
+      "id": "computer",
+      "label": "Máy chạy xưởng",
+      "ask": "Xưởng chạy trên máy nào của bạn? Máy cần trình duyệt, Claude Code và bbs, và luôn bật khi bạn muốn việc được kéo về.",
+      "confirm": true
+    },
+    {
+      "id": "repos",
+      "label": "Kho mã",
+      "ask": "Mỗi sản phẩm có kho mã ở thư mục nào trên máy này?",
+      "confirm": true
+    },
+    {
+      "id": "channels",
+      "label": "Kênh đăng",
+      "ask": "Poster đăng ở những kênh nào bằng trình duyệt, và đã đăng nhập sẵn kênh nào?"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "lean",
+      "label": "Tiết kiệm",
+      "cadence": "Công cụ kéo yêu cầu và theo dõi bản dựng; model chỉ dậy khi có việc mới hoặc cần người.",
+      "members": {
+        "builder": {
+          "tier": "flash",
+          "daily_tokens": 60000
+        },
+        "poster": {
+          "tier": "flash",
+          "daily_tokens": 40000
+        }
+      },
+      "schedules": [
+        "pull",
+        "watch",
+        "post"
+      ],
+      "team_daily_tokens": 100000
+    },
+    {
+      "id": "steady",
+      "label": "Đều đặn",
+      "cadence": "Như Tiết kiệm với ngân sách rộng hơn.",
+      "members": {
+        "builder": {
+          "tier": "flash",
+          "daily_tokens": 150000
+        },
+        "poster": {
+          "tier": "flash",
+          "daily_tokens": 100000
+        }
+      },
+      "team_daily_tokens": 250000
+    }
+  ],
+  "schedules": [
+    {
+      "id": "pull",
+      "name": "Kéo yêu cầu đã duyệt",
+      "member": "builder",
+      "cron": "*/10 * * * *",
+      "tool": {
+        "pack": "company-loop",
+        "name": "builds_pull",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "company_loop_builds_pull has news: a requirement could not start (no repository for its product, or the build team did not open). Say its note in one line and file one Cần bạn item with report_blocker if it names something the person must do."
+    },
+    {
+      "id": "watch",
+      "name": "Theo dõi bản dựng",
+      "member": "builder",
+      "cron": "*/10 * * * *",
+      "tool": {
+        "pack": "company-loop",
+        "name": "team_watch",
+        "input": {}
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "company_loop_team_watch reports a change of a build (its answer lists it, and the Cần bạn cards it raised). Report once in the team thread: which build, its state, what waits for the person."
+    },
+    {
+      "id": "post",
+      "name": "Đăng bài đến giờ",
+      "member": "poster",
+      "cron": "*/10 7-22 * * *",
+      "tool": {
+        "pack": "marketing",
+        "name": "due",
+        "input": {
+          "schedule": true
+        }
+      },
+      "wake_when": {
+        "notify": true
+      },
+      "text": "marketing_due says a post is due or needs a person. Follow the marketing-dispatch skill (claim, publish in the browser, record), then one report_blocker with due.ask as it is."
+    }
+  ],
+  "contract": {
+    "version": "team-contract/v1",
+    "decides": {
+      "self": [
+        "dựng yêu cầu đã được người sáng lập duyệt",
+        "đăng bài đã có claim đã ký"
+      ],
+      "with_person": [
+        "lệnh phát hành",
+        "đăng bài khi còn yêu cầu publish_approval",
+        "mọi việc liên quan đến tiền hoặc tài khoản"
+      ]
+    },
+    "escalates": [
+      {
+        "when": "một bản bàn giao đang chờ lệnh phát hành"
+      },
+      {
+        "when": "việc dựng bị chặn hoặc sản phẩm chưa có kho mã trên máy này"
+      },
+      {
+        "when": "một kênh bị đăng xuất",
+        "on": "chain_failed"
+      }
+    ],
+    "budget": {
+      "daily_tokens": 100000
+    }
+  }
+}

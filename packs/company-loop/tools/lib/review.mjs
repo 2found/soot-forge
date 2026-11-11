@@ -3,7 +3,7 @@
 // hit = the change reached at least half of expected_delta.
 import { eq, getState, isNull, iso } from './base.mjs';
 import { boardFor } from './scoreboard.mjs';
-import { productId } from './products.mjs';
+import { productId, scopeProduct } from './products.mjs';
 
 /** A hit: actual is at least half of expected, in the direction expected points. */
 export const isHit = (actual, expected) => (expected >= 0 ? actual >= expected / 2 : actual <= expected / 2);
@@ -31,9 +31,12 @@ function postSignal(topic, d) {
 
 export async function review(input, deps) {
   const { store, now } = deps;
-  const open = (await store.query('decisions', [eq('decision', 'go'), isNull('actual_delta')], { order: 'at', desc: false, limit: 200 })).filter(d => !d.reviewed_at);
-  // Each decision is measured on its own product's board (an unlabeled one: the host's).
   const host = productId(await getState(store, 'host_product'));
+  // One product (input, else the run's SOOT_PRODUCT) reviews only its own decisions; none reviews every product, as before.
+  const want = scopeProduct(input, deps.env);
+  const open = (await store.query('decisions', [eq('decision', 'go'), isNull('actual_delta')], { order: 'at', desc: false, limit: 200 }))
+    .filter(d => !d.reviewed_at && (!want || (productId(d.product) ?? host) === want));
+  // Each decision is measured on its own product's board (an unlabeled one: the host's).
   const boards = new Map();
   const valueOf = async (product, key) => {
     const p = productId(product) ?? host;
@@ -81,7 +84,7 @@ export async function review(input, deps) {
     await store.update('decisions', d.id, { actual_delta: actual, reviewed_at: iso(now) });
     reviewed.push({ ref: d.opportunity_ref, target: d.target_outcome, expected: d.expected_delta, actual, hit: isHit(actual, d.expected_delta) });
   }
-  const rate = hitRate(await store.query('decisions', [eq('decision', 'go')], { limit: 500 }));
+  const rate = hitRate((await store.query('decisions', [eq('decision', 'go')], { limit: 500 })).filter(d => !want || (productId(d.product) ?? host) === want));
   if (!reviewed.length && !unmeasured.length) return { done: true, waiting, hit_rate: rate };
   return { reviewed, unmeasured, ...(unmeasured.length ? { unmeasured_note: `${UNMEASURED}: bài chưa có số riêng (Search Console hoặc link chiến dịch), không chấm điểm` } : {}), waiting, hit_rate: rate, notify: false, wake: false };
 }

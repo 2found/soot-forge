@@ -197,7 +197,7 @@ function nextOf(d) {
     case 'choose': return ['warn', `${n.n} cơ hội chờ bạn chọn`, 'Chọn Go, Để sau hoặc Bỏ ở từng cơ hội. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.', [`Xem ${n.n} cơ hội`, jump('can-ban'), 'primary']];
     case 'draft_ready': return ['warn', 'Yêu cầu đã viết, đội dựng chưa mở', 'Soot chưa mở được đội bbs:team. Mở Orca rồi bấm Chạy lại, hoặc chạy lệnh trong mục Cần bạn.', ['Chạy lại', () => act('retry_handoff', { id: n.ref }), 'primary']];
     case 'no_repo': return ['bad', 'Chưa có kho mã để ghi yêu cầu', 'Đặt PRODUCT_REPO cho Soot rồi bấm Chạy lại ở mục Cần bạn.', ['Mở Thiết lập', () => open(SETTINGS('PRODUCT_REPO')), 'primary']];
-    case 'task': return ['warn', `${n.n} việc đã ghi chờ người làm`, 'Chưa nối đội dựng (kho mã hoặc bbs), nên sau Go Soot ghi quyết định và một việc. Giao việc cho người trong nhóm; xong thì đánh dấu để Soot đo kết quả từ ngày đó.', ['Giao việc', () => open(taskDraft(task)), 'primary']];
+    case 'task': return ['warn', `${n.n} việc đã ghi chờ người làm`, 'Máy này không có kho mã, nên sau Go Soot ghi quyết định và yêu cầu. Máy dựng của sản phẩm sẽ tự nhận; chưa có máy dựng thì giao việc cho người trong nhóm, xong thì đánh dấu để Soot đo kết quả từ ngày đó.', ['Giao việc', () => open(taskDraft(task)), 'primary']];
     case 'release_go': return ['warn', 'Bản giao chờ bạn duyệt phát hành', 'Đọc bản bàn giao trong terminal của đội ở Orca; hài lòng thì cho phép phát hành. Đó là lượt bấm cuối của bạn.', ['Xem bản giao', jump('can-ban'), 'primary']];
     case 'building': return ['ok', 'Đội đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi có bản giao cần bạn duyệt.', ['Xem tiến độ', jump('dang-dung'), 'strong']];
     case 'sync_failed': return ['bad', 'Chưa đọc được số mới', 'Bảng số không trả lời ở lần đọc gần nhất. Soot thử lại mỗi sáng; bấm Đọc số ngay để thử lại bây giờ.', ['Đọc số ngay', () => act('sync'), 'primary']];
@@ -274,7 +274,7 @@ function handoffNeed(x, d) {
   if (x.state === 'task') return h('div', { class: 'item' },
     h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, x.title), prod, badge('Việc đã ghi', 'warn')),
     x.summary ? h('p', {}, x.summary) : null,
-    small('Đã Go: quyết định đã vào nhật ký. Không có đội dựng nên việc chờ người làm; xong thì Soot đo kết quả từ ngày đó.'),
+    small('Đã Go: quyết định đã vào nhật ký. Yêu cầu chờ máy dựng nhận (hoặc người làm); xong thì Soot đo kết quả từ ngày đó.'),
     h('div', { class: 'row' }, btn('Giao việc', () => open(taskDraft(x)), 'strong'), btn('Đánh dấu đã xong', () => act('task_done', { id: x.opportunity }))));
   // draft_ready, no_repo
   return h('div', { class: 'item' },

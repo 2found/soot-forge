@@ -5,7 +5,7 @@
     {
       "id": "insight",
       "name": "Insight",
-      "description": "Đôi mắt và đầu mối gọn của công ty: Analyst đọc số liệu và viết bản tổng hợp hằng tuần, Radar theo dõi thị trường ở chế độ chỉ đọc. Nhóm cũng đặt mục tiêu, chạy buổi xem lại hằng tuần và chia ngân sách token giữa các nhóm; người sáng lập quyết.",
+      "description": "Đôi mắt và đầu mối gọn của công ty: một Analyst đọc số liệu từng sản phẩm, viết bản tin tuần và bản rà soát tiền hằng tuần (chỉ đọc). Tín hiệu thị trường đến từ nhóm Growth. Nhóm cũng đặt mục tiêu và chia ngân sách token; người sáng lập quyết.",
       "source": "groups/insight/group.source.json",
       "stability": "experimental",
       "audience": "internal",
@@ -19,7 +19,7 @@
     {
       "id": "growth",
       "name": "Growth",
-      "description": "Marketing và bán hàng của công ty: Researcher tìm tín hiệu và nguồn, Writer chỉ viết, Editor kiểm tra rồi đăng những gì đã qua kiểm tra và là Đầu mối. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này, không phải nhóm riêng.",
+      "description": "Marketing và bán hàng của công ty: Writer đọc radar và nguồn rồi viết, Editor kiểm tra, đăng những gì đã qua kiểm tra và là Đầu mối. Tín hiệu thị trường nhóm giữ được chuyển cho Insight. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này.",
       "source": "groups/growth/group.source.json",
       "parts": [
         "marketing",
@@ -45,7 +45,7 @@
     {
       "id": "operations",
       "name": "Operations",
-      "description": "Giao giá trị phía sản phẩm: mỗi việc vận hành của công ty (danh mục, theo dõi máy chủ, nhập nội dung) là một Soot riêng trong nhóm này. Mẫu mang một Operator đầu tiên; gói của việc đến từ sản phẩm nên mẫu không mang sẵn, và mỗi việc sau thêm một Soot.",
+      "description": "Giao giá trị phía sản phẩm: Operator chạy các việc vận hành của công ty (theo dõi máy chủ, nhập nội dung) và Curator giữ danh mục, chất lượng nội dung và kiểm duyệt cộng đồng. Gói của việc đến từ sản phẩm nên mẫu không mang sẵn.",
       "source": "groups/operations/group.source.json",
       "stability": "experimental",
       "audience": "internal",
@@ -59,7 +59,7 @@
     {
       "id": "finance",
       "name": "Finance",
-      "description": "Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
+      "description": "Tùy chọn, cho công ty muốn một kiểm soát tài chính riêng: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm, chỉ đọc. Bản rà soát tiền hằng tuần mặc định do Analyst của Insight viết.",
       "source": "groups/finance/group.source.json",
       "stability": "experimental",
       "audience": "internal",
@@ -68,6 +68,17 @@
       ],
       "entries": [
         "controller"
+      ]
+    },
+    {
+      "id": "workshop",
+      "name": "Workshop",
+      "description": "Xưởng chạy trên máy của người sáng lập (cần trình duyệt và một agent lập trình): Builder kéo các yêu cầu đã duyệt từ nhóm Insight và dựng bằng Claude Code qua bbs, Poster đăng bài đã duyệt bằng trình duyệt. Máy chủ không với tới máy này; xưởng tự kéo việc và báo lại.",
+      "source": "groups/workshop/group.source.json",
+      "stability": "experimental",
+      "audience": "internal",
+      "entries": [
+        "builder"
       ]
     },
     {

@@ -30,9 +30,9 @@ before(async () => {
 });
 after(async () => { server.close(); await rm(state, { recursive: true, force: true }); });
 
-function run(cmd, input, { token = TOKEN, hook = 'tool.call', env = {}, event = { subject: 'conv-1' } } = {}) {
+function run(cmd, input, { token = TOKEN, hook = 'tool.call', env = {}, event = { subject: 'conv-1' }, product } = {}) {
   seen = [];
-  const call = { api_version: 'soot/v1', hook, event, input };
+  const call = { api_version: 'soot/v1', hook, event, input, ...(product ? { product } : {}) };
   return new Promise(resolve => {
     const child = spawn(bin, [cmd], { env: { PATH: process.env.PATH, LOHI_API_BASE: base, LOHI_CS_API_KEY: KEY, SOOT_PACK_STATE: state, ...(token ? { SOOT_PRINCIPAL_TOKEN: token } : {}), ...env } });
     let stdout = '', stderr = '';
@@ -239,4 +239,31 @@ test('a transport failure or a non-JSON error page is named, not an empty failur
   assert.notEqual(nf.code, 0);
   assert.deepEqual(JSON.parse(nf.stdout.trim()), { code: 'not_found' });
   answer = () => [200, { ok: true }];
+});
+
+// Product gate: one runtime may serve several products; a conversation that is not Lohi's is refused
+// in one line before any request.
+test('product gate: another product, a foreign binding or an unproven write is refused with no request', async () => {
+  for (const [name, cmd, input, opts] of [
+    ['SOOT_PRODUCT env', 'lookup', { kind: 'features' }, { env: { SOOT_PRODUCT: '2novel' } }],
+    ['ToolCall product', 'lookup', { kind: 'wallet' }, { product: '2novel' }],
+    ['write', 'request-novel', { title: 'X' }, { env: { SOOT_PRODUCT: 'trysoot' } }],
+    ['binding', 'lookup', { kind: 'features' }, { event: { subject: 'c', binding: 'web-2found' }, env: { LOHI_BINDINGS: 'lohi, lohi-app' } }],
+    ['unproven write', 'report-content', { novelId: 'n1', kind: 'empty_chapter', from: 1 }, { token: '' }],
+  ]) {
+    const r = await run(cmd, input, opts);
+    assert.equal(r.code, 1, name);
+    assert.equal(r.stdout.trim().split('\n').length, 1, `${name}: one line`);
+    assert.equal(JSON.parse(r.stdout).code, 'not_lohi_conversation', name);
+    assert.equal(seen.length, 0, `${name}: no network call`);
+  }
+});
+
+test('product gate: the Lohi product, a Lohi binding or a principal still work', async () => {
+  assert.equal((await run('lookup', { kind: 'features' }, { env: { SOOT_PRODUCT: 'lohi' } })).code, 0);
+  assert.equal((await run('lookup', { kind: 'features' }, { env: { SOOT_PRODUCT: 'acme', LOHI_PRODUCT: 'acme' } })).code, 0);
+  assert.equal((await run('lookup', { kind: 'features' }, { event: { subject: 'c', binding: 'lohi' }, env: { LOHI_BINDINGS: 'lohi' } })).code, 0);
+  assert.equal((await run('report-content', { novelId: 'n1', kind: 'empty_chapter', from: 1 }, { token: '', env: { SOOT_PRODUCT: 'lohi' } })).code, 0);
+  const withPrincipal = await run('report-content', { novelId: 'n1', kind: 'empty_chapter', from: 1 });
+  assert.equal(withPrincipal.code, 0, withPrincipal.stdout + withPrincipal.stderr);
 });

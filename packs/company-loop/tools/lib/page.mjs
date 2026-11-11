@@ -72,7 +72,7 @@ function verdictOf(d, opp, handoff, topic) {
 export async function page_view(input, { store, env, now, soot }) {
   const ctx = contextProducts(input.products);
   const host = await hostProduct(store, input.host);
-  const want = productId(input.product);
+  const want = productId(input.product) ?? productId(env?.SOOT_PRODUCT);
   const [opps, rawHandoffs, rawDecisions, rawTopics, health, known] = await Promise.all([
     store.query('opportunities', [], { order: 'updated_at', limit: 200 }),
     store.query('handoffs', [], { order: 'updated_at', limit: 100 }),
@@ -186,7 +186,7 @@ export async function page_action(input, deps) {
     case 'retry_handoff': {
       const h = await store.one('handoffs', [eq('opportunity', String(input.id))]);
       const opp = h && await store.one('opportunities', [eq('ref', h.opportunity)]);
-      if (!opp || !['draft_ready', 'no_repo', 'task'].includes(h.state)) fail('invalid_request', 'Không có bàn giao nào chờ chạy lại.');
+      if (!opp || !['draft_ready', 'no_repo', 'task', 'approved'].includes(h.state)) fail('invalid_request', 'Không có bàn giao nào chờ chạy lại.');
       const out = await startHandoff(opp, deps);
       return { ok: true, handoff: { state: out.state, note: out.note, command: out.command } };
     }
