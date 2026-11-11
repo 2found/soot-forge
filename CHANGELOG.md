@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.12.6 — 2026-11-11
+
+Baseline: v0.12.5 (eab2c9c). Storage is unchanged (6).
+
+- **company-loop: `goals_checkin` really wakes its Soot.** A tool-only schedule starts a model run only when its `wake_when` holds (`notify: true` for this schedule) and never when the tool answers `done: true`. `goals_checkin` always answered `done: true, notify: false`, so neither a refused check-in nor (0.12.5) a newly breached guardrail woke anyone; only the card reached a person. A run with something to act on now answers `notify: true` and no `done`; a quiet run is unchanged.
+
 ## 0.12.5 — 2026-11-11
 
 Baseline: v0.12.4 (79f67cb). Pairs with Soot 0.15.6+ (a pack tool runs `soot goals` with its per-call token and no settings directory; on 0.15.5 server runtimes `goals_checkin` still answered `goals_unreadable`). Storage is unchanged (6).

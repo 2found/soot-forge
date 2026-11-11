@@ -90,7 +90,10 @@ export async function goals_checkin(input, deps) {
     if (out.ok) checked.push({ goal: g.id, ref: g.metric.ref, value: m.value, period: `${m.board.from}..${m.board.to}` });
     else failed.push({ goal: g.id, ref: g.metric.ref, code: short(String(out.json?.error?.code ?? out.json?.code ?? 'checkin_failed'), 40) });
   }
-  return { done: true, at: iso(now), checked, skipped, failed, guardrails, ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}), notify: false, wake: failed.length > 0 || woke };
+  // A schedule wakes its Soot only on `notify` (wake_when.notify) and never on `done: true`, so a run with
+  // something to act on (a refused check-in, a guardrail newly breached this period) drops `done` and says notify.
+  const loud = failed.length > 0 || woke;
+  return { ...(loud ? {} : { done: true }), at: iso(now), checked, skipped, failed, guardrails, ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}), notify: loud, wake: loud };
 }
 
 /** A breached guardrail is the one reading a person must see: one card per goal, ref and period, settled when the

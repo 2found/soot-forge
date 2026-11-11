@@ -83,6 +83,8 @@ test('non-happy paths: unknown product, a key the board lacks, not started yet, 
   assert.deepEqual(Object.fromEntries(out.skipped.map(s => [s.goal, s.why])), { g_none: 'no_numbers_for_product', g_key: 'metric_not_in_board', g_future: 'period_before_start', g_text: 'not_scoreboard_ref' });
   assert.deepEqual(out.failed.map(f => [f.goal, f.code]), [['g_refused', 'goal_not_active']]);
   assert.equal(out.wake, true, 'a failed check-in is the only thing that wakes a model');
+  assert.equal(out.notify, true, 'wake_when.notify is what wakes a tool-only schedule');
+  assert.equal(out.done, undefined, 'done: true would never wake');
   assert.deepEqual(out.checked, []);
 });
 
@@ -117,12 +119,16 @@ test('a breached guardrail raises one card for its period and wakes once; back i
   assert.ok(card.id.startsWith(`${card.group}:`) && card.id.length > card.group.length + 1, card.id);
   assert.match(card.title, /2novel:refunds vượt trần: 30 \(giới hạn 25\)/);
   assert.match(card.why, /Người mới dịch chương đầu/);
+  // wake_when.notify is how a tool-only schedule wakes, and done: true never wakes: a new breach says notify, not done.
   assert.equal(first.wake, true);
-  assert.equal(first.notify, false);
+  assert.equal(first.notify, true);
+  assert.equal(first.done, undefined);
   // The same period again: the card is offered again (the runtime files an id once) but nobody is woken twice.
   const again = await w.call('goals_checkin');
   assert.equal(again.raise[0].id, card.id);
   assert.equal(again.wake, false);
+  assert.equal(again.notify, false);
+  assert.equal(again.done, true);
   // The number back inside its limit settles the group and raises nothing.
   const before = novel.over.metrics.refunds;
   novel.over.metrics.refunds = { ...before, value: 20 };
