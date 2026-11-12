@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.14.4 — 2026-11-12
+
+Baseline: v0.14.3. Pairs with Soot 0.16.2+. No storage changes.
+
+- **lohi-cs: a write that never left does not fence support.** An approval-gated write (`lohi_recover_topup`, `lohi_fix_chapter`) whose connection was never made (curl 6/7), or that failed before sending (a jq error building the body, a broken stdin), now exits 1 (decided) instead of ≥2. Exit ≥2 makes the runtime hold the resource for every Soot until a person checks, so these used to stop all support writes for nothing. A 5xx/408 or a transport failure after the request was sent still stays unknown.
+
 ## 0.14.3 — 2026-11-12
 
 Baseline: v0.14.2. Pairs with Soot 0.16.2+ and Lohi api 1.36.0+ (new request types and agent roles). No storage changes.

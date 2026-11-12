@@ -292,3 +292,31 @@ test('product gate: the Lohi product, a Lohi binding or a principal still work',
   const withPrincipal = await run('report-content', { novelId: 'n1', kind: 'empty_chapter', from: 1 });
   assert.equal(withPrincipal.code, 0, withPrincipal.stdout + withPrincipal.stderr);
 });
+
+// Exit >=2 fences the resource for every Soot until a person checks, so only a
+// write that may have reached the api may say "unknown". A write that never
+// connected, or a runner that broke before sending, did nothing: exit 1.
+test('an approval-gated write that never reached the api is decided (exit 1)', async () => {
+  const closed = createServer();
+  await new Promise(r => closed.listen(0, '127.0.0.1', r));
+  const port = closed.address().port;
+  await new Promise(r => closed.close(r));
+  const window = { from: '2026-11-01T00:00:00Z', to: '2026-11-01T01:00:00Z' };
+  const refused = await run('recover-topup', window, { env: { LOHI_API_BASE: `http://127.0.0.1:${port}` } });
+  assert.equal(refused.code, 1, refused.stdout + refused.stderr);
+  assert.equal(JSON.parse(refused.stdout).code, 'transport_7');
+  // A jq failure while building the body (input is not an object) exits 5
+  // under set -e; nothing was sent, so it is decided too.
+  const broken = await run('recover-topup', 'not-an-object');
+  assert.equal(broken.code, 1, broken.stdout + broken.stderr);
+  assert.equal(seen.length, 0);
+});
+
+test('an approval-gated write the api may have committed stays unknown (exit >=2)', async () => {
+  answer = () => [503, { error: 'unavailable' }];
+  try {
+    const r = await run('recover-topup', { from: '2026-11-01T00:00:00Z', to: '2026-11-01T01:00:00Z' });
+    assert.ok(r.code >= 2, `5xx on the real call must stay unknown, got ${r.code}`);
+    assert.equal(seen.length, 1);
+  } finally { answer = () => [200, { ok: true }]; }
+});

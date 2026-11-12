@@ -37,6 +37,14 @@
 # runtime's SOOT_PACK_STATE (by hand: $HOME/.soot/state/lohi-cs).
 set -eu
 
+# Exit >=2 tells the runtime the outcome is unknown, and it fences the
+# resource for every Soot until a person checks. Only a write that may have
+# reached the api is unknown: anything failing before it (a jq error, a broken
+# stdin, a connection never made) did nothing, so it exits 1 (decided).
+# exec_post sets sent=1 in this shell right before the real call.
+sent=0
+trap 'rc=$?; if [ "$rc" -ge 2 ] && [ "$sent" = 0 ]; then exit 1; fi' EXIT
+
 cmd=${1:-}
 
 err() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
@@ -172,7 +180,8 @@ req() {
 #   exits 1, except a 5xx/408 on the
 #   real call, which may come after the write committed: exit 2.
 # - A transport failure prints {"code":"transport_<curl exit>"}; on the real
-#   call it keeps curl's exit code (uncertain);
+#   call it keeps curl's exit code (uncertain) unless the connection was never
+#   made (curl 6, 7);
 #   on preflight nothing is written, so it and an unreadable dry-run body are
 #   refusals (exit 1), never an approval card without a preview.
 exec_post() {
@@ -181,10 +190,13 @@ exec_post() {
     body=$(printf '%s\n' "$body" | jq -c '. + {dryRun: true}')
   fi
   out=$(mktemp "${TMPDIR:-/tmp}/soot-lohi-api.XXXXXX")
+  [ "$hook" = tool.preflight ] || sent=1
   code=$(headers 1 | curl -s -K - -o "$out" -w '%{http_code}' -X POST "$base$path" -d "$body") || {
     rc=$?; rm -f "$out"
     jq -cn --arg c "transport_$rc" '{code: $c}'
     [ "$hook" = tool.preflight ] && exit 1
+    # 6 (host not resolved) and 7 (connection refused): nothing was sent.
+    case $rc in 6|7) exit 1 ;; esac
     exit "$rc"
   }
   resp=$(cat "$out")
