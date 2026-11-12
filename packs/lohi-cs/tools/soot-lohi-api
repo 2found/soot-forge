@@ -15,6 +15,9 @@
 #                                (the reader's own data: /lookup/me/<kind>)
 #   soot-lohi-api history        GET /agent/support/lookup/me/history
 #   soot-lohi-api request-novel  POST /agent/support/requests (idempotent)
+#   soot-lohi-api request-chapters POST /agent/support/requests with type chapters|quality
+#                                (more chapters of a novel already on Lohi, or a
+#                                translation-quality complaint; idempotent)
 #   soot-lohi-api report-content POST /agent/support/content-reports (idempotent;
 #                                the api re-verifies the defect, staff approve)
 #   soot-lohi-api recover-topup  POST /agent/support/topups/recover
@@ -377,6 +380,26 @@ case $cmd in
       conversationId: $c, requestId: $r, title: .title,
       sourceUrl: (.sourceUrl // null), genre: (.genre // null),
       description: (.description // null)}')
+    req POST "$base/agent/support/requests" "$body" && printf '%s' "$rid" >"$rid_file"
+    ;;
+  request-chapters)
+    need_principal
+    state_dir=$(pack_state)
+    # Same idempotency as request-novel, keyed by (conversation, type, novel,
+    # from): a retry reuses the stored id, another novel gets its own.
+    key=$(printf '%s\n' "$input" | jq -r '[(.type // "chapters"), (.novelId // ""), ((.fromChapter // 0) | tostring)] | join("|")' | cksum | cut -d' ' -f1)
+    rid_file=$state_dir/request-chapters-$(printf '%s' "$cid" | tr -c 'A-Za-z0-9_.-' '_')-$key.id
+    if [ -s "$rid_file" ]; then
+      rid=$(cat "$rid_file")
+    else
+      rid=$(printf '%s\n' "$input" | jq -r '.requestId // empty')
+      printf '%s' "$rid" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+        || rid=$(uuidgen | tr 'A-F' 'a-f')
+    fi
+    body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" --arg r "$rid" '{
+      conversationId: $c, requestId: $r, type: (.type // "chapters"),
+      title: .title, novelId: .novelId, fromChapter: (.fromChapter // null),
+      description: (.description // null)} | with_entries(select(.value != null))')
     req POST "$base/agent/support/requests" "$body" && printf '%s' "$rid" >"$rid_file"
     ;;
   report-content)

@@ -3,6 +3,13 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.14.3 — 2026-11-12
+
+Baseline: v0.14.2. Pairs with Soot 0.16.2+ and Lohi api 1.36.0+ (new request types and agent roles). No storage changes.
+
+- **lohi-cs: more chapters and translation quality.** New tool `lohi_request_chapters` files a `chapters` request (the reader wants more chapters of a novel already on Lohi, optional `fromChapter`) or a `quality` request (a translation-quality complaint, description required) for the chatting reader. Idempotent per conversation, type, novel and start chapter; readers asking for the same novel join one request. The triage and novel-request skills route "dịch tiếp" / "thêm chương" here instead of `report_blocker`.
+- **marketing: per-Soot Lohi key.** Campaign tools read the new optional credential `PRODUCT_AGENT_KEY` (a key with role `agent_marketing`) and fall back to the deprecated shared `PRODUCT_ADMIN_KEY`, so a deployment that sets only the old key keeps working. A missing key now asks for `PRODUCT_AGENT_KEY`.
+
 ## 0.14.2 — 2026-11-12
 
 Baseline: v0.14.1. Pairs with Soot 0.16.2+. No storage changes (company-loop `storage.version` stays 7).

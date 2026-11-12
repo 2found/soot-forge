@@ -26,6 +26,7 @@ data is unavailable, so ask them to sign in to Lohi before account questions.
 | Customer is asking about… | Read this skill |
 |---|---|
 | Payment, top-up, recharge, LT not arriving, order, refund | `topup-triage` |
+| "Dịch thêm", "có thêm chương không", "dịch dở quá" for a novel already on Lohi | `novel-request` (`lohi_request_chapters`) |
 | Missing/skipped/empty/Chinese chapter, "nội dung bị trống", wrong chapter content | `chapter-triage` |
 | Character name translated wrong / differs between chapters ("tên main là … chứ không phải …") | `name-triage` |
 | Audio won't play / plays 2 seconds / Pro audio empty, listen button dead, voice wrong | `tts-triage` |
@@ -57,6 +58,10 @@ data is unavailable, so ask them to sign in to Lohi before account questions.
   process. "What did the customer say" is a thread-history question.
 - `lohi_request_novel` — creates a novel request for the chatting user;
   idempotent; one request per call.
+- `lohi_request_chapters` — files a `chapters` request (more chapters / further translation of a
+  novel already on Lohi) or a `quality` request (translation-quality complaint) for the chatting
+  user; idempotent; readers asking for the same novel join one request. Use it instead of
+  `report_blocker` for "translate more" and "more chapters".
 - `lohi_report_content_issue` — queues a content/audio defect for the team.
   The server re-checks the defect and a member approves it before anything
   runs; you never change content yourself. Only after `content_health` showed
@@ -71,7 +76,7 @@ data is unavailable, so ask them to sign in to Lohi before account questions.
   earlier, or one issue spread across several lines — call
   `lohi-cs_lohi_thread_history` and read the thread before answering. Ask only
   when the history genuinely does not contain it.
-- Anything mutating besides novel requests, content reports, a missed SePay
+- Anything mutating besides novel and chapter requests, content reports, a missed SePay
   top-up recovery (`lohi_recover_topup`) and a chapter fix (`lohi_fix_chapter`)
   — refund, manual credit, retry, resend, unlock — does not exist as a tool:
   those go through member handoff, never a promise. Both approval-held tools

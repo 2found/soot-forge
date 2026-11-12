@@ -49,13 +49,16 @@ const API_WHY = {
 const apiHost = deps => { try { return new URL(String(deps.env?.PRODUCT_API_URL)).host; } catch { return 'api'; } };
 const apiError = (code, host, detail = '') => ({ code, host, message: API_WHY[code](host) + (detail ? ` (${detail})` : '') + '.' });
 
+/** The marketing Soot's own Lohi key (role agent_marketing), else the deprecated shared PRODUCT_ADMIN_KEY (agent_mod). */
+const lohiKey = env => env?.PRODUCT_AGENT_KEY || env?.PRODUCT_ADMIN_KEY || undefined;
+
 /** One product api call: {out} or {error:{code, host, message}}; never throws for the api's own failures. */
 async function api(deps, method, path, body) {
   const base = String(deps.env?.PRODUCT_API_URL ?? '').replace(/\/+$/, '');
   // The admin key travels only over https (plain http only to this machine, for a local api).
   if (!/^https:\/\/[^/\s]+$/.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(base)) return { error: apiError('no_api', 'api') };
   const host = new URL(base).host;
-  const key = deps.env?.PRODUCT_ADMIN_KEY;
+  const key = lohiKey(deps.env);
   if (!key) return { error: apiError('no_key', host) };
   let res;
   try {
@@ -86,7 +89,7 @@ export const linksOf = (store, ids) => store.query('links', [inList('campaign', 
 
 /** campaign_save: create or update a campaign, then make each missing channel link. */
 export const KEY_WHY = 'Chiến dịch cần khoá API của Lohi để tạo liên kết và đọc số đăng ký.';
-export const noKey = deps => (deps.env?.PRODUCT_ADMIN_KEY ? null : needsCredential('PRODUCT_ADMIN_KEY', KEY_WHY));
+export const noKey = deps => (lohiKey(deps.env) ? null : needsCredential('PRODUCT_AGENT_KEY', KEY_WHY));
 
 export async function campaign_save(input, deps) {
   const { store, now } = deps;
@@ -165,7 +168,7 @@ const running = (c, now) => c.state !== 'stopped' && Date.parse(c.starts) <= now
 export async function campaign_report(input, deps) {
   const { store, now } = deps;
   // The schedule's plain read: without the optional key there is nothing to read, and nothing to say.
-  if (!deps.env?.PRODUCT_ADMIN_KEY && !input.id) return { ...skippedFor('PRODUCT_ADMIN_KEY'), campaigns: [], outcomes: [], tell: [], tokens_due: [] };
+  if (!lohiKey(deps.env) && !input.id) return { ...skippedFor('PRODUCT_AGENT_KEY'), campaigns: [], outcomes: [], tell: [], tokens_due: [] };
   if (input.tokens_used !== undefined && (!input.id || !Number.isInteger(input.tokens_used) || input.tokens_used < 0)) fail('invalid_request', 'tokens_used is a whole number ≥ 0 and needs id.');
   const list = input.id ? [await campaignRow(store, input.id)] : (await store.query('campaigns', [], { limit: 100 })).filter(c => running(c, now));
   const outcomes = [], tell = [], out = [];
@@ -275,7 +278,7 @@ export async function campaignView(input, { store, now, env, soot }) {
 export async function campaign_verify(_input, deps) {
   const base = String(deps.env?.PRODUCT_API_URL ?? '').replace(/\/+$/, '');
   if (!/^https:\/\/[^/\s]+$/.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(base)) return { state: 'no_api', ok: false, message: API_WHY.no_api() + '.' };
-  if (!deps.env?.PRODUCT_ADMIN_KEY) return { state: 'no_key', ok: false, message: API_WHY.no_key() + '.' };
+  if (!lohiKey(deps.env)) return { state: 'no_key', ok: false, message: API_WHY.no_key() + '.' };
   const day = localDay(deps.now);
   let res;
   try {

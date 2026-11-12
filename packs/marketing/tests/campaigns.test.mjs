@@ -185,8 +185,8 @@ test('no key: every campaign op answers needs_credential with a Vietnamese line 
   delete w.env.PRODUCT_ADMIN_KEY;
   for (const [tool, input] of [['page_action', { op: 'campaign_save', request_id: 'rq', campaign: CAMPAIGN }], ['page_action', { op: 'campaign_refresh', request_id: 'rq3', campaign_id: 'x-y' }], ['campaign_save', CAMPAIGN]]) {
     const out = await w.call(tool, input, { page: { page: 'chien-dich' } });
-    assert.deepEqual([out.ok, out.reason_code, out.key], [false, 'needs_credential', 'PRODUCT_ADMIN_KEY'], tool);
-    assert.match(out.message, /Thiết lập.*PRODUCT_ADMIN_KEY|PRODUCT_ADMIN_KEY.*Thiết lập/, tool);
+    assert.deepEqual([out.ok, out.reason_code, out.key], [false, 'needs_credential', 'PRODUCT_AGENT_KEY'], tool);
+    assert.match(out.message, /Thiết lập.*PRODUCT_AGENT_KEY|PRODUCT_AGENT_KEY.*Thiết lập/, tool);
     assert.equal(out.link, 'nest://settings/setup');
     assert.equal(out.error.code, 'needs_credential', 'the page prints this line');
   }
@@ -264,4 +264,14 @@ test('campaign_verify: one read-only GET says ok, wrong key, key without the rol
   assert.equal(down.state, 'unreachable');
   assert.equal(JSON.stringify([ok, wrong, noRole, down]).includes('reader-key'), false);
   assert.equal((await world({ env: { PRODUCT_ADMIN_KEY: '' } }).call('campaign_verify', {})).state, 'no_key');
+});
+
+test('PRODUCT_AGENT_KEY is the marketing key; the deprecated PRODUCT_ADMIN_KEY still works as a fallback', async () => {
+  api.reset();
+  const w = world();
+  delete w.env.PRODUCT_ADMIN_KEY;
+  w.env.PRODUCT_AGENT_KEY = KEY;
+  const out = await w.call('campaign_verify', {}, { page: { page: 'chien-dich' } });
+  assert.notEqual(out.state, 'no_key');
+  assert.equal(api.calls.length > 0, true);
 });

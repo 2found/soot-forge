@@ -103,6 +103,31 @@ test('writes keep their bodies and add the header; neither secret appears in out
   for (const out of [r, pre]) assert.ok(!(out.stdout + out.stderr).includes(TOKEN) && !(out.stdout + out.stderr).includes(KEY));
 });
 
+test('request-chapters posts type chapters|quality with the novel and one idempotency key per ask', async () => {
+  const novelId = '22222222-2222-4222-8222-222222222222';
+  const a = await run('request-chapters', { novelId, title: 'Kiếm Lai', fromChapter: 41, requestId: 'not-a-uuid' });
+  assert.equal(a.code, 0, a.stdout + a.stderr);
+  assert.equal(seen[0].url, '/agent/support/requests');
+  const first = seen[0].body;
+  assert.equal(first.type, 'chapters');
+  assert.equal(first.novelId, novelId);
+  assert.equal(first.fromChapter, 41);
+  assert.equal(first.conversationId, 'conv-1');
+  assert.match(first.requestId, /^[0-9a-f-]{36}$/, 'a non-uuid model id is replaced');
+  assert.equal(seen[0].headers['x-soot-principal'], TOKEN);
+  // the same ask again reuses the stored id; a quality complaint gets its own
+  await run('request-chapters', { novelId, title: 'Kiếm Lai', fromChapter: 41, requestId: 'x' });
+  assert.equal(seen[0].body.requestId, first.requestId);
+  await run('request-chapters', { novelId, type: 'quality', title: 'Kiếm Lai', description: 'Tên nhân vật sai ở nhiều chương' });
+  assert.equal(seen[0].body.type, 'quality');
+  assert.notEqual(seen[0].body.requestId, first.requestId);
+  assert.equal('fromChapter' in seen[0].body, false, 'absent fields are not sent as null');
+  // anonymous: nothing is asked
+  const anon = await run('request-chapters', { novelId, title: 'x' }, { token: '' });
+  assert.notEqual(anon.code, 0);
+  assert.equal(seen.length, 0);
+});
+
 test('secrets reach curl only through its config on stdin, never argv', async () => {
   const text = await readFile(bin, 'utf8');
   for (const line of text.split('\n').filter(l => /\bcurl\b/.test(l) && !l.trim().startsWith('#') && !/command -v/.test(l))) {

@@ -312,6 +312,65 @@
       }
     },
     {
+      "name": "lohi_request_chapters",
+      "title": "Gửi yêu cầu thêm chương / sửa chất lượng dịch",
+      "description": "Create a request on behalf of the chatting user for a novel ALREADY on Lohi (novelId from find_novel): type chapters = the reader wants more chapters or further translation (optional fromChapter); type quality = a translation-quality complaint (description required: what is wrong and where). Idempotent. Several readers asking for more chapters of one novel join ONE request (merged:true). Use this, not report_blocker, for 'translate more' and 'more chapters'. Never promise a date; a quality complaint about names or a defect you can reproduce goes through lohi_report_content_issue first.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "chapters",
+              "quality"
+            ]
+          },
+          "novelId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "fromChapter": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "requestId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "novelId",
+          "title",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-api",
+        "args": [
+          "request-chapters"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "resource": "lohi_api",
+        "timeout": "15s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
       "name": "lohi_report_content_issue",
       "title": "Báo lỗi nội dung cho đội hỗ trợ",
       "description": "Ask the support team to fix a broken novel/chapter/audio defect that kind=content_health has ALREADY shown for this window. kind=content (chapters missing/empty/placeholder/untranslated) or kind=audio (Pro audio too short/placeholder on good text). The server re-checks the defect itself and refuses a healthy window; nothing is changed until a member approves it. Max 3 pending per conversation. Tell the reader it is queued for the team, never that it is fixed or when. kind=name (wrong character name): needs wrongName (+ rightName) and requires that kind=name_check showed the wrong spelling in the text; it opens a REVIEW for staff, who decide — never promise a rename.",

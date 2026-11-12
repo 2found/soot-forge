@@ -42,7 +42,7 @@ sign-in must be renewed in Nest.
 A campaign (`marketing_campaign_save {name, goal{metric,target}, channels,
 starts, ends, token_budget}`, or the Chiến dịch page) has one UTM short link
 per channel, made through the product api with the operator's
-`PRODUCT_ADMIN_KEY`. Saving it again fills a link that failed.
+`PRODUCT_AGENT_KEY`. Saving it again fills a link that failed.
 
 When `marketing_campaign_report` wakes you (a daily schedule):
 
