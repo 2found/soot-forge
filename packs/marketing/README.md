@@ -86,7 +86,7 @@ plain sentence, with the one button the founder needs or "Không cần làm gì"
   (posts per day, spacing, replies per day) are edited per channel with a
   confirmation (`page_action set_limits`).
 - **Chiến dịch** shows the next step of each campaign and "Mở Thiết lập" when
-  `PRODUCT_ADMIN_KEY` is missing; the page never shows the key's name alone.
+  `PRODUCT_AGENT_KEY` (an `agent_marketing` key; the deprecated shared `PRODUCT_ADMIN_KEY` still works as a fallback) is missing; the page never shows the key's name alone.
 
 ```text
 draft_save → check (guard + editor verdict) → schedule → due (tool-only schedule)
@@ -128,7 +128,7 @@ or `published` with a target), channels, dates, a token budget and one short
 link per channel made by the product api (`POST /admin/links`, `{code, url}`),
 tagged `utm_source=<channel>`, `utm_medium=blog|social`, `utm_campaign=<id>`.
 The api's address is the `PRODUCT_API_URL` env the host grants; its key is the
-optional operator credential `PRODUCT_ADMIN_KEY`, sent only to that address.
+optional operator credential `PRODUCT_AGENT_KEY` (an `agent_marketing` key; the deprecated shared `PRODUCT_ADMIN_KEY` still works as a fallback), sent only to that address.
 `draft_save {campaign}` keeps a post on the campaign's channels and gives a
 social or video post the channel's link.
 

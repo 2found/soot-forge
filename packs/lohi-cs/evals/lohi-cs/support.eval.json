@@ -94,6 +94,28 @@
       ]
     },
     {
+      "id": "request-chapters",
+      "tags": [
+        "lohi-cs",
+        "request"
+      ],
+      "description": "A reader who wants more chapters of a novel Lohi already has files a chapters request for that novel, not a new-novel request.",
+      "turns": [
+        {
+          "send": "Truyện \"Thiên Đạo Đồ Thư Quán\" trên Lohi mới có 50 chương, mình muốn đọc tiếp từ chương 51, nhờ bên mình thêm chương giúp nhé.",
+          "expect": {
+            "max_tool_calls": 10,
+            "called": [
+              "lohi-cs_lohi_request_chapters"
+            ],
+            "reply_matches": [
+              "(?i)chương"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": "report-empty-chapter",
       "tags": [
         "lohi-cs",

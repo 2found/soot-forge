@@ -39,7 +39,8 @@ conversation that carries no product at all.
 
 `lohi_recover_topup` credits LT and `lohi_fix_chapter` changes a chapter: both
 are `approval: "operator"` with a dry-run `preflight` that renders the approval
-card. `lohi_request_novel` and `lohi_report_content_issue` credit and change
+card. `lohi_request_novel`, `lohi_request_chapters` (a `chapters` or `quality` request for a novel
+already on Lohi) and `lohi_report_content_issue` credit and change
 nothing and run without approval (the api re-checks and staff approve a
 report).
 

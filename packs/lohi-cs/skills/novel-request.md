@@ -2,8 +2,9 @@
 
 Read this skill before answering "can you add this novel", "where is the
 novel I asked for". Reply in the customer's language (usually
-Vietnamese). This is the ONLY write you can perform — and it only
-creates novel requests for the chatting user.
+Vietnamese). Its writes only create requests for the chatting user: a new novel
+(`lohi_request_novel`) or more chapters / a quality complaint for a novel already on Lohi
+(`lohi_request_chapters`).
 
 ## Creating a request (`lohi_request_novel`)
 
@@ -28,6 +29,29 @@ Rules:
 - Errors: `too_many_pending` → they hit the pending cap; tell them to
   wait for existing requests to be processed. `thread_unbound` /
   `scope_mismatch` → server-side binding failure, handoff.
+
+## More chapters, or a translation-quality complaint (`lohi_request_chapters`)
+
+For a novel that is ALREADY on Lohi, "dịch thêm", "cập nhật thêm chương", "dịch dở quá" are not
+`lohi_request_novel` and not `report_blocker`: call `lohi_request_chapters`.
+
+- `novelId` (required) — from `find_novel`. Never guess one.
+- `type` — `chapters` (default: the reader wants more chapters or further translation; add
+  `fromChapter` when they name the chapter they stopped at) or `quality` (the translation is poor;
+  `description` is required: what is wrong and in which chapters, in one or two sentences).
+- `title` — the novel title; `requestId` — a fresh UUID, as above.
+
+Rules:
+
+- Several readers asking for more of the same novel join ONE request. `merged: true` means the reader
+  was added to the request that already exists: tell them they are backing it, not that a second
+  one was filed.
+- Confirm the novel and what is wanted back to the reader. Never promise a date or a number of
+  chapters: a person or the operations team decides, and a queue position is not a promise.
+- A defect you can reproduce (empty, Chinese or skipped chapters, a wrong character name) still
+  goes through `chapter-triage` / `name-triage` first; use `type: quality` for taste and fluency
+  complaints the scan cannot show.
+- `too_many_pending` → tell them to wait for their existing requests to be processed.
 
 ## Checking status (`lohi_lookup`)
 
