@@ -8,7 +8,7 @@ import { partHealth, worstPart } from '../tools/lib/parts.mjs';
 import { scoreboardKeys, keyFor } from '../tools/lib/products.mjs';
 import { MAX_BYTES } from '../tools/lib/signals.mjs';
 
-const PAGE = { page: { page: 'cong-ty' } };
+const PAGE = { page: { page: 'company' } };
 const view = (w, input = {}) => w.call('page_view', input, PAGE);
 const act = (w, input) => w.call('page_action', { request_id: 'req-part-0001', ...input }, PAGE);
 const prev = { from: '2026-10-26', to: '2026-11-01' }, cur = { from: '2026-11-02', to: '2026-11-08' };

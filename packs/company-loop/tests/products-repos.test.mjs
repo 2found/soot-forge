@@ -9,7 +9,7 @@ import { world, ITEM } from './world.mjs';
 import { fakeBbs, scratchRepo } from './fixtures.mjs';
 import { projectOf, buildsHere, hasBuild } from '../tools/lib/handoff.mjs';
 
-const PAGE = { page: { page: 'cong-ty' } };
+const PAGE = { page: { page: 'company' } };
 let n = 0;
 const rid = () => `req-pr${String(++n).padStart(8, '0')}`;
 const goOf = (w, ref, extra = {}) => w.call('page_action', { op: 'go', id: ref, request_id: rid(), ...extra }, PAGE);

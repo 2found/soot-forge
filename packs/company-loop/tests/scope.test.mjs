@@ -11,7 +11,7 @@ const novel = await startBoardApi({ key: OTHER_KEY });
 novel.over = { product: '2novel' };
 after(() => { home.close(); novel.close(); });
 const env = { SCOREBOARD_URL: home.url, PRODUCT_ADMIN_KEY: KEY, SCOREBOARD_URLS: `2novel=${novel.url}`, SCOREBOARD_KEYS: `2novel=${OTHER_KEY}` };
-const page = { page: { page: 'cong-ty' } };
+const page = { page: { page: 'company' } };
 
 test('scoreboard_sync: product (input or SOOT_PRODUCT) reads only that product\'s source; none reads all', async () => {
   home.calls.length = 0; novel.calls.length = 0;

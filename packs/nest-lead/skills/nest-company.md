@@ -71,7 +71,7 @@ it) is said in one line in the proposal, never hidden.
 
 Never set or raise a budget here (`budget.save` is not part of a template), never
 delete anything, and never start an adapter or connect a bot: a bot token is the
-person's, on the team's Kênh tab (`nest://team/<team>/kenh`).
+person's, on the team's Kênh tab (`nest://team/<team>/channels`).
 
 ## Templates
 

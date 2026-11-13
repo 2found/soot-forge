@@ -271,7 +271,7 @@ test('PRODUCT_AGENT_KEY is the marketing key; the deprecated PRODUCT_ADMIN_KEY s
   const w = world();
   delete w.env.PRODUCT_ADMIN_KEY;
   w.env.PRODUCT_AGENT_KEY = KEY;
-  const out = await w.call('campaign_verify', {}, { page: { page: 'chien-dich' } });
+  const out = await w.call('campaign_verify', {}, { page: { page: 'campaigns' } });
   assert.notEqual(out.state, 'no_key');
   assert.equal(api.calls.length > 0, true);
 });

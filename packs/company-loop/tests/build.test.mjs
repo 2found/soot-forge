@@ -40,7 +40,7 @@ async function server(extra = {}) {
   const w = world({ env: extra });
   await w.call('digest_save', { opportunities: [ITEM.product] });
   const ref = w.rows('opportunities')[0].ref;
-  return { w, ref, go: () => w.call('page_action', { op: 'go', id: ref, request_id: 'req-build0001' }, { page: { page: 'cong-ty' } }) };
+  return { w, ref, go: () => w.call('page_action', { op: 'go', id: ref, request_id: 'req-build0001' }, { page: { page: 'company' } }) };
 }
 /** The Mac: repo + bbs + soot with a runtime token. */
 function mac(over = {}) {
