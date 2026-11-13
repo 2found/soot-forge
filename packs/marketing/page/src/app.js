@@ -22,7 +22,7 @@ const bridge = createBridge({
   post: m => window.parent.postMessage(m, '*'),
   listen: h => window.addEventListener('message', e => h(e.data, e.source)),
   parent: window.parent === window ? undefined : window.parent,
-  onInit: init => { applyTheme(init); S.t = M.strings(init.locale); document.documentElement.lang = init.locale; start(); },
+  onInit: init => { applyTheme(init); document.documentElement.dataset.embedded = ''; S.t = M.strings(init.locale); document.documentElement.lang = init.locale; start(); },
   onTheme: msg => applyTheme(msg),
 });
 
@@ -94,9 +94,11 @@ function nextBlock(/** @type {any} */ d, /** @type {any} */ p, /** @type {any} *
 
 function postList(d) {
   const t = S.t;
-  const tabs = h('div', { class: 'seg', role: 'tablist' }, ...Object.entries(t.tabs).map(([k, label]) =>
-    h('button', { class: 'tab', type: 'button', role: 'tab', 'aria-selected': String(S.filter === k), onclick: () => { S.filter = k; void run(load); } }, `${label} ${d.counts[k] ?? 0}`)));
-  const top = h('div', { class: 'line wrap' }, tabs, askWriter(d));
+  // One labelled select, not a third row of tabs under Nest's two (audit 2026-11-14 N12); none while every count is 0.
+  const filter = (d.counts.all ?? 0) > 0 || S.filter !== 'all' ? h('label', { class: 'line filter' }, h('span', { class: 'muted' }, t.show),
+    h('select', { class: 'input sm', onchange: (/** @type {any} */ e) => { S.filter = e.target.value; void run(load); } },
+      ...Object.entries(t.tabs).map(([k, label]) => h('option', { value: k, selected: S.filter === k }, `${label} (${d.counts[k] ?? 0})`)))) : null;
+  const top = h('div', { class: 'line wrap' }, filter ?? h('span'), askWriter(d));
   if (!d.items.length) return [top, h('div', { class: 'empty' }, h('span', { class: 'face big', 'aria-hidden': 'true' }), h('b', {}, t.noPosts), h('span', {}, t.noPostsHelp))];
   return [top, h('ul', { class: 'list card' }, ...d.items.map((/** @type {any} */ p) => {
     const state = p.unpublishing ? 'unpublishing' : p.state;
@@ -168,7 +170,7 @@ function postDetail(d) {
   const head = h('div', { class: 'line wrap' }, h('div', { class: 'line' }, badge(p.late ? 'Bài lỡ giờ' : p.label, p.late ? 'uncertain' : p.state), h('h2', {}, p.title)),
     h('div', { class: 'line' },
       ['ready', 'scheduled', 'failed'].includes(p.state) && p.next?.code !== 'late' && p.next?.code !== 'in_flight' && button(t.postNow, () => void act('post_now', { id: p.id })),
-      d.writer && ['article', 'social'].includes(p.kind) && !['published', 'unpublishing'].includes(p.state) && button('Nhờ Writer sửa', () => bridge.open(/** @type {string} */ (M.reviseLink(d.writer, p)))),
+      d.writer && ['article', 'social'].includes(p.kind) && !['published', 'unpublishing'].includes(p.state) && button('Nhờ sửa bài', () => bridge.open(/** @type {string} */ (M.reviseLink(d.writer, p)))),
       ['scheduled', 'failed', 'ready'].includes(p.state) && button(t.pull, () => void act('pull', { id: p.id })), p.state === 'published' && button(t.unpublish, () => askUnpublish(p), 'btn sm danger')));
   const left = h('div', { class: 'card pad stack' });
   if (p.reason && ['failed', 'uncertain'].includes(p.state)) left.append(h('p', { class: 'errline', role: 'alert' }, p.state === 'failed' ? M.failWhy(p.reason) : p.reason));
@@ -180,7 +182,7 @@ function postDetail(d) {
   if (!d.check) left.append(h('p', { class: 'muted' }, t.noCheck));
   else {
     left.append(h('div', { class: 'flow' }, ...d.check.auto.map((/** @type {any} */ a) => h('span', { class: a.ok ? 'chip' : 'chip err' }, a.detail))));
-    left.append(h('p', { class: 'muted' }, `Editor · ${M.when(d.check.at)} · bản ${d.check.revision}${d.check.current ? '' : ` · ${t.stale}`}`));
+    left.append(h('p', { class: 'muted' }, `Kiểm tra · ${M.when(d.check.at)} · bản ${d.check.revision}${d.check.current ? '' : ` · ${t.stale}`}`));
   }
   if (p.hold) left.prepend(h('div', { class: 'notice err', role: 'alert' }, h('b', {}, `${p.hold_label}:`), ' ', p.reason ?? t.stillDraft));
   if (d.video) {
@@ -428,9 +430,9 @@ function campaignDetail(/** @type {any} */ d) {
     h('span', {}, 'Bài trên kênh này chưa đếm được lượt bấm. Tạo lại khi api trả lời.'),
     h('span', {}, button('Tạo lại liên kết', () => void act('campaign_save', { campaign: { id: c.id, name: c.name, goal: { metric: goal.metric, target: goal.target }, channels: c.channel_ids, starts: M.localInput(c.starts).slice(0, 10), ends: M.localInput(c.ends).slice(0, 10), token_budget: c.token_budget } }), 'btn sm out'))));
   // The links to use: one per channel, tagged so every click and signup is counted.
-  if (d.links.length) out.push(h('div', { class: 'card pad stack' }, h('h3', {}, 'Liên kết của chiến dịch'), h('small', { class: 'muted' }, 'Dán đúng liên kết của kênh vào bài; Writer tự gắn khi viết bài cho chiến dịch.'),
+  if (d.links.length) out.push(h('div', { class: 'card pad stack' }, h('h3', {}, 'Liên kết của chiến dịch'), h('small', { class: 'muted' }, 'Dán đúng liên kết của kênh vào bài; Soot viết bài tự gắn khi viết cho chiến dịch.'),
     ...d.links.map((/** @type {any} */ l) => h('div', { class: 'line' }, h('b', {}, l.label), h('button', { class: 'link inline', type: 'button', title: l.url, onclick: () => bridge.open(l.url) }, l.url))),
-    d.writer && button('Nhờ Writer viết bài cho chiến dịch', () => bridge.open(M.campaignWriteLink(d.writer, c, d.links)), 'btn sm out')));
+    d.writer && button('Nhờ viết bài cho chiến dịch', () => bridge.open(M.campaignWriteLink(d.writer, c, d.links)), 'btn sm out')));
   out.push(h('p', { class: 'muted' }, `${M.tokenLine(c.tokens_used, c.token_budget)} Đăng ký tính theo liên kết người đó bấm đầu tiên khi tạo tài khoản.`));
   return out;
 }

@@ -6,22 +6,22 @@
 export function strings(locale) {
   const vi = {
     posts: 'Bài viết', queue: 'Hàng đợi', reload: 'Tải lại', loading: 'Đang tải…', back: 'Tất cả bài',
-    tabs: { all: 'Tất cả', need: 'Cần bạn', draft: 'Nháp', ready: 'Đã kiểm tra', waiting: 'Sắp đăng', published: 'Đã đăng', refused: 'Bị từ chối' },
-    noPosts: 'Chưa có bài nào', noPostsHelp: 'Writer lưu bản nháp vào đây.', askWrite: 'Nhờ viết bài',
+    show: 'Hiện', tabs: { all: 'Tất cả', need: 'Cần bạn', draft: 'Nháp', ready: 'Đã kiểm tra', waiting: 'Sắp đăng', published: 'Đã đăng', refused: 'Bị từ chối' },
+    noPosts: 'Chưa có bài nào', noPostsHelp: 'Soot viết bài lưu bản nháp vào đây.', askWrite: 'Nhờ viết bài',
     open: 'Mở', unpublish: 'Gỡ bài', pull: 'Gỡ khỏi hàng đợi', schedule: 'Xếp lịch', bodyHead: 'Nội dung bài', restore: 'Xếp lại', republish: 'Đăng lại', reschedule: 'Đổi giờ', why: 'Xem lý do', save: 'Lưu', cancel: 'Hủy',
     noData: 'Chưa có số liệu', noDataWhy: 'Chưa có số liệu — Google thường cần 2–3 ngày sau khi đăng.', notZero: 'Không phải 0: chưa đọc được.',
     relogin: 'Cần đăng nhập Google lại', reloginHelp: 'Quyền đọc Search Console đã bị thu hồi. Một mục đã ở Cần bạn.',
     impressions: 'Hiển thị', clicks: 'Lượt bấm', position: 'Vị trí', days28: '28 ngày', topQueries: 'Truy vấn đứng đầu',
-    radarUses: 'Writer dùng các truy vấn vị trí 8–20 để chọn chủ đề kế tiếp.',
-    editorCheck: 'Kiểm tra của Editor', noCheck: 'Editor chưa kiểm tra bản này.', stale: 'Kiểm tra cho bản cũ',
-    refused: 'Không đăng', refusedBy: 'Editor', refusedNext: 'Writer đã được báo để sửa. Bài không vào hàng đợi cho tới khi Editor kiểm tra lại bản mới.',
+    radarUses: 'Soot viết bài dùng các truy vấn vị trí 8–20 để chọn chủ đề kế tiếp.',
+    editorCheck: 'Kết quả kiểm tra', noCheck: 'Soot kiểm tra chưa xem bản này.', stale: 'Kiểm tra cho bản cũ',
+    refused: 'Không đăng', refusedBy: 'Soot kiểm tra', refusedNext: 'Soot viết bài đã được báo để sửa. Bài không vào hàng đợi cho tới khi bản mới qua kiểm tra.',
     pausedAll: 'Đang dừng đăng mọi kênh', pausedHelp: 'Soot vẫn viết và kiểm tra; không gì được đăng hay trả lời cho tới khi bạn bật lại.',
     pauseAll: 'Đăng mọi kênh', switchHint: 'Bật là đang đăng · tắt là dừng', afterResume: 'sẽ đăng ở khung giờ trống đầu tiên sau khi bật lại',
     caps: 'Giới hạn kênh', capsHead: ['Kênh', 'Bài/ngày', 'Cách nhau', 'Trả lời/ngày'],
     today: 'Hôm nay', replies: 'trả lời', replyTo: 'Trả lời', pausedAs: (/** @type {string} */ why) => `đang dừng: ${why}`,
     posted: 'Đã lên', postedUrl: 'Liên kết bài đã lên', notPosted: 'Chưa lên — đăng lại', drop: 'Bỏ', postNow: 'Đăng ngay', tryNow: 'Thử ngay',
     notYet: 'Chưa đăng', retryAt: (/** @type {string} */ at) => `Sẽ thử lại lúc ${at}.`,
-    emptyQueue: 'Không có gì chờ đăng', emptyHelp: 'Editor xếp bài vào đây sau khi kiểm tra.', recent: 'Vừa xong', hasLink: 'có liên kết', recorded: 'Đã đăng sau kiểm tra · ghi kết quả "Bài đã đăng"', removedDone: 'Đã gỡ',
+    emptyQueue: 'Không có gì chờ đăng', emptyHelp: 'Bài vào đây sau khi qua kiểm tra.', recent: 'Vừa xong', hasLink: 'có liên kết', recorded: 'Đã đăng sau kiểm tra · ghi kết quả "Bài đã đăng"', removedDone: 'Đã gỡ',
     inFlight: 'Đang đăng', waitSignIn: 'Chờ đăng nhập', unpublishingLabel: 'Đang gỡ', keep: 'Giữ lại',
     unpublishAsk: (/** @type {string} */ ch) => `Gỡ bài trên ${ch}?`, unpublishYes: (/** @type {string} */ ch) => `Gỡ bài trên ${ch}`,
     unpublishHelp: (/** @type {string} */ title) => `Bài và lượt thích, trả lời của nó sẽ mất trên ${title.replace(/^Gỡ bài trên |\?$/g, '')}. Bài vẫn còn trong Bài viết để đăng lại.`,
@@ -35,7 +35,7 @@ export function strings(locale) {
   };
   if (locale !== 'en') return vi;
   return { ...vi, posts: 'Posts', queue: 'Queue', reload: 'Reload', loading: 'Loading…', back: 'All posts',
-    tabs: { all: 'All', need: 'Needs you', draft: 'Drafts', ready: 'Checked', waiting: 'Scheduled', published: 'Published', refused: 'Refused' },
+    show: 'Show', tabs: { all: 'All', need: 'Needs you', draft: 'Drafts', ready: 'Checked', waiting: 'Scheduled', published: 'Published', refused: 'Refused' },
     noData: 'No data yet', noDataWhy: 'No data yet — Google usually needs 2–3 days after publishing.', notZero: 'Not 0: not read yet.',
     impressions: 'Impressions', clicks: 'Clicks', position: 'Position', emptyQueue: 'Nothing waiting to publish', unpublish: 'Unpublish', pull: 'Remove from queue', open: 'Open' };
 }
@@ -77,12 +77,12 @@ export const localInput = at => new Date(Date.parse(at) + 7 * 3_600_000).toISOSt
 export const fromLocalInput = v => new Date(Date.parse(`${v}:00Z`) - 7 * 3_600_000).toISOString();
 /** The line under a post in Bài viết. @param {any} p @param {ReturnType<typeof strings>} t */
 export function postLine(p, t) {
-  if (p.unpublishing) return 'Đang gỡ… Editor sẽ xóa bài trong vài phút (lần đăng theo lịch tới).';
+  if (p.unpublishing) return 'Đang gỡ… Bài được xóa trong vài phút (lần đăng theo lịch tới).';
   if (p.state === 'published') return `${p.channel} · đăng ${day(p.updated_at)} · ${metricLine(p.metrics_28, t)}`;
   if (p.state === 'removed') return `${p.channel} · đã gỡ lúc ${hm(p.updated_at)}${p.channel === 'Blog' ? ' · trang trả về trang chủ blog' : ''}`;
-  if (p.state === 'scheduled') return `${p.channel} · Editor đã duyệt · đăng ${when(p.scheduled_at).toLowerCase()}${p.wait_reason ? ` · ${p.wait_reason}` : ''}`;
-  if (p.state === 'checking') return `${p.channel} · Editor đang kiểm tra`;
-  if (p.state === 'draft') return `${p.channel} · nháp của Writer`;
+  if (p.state === 'scheduled') return `${p.channel} · đã qua kiểm tra · đăng ${when(p.scheduled_at).toLowerCase()}${p.wait_reason ? ` · ${p.wait_reason}` : ''}`;
+  if (p.state === 'checking') return `${p.channel} · đang kiểm tra`;
+  if (p.state === 'draft') return `${p.channel} · bản nháp`;
   return `${p.channel} · ${p.label}`;
 }
 /** @param {string} at */
@@ -111,7 +111,7 @@ export function errorText(t, err) {
   if (err?.code === 'no_response') return t.unknown;
   if (err?.link) return err.message || t.failed;
   // The runtime's own refusal of a malformed request is English: say it in words and keep the way out.
-  if (/does not match|operation parameters|tool_refused|\(refused\)/i.test(`${err?.message ?? ''} ${err?.code ?? ''}`)) return 'Trang gửi một yêu cầu không hợp lệ nên Soot từ chối. Bấm Thử lại; nếu vẫn vậy, nhờ Editor kiểm tra giúp.';
+  if (/does not match|operation parameters|tool_refused|\(refused\)/i.test(`${err?.message ?? ''} ${err?.code ?? ''}`)) return 'Trang gửi một yêu cầu không hợp lệ nên Soot từ chối. Bấm Thử lại; nếu vẫn vậy, nhờ Soot kiểm tra xem giúp.';
   return t.failed + (err?.message || err?.code || '');
 }
 
@@ -137,7 +137,7 @@ export function doneNotice(/** @type {any} */ t, /** @type {string} */ op, /** @
     reschedule: out?.scheduled_at ? `Đã đổi giờ: Soot đăng ${when(out.scheduled_at).toLowerCase()}.` : t.done,
     pull: 'Đã gỡ khỏi hàng đợi. Soot sẽ không đăng bài này; bấm Xếp lại khi muốn đăng.',
     drop: 'Đã bỏ bài. Soot sẽ không đăng bài này.',
-    unpublish: 'Đã xếp việc gỡ bài. Editor gỡ ở lần chạy tới, vài phút nữa.',
+    unpublish: 'Đã xếp việc gỡ bài. Bài được gỡ ở lần chạy tới, vài phút nữa.',
     set_limits: 'Đã lưu giới hạn. Áp dụng cho các bài xếp lịch từ giờ trở đi.',
     resume: 'Đã bật. Soot đăng theo giờ đã xếp.', pause: 'Đã dừng. Bài chờ ở hàng đợi, không đi cho tới khi bạn bật lại.',
     confirm_posted: 'Đã ghi bài đã lên, kèm liên kết.', confirm_not_posted: 'Đã xếp đăng lại: Soot đăng ở lần chạy tới.',
@@ -225,13 +225,13 @@ export function nextLine(n, p = {}) {
   const quiet = (/** @type {string} */ s) => s;
   const btn = (/** @type {string} */ d, /** @type {string} */ label) => ({ do: d, label });
   switch (n.code) {
-    case 'draft': return { text: 'Writer đang soạn. Khi xong, Editor kiểm tra rồi xếp lịch. Không cần làm gì.', tone: 'plain' };
-    case 'draft_stale': return { text: 'Bản nháp này nằm yên hơn 30 phút mà chưa được kiểm tra: Writer đã dừng giữa chừng. Bấm Nhờ Writer hoàn thiện, hoặc bỏ qua: nó không chặn bài mới.', tone: 'warn', button: btn('ask_writer', 'Nhờ Writer hoàn thiện') };
-    case 'refused': return { text: 'Soot không đăng bài này vì chưa qua kiểm tra. Nhờ Writer sửa, Editor sẽ kiểm tra lại bản mới.', tone: 'err', button: btn('ask_writer', 'Nhờ Writer sửa') };
+    case 'draft': return { text: 'Soot đang soạn bài. Khi xong, bài được kiểm tra rồi xếp lịch. Không cần làm gì.', tone: 'plain' };
+    case 'draft_stale': return { text: 'Bản nháp này nằm yên hơn 30 phút mà chưa được kiểm tra: Soot viết bài đã dừng giữa chừng. Bấm Nhờ viết tiếp, hoặc bỏ qua: nó không chặn bài mới.', tone: 'warn', button: btn('ask_writer', 'Nhờ viết tiếp') };
+    case 'refused': return { text: 'Soot không đăng bài này vì chưa qua kiểm tra. Nhờ sửa bài, bản mới sẽ được kiểm tra lại.', tone: 'err', button: btn('ask_writer', 'Nhờ sửa bài') };
     case 'ready': return { text: 'Đã qua kiểm tra nhưng chưa có giờ đăng. Soot tự xếp lịch ở lượt lên bài 08:00; bấm Xếp lịch để xếp ngay.', tone: 'warn', button: btn('schedule', 'Xếp lịch') };
     case 'pulled': return { text: 'Bài đang để ngoài hàng đợi: Soot sẽ không đăng. Xếp lại nếu muốn đăng.', tone: 'plain', button: btn('restore', 'Xếp lại') };
     case 'removed': return { text: 'Bài đã gỡ khỏi kênh. Đăng lại nếu muốn.', tone: 'plain', button: btn('restore', 'Đăng lại') };
-    case 'unpublishing': return { text: 'Đang gỡ bài. Editor xóa bài ở lần chạy tới, vài phút nữa. Không cần làm gì.', tone: 'plain' };
+    case 'unpublishing': return { text: 'Đang gỡ bài. Bài được xóa ở lần chạy tới, vài phút nữa. Không cần làm gì.', tone: 'plain' };
     case 'published': return { text: `Đã đăng ${lc}${p.url ? `: ${shortUrl(p.url)}` : '. Chưa có liên kết, Soot sẽ ghi khi nền tảng trả về.'}`, tone: 'ok', button: p.url ? btn('open', 'Mở bài') : undefined };
     case 'uncertain': return { text: `Soot bấm đăng nhưng chưa chắc bài đã lên ${ch}. Mở ${ch} xem: nếu đã lên, dán liên kết; nếu chưa, chọn đăng lại. Soot không tự đăng lại.`, tone: 'err', button: btn('confirm', 'Kiểm tra và chọn') };
     case 'in_flight': return { text: 'Đang đăng. Vài phút nữa sẽ có liên kết. Không cần làm gì.', tone: 'plain' };
@@ -271,7 +271,7 @@ export function queueHeadline(d) {
   if (live.length && signedOut.length) return out('warn', `Bài kế tiếp: ${live[0].channel} ${when(live[0].scheduled_at).toLowerCase()}. ${signedOut.map((/** @type {any} */ c) => c.label).join(', ')} chưa đăng nhập nên Soot chưa đăng được lên ${signedOut.length > 1 ? 'các kênh này' : 'kênh này'}.`, { do: 'sign_in', label: `Đăng nhập ${signedOut[0].label}`, channel: signedOut[0].id });
   if (live.length) return out('plain', `Không cần làm gì, Soot đang tự chạy. Bài kế tiếp: ${live[0].channel} ${when(live[0].scheduled_at).toLowerCase()}.`, null);
   if (items.some((/** @type {any} */ q) => q.in_flight)) return out('plain', 'Đang đăng. Vài phút nữa sẽ có liên kết bên dưới. Không cần làm gì.', null);
-  return out('plain', 'Hàng đợi trống. Soot lên bài mới mỗi sáng 08:00; hoặc bạn nhờ Writer viết ngay.', d.writer ? { do: 'ask_writer', label: 'Nhờ viết bài' } : null);
+  return out('plain', 'Hàng đợi trống. Soot lên bài mới mỗi sáng 08:00; hoặc bạn nhờ Soot viết ngay.', d.writer ? { do: 'ask_writer', label: 'Nhờ viết bài' } : null);
 }
 
 /** The state of one channel on Hàng đợi: its words and its button. @param {any} c @param {any} d */

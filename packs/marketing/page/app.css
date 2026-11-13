@@ -18,6 +18,9 @@
 body { margin: 0; background: var(--mk-bg); color: var(--mk-fg); font: 14px/1.5 var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif); }
 main { max-width: 1100px; margin: 0 auto; padding: 20px 24px 48px; display: flex; flex-direction: column; gap: 12px; overflow-wrap: anywhere; }
 @media (max-width: 700px) { main { padding: 12px 16px 40px; } }
+/* Inside Nest (bridge init): fill the frame with Nest's 16 px gutter, so the page lines up with Nest's own rows (audit N12). */
+:root[data-embedded] main { max-width: none; margin: 0; padding: 12px 16px 40px; }
+.filter select { width: auto; min-height: 32px; }
 h2 { margin: 0; font-size: 15px; } h3 { margin: 0; font-size: 13px; } .page-title { font-size: 18px; }
 p { margin: 0; }
 .muted { color: var(--mk-muted); font-size: 12px; } .strong { font-weight: 600; }
@@ -61,9 +64,6 @@ p { margin: 0; }
 .notice.err { background: var(--mk-danger-bg); }
 .notice.success { background: transparent; color: var(--mk-success); padding: 0; }
 .input.sm { font: inherit; font-size: 12px; min-width: 0; width: 14em; max-width: 100%; padding: 3px 8px; border: 1px solid var(--mk-border); border-radius: var(--mk-radius); background: var(--mk-card); color: var(--mk-fg); }
-.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; background: var(--mk-subtle); border: 1px solid var(--mk-border); border-radius: 10px; }
-.seg .tab { min-height: 28px; border-radius: 8px; font-weight: 500; }
-.seg .tab[aria-selected="true"] { background: var(--mk-card); box-shadow: 0 1px 0 var(--mk-border); }
 .bar { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
 @media (max-width: 700px) { .bar { grid-template-columns: 1fr; } }
 .gap { gap: 8px 16px; }

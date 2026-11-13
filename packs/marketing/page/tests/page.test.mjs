@@ -254,3 +254,17 @@ test('bridge v2: a host that also sends projects (the projects the viewer can se
   deliver({ v: 2, type: 'context', project: null, projects: [] });
   assert.deepEqual(seen, [['init', project], ['context', null]]);
 });
+
+test('N12 (audit 2026-11-14): Vietnamese text names no English role, the status filter is no third tab row, and the page fills Nest\'s frame', async () => {
+  const src = (await Promise.all(['src/model.js', 'src/app.js'].map(f => readFile(new URL(f, page), 'utf8')))).join('\n');
+  const vi = [...src.matchAll(/'([^'\n]*)'|`([^`\n]*)`/g)].map(m => m[1] ?? m[2]).filter(t => /[àáạảãâăèéẹẻẽêìíịỉĩòóọỏõôơùúụủũưỳýỵỷỹđ]/i.test(t));
+  assert.ok(vi.length > 100, 'the Vietnamese strings were found');
+  for (const t of vi) assert.doesNotMatch(t, /\b(Writer|Editor)\b/, t);
+  for (const code of ['draft', 'draft_stale', 'refused', 'unpublishing']) assert.doesNotMatch(JSON.stringify(M.nextLine({ code }, {})), /Writer|Editor/, code);
+  assert.doesNotMatch(src, /role: 'tablist'/, 'the post filter is a select, not tabs');
+  assert.match(src, /h\('select', \{ class: 'input sm', onchange/);
+  assert.equal(M.strings('vi').show, 'Hiện');
+  const css = await readFile(new URL('app.css', page), 'utf8');
+  assert.match(css, /:root\[data-embedded\] main \{ max-width: none; margin: 0; padding: 12px 16px 40px; \}/);
+  assert.doesNotMatch(css, /\.seg\b/);
+});
