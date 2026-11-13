@@ -16,11 +16,8 @@ p { margin: 0; }
 .stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid var(--border, GrayText); }
 .head .sub { margin-top: 4px; }
-/* segmented product switch */
-.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--cl-r); background: var(--surface-2, ButtonFace); max-width: 100%; overflow-x: auto; }
-.seg button { font: inherit; font-size: 13px; color: var(--muted-foreground, GrayText); background: transparent; border: 0; border-radius: var(--cl-r-sm); padding: 4px 10px; min-height: 28px; cursor: pointer; white-space: nowrap; }
-.seg button[aria-pressed="true"] { background: var(--card, Canvas); color: var(--foreground, CanvasText); font-weight: 600; box-shadow: 0 0 0 1px var(--border, GrayText); }
-.seg button:focus-visible, .btn:focus-visible, summary:focus-visible { outline: 2px solid var(--ring, Highlight); outline-offset: 1px; }
+/* focus */
+.btn:focus-visible, summary:focus-visible { outline: 2px solid var(--ring, Highlight); outline-offset: 1px; }
 /* buttons */
 .btn { font: inherit; font-size: 13px; font-weight: 500; color: var(--foreground, CanvasText); background: var(--card, Canvas); border: 1px solid var(--border-strong, GrayText); border-radius: var(--cl-r-sm); padding: 5px 12px; min-height: 32px; cursor: pointer; white-space: nowrap; }
 .btn.primary { background: var(--primary, Highlight); color: var(--primary-foreground, HighlightText); border-color: var(--primary, Highlight); }
@@ -29,7 +26,7 @@ p { margin: 0; }
 .btn.link { background: transparent; border: 0; padding: 0; min-height: 0; color: var(--foreground, LinkText); font-weight: 600; text-decoration: underline; text-decoration-color: var(--border-strong, currentColor); text-underline-offset: 3px; }
 .btn.link:hover { text-decoration-color: currentColor; }
 .btn:disabled { opacity: .55; cursor: default; }
-@media (pointer: coarse) { .btn, .seg button { min-height: 44px; } }
+@media (pointer: coarse) { .btn { min-height: 44px; } }
 /* the one next step */
 .next { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 16px; border-radius: var(--cl-r); background: var(--card, Canvas); border: 1px solid var(--border, GrayText); }
 .next .body { display: flex; flex-direction: column; gap: 2px; flex: 1 1 260px; min-width: 0; }
@@ -101,8 +98,6 @@ ul { list-style: none; margin: 0; padding: 0; }
 body { margin: 0; background: var(--background, Canvas); color: var(--foreground, CanvasText); }
 .stack.tight { gap: 2px; } .stack.gap { gap: 16px; }
 .big { font-size: 18px; }
-.seg .count { display: inline-block; margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 999px; font-size: 11px; line-height: 16px; text-align: center; background: var(--cl-warn-wash); color: var(--warning, CanvasText); font-weight: 600; }
-.seg button:disabled { cursor: default; }
 .later > summary { padding: 4px 0; }
 .later .list { margin-top: 8px; }
 .input { font: inherit; font-size: 13px; min-width: 0; flex: 1 1 160px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border-strong, GrayText); border-radius: var(--cl-r-sm); background: var(--background, Canvas); color: var(--foreground, CanvasText); }

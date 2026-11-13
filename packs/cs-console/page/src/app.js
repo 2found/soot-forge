@@ -6,7 +6,7 @@ import { createBridge, applyTheme, randomID } from './bridge.js';
 import * as M from './model.js';
 
 const S = {
-  t: M.strings('vi'), started: false, busy: false, loadError: '', q: '', tagDraft: '', noteDraft: '', proofDraft: '',
+  t: M.strings('vi'), started: false, busy: false, loadError: '', missing: false, q: '', tagDraft: '', noteDraft: '', proofDraft: '',
   /** @type {M.Row[] | null} */ rows: null, linkProofs: false, next: '', truncated: false,
   /** @type {string} */ selected: '',
   /** @type {M.Detail | null} */ detail: null,
@@ -31,13 +31,17 @@ async function run(/** @type {() => Promise<void>} */ work) {
 }
 
 async function load() {
-  S.loadError = '';
+  S.loadError = ''; S.missing = false;
   try {
     const out = await view(M.listBody(S.q));
     S.rows = out.customers ?? []; S.linkProofs = !!out.link_proofs; S.next = out.next ?? ''; S.truncated = !!out.truncated;
     const keep = S.rows?.find(r => r.key === S.selected)?.key ?? S.rows?.[0]?.key ?? '';
     if (keep) await open(keep); else { S.selected = ''; S.detail = null; }
-  } catch (e) { S.loadError = M.errorText(S.t, /** @type {any} */ (e)?.code); }
+  } catch (e) {
+    const code = /** @type {any} */ (e)?.code;
+    // N11: one message and one retry per fault. A key Nest reports is Nest's notice (with Mở Thiết lập); the page keeps only its Tải lại.
+    S.loadError = code === M.SAID_BY_NEST ? '' : M.errorText(S.t, code); S.rows = code === M.SAID_BY_NEST ? [] : S.rows; S.missing = code === M.SAID_BY_NEST;
+  }
 }
 async function more() {
   const out = await view(M.listBody(S.q, S.next));
@@ -136,8 +140,10 @@ function render() {
   const t = S.t, root = /** @type {HTMLElement} */ (document.getElementById('app'));
   const focused = document.activeElement?.id;
   const out = [h('header', { class: 'head' }, h('h2', { class: 'page-title' }, t.title), h('p', { class: 'muted' }, t.purpose)),
+    // The search row's Tải lại is the page's one retry; a failed read says why beside it, never with a second button.
     h('div', { class: 'line' }, input('q', S.q, v => { S.q = v; }, t.search, 100), button(t.reload, () => void run(load), 'btn', locked()))];
-  if (S.loadError) out.push(h('div', { class: 'notice', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load))));
+  if (S.loadError) out.push(h('div', { class: 'notice', role: 'alert' }, h('p', {}, S.loadError)));
+  else if (S.missing) out.push(h('p', { class: 'muted', role: 'status' }, t.waitingSetup));
   else if (!S.rows) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
   else if (S.rows.length === 0) out.push(h('p', { class: 'muted' }, t.none));
   else out.push(h('div', { class: 'cols' }, list(), S.detail ? detail() : h('p', { class: 'muted' }, t.loading)));

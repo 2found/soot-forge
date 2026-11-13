@@ -198,9 +198,10 @@ function strings(/** @type {string} */ locale) {
     unknown: 'Chưa biết kết quả. Bấm Thử lại — cùng yêu cầu sẽ không chạy hai lần.', retry: 'Thử lại', busy: 'Máy chủ đang bận, thử lại sau ít phút.', done: 'Đã lưu.', replayed: 'Yêu cầu này đã chạy trước đó.',
     loadMore: 'Tải thêm khách', listTruncated: 'Mới hiện một phần danh sách. Bấm “Tải thêm khách” để xem tiếp; tìm kiếm chỉ lọc phần đã tải.',
     timelineTruncated: 'Dòng thời gian chưa đầy đủ: chỉ hiện các tin gần nhất của những cuộc trò chuyện mới nhất.', notesTruncated: 'Còn ghi chú cũ hơn chưa hiển thị.',
-    loadFailed: 'Không tải được. Kiểm tra kết nối bảng khách hàng.', back: 'Danh sách',
+    loadFailed: 'Không tải được danh sách khách. Bấm Tải lại để thử lần nữa.', back: 'Danh sách',
+    waitingSetup: 'Danh sách khách hiện ở đây khi mục còn thiếu đã được điền.',
     errors: /** @type {Record<string, string>} */ ({
-      not_configured: 'Gói chưa được cấu hình (CS_CONSOLE). Xem README của gói.', not_found: 'Không còn thấy người hoặc cuộc trò chuyện này trong quyền của Soot.',
+      not_configured: 'Chưa nối bảng khách hàng. Điền “Kết nối bảng khách hàng” ở Cài đặt › Thiết lập, rồi bấm Tải lại.', not_found: 'Không còn thấy người hoặc cuộc trò chuyện này trong quyền của Soot.',
       too_large: 'Có quá nhiều dữ liệu để đọc một lần. Thu hẹp quyền của khoá hoặc gỡ bớt liên kết.',
       conflict: 'Cuộc trò chuyện vừa đổi. Tải lại rồi thử lại.', invalid_proof: 'Bằng chứng không hợp lệ.', proof_expired: 'Bằng chứng đã hết hạn — xin sản phẩm cấp lại.',
       proof_replayed: 'Bằng chứng này đã được dùng.', link_conflict: 'Người gửi này đã liên kết với người khác.', invalid_request: 'Dữ liệu chưa hợp lệ.', host_unavailable: 'Không kết nối được Soot.',
@@ -216,10 +217,14 @@ function strings(/** @type {string} */ locale) {
     unknown: 'Outcome unknown. Retry — the same request never runs twice.', retry: 'Retry', busy: 'The host is busy; try again shortly.', done: 'Saved.', replayed: 'This request already ran.',
     loadMore: 'Load more people', listTruncated: 'Only part of the list is shown. Press “Load more people” to continue; search only filters what is loaded.',
     timelineTruncated: 'The timeline is incomplete: only the latest messages of the newest conversations are shown.', notesTruncated: 'Older notes are not shown.',
-    loadFailed: 'Could not load. Check the console connection.', back: 'List',
+    loadFailed: 'Could not load the customers. Press Reload to try again.', back: 'List', waitingSetup: 'The customers show here once the missing setting is filled in.',
+    errors: { ...vi.errors, not_configured: 'The customer console is not connected. Fill in “Kết nối bảng khách hàng” in Settings › Setup, then press Reload.' },
   };
   return locale === 'en' ? en : vi;
 }
+
+/** Nest says a missing key itself, with the way to Thiết lập (bridge `credential_missing`): the page adds no second message. */
+const SAID_BY_NEST = 'credential_missing';
 
 const errorText = (/** @type {ReturnType<typeof strings>} */ t, /** @type {string | undefined} */ code, /** @type {string | undefined} */ message) =>
   (code && t.errors[code]) || message || t.loadFailed;
@@ -231,7 +236,7 @@ function when(/** @type {string} */ iso, now = new Date()) {
   const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   return d.toDateString() === now.toDateString() ? hm : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${hm}`;
 }
-return { listBody, mergeRows, detailBody, actionBody, controlBody, tagBody, noteBody, linkBody, viewOutput, classify, strings, errorText, when };
+return { listBody, mergeRows, detailBody, actionBody, controlBody, tagBody, noteBody, linkBody, viewOutput, classify, strings, SAID_BY_NEST, errorText, when };
 })();
 
 // ---- src/app.js ----
@@ -243,7 +248,7 @@ const { createBridge, applyTheme, randomID } = __bridge;
 const M = __model;
 
 const S = {
-  t: M.strings('vi'), started: false, busy: false, loadError: '', q: '', tagDraft: '', noteDraft: '', proofDraft: '',
+  t: M.strings('vi'), started: false, busy: false, loadError: '', missing: false, q: '', tagDraft: '', noteDraft: '', proofDraft: '',
   /** @type {M.Row[] | null} */ rows: null, linkProofs: false, next: '', truncated: false,
   /** @type {string} */ selected: '',
   /** @type {M.Detail | null} */ detail: null,
@@ -268,13 +273,17 @@ async function run(/** @type {() => Promise<void>} */ work) {
 }
 
 async function load() {
-  S.loadError = '';
+  S.loadError = ''; S.missing = false;
   try {
     const out = await view(M.listBody(S.q));
     S.rows = out.customers ?? []; S.linkProofs = !!out.link_proofs; S.next = out.next ?? ''; S.truncated = !!out.truncated;
     const keep = S.rows?.find(r => r.key === S.selected)?.key ?? S.rows?.[0]?.key ?? '';
     if (keep) await open(keep); else { S.selected = ''; S.detail = null; }
-  } catch (e) { S.loadError = M.errorText(S.t, /** @type {any} */ (e)?.code); }
+  } catch (e) {
+    const code = /** @type {any} */ (e)?.code;
+    // N11: one message and one retry per fault. A key Nest reports is Nest's notice (with Mở Thiết lập); the page keeps only its Tải lại.
+    S.loadError = code === M.SAID_BY_NEST ? '' : M.errorText(S.t, code); S.rows = code === M.SAID_BY_NEST ? [] : S.rows; S.missing = code === M.SAID_BY_NEST;
+  }
 }
 async function more() {
   const out = await view(M.listBody(S.q, S.next));
@@ -373,8 +382,10 @@ function render() {
   const t = S.t, root = /** @type {HTMLElement} */ (document.getElementById('app'));
   const focused = document.activeElement?.id;
   const out = [h('header', { class: 'head' }, h('h2', { class: 'page-title' }, t.title), h('p', { class: 'muted' }, t.purpose)),
+    // The search row's Tải lại is the page's one retry; a failed read says why beside it, never with a second button.
     h('div', { class: 'line' }, input('q', S.q, v => { S.q = v; }, t.search, 100), button(t.reload, () => void run(load), 'btn', locked()))];
-  if (S.loadError) out.push(h('div', { class: 'notice', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load))));
+  if (S.loadError) out.push(h('div', { class: 'notice', role: 'alert' }, h('p', {}, S.loadError)));
+  else if (S.missing) out.push(h('p', { class: 'muted', role: 'status' }, t.waitingSetup));
   else if (!S.rows) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
   else if (S.rows.length === 0) out.push(h('p', { class: 'muted' }, t.none));
   else out.push(h('div', { class: 'cols' }, list(), S.detail ? detail() : h('p', { class: 'muted' }, t.loading)));

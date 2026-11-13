@@ -159,3 +159,13 @@ test('D2: the page words the cut list, timeline and notes in both languages, and
   assert.match(src, /d\.timeline_truncated &&/);
   assert.match(src, /d\.notes_truncated &&/);
 });
+
+test('N11 (audit 2026-11-14): no env name in the words; a missing key is Nest\'s one message, and the page keeps one Tải lại', async () => {
+  for (const loc of ['vi', 'en']) {
+    const t = M.strings(loc);
+    for (const text of [...Object.values(t.errors), t.loadFailed, t.waitingSetup]) assert.doesNotMatch(text, /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|README/, `${loc}: ${text}`);
+  }
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.equal((src.match(/button\(t\.reload,/g) ?? []).length, 1, 'one retry: the search row\'s');
+  assert.match(src, /code === M\.SAID_BY_NEST \? ''/, 'credential_missing adds no second message');
+});

@@ -13,9 +13,9 @@ const isTokens = t => !!t && typeof t === 'object' && !Array.isArray(t) && Objec
 
 const waiting = new Map();
 // project: Nest's chosen project (undefined before init; null = every project).
-// projects: the projects Nest lists ([] when the host sends none: no switch, the page follows project).
-// local: the page's own switch (undefined = follow Nest; null = every product; an id).
-const S = { edit: null, draft: null, data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', project: undefined, projects: [], local: undefined, started: false, seq: 0 };
+// projects: the projects Nest lists ([] when the host sends none). The page has no product switch of its
+// own (audit 2026-11-14 N10): it shows Nest's project, and the title bar's Sản phẩm is where it changes.
+const S = { edit: null, draft: null, data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', project: undefined, projects: [], started: false, seq: 0 };
 const embedded = window.parent !== window;
 
 const str = (v, max) => typeof v === 'string' && v.length <= max;
@@ -35,12 +35,10 @@ function parse(m) {
 function applyTheme(m) { for (const [k, v] of Object.entries(m.tokens)) document.documentElement.style.setProperty(k, v); document.documentElement.dataset.theme = m.theme; }
 // projects: the list as sent; undefined keeps the last one (init starts from none).
 function follow(project, projects) {
-  const before = JSON.stringify([S.project, S.projects]), was = S.project;
+  const before = JSON.stringify([S.project, S.projects]);
   S.project = project;
-  // Only projects that are product ids can narrow the page; the rest are not listed in its switch.
+  // Only projects that are product ids can narrow the page.
   if (projects !== undefined) S.projects = projects.filter(p => PRODUCT.test(p.id));
-  // A project change in Nest wins over the page's own switch; a new name, teams or list only reloads.
-  if ((project?.id ?? null) !== (was?.id ?? null)) S.local = undefined;
   if (JSON.stringify([S.project, S.projects]) !== before && S.started) reload();
 }
 window.addEventListener('message', e => {
@@ -70,7 +68,7 @@ function output(r) {
 // ---------- scope ----------
 // Nest's project is the product of the same id: its name and teams narrow the page.
 const nestProduct = () => (S.project && PRODUCT.test(S.project.id) ? S.project.id : null);
-const chosen = () => (S.local !== undefined ? S.local : nestProduct());
+const chosen = nestProduct;
 const asProduct = p => ({ id: p.id, name: p.name, teams: p.teams.slice(0, 64) });
 function viewInput() {
   const product = chosen();
@@ -80,7 +78,8 @@ function viewInput() {
   if (nestProduct() && !products.some(p => p.id === S.project.id) && products.length < 64) products.push(asProduct(S.project));
   return { page: 'company', ...(product ? { product } : {}), ...(products.length ? { products } : {}) };
 }
-const choose = id => { S.local = id === nestProduct() ? undefined : id; S.notice = ''; reload(); };
+/** Where the product changes: Nest's own switch, named the way the title bar shows it. */
+const SWITCH_HINT = 'Đổi sản phẩm ở ô Sản phẩm trên thanh trên cùng của Nest.';
 
 // ---------- words ----------
 const nf = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
@@ -127,7 +126,7 @@ const HAND = {
   delivered: ['Chờ bạn duyệt', 2, 'Duyệt bản giao rồi cho phép phát hành trong bbs:team. Soot không phát hành thay bạn.'],
   released: ['Đã phát hành', 3, 'Soot đo kết quả từ ngày phát hành.'],
   draft_ready: ['Bản nháp sẵn', 0, 'Soot đã viết yêu cầu nhưng chưa mở được đội dựng.'],
-  no_repo: ['Chưa có kho mã', 0, 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa PRODUCT_REPOS rồi bấm Chạy lại, hoặc giao việc cho người.'],
+  no_repo: ['Chưa có kho mã', 0, 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa “Kho mã theo sản phẩm” trong Thiết lập rồi bấm Chạy lại, hoặc giao việc cho người.'],
   task: ['Chờ người làm', 0, 'Đã ghi quyết định và một việc. Chưa nối đội dựng nên Soot không tự làm.'],
 };
 // The 5 parts of a product business, the 3 reader awareness levels and the 7 moats, in the founder's words.
@@ -200,13 +199,13 @@ function nextOf(d) {
   const task = d.handoffs.find(x => x.opportunity === n.ref) ?? d.handoffs.find(x => x.state === 'task');
   switch (n.code) {
     case 'setup': return n.missing === 'key'
-      ? ['warn', 'Chưa có khoá đọc bảng số', 'Đã có địa chỉ bảng số nhưng chưa có khoá PRODUCT_ADMIN_KEY. Nhập khoá rồi bấm Đọc số ngay.', ['Nhập khoá trong Thiết lập', () => open(SETTINGS('PRODUCT_ADMIN_KEY')), 'primary']]
+      ? ['warn', 'Chưa có khoá đọc bảng số', 'Đã có địa chỉ bảng số nhưng chưa có “Khoá admin sản phẩm”. Nhập khoá rồi bấm Đọc số ngay.', ['Nhập khoá trong Thiết lập', () => open(SETTINGS('PRODUCT_ADMIN_KEY')), 'primary']]
       : ['warn', `Chưa có bảng số cho ${name}`, 'Nối địa chỉ bảng số của sản phẩm, hoặc để một Soot ghi số mỗi tuần vào bảng của trang này (công cụ Ghi số liệu).', ['Mở Thiết lập', () => open(SETTINGS('SCOREBOARD_URL')), 'primary']];
     case 'key_refused': return ['bad', `Chưa đọc được số mới${d.sync?.since ? ` từ ${dm(d.sync.since)}` : ''}`, `Máy chủ sản phẩm từ chối khoá quản trị. Nhập khoá mới có quyền đọc bảng số; ${sb ? `số bên dưới là của ${dm(sb.from)}–${dm(sb.to)}` : 'chưa có số cũ để hiện'}.`, ['Đổi khoá trong Thiết lập', () => open(SETTINGS('PRODUCT_ADMIN_KEY')), 'primary']];
-    case 'no_data': return ['idle', `${name} chưa có số liệu hay cơ hội nào`, 'Nối bảng số cho sản phẩm này (SCOREBOARD_URLS) hoặc để Soot ghi số, rồi bản tin thứ Hai sẽ đưa cơ hội vào đây. Các mục của sản phẩm khác đang được ẩn.', ['Xem mọi sản phẩm', () => choose(null), 'strong']];
+    case 'no_data': return ['idle', `${name} chưa có số liệu hay cơ hội nào`, `Nối bảng số cho sản phẩm này (mục “Bảng số theo sản phẩm” trong Thiết lập) hoặc để Soot ghi số, rồi bản tin thứ Hai sẽ đưa cơ hội vào đây. Các mục của sản phẩm khác đang được ẩn. ${SWITCH_HINT}`, ['Mở Thiết lập', () => open(SETTINGS('SCOREBOARD_URLS')), 'strong']];
     case 'choose': return ['warn', `${n.n} cơ hội chờ bạn chọn`, 'Chọn Go, Để sau hoặc Bỏ ở từng cơ hội. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.', [`Xem ${n.n} cơ hội`, jump('needs'), 'primary']];
     case 'draft_ready': return ['warn', 'Yêu cầu đã viết, đội dựng chưa mở', 'Soot chưa mở được đội bbs:team. Mở Orca rồi bấm Chạy lại, hoặc chạy lệnh trong mục Cần bạn.', ['Chạy lại', () => act('retry_handoff', { id: n.ref }), 'primary']];
-    case 'no_repo': return ['bad', 'Chưa có kho mã để ghi yêu cầu', 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa PRODUCT_REPOS rồi bấm Chạy lại, hoặc giao việc cho người ở mục Cần bạn.', ['Mở Thiết lập', () => open(SETTINGS('PRODUCT_REPOS')), 'primary']];
+    case 'no_repo': return ['bad', 'Chưa có kho mã để ghi yêu cầu', 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa “Kho mã theo sản phẩm” trong Thiết lập rồi bấm Chạy lại, hoặc giao việc cho người ở mục Cần bạn.', ['Mở Thiết lập', () => open(SETTINGS('PRODUCT_REPOS')), 'primary']];
     case 'task': return ['warn', `${n.n} việc đã ghi chờ người làm`, 'Máy này không có kho mã, nên sau Go Soot ghi quyết định và yêu cầu. Máy dựng của sản phẩm sẽ tự nhận; chưa có máy dựng thì giao việc cho người trong nhóm, xong thì đánh dấu để Soot đo kết quả từ ngày đó.', ['Giao việc', () => open(taskDraft(task)), 'primary']];
     case 'release_go': return ['warn', 'Bản giao chờ bạn duyệt phát hành', 'Đọc bản bàn giao trong terminal của đội ở Orca; hài lòng thì cho phép phát hành. Đó là lượt bấm cuối của bạn.', ['Xem bản giao', jump('needs'), 'primary']];
     case 'building': return ['ok', 'Đội đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi có bản giao cần bạn duyệt.', ['Xem tiến độ', jump('pipeline'), 'strong']];
@@ -233,29 +232,20 @@ function nextBar(d) {
 }
 
 // ---------- header and scope ----------
-// The switch lists Nest's projects (never products only the data names); no list, no switch.
+// The page shows Nest's project (N10): the subtitle names it, and Nest's title bar changes it.
 function header(d) {
-  const waitingOf = id => (d.scope.products ?? []).find(p => p.id === id)?.waiting ?? 0;
-  const ps = S.projects.map(p => ({ id: p.id, name: p.name || p.id, waiting: waitingOf(p.id) }));
-  const cur = d.scope.product?.id ?? null, follows = S.local === undefined && nestProduct();
-  const sub = [`Số lúc ${when(d.at)}`, follows ? 'theo sản phẩm đang chọn ở Nest' : null].filter(Boolean).join(' · ');
+  const sub = [`Số lúc ${when(d.at)}`, scopeName(d)].join(' · ');
   return h('div', { class: 'head' },
     h('div', {}, h('h1', {}, 'Công ty'), h('p', { class: 'sub muted small' }, sub)),
-    h('div', { class: 'row' },
-      ps.length >= 2 ? h('div', { class: 'seg', role: 'group', 'aria-label': 'Sản phẩm đang xem' },
-        [{ id: null, name: 'Mọi sản phẩm' }, ...ps].map(p => h('button', { type: 'button', 'aria-pressed': String(p.id === cur), disabled: S.busy, onclick: () => choose(p.id) }, p.name, p.waiting ? h('span', { class: 'count', 'aria-label': `${p.waiting} việc chờ bạn` }, String(p.waiting)) : null))) : null,
-      btn('Đọc số ngay', () => act('sync'), 'text'), btn('Tải lại', reload, 'text')));
+    h('div', { class: 'row' }, btn('Đọc số ngay', () => act('sync'), 'text'), btn('Tải lại', reload, 'text')));
 }
 function scopeLine(d) {
   const out = [];
-  if (S.local !== undefined && nestProduct() !== chosen()) {
-    out.push(h('div', { class: 'notice' }, h('span', {}, `Bạn đang xem ${scopeName(d)} trên trang này; Nest đang chọn ${S.project?.name ?? 'mọi sản phẩm'}.`), btn('Theo Nest', () => { S.local = undefined; reload(); }, 'link')));
-  }
   const lo = d.scope.left_out ?? {};
   const parts = [['cơ hội', lo.opportunities], ['bàn giao', lo.handoffs], ['quyết định', lo.decisions], ['chủ đề', lo.topics]].filter(([, n]) => n).map(([w, n]) => `${n} ${w}`);
   if (d.scope.product && (parts.length || d.scope.unlabeled)) {
     const old = d.scope.unlabeled ? ` ${d.scope.unlabeled} mục cũ chưa gắn sản phẩm chỉ hiện ở Mọi sản phẩm.` : '';
-    out.push(h('div', { class: 'notice' }, h('span', {}, `Đang xem ${scopeName(d)}.${parts.length ? ` Không tính ${parts.join(', ')} của sản phẩm khác.` : ''}${old}`), btn('Xem mọi sản phẩm', () => choose(null), 'link')));
+    out.push(h('div', { class: 'notice' }, h('span', {}, `Đang xem ${scopeName(d)}.${parts.length ? ` Không tính ${parts.join(', ')} của sản phẩm khác.` : ''}${old} ${SWITCH_HINT}`)));
   }
   return out;
 }
@@ -305,13 +295,13 @@ function handoffNeed(x, d) {
     small(x.detail || HAND[x.state][2], 'muted'),
     x.command ? h('code', { class: 'cmd' }, x.command) : null,
     h('div', { class: 'row' }, btn('Chạy lại', () => act('retry_handoff', { id: x.opportunity }), 'strong'), btn('Giao người làm', () => act('to_person', { id: x.opportunity })),
-      x.state === 'no_repo' ? linkBtn('Đặt PRODUCT_REPOS', SETTINGS('PRODUCT_REPOS')) : null));
+      x.state === 'no_repo' ? linkBtn('Đặt kho mã trong Thiết lập', SETTINGS('PRODUCT_REPOS')) : null));
 }
 function setupNeed(d) {
   const n = d.next, name = scopeName(d);
   if (n.code === 'setup') return h('div', { class: 'item' },
     h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, 'Nối bảng số')),
-    small('Hai cách: (1) địa chỉ bảng số của sản phẩm (SCOREBOARD_URL, khoá PRODUCT_ADMIN_KEY; nhiều sản phẩm thì SCOREBOARD_URLS) hoặc (2) một Soot ghi số mỗi tuần bằng công cụ “Ghi số liệu”. Hướng dẫn nằm trong README của gói.', 'muted'),
+    small('Hai cách: (1) điền địa chỉ bảng số và khoá admin của sản phẩm trong Thiết lập (nhiều sản phẩm thì mỗi sản phẩm một dòng), hoặc (2) để một Soot ghi số mỗi tuần bằng công cụ “Ghi số liệu”.', 'muted'),
     h('div', { class: 'row' }, btn('Mở Thiết lập', () => open(SETTINGS(n.missing === 'key' ? 'PRODUCT_ADMIN_KEY' : 'SCOREBOARD_URL')), 'strong'),
       linkBtn('Nhờ Đầu mối ghi số', draft(`Mỗi thứ Hai, đọc số tuần trước của ${name} (doanh thu, đăng ký mới, khách trả tiền lần đầu…) rồi ghi vào trang Công ty bằng công cụ company-loop_metrics_record.`), 'text')));
   if (n.code === 'key_refused') return h('div', { class: 'item' },
@@ -356,14 +346,15 @@ function scorecard(d) {
   if (d.boards) return sec('scoreboard', 'Bảng số theo sản phẩm', '7 ngày, so với 7 ngày trước',
     h('div', { class: 'list boards' }, d.boards.map(x => h('div', { class: 'board' },
       h('div', { class: 'stack tight' }, h('span', { class: 'strong' }, x.name), h('span', { class: 'small muted' }, x.none ? 'Chưa có số' : `${period(x)} · ${SOURCE(x)}`)),
-      x.none ? small('Chưa có bảng số cho sản phẩm này.') : h('div', { class: 'mini' }, [x.north, ...x.tiles].filter(Boolean).map((t, i) => h('div', {}, h('span', { class: 'small muted' }, t.label), h('span', { class: i ? 'strong' : 'strong big' }, fmt(t.value, t.unit)), delta(t)))),
-      btn('Xem', () => choose(x.product), 'text')))));
+      x.none ? small('Chưa có bảng số cho sản phẩm này.') : h('div', { class: 'mini' }, [x.north, ...x.tiles].filter(Boolean).map((t, i) => h('div', {}, h('span', { class: 'small muted' }, t.label), h('span', { class: i ? 'strong' : 'strong big' }, fmt(t.value, t.unit)), delta(t))))))),
+    small(SWITCH_HINT, 'muted'));
   const b = d.scoreboard;
   const head = (aside, ...body) => sec('scoreboard', 'Bảng số', aside, ...body);
   if (!b) {
-    if (d.next.code === 'setup') return head(null, h('div', { class: 'card empty' }, h('strong', {}, 'Chưa có bảng số'), h('span', {}, 'Số sẽ hiện ở đây khi Soot đọc được kỳ đầu tiên. Nhãn và đơn vị lấy từ chính dữ liệu.'), btn('Mở Thiết lập', () => open(SETTINGS(d.next.missing === 'key' ? 'PRODUCT_ADMIN_KEY' : 'SCOREBOARD_URL')))));
+    // The setup fault is said once, in the next step and its Cần bạn item; here only what will show.
+    if (d.next.code === 'setup') return head(null, h('div', { class: 'card empty' }, h('strong', {}, 'Chưa có bảng số'), h('span', {}, 'Số sẽ hiện ở đây khi Soot đọc được kỳ đầu tiên. Nhãn và đơn vị lấy từ chính dữ liệu.')));
     return head(null, h('div', { class: 'card empty' }, h('strong', {}, `${scopeName(d)} chưa có bảng số`),
-      h('span', {}, d.scope.product ? `Thêm một dòng “${d.scope.product.id}=<địa chỉ bảng số>” vào SCOREBOARD_URLS, hoặc để Soot của sản phẩm này ghi số bằng “Ghi số liệu”.` : 'Soot đọc bảng số mỗi sáng 06:15. Bấm Đọc số ngay để đọc bây giờ.'),
+      h('span', {}, d.scope.product ? `Thêm một dòng “${d.scope.product.id}=<địa chỉ bảng số>” vào “Bảng số theo sản phẩm” trong Thiết lập, hoặc để Soot của sản phẩm này ghi số bằng “Ghi số liệu”.` : 'Soot đọc bảng số mỗi sáng 06:15. Bấm Đọc số ngay để đọc bây giờ.'),
       d.scope.product ? linkBtn('Mở Thiết lập', SETTINGS('SCOREBOARD_URLS'), 'strong') : btn('Đọc số ngay', () => act('sync'), 'strong')));
   }
   const stale = d.sync && d.sync.ok === false;
@@ -481,7 +472,7 @@ function side(d) {
   const stage = st => {
     const state = st.unused ? 'idle' : st.external ? 'idle' : st.starving?.length ? 'warn' : st.last_run?.status === 'failed' ? 'bad' : 'ok';
     const word = st.unused ? 'chưa dùng' : st.external ? 'máy chủ riêng' : st.starving?.length ? `${st.starving.length} nguồn thiếu` : st.last_run?.status === 'failed' ? 'lần chạy lỗi' : 'đủ nguồn';
-    const last = st.external ? 'Chạy trên máy chủ riêng của nhóm; lần chạy và mức dùng AI nằm ở đó.' : st.unused ? 'Chưa nối kho mã (PRODUCT_REPOS) nên bước này không chạy.' : st.last_run ? `${st.last_run.name} · ${when(st.last_run.at)}` : 'Chưa có lần chạy nào.';
+    const last = st.external ? 'Chạy trên máy chủ riêng của nhóm; lần chạy và mức dùng AI nằm ở đó.' : st.unused ? 'Chưa nối kho mã của sản phẩm nên bước này không chạy.' : st.last_run ? `${st.last_run.name} · ${when(st.last_run.at)}` : 'Chưa có lần chạy nào.';
     const ai = !st.external && !st.unused && Number.isFinite(st.tokens_7d) ? ` · Mức dùng AI 7 ngày: ${nf.format(st.tokens_7d)} token` : '';
     return h('div', { class: 'item' },
       h('div', { class: 'item-h' }, lamp(state), h('span', { class: 't' }, st.label), badge(word, state === 'warn' || state === 'bad' ? state : '')),

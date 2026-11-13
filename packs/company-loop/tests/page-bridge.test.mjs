@@ -1,7 +1,7 @@
 // The Công ty bundle on bridge v2, run as it ships (page/app.js) against a fake Nest: a minimal DOM, the
-// host's init/context messages, and view calls answered by the real page_view tool. The page's own switch
-// "Mọi sản phẩm | <product>…" lists the projects Nest sends (init/context `projects`); with no list (an
-// older host, the standalone shell) it draws no switch and follows `project`.
+// host's init/context messages, and view calls answered by the real page_view tool. The page follows
+// Nest's project and has no product switch of its own (audit 2026-11-14 N10: Nest's title bar is the one
+// switch); the projects Nest sends (init/context `projects`) still go to the tool as `products`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -70,68 +70,52 @@ async function frame() {
 }
 const init = extra => ({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: { '--surface': 'white' }, viewer: { kind: 'operator' }, ...extra });
 
-test('with projects: the switch lists Nest\'s projects, follows the chosen one, and the tool gets the chosen one and the list', async () => {
+test('with projects: no switch on the page; the tool gets Nest\'s project and the list, and a new choice in Nest is followed', async () => {
   const f = await frame();
   assert.deepEqual(JSON.parse(JSON.stringify(f.posts.map(m => [m.v, m.type]))), [[2, 'ready']]);
   f.posts.length = 0;
   f.send(init({ project: ACME, projects: [ACME, BETA] }));
   await f.settle();
   assert.deepEqual(f.lastView(), { page: 'company', product: 'acme', products: [ACME, BETA] });
-  const buttons = f.switchButtons();
-  assert.deepEqual(buttons.map(b => [text(b).replace(/\d+$/, ''), b.attrs['aria-pressed']]), [['Mọi sản phẩm', 'false'], ['Acme', 'true'], ['Beta', 'false']]);
+  assert.equal(f.switchButtons().length, 0, 'the page draws no product switch (N10)');
+  assert.doesNotMatch(text(f.root), /Theo Nest|Bạn đang xem|Mọi sản phẩm\s*Acme/);
+  assert.match(text(f.root), /Số lúc [^·]* · Acme/, 'the subtitle names the product shown');
+  assert.match(text(f.root), /Đổi sản phẩm ở ô Sản phẩm trên thanh trên cùng của Nest\./, 'where the product changes');
 
-  // The founder picks Beta on the page: the tool narrows to it, and the page says Nest still has Acme.
-  buttons[2].listeners.click[0]();
-  await f.settle();
-  assert.deepEqual(f.lastView(), { page: 'company', product: 'beta', products: [ACME, BETA] });
-  assert.match(text(f.root), /Bạn đang xem Beta trên trang này; Nest đang chọn Acme\./);
-
-  // Every product: no product, the list stays.
-  f.switchButtons()[0].listeners.click[0]();
-  await f.settle();
-  assert.deepEqual(f.lastView(), { page: 'company', products: [ACME, BETA] });
-
-  // A new choice in Nest wins over the page's own switch.
   f.send({ v: 2, type: 'context', project: BETA, projects: [ACME, BETA] });
   await f.settle();
   assert.deepEqual(f.lastView(), { page: 'company', product: 'beta', products: [ACME, BETA] });
-  assert.doesNotMatch(text(f.root), /Bạn đang xem/);
-  assert.deepEqual(f.switchButtons().filter(b => b.attrs['aria-pressed'] === 'true').map(b => text(b).replace(/\d+$/, '')), ['Beta']);
 
-  // A context without `projects` keeps the list; one with an empty list removes the switch.
+  // A context without `projects` keeps the list; one with an empty list sends none.
   f.send({ v: 2, type: 'context', project: null });
   await f.settle();
   assert.deepEqual(f.lastView(), { page: 'company', products: [ACME, BETA] });
-  assert.equal(f.switchButtons().length, 3);
+  assert.equal(all(f.root, n => n.tag === 'button' && text(n) === 'Xem').length, 0, 'no per-product switch either');
   f.send({ v: 2, type: 'context', project: null, projects: [] });
   await f.settle();
   assert.deepEqual(f.lastView(), { page: 'company' });
-  assert.equal(f.switchButtons().length, 0);
 });
 
-test('without projects (an older host): no switch, even when the data names two products; the page follows project', async () => {
+test('without projects (an older host): the page follows project', async () => {
   const f = await frame();
   f.send(init({ project: ACME }));
   await f.settle();
   assert.deepEqual(f.lastView(), { page: 'company', product: 'acme', products: [ACME] });
-  assert.equal(f.switchButtons().length, 0);
   f.send({ v: 2, type: 'context', project: null });
   await f.settle();
   assert.deepEqual(f.lastView(), { page: 'company' });
-  assert.equal(f.switchButtons().length, 0, 'scope.products names acme and beta, but Nest listed no projects');
+  assert.equal(f.switchButtons().length, 0);
 });
 
-test('the standalone shell (project null, no list) shows every product; one project is no switch', async () => {
+test('the standalone shell (project null, no list) shows every product', async () => {
   const f = await frame();
   f.send(init({ project: null }));
   await f.settle();
   assert.deepEqual(f.views, [{ page: 'company' }]);
-  assert.equal(f.switchButtons().length, 0);
   const g = await frame();
   g.send(init({ project: null, projects: [ACME] }));
   await g.settle();
   assert.deepEqual(g.lastView(), { page: 'company', products: [ACME] });
-  assert.equal(g.switchButtons().length, 0, 'a switch needs two projects, as 0.14.5 needed two products');
 });
 
 test('messages that are not bridge v2 are dropped: v1, an unknown key, a malformed projects list', async () => {
@@ -149,9 +133,15 @@ test('messages that are not bridge v2 are dropped: v1, an unknown key, a malform
     await f.settle();
     assert.deepEqual(f.views, [], JSON.stringify(bad).slice(0, 80));
   }
-  // A project id that is not a product id is not listed in the switch (it cannot narrow the page).
+  // A project id that is not a product id cannot narrow the page and is not sent as a product.
   const f = await frame();
   f.send(init({ project: null, projects: [ACME, BETA, { id: 'Not A Product', name: 'X', teams: [] }] }));
   await f.settle();
-  assert.deepEqual(f.switchButtons().map(b => text(b).replace(/\d+$/, '')), ['Mọi sản phẩm', 'Acme', 'Beta']);
+  assert.deepEqual(f.lastView(), { page: 'company', products: [ACME, BETA] });
+});
+
+test('N11 (audit 2026-11-14): the page never shows an env name or points to the README', () => {
+  const words = [...SOURCE.matchAll(/'([^'\n]*)'|`([^`\n]*)`/g)].map(m => m[1] ?? m[2]).filter(t => /[àáạảãâăèéẹẻẽêìíịỉĩòóọỏõôơùúụủũưỳýỵỷỹđ]/i.test(t));
+  for (const t of words.map(w => w.replace(/\$\{[^}]*\}/g, ''))) assert.doesNotMatch(t, /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|README/, t);
+  assert.ok(words.length > 50, 'the Vietnamese strings were found');
 });
