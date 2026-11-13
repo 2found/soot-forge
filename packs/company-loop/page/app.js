@@ -1,8 +1,9 @@
 // Công ty (company-loop). Plain DOM, no network: every read and write is a `call` posted to Nest
 // (soot-pages bridge v2), which runs this pack's page_view / page_action tool. Text is set with
 // textContent only; sizes are set through CSSOM (no style attributes). The view model carries codes and
-// numbers; the words are here. Nest's chosen project ({id, name, teams} or null for every project) arrives
-// in `init` and again in a `context` message on every change; the standalone shell sends null.
+// numbers; the words are here. Nest's chosen project ({id, name, teams} or null for every project) and the
+// projects the viewer can see arrive in `init` and again in a `context` message on every change; the
+// standalone shell sends `project: null` and no list.
 'use strict';
 (() => {
 const BRIDGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -12,37 +13,43 @@ const isTokens = t => !!t && typeof t === 'object' && !Array.isArray(t) && Objec
 
 const waiting = new Map();
 // project: Nest's chosen project (undefined before init; null = every project).
+// projects: the projects Nest lists ([] when the host sends none: no switch, the page follows project).
 // local: the page's own switch (undefined = follow Nest; null = every product; an id).
-const S = { edit: null, draft: null, data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', project: undefined, local: undefined, started: false, seq: 0 };
+const S = { edit: null, draft: null, data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', project: undefined, projects: [], local: undefined, started: false, seq: 0 };
 const embedded = window.parent !== window;
 
 const str = (v, max) => typeof v === 'string' && v.length <= max;
-const only = (m, keys) => Object.keys(m).every(k => keys.includes(k)) && keys.every(k => k in m);
+const only = (m, keys, optional = []) => Object.keys(m).every(k => keys.includes(k) || optional.includes(k)) && keys.every(k => k in m);
 const isProject = p => p === null || (!!p && typeof p === 'object' && only(p, ['id', 'name', 'teams']) && str(p.id, 64) && p.id !== '' && str(p.name, 128) &&
   Array.isArray(p.teams) && p.teams.length <= 64 && p.teams.every(t => str(t, 64)));
+// `projects` is optional: an older host and the standalone shell send none.
+const isProjects = l => l === undefined || (Array.isArray(l) && l.length <= 64 && l.every(p => p !== null && isProject(p)));
 function parse(m) {
   if (!m || typeof m !== 'object' || m.v !== 2) return null;
-  if (m.type === 'init') return only(m, ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project']) && ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) && isProject(m.project) ? m : null;
+  if (m.type === 'init') return only(m, ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project'], ['projects']) && ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) && isProject(m.project) && isProjects(m.projects) ? m : null;
   if (m.type === 'theme') return only(m, ['v', 'type', 'theme', 'tokens']) && ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) ? m : null;
-  if (m.type === 'context') return only(m, ['v', 'type', 'project']) && isProject(m.project) ? m : null;
+  if (m.type === 'context') return only(m, ['v', 'type', 'project'], ['projects']) && isProject(m.project) && isProjects(m.projects) ? m : null;
   if (m.type === 'result' && typeof m.id === 'string' && BRIDGE_ID.test(m.id)) return m;
   return null;
 }
 function applyTheme(m) { for (const [k, v] of Object.entries(m.tokens)) document.documentElement.style.setProperty(k, v); document.documentElement.dataset.theme = m.theme; }
-function follow(project) {
-  const before = S.project;
+// projects: the list as sent; undefined keeps the last one (init starts from none).
+function follow(project, projects) {
+  const before = JSON.stringify([S.project, S.projects]), was = S.project;
   S.project = project;
-  // A project change in Nest wins over the page's own switch; a new name or teams only reloads.
-  if ((project?.id ?? null) !== (before?.id ?? null)) S.local = undefined;
-  if (JSON.stringify(before) !== JSON.stringify(project) && S.started) reload();
+  // Only projects that are product ids can narrow the page; the rest are not listed in its switch.
+  if (projects !== undefined) S.projects = projects.filter(p => PRODUCT.test(p.id));
+  // A project change in Nest wins over the page's own switch; a new name, teams or list only reloads.
+  if ((project?.id ?? null) !== (was?.id ?? null)) S.local = undefined;
+  if (JSON.stringify([S.project, S.projects]) !== before && S.started) reload();
 }
 window.addEventListener('message', e => {
   if (embedded && e.source !== window.parent) return;
   const m = parse(e.data);
   if (!m) return;
-  if (m.type === 'init') { applyTheme(m); S.locale = m.locale; follow(m.project); start(); }
+  if (m.type === 'init') { applyTheme(m); S.locale = m.locale; follow(m.project, m.projects ?? []); start(); }
   else if (m.type === 'theme') applyTheme(m);
-  else if (m.type === 'context') follow(m.project);
+  else if (m.type === 'context') follow(m.project, m.projects);
   else { const w = waiting.get(m.id); if (w) { waiting.delete(m.id); clearTimeout(w.timer); w.resolve(m.ok ? { ok: true, output: m.output } : { ok: false, error: m.error }); } }
 });
 function call(mode, input, requestID) {
@@ -64,9 +71,13 @@ function output(r) {
 // Nest's project is the product of the same id: its name and teams narrow the page.
 const nestProduct = () => (S.project && PRODUCT.test(S.project.id) ? S.project.id : null);
 const chosen = () => (S.local !== undefined ? S.local : nestProduct());
+const asProduct = p => ({ id: p.id, name: p.name, teams: p.teams.slice(0, 64) });
 function viewInput() {
   const product = chosen();
-  const products = nestProduct() ? [{ id: S.project.id, name: S.project.name, teams: S.project.teams.slice(0, 64) }] : [];
+  // Nest's projects as products (0.14.5's context.products); a host with no list gives only the chosen one.
+  const list = S.projects.length ? S.projects : nestProduct() ? [S.project] : [];
+  const products = list.map(asProduct);
+  if (nestProduct() && !products.some(p => p.id === S.project.id) && products.length < 64) products.push(asProduct(S.project));
   return { page: 'company', ...(product ? { product } : {}), ...(products.length ? { products } : {}) };
 }
 const choose = id => { S.local = id === nestProduct() ? undefined : id; S.notice = ''; reload(); };
@@ -203,7 +214,7 @@ function nextOf(d) {
     case 'part_hong': {
       const x = d.parts?.items.find(i => i.part === n.part);
       const move = x && x.pct !== null && x.pct !== undefined ? `${x.label} ${x.pct > 0 ? 'tăng' : 'giảm'} ${nf.format(Math.abs(x.pct))}%` : x ? `${x.label} chưa đạt mục tiêu` : '';
-      return ['warn', `Bộ phận ${PART[n.part] ?? n.part} đang hỏng${move ? `: ${move}` : ''}`, 'Không có việc nào khác cần bạn. Xem “Khám 5 bộ phận”: giao người phụ trách, rồi chọn việc sửa đúng bộ phận này.', ['Xem 5 bộ phận', jump('5-bo-phan'), 'primary']];
+      return ['warn', `Bộ phận ${PART[n.part] ?? n.part} đang hỏng${move ? `: ${move}` : ''}`, 'Không có việc nào khác cần bạn. Xem “Khám 5 bộ phận”: giao người phụ trách, rồi chọn việc sửa đúng bộ phận này.', ['Xem 5 bộ phận', jump('parts'), 'primary']];
     }
     case 'topic_handed': return ['ok', `${n.n} chủ đề đã giao Writer, chưa viết`, 'Bài lên ở lượt viết kế tiếp; bạn không phải làm gì.', ['Xem chủ đề', jump('pipeline'), 'strong']];
     case 'topics': return ['ok', `${n.n} chủ đề đang chờ Writer`, 'Bài sẽ tự lên lịch; bạn không phải làm gì.', ['Xem chủ đề', jump('pipeline'), 'strong']];
@@ -222,8 +233,11 @@ function nextBar(d) {
 }
 
 // ---------- header and scope ----------
+// The switch lists Nest's projects (never products only the data names); no list, no switch.
 function header(d) {
-  const ps = d.scope.products ?? [], cur = d.scope.product?.id ?? null, follows = S.local === undefined && nestProduct();
+  const waitingOf = id => (d.scope.products ?? []).find(p => p.id === id)?.waiting ?? 0;
+  const ps = S.projects.map(p => ({ id: p.id, name: p.name || p.id, waiting: waitingOf(p.id) }));
+  const cur = d.scope.product?.id ?? null, follows = S.local === undefined && nestProduct();
   const sub = [`Số lúc ${when(d.at)}`, follows ? 'theo sản phẩm đang chọn ở Nest' : null].filter(Boolean).join(' · ');
   return h('div', { class: 'head' },
     h('div', {}, h('h1', {}, 'Công ty'), h('p', { class: 'sub muted small' }, sub)),
@@ -408,7 +422,7 @@ function partsSection(d) {
   if (!p) return null;
   const bad = p.items.filter(x => x.status === 'hong').length, loose = p.items.filter(x => x.chua_giao).length;
   const aside = [bad ? `${bad} bộ phận hỏng` : null, loose ? `${loose} chưa giao` : null].filter(Boolean).join(' · ') || 'Mỗi bộ phận có người phụ trách và một số liệu';
-  return sec('5-bo-phan', 'Khám 5 bộ phận', aside, h('div', { class: 'list' }, p.items.map(x => partRow(x, d))));
+  return sec('parts', 'Khám 5 bộ phận', aside, h('div', { class: 'list' }, p.items.map(x => partRow(x, d))));
 }
 
 // ---------- after Go ----------

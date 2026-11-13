@@ -1306,7 +1306,7 @@
           "products": {
             "type": "array",
             "maxItems": 64,
-            "description": "Nest's chosen project as a product, with its team ids (bridge v2 init.project or context.project).",
+            "description": "Nest's projects as products, with their team ids (bridge v2 projects; only the chosen project when the host sends no list).",
             "items": {
               "type": "object",
               "properties": {

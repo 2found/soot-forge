@@ -100,6 +100,22 @@ test('bridge v2: calls carry only v/type/id/mode/input/request_id; results route
   assert.match(randomID('lib'), REQUEST_ID);
 });
 
+test('bridge v2: a host that also sends projects (the projects the viewer can see) is still heard; a malformed list is dropped', () => {
+  const listeners = [], parent = {}, seen = [];
+  createBridge({ post: () => {}, listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project]), onContext: p => seen.push(['context', p]) });
+  const project = { id: 'acme', name: 'Acme', teams: ['team-a'] };
+  const deliver = m => listeners.forEach(h => h(m, parent));
+  const init = { v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: {}, viewer: { kind: 'operator' }, project };
+  deliver({ ...init, projects: project });
+  deliver({ ...init, projects: [null] });
+  deliver({ ...init, projects: [{ ...project, extra: 1 }] });
+  deliver({ ...init, projects: Array.from({ length: 65 }, () => project) });
+  deliver({ ...init, projects: [project, { id: 'beta', name: 'Beta', teams: [] }] });
+  deliver({ v: 2, type: 'context', project: null, projects: 'x' });
+  deliver({ v: 2, type: 'context', project: null, projects: [] });
+  assert.deepEqual(seen, [['init', project], ['context', null]]);
+});
+
 test('outcomes: a stale revision is a conflict that keeps the draft; 429 is busy; a lost answer is unknown; a resend replays', () => {
   const conflictOut = { ok: true, output: { status: 'error', code: 'conflict', message: 'revision conflict: document doc-1 changed' } };
   assert.equal(M.classify(conflictOut).state, 'conflict');

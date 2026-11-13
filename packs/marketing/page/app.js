@@ -8,12 +8,14 @@ const __bridge = (() => {
 // runs this pack's view/action tool and posts back one `result`. Messages that
 // are not exactly bridge v2 are ignored, as Nest does on its side. Nest's
 // chosen project ({id, name, teams} or null) arrives in `init` and again in
-// `context` when it changes; the standalone shell has none (null).
+// `context` when it changes; the standalone shell has none (null). A host may
+// also send `projects` (the projects the viewer can see); this page does not
+// use the list, but a message that carries it is still the same message.
 
 /** @typedef {{ request_id: string, status: string, at: string, replayed?: true }} Receipt */
 /** @typedef {{ ok: true, output: any, receipt?: Receipt, replayed?: true } | { ok: false, error: { code: string, message: string } }} CallResult */
 /** @typedef {{ id: string, name: string, teams: string[] }} Project */
-/** @typedef {{ theme: 'light' | 'dark', locale: 'vi' | 'en', tokens: Record<string, string>, viewer: { kind: 'operator' | 'member' }, project: Project | null }} Init */
+/** @typedef {{ theme: 'light' | 'dark', locale: 'vi' | 'en', tokens: Record<string, string>, viewer: { kind: 'operator' | 'member' }, project: Project | null, projects?: Project[] }} Init */
 
 const BRIDGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const REQUEST_ID = /^[A-Za-z0-9_-]{8,64}$/;
@@ -35,6 +37,8 @@ const isTokens = (/** @type {unknown} */ t) => !!t && typeof t === 'object' && !
 /** A project as bridge v2 carries it, or null (every project, or the standalone shell). @param {any} p */
 const isProject = p => p === null || (exactKeys(p, ['id', 'name', 'teams']) && typeof p.id === 'string' && p.id.length >= 1 && p.id.length <= 64 &&
   typeof p.name === 'string' && p.name.length <= 128 && Array.isArray(p.teams) && p.teams.length <= 64 && p.teams.every((/** @type {unknown} */ t) => typeof t === 'string' && t.length <= 64));
+/** The optional `projects` list: absent, or at most 64 projects (never null entries). @param {any} l */
+const isProjects = l => l === undefined || (Array.isArray(l) && l.length <= 64 && l.every(p => p !== null && isProject(p)));
 
 /** Parse a Nest → frame message; anything else is null and dropped. @param {unknown} m */
 function parseNestMessage(m) {
@@ -42,11 +46,11 @@ function parseNestMessage(m) {
   const msg = /** @type {any} */ (m);
   switch (msg.type) {
     case 'init':
-      if (!exactKeys(msg, ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project']) || !['light', 'dark'].includes(msg.theme) || !['vi', 'en'].includes(msg.locale) || !isTokens(msg.tokens) ||
-        !exactKeys(msg.viewer, ['kind']) || !['operator', 'member'].includes(msg.viewer.kind) || !isProject(msg.project)) return null;
+      if (!exactKeys(msg, ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project', 'projects'], ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project']) || !['light', 'dark'].includes(msg.theme) || !['vi', 'en'].includes(msg.locale) || !isTokens(msg.tokens) ||
+        !exactKeys(msg.viewer, ['kind']) || !['operator', 'member'].includes(msg.viewer.kind) || !isProject(msg.project) || !isProjects(msg.projects)) return null;
       return msg;
     case 'context':
-      if (!exactKeys(msg, ['v', 'type', 'project']) || !isProject(msg.project)) return null;
+      if (!exactKeys(msg, ['v', 'type', 'project', 'projects'], ['v', 'type', 'project']) || !isProject(msg.project) || !isProjects(msg.projects)) return null;
       return msg;
     case 'theme':
       if (!exactKeys(msg, ['v', 'type', 'theme', 'tokens']) || !['light', 'dark'].includes(msg.theme) || !isTokens(msg.tokens)) return null;

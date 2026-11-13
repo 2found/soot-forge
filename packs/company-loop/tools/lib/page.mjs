@@ -37,7 +37,7 @@ export function nextStep({ setup, sync, proposals, handoffs, topics, handed = 0,
   return { code: 'idle' };
 }
 
-/** Nest's chosen project as the page passes it: [{id, name, teams}], ids as the data carries them. */
+/** Nest's projects as the page passes them (bridge v2 `projects`, else the chosen one): [{id, name, teams}], ids as the data carries them. */
 function contextProducts(list) {
   if (!Array.isArray(list)) return [];
   const out = [];
