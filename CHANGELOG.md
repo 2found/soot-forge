@@ -3,6 +3,16 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+Baseline: v0.14.5. Needs the Soot runtime that serves `interface.pieces` and bridge v2 (2agent soot-pages v2, nest-extensions); an older runtime refuses these packs' `interface`, and this runtime refuses the old `interface.pages`. Clean break: Soot has no outside users yet.
+
+### Changed
+
+- **Pages become pieces.** Every pack interface is `interface.pieces[]`: `slot` (`rail`, `home`, `project.tab`, `data.tab`, `settings`) replaces `placement`, `group` replaces `settings_group`, and `view_tool` / `action_tool` sit under `data`. A page that used `provides: ["flow-<id>"]` is now a `project.tab` piece with `tab {id, label}`; `provides` keeps only real capabilities (`knowledge`). `schemas/pack.json` is the runtime's generated schema, and `scripts/catalog.mjs` refuses what the runtime refuses (`unknown_slot`, `slot_not_allowed`, `tab_required`, `tab_not_allowed`, `tab_conflict`, `group_not_allowed`, `flow-` values, a retired `interface.pages`).
+- **English piece ids.** `company-loop` `cong-ty` → `company` (rail; link `nest://page/company`); `cs-console` `khach-hang` → `customers` (project tab `support`, "Hỗ trợ"); `marketing` `bai-viet` / `hang-doi` / `chien-dich` → `posts` / `queue` / `campaigns` (project tab `marketing`) and `kenh` → `channels` (settings, server); `data-pool-console` `kho-tai-lieu` → `library` (data tab, `knowledge`); `website-chat` `live-chat-settings` unchanged (settings, server). Tools that gate on the page id (`page_view` / `page_action` `page`) take the new ids.
+- **Bridge v2.** Every bundle posts `v: 2` and reads Nest's project (`init.project`, `context.project`: `{id, name, teams}` or null) instead of `product` / `products`; a v1 message or a product context is dropped. Công ty follows the chosen project (its own switch still narrows by company product), and its section anchors are English (`needs`, `scoreboard`, `pipeline`, `decisions`, `rhythm`, `loop`, `effort`). The Kho tài liệu piece's (data-pool-console) pending-request key becomes `soot.library.pending.v1`, so a request left pending under the old key is not resumed.
+
 ## 0.14.5 — 2026-11-13
 
 Baseline: v0.14.4. Pairs with Soot 0.16.2+. New pack `crm` (storage version 1); no other storage changes.

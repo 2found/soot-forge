@@ -1,8 +1,11 @@
 # cs-console — Khách hàng
 
-A `rail` page, **Khách hàng**, for the lead Soot of a care team. Each row is
-one person: a verified sender (asserted by the product, or paired) of a
-tenant. The page shows:
+A piece, **Khách hàng** (id `customers`), for the lead Soot of a care team.
+It mounts as a project tab (`slot: "project.tab"`, tab `support`, "Hỗ trợ"):
+every project with a team whose Soot selects this pack gets the Hỗ trợ tab,
+and members (`access: member`) see it too. The bundle speaks soot-pages
+bridge v2. Each row is one person: a verified sender (asserted by the
+product, or paired) of a tenant. The page shows:
 
 - their **timeline** across the team's bindings (web, Telegram, app…), read
   through the host's conversation API;
@@ -64,8 +67,8 @@ There is no way to link by name, email or anything a model or member types.
 
 ## Removing
 
-Deselecting the pack removes the page at once: its URL answers 404 and Nest
-drops the entry. The pack's tables are hidden for 30 days, then dropped, or at
+Deselecting the pack removes the piece at once: its URL answers 404 and Nest
+drops the tab. The pack's tables are hidden for 30 days, then dropped, or at
 once with `soot pack remove cs-console --purge`. Conversations and memory
 belong to the host and are never touched.
 

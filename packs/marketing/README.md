@@ -66,10 +66,12 @@ A topic from the company loop may carry `awareness` (`unaware` = nấc 1, the re
 With no `MARKETING_HUB` bound (it is optional), the pack keeps its own work in
 its storage (`pack:marketing`, version 1: posts, checks, queue, publish_log,
 metrics, facts, channels, settings and the tables later phases fill) and
-shows it on two operator rail pages that belong to the **Marketing** flow
-(`provides: ["flow-marketing"]`): **Bài viết** (posts, the SEO brief lint,
+shows it on two operator pieces of the project's **Marketing** tab
+(`slot: "project.tab"`, `tab: {id: "marketing"}`; every project with a team
+whose Soot selects this pack gets the tab): **Bài viết** (`posts`: the SEO brief lint,
 the editor's check, Search Console numbers or "Chưa có số liệu") and **Hàng
-đợi** (the queue, pause for every channel or one, what just went out).
+đợi** (`queue`: pause for every channel or one, what just went out). The
+bundle speaks soot-pages bridge v2.
 
 Every post and channel on these pages shows **what happens next**, in one
 plain sentence, with the one button the founder needs or "Không cần làm gì":
@@ -122,7 +124,7 @@ bound; the new tools never forward.
 
 ## Campaigns
 
-The **Chiến dịch** page (also `provides: ["flow-marketing"]`) and
+The **Chiến dịch** piece (`campaigns`, also on the Marketing tab) and
 `campaign_save` make a campaign: a goal (`signups`, `first_topups`, `clicks`
 or `published` with a target), channels, dates, a token budget and one short
 link per channel made by the product api (`POST /admin/links`, `{code, url}`),

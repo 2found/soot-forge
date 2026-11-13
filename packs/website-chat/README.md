@@ -1,8 +1,8 @@
 # Website chat
 
 Configures the Live chat on the owner's websites from chat; the pack's own
-settings page (**Cài đặt → Live chat**, `page/`, a soot-pages bundle on the
-same two tools) edits the same gateway records. Tools: `website_view` (read) and
+settings piece (**Cài đặt → Live chat**, `slot: "settings"`, group `server`,
+`page/`, a soot-pages bridge v2 bundle on the same two tools) edits the same gateway records. Tools: `website_view` (read) and
 `website_action` (write), plus the `website-chat` skill. Select the pack for an
 owner configurator Soot only; it is not part of Nest's general template.
 
