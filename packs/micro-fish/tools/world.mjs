@@ -2,16 +2,17 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, readdir, stat, unlink } from 'node:fs/promises';
 import { join, isAbsolute } from 'node:path';
 
-// A simulated society is passive state: the host's native delegation runs every
-// persona, and this module only records what they said and counts it. Nothing
-// here calls a model, starts an agent or reaches the network.
+// A simulated society is a platform: every persona is its own Soot, named by the
+// host in `call.soot`, and meets content in a feed it shares with the others.
+// This module is the platform's passive state. An outside driver (driver.mjs)
+// advances the rounds; nothing here calls a model, starts an agent or reaches
+// the network.
 
 const ID = /^[a-z0-9][a-z0-9_-]{0,47}$/;
-const KINDS = ['product', 'feature', 'video', 'marketing', 'pricing', 'other'];
-const MAX = { personas: 200, stimuli: 4, rounds: 4, feed: 8, batch: 12, write: 6, posts: 240, record: 4 * 1024 * 1024 };
-const SCALE = ['attention', 'appeal', 'clarity', 'trust', 'intent'];
-const VERDICTS = ['GO', 'ITERATE', 'NO_GO'];
+const ATTENTION = ['skip', 'some', 'full'];
 const SEVERITIES = ['P0', 'P1', 'P2', 'P3'];
+const TYPES = ['scale', 'text', 'tags', 'yesno'];
+const MAX = { agents: 1000, subjects: 4, context: 60, content: 12000, rounds: 48, feed: 8, questions: 8, text: 400, post: 280, record: 16 * 1024 * 1024 };
 const PREVIEW = 30000;
 
 const fail = message => { const error = new Error(message); error.safe = true; throw error; };
@@ -29,61 +30,41 @@ function text(value, max, where, optional = false) {
   return value.trim();
 }
 function ident(value, where) { if (typeof value !== 'string' || !ID.test(value)) fail(`${where} must match ${ID.source}`); return value; }
-function int(value, min, max, where, optional = false) {
-  if (optional && (value === undefined || value === null)) return undefined;
-  if (!Number.isInteger(value) || value < min || value > max) fail(`${where} must be an integer ${min}–${max}`);
-  return value;
-}
-function num(value, min, max, where, optional = false) {
-  if (optional && (value === undefined || value === null)) return undefined;
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) fail(`${where} must be a number ${min}–${max}`);
-  return value;
-}
+function int(value, min, max, where) { if (!Number.isInteger(value) || value < min || value > max) fail(`${where} must be an integer ${min}–${max}`); return value; }
 function list(value, max, where, item) {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value) || value.length > max) fail(`${where} must be a list of at most ${max}`);
   return value.map((v, i) => item(v, `${where}[${i}]`));
 }
 const tag = (v, where) => text(v, 40, where).toLowerCase().replace(/\s+/g, '-');
-const seeded = (...parts) => createHash('sha256').update(parts.join('\0')).digest();
-const unit = (...parts) => seeded(...parts).readUInt32BE(0) / 0x100000000;
+export const unit = (...parts) => createHash('sha256').update(parts.join('\0')).digest().readUInt32BE(0) / 0x100000000;
 
-// Every conversation gets its own world: a delegated crowd member shares the
-// conversation subject and root, so the whole team sees one simulation, while
-// another conversation (or tenant root) can never read or overwrite it.
-export function scope(call) {
-  const subject = call?.event?.subject || call?.event?.id || 'direct';
-  const root = call?.root || call?.soot || 'soot';
-  return createHash('sha256').update(`${root}\0${subject}`).digest('hex').slice(0, 32);
-}
+// One store per workspace: persona Soots each talk in their own conversation, so
+// a simulation is named by its id, not by the conversation that started it.
 export function stateDirectory(env = process.env) {
   const base = env.SOOT_PACK_STATE || env.SOCIETY_STATE_DIR;
   if (!base || !isAbsolute(base)) fail('This Soot host did not provide SOOT_PACK_STATE; update the Soot runtime');
-  return join(base, 'worlds');
+  return join(base, 'sims');
 }
-
-async function load(dir, sim) {
-  try {
-    const raw = await readFile(join(dir, ident(sim, 'sim') + '.json'));
-    return JSON.parse(raw);
-  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+export async function load(dir, sim) {
+  try { return JSON.parse(await readFile(join(dir, ident(sim, 'sim') + '.json'))); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 }
 async function save(dir, world) {
   world.revision = (world.revision || 0) + 1; world.updated_at = new Date().toISOString();
-  const raw = JSON.stringify(world); if (Buffer.byteLength(raw) > MAX.record) fail('Simulation record is full; start a smaller simulation');
+  const raw = JSON.stringify(world); if (Buffer.byteLength(raw) > MAX.record) fail('Simulation record is full; run a smaller simulation');
   const temp = join(dir, '.' + randomUUID()); const file = await open(temp, 'wx', 0o600);
   try { await file.writeFile(raw); await file.sync(); } finally { await file.close(); }
   await rename(temp, join(dir, world.id + '.json'));
-  const parent = await open(dir, 'r'); try { await parent.sync(); } finally { await parent.close(); }
 }
-// Crowd members write in parallel, so a busy lock waits briefly. The record is
-// replaced by rename, so a writer that died while holding the lock left a
-// consistent file behind; a lock older than any tool timeout has no live owner.
+// Persona Soots write in parallel, so a busy lock waits briefly. The record is
+// replaced by rename, so a writer that died holding the lock left a consistent
+// file; a lock older than any tool timeout has no live owner.
 async function locked(dir, sim, action) {
   await mkdir(dir, { recursive: true, mode: 0o700 });
-  const path = join(dir, `.${ident(sim, 'sim')}.lock`); const deadline = Date.now() + 10000;
+  const path = join(dir, `.${ident(sim, 'sim')}.lock`); const deadline = Date.now() + 20000;
   let lock;
-  for (let delay = 15; !lock; delay = Math.min(delay * 2, 400)) {
+  for (let delay = 15; !lock; delay = Math.min(delay * 2, 300)) {
     try { lock = await open(path, 'wx', 0o600); }
     catch (error) {
       if (error.code !== 'EEXIST') throw error;
@@ -95,219 +76,218 @@ async function locked(dir, sim, action) {
   }
   try { return await action(); } finally { await lock.close(); await unlink(path).catch(() => {}); }
 }
-async function need(dir, sim) { const world = await load(dir, sim); if (!world) fail(`No simulation "${sim}" in this conversation; call micro-fish_create first`); return world; }
+async function need(dir, sim) { const world = await load(dir, sim); if (!world) fail(`No simulation "${sim}" in this workspace`); return world; }
+const member = (world, who) => world.agents[who] || fail('This account is not part of that simulation');
 
-function stimulus(v, where) {
-  keys(v, ['id', 'label', 'content'], ['id', 'label', 'content'], where);
-  return { id: ident(v.id, `${where}.id`), label: text(v.label, 80, `${where}.label`), content: text(v.content, 3000, `${where}.content`) };
-}
-function persona(v, where) {
-  keys(v, ['id', 'name', 'segment', 'market', 'age', 'gender', 'occupation', 'income', 'traits', 'values', 'media', 'context', 'stance', 'influence', 'skepticism', 'bio'], ['id', 'name', 'segment', 'market', 'bio'], where);
+const DEFAULT_QUESTIONS = {
+  vi: [
+    { id: 'retell', type: 'text', ask: 'Kể lại nội dung đó nói gì, như kể cho một người bạn. Không nhớ hoặc đã lướt qua thì nói thẳng.' },
+    { id: 'clarity', type: 'scale', ask: 'Gặp một lần có hiểu ngay không (1 không hiểu gì, 5 hiểu hết)' },
+    { id: 'intent', type: 'scale', ask: 'Trong tuần này bạn có làm gì với nó không: lưu, gửi ai đó, thử, mua (1 chắc chắn không, 5 chắc chắn có)' },
+    { id: 'objections', type: 'tags', ask: 'Điều làm bạn khó chịu hoặc không tin, mỗi ý một nhãn ngắn (ad-feel, unclear-<từ>, no-use, too-long, not-for-me)' },
+    { id: 'why', type: 'text', ask: 'Vì sao bạn đã xem hết, xem một phần, hay lướt qua' },
+  ],
+  en: [
+    { id: 'retell', type: 'text', ask: 'Retell what it said, as you would to a friend. If you scrolled past or cannot remember, say so.' },
+    { id: 'clarity', type: 'scale', ask: 'Did you get it on one pass (1 not at all, 5 completely)' },
+    { id: 'intent', type: 'scale', ask: 'Will you do anything with it this week: save, send, try, buy (1 certainly not, 5 certainly)' },
+    { id: 'objections', type: 'tags', ask: 'What put you off or was hard to believe, one short tag each (ad-feel, unclear-<word>, no-use, too-long, not-for-me)' },
+    { id: 'why', type: 'text', ask: 'Why you finished it, watched part of it, or scrolled past' },
+  ],
+};
+
+// ---------- the driver's side: build a simulation ----------
+
+function agentCard(v, where) {
+  keys(v, ['id', 'name', 'age', 'sex', 'zone', 'region', 'occupation', 'education', 'segment', 'activity'], ['id', 'name'], where);
+  const activity = v.activity ?? 0.6;
+  if (typeof activity !== 'number' || !(activity > 0 && activity <= 1)) fail(`${where}.activity must be a number above 0 and at most 1`);
   return {
-    id: ident(v.id, `${where}.id`), name: text(v.name, 60, `${where}.name`), segment: tag(v.segment, `${where}.segment`), market: tag(v.market, `${where}.market`),
-    age: int(v.age, 13, 99, `${where}.age`, true), gender: text(v.gender, 30, `${where}.gender`, true), occupation: text(v.occupation, 80, `${where}.occupation`, true),
-    income: text(v.income, 60, `${where}.income`, true), traits: list(v.traits, 6, `${where}.traits`, (t, w) => text(t, 40, w)),
-    values: list(v.values, 6, `${where}.values`, (t, w) => text(t, 40, w)), media: list(v.media, 6, `${where}.media`, (t, w) => text(t, 40, w)),
-    context: text(v.context, 300, `${where}.context`, true), stance: text(v.stance, 200, `${where}.stance`, true),
-    influence: num(v.influence ?? 0.3, 0, 1, `${where}.influence`), skepticism: num(v.skepticism ?? 0.5, 0, 1, `${where}.skepticism`),
-    bio: text(v.bio, 500, `${where}.bio`),
+    id: ident(v.id, `${where}.id`), name: text(v.name, 80, `${where}.name`), age: v.age === undefined || v.age === null ? undefined : int(v.age, 13, 99, `${where}.age`),
+    sex: text(v.sex, 30, `${where}.sex`, true), zone: text(v.zone, 40, `${where}.zone`, true), region: text(v.region, 80, `${where}.region`, true),
+    occupation: text(v.occupation, 120, `${where}.occupation`, true), education: text(v.education, 80, `${where}.education`, true),
+    segment: v.segment ? tag(v.segment, `${where}.segment`) : 'all', activity,
   };
 }
-
+// A brief names the decision, the platform, the subjects under test (one arm
+// each), the other content they compete with, and what to ask afterwards.
 export async function create(dir, input) {
-  keys(input, ['sim', 'goal', 'kind', 'language', 'markets', 'audience', 'stimuli', 'questions', 'rounds', 'feed_size'], ['sim', 'goal', 'kind']);
-  if (!KINDS.includes(input.kind)) fail(`kind must be one of ${KINDS.join(', ')}`);
-  const stimuli = list(input.stimuli, MAX.stimuli, 'stimuli', stimulus);
-  if (new Set(stimuli.map(s => s.id)).size !== stimuli.length) fail('Stimulus ids must be unique');
+  keys(input, ['sim', 'goal', 'platform', 'language', 'subjects', 'context', 'questions', 'rounds', 'feed_size', 'seed', 'agents'], ['sim', 'goal', 'subjects', 'agents']);
+  const language = text(input.language, 20, 'language', true) || 'vi';
+  const subjects = list(input.subjects, MAX.subjects, 'subjects', (v, w) => {
+    keys(v, ['id', 'label', 'account', 'content'], ['id', 'content'], w);
+    return { id: ident(v.id, `${w}.id`), label: text(v.label, 80, `${w}.label`, true) || v.id, account: text(v.account, 60, `${w}.account`, true) || `account-${v.id}`, content: text(v.content, MAX.content, `${w}.content`) };
+  });
+  if (!subjects.length || new Set(subjects.map(s => s.id)).size !== subjects.length) fail('subjects needs 1–4 entries with unique ids');
+  const context = list(input.context, MAX.context, 'context', (v, w) => { keys(v, ['account', 'content'], ['account', 'content'], w); return { account: text(v.account, 60, `${w}.account`), content: text(v.content, MAX.content, `${w}.content`) }; });
+  const questions = list(input.questions, MAX.questions, 'questions', (v, w) => {
+    keys(v, ['id', 'ask', 'type'], ['id', 'ask', 'type'], w);
+    if (!TYPES.includes(v.type)) fail(`${w}.type must be one of ${TYPES.join(', ')}`);
+    return { id: ident(v.id, `${w}.id`), ask: text(v.ask, 300, `${w}.ask`), type: v.type };
+  });
+  if (new Set(questions.map(q => q.id)).size !== questions.length) fail('question ids must be unique');
+  const cards = list(input.agents, MAX.agents, 'agents', agentCard);
+  if (cards.length < subjects.length || new Set(cards.map(a => a.id)).size !== cards.length) fail('agents needs unique ids and at least one persona per subject');
+  const seed = text(input.seed, 80, 'seed', true) || ident(input.sim, 'sim');
+  // Between-subjects: a persona meets exactly one subject, so nobody compares
+  // variants side by side and no one sees the same content twice.
+  const order = cards.map(a => a.id).sort((a, b) => unit(seed, 'arm', a) - unit(seed, 'arm', b));
+  const arm = Object.fromEntries(order.map((id, i) => [id, subjects[i % subjects.length].id]));
   const world = {
-    version: 1, id: ident(input.sim, 'sim'), created_at: new Date().toISOString(), revision: 0,
-    brief: {
-      goal: text(input.goal, 600, 'goal'), kind: input.kind, language: text(input.language, 20, 'language', true) || 'vi',
-      markets: list(input.markets, 6, 'markets', tag), audience: text(input.audience, 600, 'audience', true),
-      stimuli, questions: list(input.questions, 8, 'questions', (q, w) => text(q, 200, w)),
-    },
-    design: { rounds: int(input.rounds ?? 2, 0, MAX.rounds, 'rounds'), feed_size: int(input.feed_size ?? 5, 0, MAX.feed, 'feed_size') },
-    personas: {}, reactions: {}, experts: {},
+    version: 2, id: ident(input.sim, 'sim'), created_at: new Date().toISOString(), revision: 0,
+    brief: { goal: text(input.goal, 600, 'goal'), platform: text(input.platform, 60, 'platform', true) || 'feed', language, subjects: subjects.map(({ id, label, account }) => ({ id, label, account })), questions: questions.length ? questions : (DEFAULT_QUESTIONS[language.slice(0, 2)] || DEFAULT_QUESTIONS.en) },
+    design: { rounds: int(input.rounds ?? 6, 1, MAX.rounds, 'rounds'), feed_size: int(input.feed_size ?? 5, 1, MAX.feed, 'feed_size'), seed },
+    round: 0, phase: 'feed',
+    agents: Object.fromEntries(cards.map(a => [a.id, { ...a, id: undefined, arm: arm[a.id] }])),
+    posts: [
+      ...subjects.map(s => ({ id: s.id, account: s.account, round: 0, content: s.content, subject: s.id, arm: s.id })),
+      ...context.map((c, i) => ({ id: `c${i + 1}`, account: c.account, round: 0, content: c.content })),
+    ],
+    impressions: [], reactions: [], follows: [], answers: {}, experts: {}, conversations: {},
   };
   return locked(dir, world.id, async () => {
-    if (await load(dir, world.id)) fail(`Simulation "${world.id}" already exists here; pick another id or call micro-fish_status`);
+    if (await load(dir, world.id)) fail(`Simulation "${world.id}" already exists; pick another id`);
     await save(dir, world);
-    return { sim: world.id, rounds: world.design.rounds, stimuli: stimuli.map(s => s.id), next: stimuli.length ? 'Ask the architect to add personas (24–60 across the segments that decide the outcome).' : 'Add the thing to evaluate with micro-fish_stimulus, then build the population.' };
+    return { sim: world.id, agents: cards.length, arms: Object.fromEntries(subjects.map(s => [s.id, order.filter(id => arm[id] === s.id).length])), posts: world.posts.length, rounds: world.design.rounds };
+  });
+}
+export const active = (world, round) => Object.entries(world.agents).filter(([id, a]) => unit(world.design.seed, 'active', String(round), id) < a.activity).map(([id]) => id);
+export async function advance(dir, sim, patch) {
+  return locked(dir, sim, async () => {
+    const world = await need(dir, sim);
+    if (patch.round !== undefined) world.round = int(patch.round, 0, world.design.rounds, 'round');
+    if (patch.phase !== undefined) world.phase = ['feed', 'interview', 'done'].includes(patch.phase) ? patch.phase : fail('unknown phase');
+    for (const [id, conv] of Object.entries(patch.conversations || {})) if (world.agents[id]) world.conversations[id] = String(conv).slice(0, 80);
+    await save(dir, world); return world;
   });
 }
 
-// A long stimulus (a full video script, a landing page) is added on its own so
-// every call stays inside the host's 16 KiB tool-input limit.
-export async function addStimulus(dir, input) {
-  keys(input, ['sim', 'stimulus'], ['sim', 'stimulus']);
-  const next = stimulus(input.stimulus, 'stimulus');
-  return locked(dir, input.sim, async () => {
-    const world = await need(dir, input.sim);
-    if (Object.keys(world.reactions).length) fail('Reactions already exist; stimuli are fixed once round 0 starts. Create a new simulation for a revised version.');
-    const at = world.brief.stimuli.findIndex(s => s.id === next.id);
-    if (at >= 0) world.brief.stimuli[at] = next; else if (world.brief.stimuli.length >= MAX.stimuli) fail(`At most ${MAX.stimuli} stimuli`); else world.brief.stimuli.push(next);
-    await save(dir, world);
-    return { sim: world.id, stimuli: world.brief.stimuli.map(s => ({ id: s.id, label: s.label, characters: [...s.content].length })), replaced: at >= 0 };
-  });
-}
+// ---------- a persona's side: the feed ----------
 
-export async function addPersonas(dir, input) {
-  keys(input, ['sim', 'personas', 'replace'], ['sim', 'personas']);
-  const incoming = list(input.personas, 10, 'personas', persona);
-  if (!incoming.length) fail('personas is empty');
+const rootOf = p => p.repost_of || p.id;
+const who = (world, id) => world.agents[id]?.name || id;
+function counts(world, id) {
+  const rs = world.reactions.filter(r => r.post === id);
+  return { likes: rs.filter(r => r.like).length, shares: rs.filter(r => r.share).length, comments: rs.filter(r => r.comment).length };
+}
+function render(world, p, me) {
+  const original = p.repost_of ? world.posts.find(x => x.id === p.repost_of) : p;
+  const arm = world.agents[me].arm;
+  const comments = world.reactions.filter(r => r.post === original.id && r.comment && (!original.arm || world.agents[r.agent]?.arm === arm)).slice(-3).map(r => `${who(world, r.agent)}: ${r.comment}`);
+  return {
+    post: p.id, account: original.account || who(world, original.author), ...(p.repost_of ? { shared_by: who(world, p.author) } : {}),
+    content: original.content, ...(original.quote_of ? { replying_to: original.quote_of } : {}), ...counts(world, original.id), ...(comments.length ? { top_comments: comments } : {}),
+  };
+}
+// Opening the app: unseen posts from this persona's corner of the world, drawn
+// by engagement, follows and recency. The draw is seeded, and a second call in
+// the same round returns the same feed, so a retry never burns unseen posts.
+export async function timeline(dir, me, input) {
+  keys(input, ['sim'], ['sim']);
   return locked(dir, input.sim, async () => {
-    const world = await need(dir, input.sim);
-    if (Object.keys(world.reactions).length && !input.replace) fail('Reactions already exist; the population is fixed once round 0 starts');
-    for (const p of incoming) {
-      if (world.personas[p.id] && !input.replace) fail(`Persona "${p.id}" already exists`);
-      world.personas[p.id] = p;
+    const world = await need(dir, input.sim), self = member(world, me), round = world.round;
+    if (world.phase !== 'feed') fail('The feed is closed; the simulation is in its interview phase');
+    const mine = world.impressions.filter(i => i.agent === me);
+    let shown = mine.filter(i => i.round === round).map(i => world.posts.find(p => p.id === i.post));
+    if (!shown.length) {
+      const seen = new Set(mine.map(i => rootOf(world.posts.find(p => p.id === i.post))));
+      const follows = new Set(world.follows.filter(f => f.agent === me).map(f => f.account));
+      const pool = world.posts.filter(p => p.author !== me && (!p.arm || p.arm === self.arm) && !seen.has(rootOf(p))).map(p => {
+        const c = counts(world, rootOf(p));
+        const weight = 1 + 0.5 * c.likes + 1.5 * c.shares + 0.3 * c.comments + (follows.has(p.account || p.author) ? 2 : 0) + (p.round >= round - 1 ? 1 : 0);
+        return { p, key: -Math.log(unit(world.design.seed, me, String(round), p.id) || 1e-9) / weight };
+      }).sort((a, b) => a.key - b.key);
+      const roots = new Set(); shown = [];
+      for (const { p } of pool) { if (shown.length >= world.design.feed_size) break; if (roots.has(rootOf(p))) continue; roots.add(rootOf(p)); shown.push(p); }
+      // Every persona meets its subject once, in its first session, at a seeded
+      // place in the feed; after that the subject travels only by shares.
+      const subject = world.posts.find(p => p.subject === self.arm);
+      if (!mine.length && subject && !roots.has(subject.id)) { if (shown.length >= world.design.feed_size) shown.pop(); shown.splice(Math.floor(unit(world.design.seed, 'slot', me) * (shown.length + 1)), 0, subject); }
+      for (const p of shown) world.impressions.push({ agent: me, post: p.id, round });
+      await save(dir, world);
     }
-    if (Object.keys(world.personas).length > MAX.personas) fail(`At most ${MAX.personas} personas per simulation`);
-    await save(dir, world);
-    return { sim: world.id, personas: Object.keys(world.personas).length, mix: mix(Object.values(world.personas)) };
+    const build = n => ({ sim: world.id, round, platform: world.brief.platform, feed: shown.slice(0, n).map(p => render(world, p, me)), next: shown.length ? 'Record what you did with EVERY post above in one micro-fish_act call.' : 'Nothing new right now. Close the app; there is nothing to record.' });
+    let n = shown.length, out = build(n);
+    while (n > 1 && Buffer.byteLength(JSON.stringify(out)) > PREVIEW) out = build(--n);
+    return out;
   });
 }
-function mix(people) {
-  const count = field => Object.fromEntries(Object.entries(people.reduce((a, p) => ({ ...a, [p[field]]: (a[p[field]] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1]));
-  return { segment: count('segment'), market: count('market') };
-}
-
-const reacted = (world, round) => new Set(Object.keys(world.reactions[round] || {}));
-export async function planRound(dir, input) {
-  keys(input, ['sim', 'round', 'batch_size'], ['sim', 'round']);
-  const world = await need(dir, input.sim);
-  const round = int(input.round, 0, world.design.rounds, 'round'), size = int(input.batch_size ?? 6, 1, MAX.batch, 'batch_size');
-  const all = Object.keys(world.personas).sort();
-  if (!world.brief.stimuli.length) fail('No stimulus yet; add one with micro-fish_stimulus');
-  if (!all.length) fail('No personas yet; ask the architect to add them');
-  if (round > 0) {
-    const previous = reacted(world, round - 1), missing = all.filter(id => !previous.has(id));
-    if (missing.length) return { sim: world.id, round, ready: false, waiting_on_round: round - 1, missing: missing.length, next: `Finish round ${round - 1} first: ${missing.length} personas have not reacted.` };
-  }
-  const done = reacted(world, round), todo = all.filter(id => !done.has(id));
-  const batches = []; for (let i = 0; i < todo.length; i += size) batches.push(todo.slice(i, i + size));
-  return { sim: world.id, round, ready: true, social: round > 0, done: done.size, remaining: todo.length, batches,
-    next: todo.length ? `Delegate each batch to the crowd member in parallel: "round ${round}, personas <ids>".` : round < world.design.rounds ? `Round ${round} complete; plan round ${round + 1}.` : 'All rounds complete; ask the analyst to call micro-fish_tally.' };
-}
-
-function posts(world, round) {
-  return Object.entries(world.reactions[round] || {}).filter(([, r]) => r.post).map(([pid, r]) => ({ id: `r${round}-${pid}`, round, author: pid, text: r.post, shared: r.share || null, sentiment: avg(Object.values(r.stimuli).map(s => s.sentiment)) }));
-}
-function citations(world) {
-  const cited = {};
-  for (const rows of Object.values(world.reactions)) for (const r of Object.values(rows)) for (const id of r.influenced_by || []) cited[id] = (cited[id] || 0) + 1;
-  return cited;
-}
-// A persona's feed is what its own corner of the society said last round: posts
-// from the same segment and market, louder authors and widely cited posts
-// surface more, and the draw is seeded so a re-run shows the same feed.
-export function feed(world, pid, round) {
-  const me = world.personas[pid], size = world.design.feed_size;
-  if (round === 0 || !size) return [];
-  const cited = citations(world);
-  const pool = posts(world, round - 1).filter(p => p.author !== pid).map(p => {
-    const author = world.personas[p.author] || {};
-    const weight = 1 + 2 * (author.influence ?? 0.3) + (author.segment === me.segment ? 1.5 : 0) + (author.market === me.market ? 1 : 0) + Math.min(cited[p.id] || 0, 5) * 0.5;
-    return { p, key: -Math.log(unit(world.id, pid, String(round), p.id) || 1e-9) / weight };
-  });
-  return pool.sort((a, b) => a.key - b.key).slice(0, size).map(({ p }) => {
-    const author = world.personas[p.author] || {};
-    return { id: p.id, author: author.name || p.author, segment: author.segment, market: author.market, text: p.text, ...(p.shared ? { shared: p.shared } : {}) };
-  });
-}
-function memory(world, pid, round) {
-  const out = [];
-  for (let r = 0; r < round; r++) {
-    const row = world.reactions[r]?.[pid]; if (!row) continue;
-    out.push({ round: r, post: row.post || null, preferred: row.preferred || null, intent: Object.fromEntries(Object.entries(row.stimuli).map(([sid, s]) => [sid, s.intent])), quotes: Object.fromEntries(Object.entries(row.stimuli).map(([sid, s]) => [sid, s.quote])) });
-  }
-  return out;
-}
-function order(world, pid, round) { return world.brief.stimuli.map(s => s.id).sort((a, b) => unit(world.id, pid, String(round), a) - unit(world.id, pid, String(round), b)); }
-
-export async function packet(dir, input) {
-  keys(input, ['sim', 'round', 'personas'], ['sim', 'round', 'personas']);
-  const world = await need(dir, input.sim);
-  const round = int(input.round, 0, world.design.rounds, 'round');
-  const ids = list(input.personas, MAX.batch, 'personas', ident);
-  for (const id of ids) if (!world.personas[id]) fail(`Unknown persona "${id}"`);
-  const build = feedLimit => ({
-    sim: world.id, round, social: round > 0, brief: { goal: world.brief.goal, kind: world.brief.kind, language: world.brief.language, questions: world.brief.questions },
-    stimuli: world.brief.stimuli,
-    personas: ids.map(id => ({ ...world.personas[id], stimulus_order: order(world, id, round), already_reacted: Boolean(world.reactions[round]?.[id]), memory: memory(world, id, round), feed: feed(world, id, round).slice(0, feedLimit) })),
-    record_with: 'micro-fish_react: one entry per persona, every stimulus scored, in each persona\'s own voice.',
-  });
-  // Stay inside one tool preview so a crowd member never has to page a spill.
-  let limit = world.design.feed_size, out = build(limit);
-  while (limit > 0 && Buffer.byteLength(JSON.stringify(out)) > PREVIEW) out = build(--limit);
-  if (Buffer.byteLength(JSON.stringify(out)) > PREVIEW) fail('Packet too large; request fewer personas');
-  return out;
-}
-
-function reaction(world, v, round, where) {
-  keys(v, ['persona', 'stimuli', 'preferred', 'post', 'share', 'influenced_by', 'changed', 'change_reason'], ['persona', 'stimuli'], where);
-  const pid = ident(v.persona, `${where}.persona`); if (!world.personas[pid]) fail(`${where}: unknown persona "${pid}"`);
-  const valid = new Set(world.brief.stimuli.map(s => s.id)), seen = {};
-  for (const [i, s] of list(v.stimuli, MAX.stimuli, `${where}.stimuli`, x => x).entries()) {
-    const w = `${where}.stimuli[${i}]`;
-    keys(s, ['stimulus', ...SCALE, 'price_ok', 'watch_through', 'sentiment', 'emotions', 'objections', 'quote'], ['stimulus', ...SCALE, 'sentiment', 'quote'], w);
-    if (!valid.has(s.stimulus) || seen[s.stimulus]) fail(`${w}: unknown or repeated stimulus "${s.stimulus}"`);
-    seen[s.stimulus] = {
-      ...Object.fromEntries(SCALE.map(k => [k, int(s[k], 1, 5, `${w}.${k}`)])),
-      ...(s.price_ok === undefined || s.price_ok === null ? {} : { price_ok: typeof s.price_ok === 'boolean' ? s.price_ok : fail(`${w}.price_ok must be true/false`) }),
-      ...(s.watch_through === undefined || s.watch_through === null ? {} : { watch_through: int(s.watch_through, 0, 100, `${w}.watch_through`) }),
-      sentiment: int(s.sentiment, -2, 2, `${w}.sentiment`), emotions: list(s.emotions, 3, `${w}.emotions`, tag),
-      objections: list(s.objections, 4, `${w}.objections`, tag), quote: text(s.quote, 200, `${w}.quote`),
-    };
-  }
-  if (Object.keys(seen).length !== valid.size) fail(`${where}: score every stimulus (${[...valid].join(', ')})`);
-  if (v.preferred !== undefined && v.preferred !== null && !valid.has(v.preferred)) fail(`${where}.preferred must be a stimulus id`);
-  if (v.share !== undefined && v.share !== null && !valid.has(v.share)) fail(`${where}.share must be a stimulus id`);
-  const known = new Set(round > 0 ? posts(world, round - 1).map(p => p.id) : []);
-  const influenced = list(v.influenced_by, 3, `${where}.influenced_by`, (x, w) => { if (!known.has(x) || x.endsWith(`-${pid}`)) fail(`${w}: "${x}" is not another persona's post from round ${round - 1}`); return x; });
-  if (v.changed !== undefined && typeof v.changed !== 'boolean') fail(`${where}.changed must be true/false`);
-  return [pid, {
-    stimuli: seen, ...(valid.size > 1 && v.preferred ? { preferred: v.preferred } : {}), post: text(v.post, MAX.posts, `${where}.post`, true) || null,
-    share: v.share || null, influenced_by: influenced, changed: round > 0 ? Boolean(v.changed) : false,
-    change_reason: text(v.change_reason, 200, `${where}.change_reason`, true) || null, at: new Date().toISOString(),
-  }];
-}
-export async function react(dir, input) {
-  keys(input, ['sim', 'round', 'reactions'], ['sim', 'round', 'reactions']);
+export async function act(dir, me, input) {
+  keys(input, ['sim', 'reactions', 'new_post'], ['sim', 'reactions']);
   return locked(dir, input.sim, async () => {
-    const world = await need(dir, input.sim);
-    const round = int(input.round, 0, world.design.rounds, 'round');
-    if (!world.brief.stimuli.length) fail('No stimulus to react to yet');
-    if (round > 0) { const prev = reacted(world, round - 1); const missing = Object.keys(world.personas).filter(id => !prev.has(id)); if (missing.length) fail(`Round ${round - 1} is not complete (${missing.length} missing)`); }
-    const rows = list(input.reactions, MAX.write, 'reactions', (v, w) => reaction(world, v, round, w));
-    if (!rows.length) fail('reactions is empty');
-    if (new Set(rows.map(([pid]) => pid)).size !== rows.length) fail('A persona appears twice in one batch');
-    world.reactions[round] ||= {};
-    const replaced = rows.filter(([pid]) => world.reactions[round][pid]).map(([pid]) => pid);
-    for (const [pid, row] of rows) world.reactions[round][pid] = row;
+    const world = await need(dir, input.sim), self = member(world, me), round = world.round;
+    if (world.phase !== 'feed') fail('The feed is closed');
+    const shown = new Set(world.impressions.filter(i => i.agent === me && i.round === round).map(i => i.post));
+    if (!shown.size) fail('Open the feed with micro-fish_timeline first');
+    const rows = list(input.reactions, MAX.feed, 'reactions', (v, w) => {
+      keys(v, ['post', 'attention', 'like', 'share', 'follow', 'comment', 'quote'], ['post', 'attention'], w);
+      if (!shown.has(v.post)) fail(`${w}: "${v.post}" was not in your feed this session`);
+      if (!ATTENTION.includes(v.attention)) fail(`${w}.attention must be one of ${ATTENTION.join(', ')}`);
+      for (const k of ['like', 'share', 'follow']) if (v[k] !== undefined && typeof v[k] !== 'boolean') fail(`${w}.${k} must be true or false`);
+      return { post: v.post, attention: v.attention, like: v.like === true, share: v.share === true, follow: v.follow === true, comment: text(v.comment, MAX.post, `${w}.comment`, true) || null, quote: text(v.quote, MAX.post, `${w}.quote`, true) || null };
+    });
+    if (new Set(rows.map(r => r.post)).size !== rows.length) fail('A post appears twice');
+    const own = text(input.new_post, MAX.post, 'new_post', true);
+    for (const r of rows) {
+      const shownPost = world.posts.find(p => p.id === r.post), original = world.posts.find(p => p.id === rootOf(shownPost));
+      const before = world.reactions.find(x => x.agent === me && x.post === original.id);
+      world.reactions = world.reactions.filter(x => x !== before);
+      world.reactions.push({ agent: me, post: original.id, round, attention: r.attention, like: r.like, share: r.share, comment: r.comment, via: shownPost.id });
+      const account = original.account || original.author;
+      if (r.follow && !world.follows.some(f => f.agent === me && f.account === account)) world.follows.push({ agent: me, account, round });
+      if (r.share && !before?.share) world.posts.push({ id: `u${world.posts.length}`, author: me, round, repost_of: original.id, arm: self.arm });
+      if (r.quote) world.posts.push({ id: `u${world.posts.length}`, author: me, round, content: r.quote, quote_of: original.id, arm: self.arm });
+    }
+    if (own) world.posts.push({ id: `u${world.posts.length}`, author: me, round, content: own, arm: self.arm });
     await save(dir, world);
-    const done = Object.keys(world.reactions[round]).length, total = Object.keys(world.personas).length;
-    return { sim: world.id, round, recorded: rows.length, replaced, round_progress: `${done}/${total}` };
+    return { sim: world.id, round, recorded: rows.length, missing: [...shown].filter(id => !rows.some(r => r.post === id)) };
+  });
+}
+// After the feed closes, each persona that met a subject answers the brief's
+// questions about it from its own memory of the session.
+export async function answer(dir, me, input) {
+  keys(input, ['sim', 'answers'], ['sim', 'answers']);
+  return locked(dir, input.sim, async () => {
+    const world = await need(dir, input.sim); member(world, me);
+    if (world.phase !== 'interview') fail('Interviews have not started');
+    const qs = Object.fromEntries(world.brief.questions.map(q => [q.id, q]));
+    keys(input.answers, Object.keys(qs), [], 'answers');
+    const out = {};
+    for (const [id, v] of Object.entries(input.answers)) {
+      if (v === null || v === undefined || v === '') continue;
+      const w = `answers.${id}`, type = qs[id].type;
+      out[id] = type === 'scale' ? int(v, 1, 5, w) : type === 'yesno' ? (typeof v === 'boolean' ? v : fail(`${w} must be true or false`)) : type === 'tags' ? list(v, 6, w, tag) : text(v, MAX.text, w);
+    }
+    world.answers[me] = { values: out, at: new Date().toISOString() };
+    await save(dir, world);
+    return { sim: world.id, recorded: Object.keys(out), skipped: Object.keys(qs).filter(id => !(id in out)) };
   });
 }
 
+// ---------- experts ----------
+
+export async function brief(dir, input) {
+  keys(input, ['sim'], ['sim']);
+  const world = await need(dir, input.sim);
+  const out = { sim: world.id, goal: world.brief.goal, platform: world.brief.platform, language: world.brief.language, subjects: world.brief.subjects.map(s => ({ ...s, content: world.posts.find(p => p.subject === s.id).content })) };
+  if (Buffer.byteLength(JSON.stringify(out)) > PREVIEW) for (const s of out.subjects) s.content = [...s.content].slice(0, Math.floor(PREVIEW / 4 / out.subjects.length)).join('') + '…';
+  return out;
+}
+// An expert names what is wrong and how to fix it. There is no verdict and no
+// overall score: over 95 recorded reviews those were ITERATE 94 times and
+// rounded to 6 two times in three, so they told nothing apart.
 export async function expert(dir, input) {
-  keys(input, ['sim', 'expert', 'lens', 'verdict', 'overall', 'scores', 'findings', 'strengths', 'coverage'], ['sim', 'expert', 'lens', 'verdict', 'overall', 'findings', 'coverage']);
-  if (!VERDICTS.includes(input.verdict)) fail(`verdict must be one of ${VERDICTS.join(', ')}`);
-  const scores = input.scores ?? {};
-  if (Array.isArray(scores) || typeof scores !== 'object' || Object.keys(scores).length > 12) fail('scores must map up to 12 dimensions to 0–10');
+  keys(input, ['sim', 'expert', 'lens', 'findings', 'strengths', 'coverage'], ['sim', 'expert', 'lens', 'findings', 'coverage']);
   return locked(dir, input.sim, async () => {
-    const world = await need(dir, input.sim);
-    const valid = new Set(world.brief.stimuli.map(s => s.id));
+    const world = await need(dir, input.sim), valid = new Set(world.brief.subjects.map(s => s.id));
     const id = ident(input.expert, 'expert');
     world.experts[id] = {
-      lens: text(input.lens, 160, 'lens'), verdict: input.verdict, overall: num(input.overall, 0, 10, 'overall'),
-      scores: Object.fromEntries(Object.entries(scores).map(([k, v]) => [tag(k, 'scores key'), num(v, 0, 10, `scores.${k}`)])),
+      lens: text(input.lens, 200, 'lens'),
       findings: list(input.findings, 12, 'findings', (f, w) => {
-        keys(f, ['severity', 'stimulus', 'issue', 'evidence', 'fix'], ['severity', 'issue', 'fix'], w);
+        keys(f, ['severity', 'subject', 'issue', 'evidence', 'fix'], ['severity', 'issue', 'fix'], w);
         if (!SEVERITIES.includes(f.severity)) fail(`${w}.severity must be P0–P3`);
-        if (f.stimulus && !valid.has(f.stimulus)) fail(`${w}.stimulus is unknown`);
-        return { severity: f.severity, stimulus: f.stimulus || null, issue: text(f.issue, 240, `${w}.issue`), evidence: text(f.evidence, 240, `${w}.evidence`, true) || null, fix: text(f.fix, 240, `${w}.fix`) };
+        if (f.subject && !valid.has(f.subject)) fail(`${w}.subject is unknown`);
+        return { severity: f.severity, subject: f.subject || null, issue: text(f.issue, 300, `${w}.issue`), evidence: text(f.evidence, 300, `${w}.evidence`, true) || null, fix: text(f.fix, 300, `${w}.fix`) };
       }),
       strengths: list(input.strengths, 8, 'strengths', (s, w) => text(s, 200, w)), coverage: text(input.coverage, 400, 'coverage'), at: new Date().toISOString(),
     };
@@ -316,115 +296,117 @@ export async function expert(dir, input) {
   });
 }
 
+// ---------- reading the record ----------
+
 const avg = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
 const r2 = x => x === null || x === undefined ? null : Math.round(x * 100) / 100;
 const pct = (k, n) => n ? Math.round(1000 * k / n) / 10 : null;
 function wilson(k, n) {
   if (!n) return null; const z = 1.96, p = k / n, d = 1 + z * z / n;
   const c = (p + z * z / (2 * n)) / d, m = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
-  return [pct(Math.max(0, c - m) * n, n), pct(Math.min(1, c + m) * n, n)];
+  return [Math.round(1000 * Math.max(0, c - m)) / 10, Math.round(1000 * Math.min(1, c + m)) / 10];
 }
-function cell(rows, sid) {
-  const xs = rows.map(r => r.stimuli[sid]).filter(Boolean), n = xs.length; if (!n) return { n: 0 };
-  const top2 = k => pct(xs.filter(x => x[k] >= 4).length, n);
-  const priced = xs.filter(x => x.price_ok !== undefined), watched = xs.filter(x => x.watch_through !== undefined);
-  return {
-    n, ...Object.fromEntries(SCALE.map(k => [`${k}_mean`, r2(avg(xs.map(x => x[k])))])),
-    appeal_top2: top2('appeal'), intent_top2: top2('intent'), trust_top2: top2('trust'), clarity_top2: top2('clarity'),
-    intent_ci95: wilson(xs.filter(x => x.intent >= 4).length, n), intent_sd: r2(Math.sqrt(avg(xs.map(x => (x.intent - avg(xs.map(y => y.intent))) ** 2)))),
-    intent_dist: [1, 2, 3, 4, 5].map(v => xs.filter(x => x.intent === v).length), sentiment_mean: r2(avg(xs.map(x => x.sentiment))),
-    share_rate: pct(rows.filter(r => r.share === sid).length, n),
-    ...(priced.length ? { price_ok: pct(priced.filter(x => x.price_ok).length, priced.length) } : {}),
-    ...(watched.length ? { watch_through_mean: r2(avg(watched.map(x => x.watch_through))) } : {}),
-  };
-}
-function counts(values, limit) {
+const rate = (k, n) => ({ k, pct: pct(k, n), ci95: wilson(k, n) });
+function top(values, limit) {
   const c = {}; for (const v of values) c[v] = (c[v] || 0) + 1;
   return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, limit);
 }
+function behaviour(world, post, agents) {
+  const ids = new Set(agents), reached = new Set(world.impressions.filter(i => ids.has(i.agent) && rootOf(world.posts.find(p => p.id === i.post)) === post).map(i => i.agent));
+  const rs = world.reactions.filter(r => r.post === post && ids.has(r.agent)), n = reached.size, c = f => rs.filter(f).length;
+  return {
+    reached: n, recorded: rs.length, skip: rate(c(r => r.attention === 'skip'), n), some: rate(c(r => r.attention === 'some'), n), full: rate(c(r => r.attention === 'full'), n),
+    stopped: rate(c(r => r.attention !== 'skip'), n), like: rate(c(r => r.like), n), share: rate(c(r => r.share), n), comment: rate(c(r => r.comment), n),
+    follow: rate(world.follows.filter(f => ids.has(f.agent) && f.account === (world.posts.find(p => p.id === post).account)).length, n),
+  };
+}
+const ageBand = a => a === undefined ? 'unknown' : a < 25 ? '18-24' : a < 35 ? '25-34' : a < 45 ? '35-44' : '45+';
 export async function tally(dir, input) {
   keys(input, ['sim', 'by'], ['sim']);
   const world = await need(dir, input.sim);
-  const by = input.by ?? 'segment'; if (!['segment', 'market'].includes(by)) fail('by must be segment or market');
-  const stimuli = world.brief.stimuli.map(s => s.id), people = world.personas;
-  const rounds = Object.keys(world.reactions).map(Number).sort((a, b) => a - b);
-  if (!rounds.length) fail('No reactions recorded yet');
-  const first = rounds[0], last = rounds.at(-1), lastRows = Object.entries(world.reactions[last]);
+  const by = input.by ?? 'segment'; if (!['segment', 'zone', 'sex', 'age'].includes(by)) fail('by must be segment, zone, sex or age');
+  const group = a => by === 'age' ? ageBand(a.age) : (a[by] || 'unknown');
+  const everyone = Object.keys(world.agents), warnings = [];
   const out = {
-    sim: world.id, goal: world.brief.goal, kind: world.brief.kind, population: Object.keys(people).length, mix: mix(Object.values(people)),
-    rounds_recorded: rounds.map(r => ({ round: r, reacted: Object.keys(world.reactions[r]).length })), complete: rounds.length === world.design.rounds + 1 && rounds.every(r => Object.keys(world.reactions[r]).length === Object.keys(people).length),
-    by_round: Object.fromEntries(rounds.map(r => [r, Object.fromEntries(stimuli.map(sid => [sid, cell(Object.values(world.reactions[r]), sid)]))])),
-    [`by_${by}`]: {}, shift: {}, preference: null, objections: {}, emotions: {}, quotes: {}, influential_posts: [], experts: null, warnings: [],
+    sim: world.id, goal: world.brief.goal, platform: world.brief.platform, population: everyone.length, rounds: { run: world.round, planned: world.design.rounds }, phase: world.phase,
+    complete: world.phase === 'done', totals: { impressions: world.impressions.length, reactions: world.reactions.length, user_posts: world.posts.filter(p => p.author).length, follows: world.follows.length },
+    subjects: {}, feed_rank: [], comparison: null, experts: null, warnings,
   };
-  const groups = {}; for (const [pid, row] of lastRows) (groups[people[pid]?.[by] || 'unknown'] ||= []).push(row);
-  for (const [g, rows] of Object.entries(groups)) out[`by_${by}`][g] = Object.fromEntries(stimuli.map(sid => { const c = cell(rows, sid); return [sid, { n: c.n, intent_top2: c.intent_top2, appeal_mean: c.appeal_mean, trust_mean: c.trust_mean, sentiment_mean: c.sentiment_mean }]; }));
-  for (const sid of stimuli) {
-    const pairs = Object.keys(people).map(pid => [world.reactions[first]?.[pid]?.stimuli[sid], world.reactions[last]?.[pid]?.stimuli[sid]]).filter(([a, b]) => a && b);
-    const d = pairs.map(([a, b]) => b.intent - a.intent), m = avg(d), sd = d.length > 1 ? Math.sqrt(d.reduce((s, x) => s + (x - m) ** 2, 0) / (d.length - 1)) : 0;
-    out.shift[sid] = last === first ? null : {
-      from_round: first, to_round: last, n: pairs.length, intent_delta: r2(m), intent_delta_ci95: d.length > 1 ? [r2(m - 1.96 * sd / Math.sqrt(d.length)), r2(m + 1.96 * sd / Math.sqrt(d.length))] : null,
-      won: pairs.filter(([a, b]) => a.intent < 4 && b.intent >= 4).length, lost: pairs.filter(([a, b]) => a.intent >= 4 && b.intent < 4).length,
-      changed_mind: pct(lastRows.filter(([, r]) => r.changed).length, lastRows.length),
+  // Where the subjects stand among everything else in the same feed: the
+  // context posts are the scale, so "60% finished it" reads against what the
+  // same people did with the other things they were shown.
+  const originals = world.posts.filter(p => !p.author);
+  out.feed_rank = originals.map(p => { const b = behaviour(world, p.id, everyone); return { post: p.id, account: p.account, subject: Boolean(p.subject), reached: b.reached, full_pct: b.full.pct, stopped_pct: b.stopped.pct, like_pct: b.like.pct }; })
+    .sort((a, b) => (b.full_pct ?? -1) - (a.full_pct ?? -1)).map((row, i) => ({ rank: i + 1, ...row }));
+  for (const s of world.brief.subjects) {
+    const arm = everyone.filter(id => world.agents[id].arm === s.id), b = behaviour(world, s.id, arm);
+    const rs = world.reactions.filter(r => r.post === s.id);
+    const answered = arm.filter(id => world.answers[id]), interview = {};
+    for (const q of world.brief.questions) {
+      const vals = answered.map(id => [id, world.answers[id].values[q.id]]).filter(([, v]) => v !== undefined);
+      if (q.type === 'scale') { const xs = vals.map(([, v]) => v); interview[q.id] = { n: xs.length, mean: r2(avg(xs)), top2: rate(xs.filter(x => x >= 4).length, xs.length), dist: [1, 2, 3, 4, 5].map(v => xs.filter(x => x === v).length) }; }
+      else if (q.type === 'yesno') interview[q.id] = { n: vals.length, yes: rate(vals.filter(([, v]) => v).length, vals.length) };
+      else if (q.type === 'tags') interview[q.id] = { n: vals.length, tags: top(vals.flatMap(([, v]) => v), 10) };
+      else interview[q.id] = { n: vals.length, answers: vals.slice(0, 40).map(([id, v]) => ({ who: who(world, id), attention: rs.find(r => r.agent === id)?.attention || 'not-recorded', text: v })) };
+    }
+    const groups = {}; for (const id of arm) (groups[group(world.agents[id])] ||= []).push(id);
+    const descendants = world.posts.filter(p => p.author && (p.repost_of === s.id || p.quote_of === s.id));
+    out.subjects[s.id] = {
+      label: s.label, account: s.account, assigned: arm.length, ...b, rank_in_feed: out.feed_rank.find(r => r.post === s.id)?.rank, of: originals.length,
+      comments: rs.filter(r => r.comment).map(r => ({ who: who(world, r.agent), round: r.round, text: r.comment })),
+      quotes: descendants.filter(p => p.quote_of).map(p => ({ who: who(world, p.author), round: p.round, text: p.content })),
+      spread: { shares: descendants.filter(p => p.repost_of).length, quotes: descendants.filter(p => p.quote_of).length, reached_by_share: world.impressions.filter(i => descendants.some(p => p.id === i.post)).length },
+      interview: { asked: [...new Set(world.impressions.filter(i => rootOf(world.posts.find(p => p.id === i.post)) === s.id).map(i => i.agent))].length, answered: answered.length, ...interview },
+      [`by_${by}`]: Object.fromEntries(Object.entries(groups).map(([g, ids]) => { const x = behaviour(world, s.id, ids); return [g, { reached: x.reached, full_pct: x.full.pct, stopped_pct: x.stopped.pct, like_pct: x.like.pct }]; })),
     };
-    // The report states this verdict rather than reading movement into noise.
-    if (out.shift[sid]) { const ci = out.shift[sid].intent_delta_ci95; out.shift[sid].direction = !ci ? 'unknown' : ci[0] > 0 ? 'up' : ci[1] < 0 ? 'down' : 'no clear change'; }
-    out.objections[sid] = { first: counts(Object.values(world.reactions[first]).flatMap(r => r.stimuli[sid]?.objections || []), 8), last: counts(lastRows.flatMap(([, r]) => r.stimuli[sid]?.objections || []), 8) };
-    out.emotions[sid] = counts(lastRows.flatMap(([, r]) => r.stimuli[sid]?.emotions || []), 6);
-    const voiced = lastRows.map(([pid, r]) => ({ who: `${people[pid]?.name} (${people[pid]?.segment}, ${people[pid]?.market})`, s: r.stimuli[sid] })).filter(x => x.s);
-    const pick = xs => { const seen = new Set(); return xs.filter(x => !seen.has(x.who.split('(')[1]) && seen.add(x.who.split('(')[1])).slice(0, 3).map(x => `${x.who}: ${x.s.quote}`); };
-    out.quotes[sid] = { positive: pick(voiced.filter(x => x.s.sentiment > 0).sort((a, b) => b.s.sentiment - a.s.sentiment || b.s.intent - a.s.intent)), negative: pick(voiced.filter(x => x.s.sentiment < 0).sort((a, b) => a.s.sentiment - b.s.sentiment || a.s.intent - b.s.intent)) };
-    const c = out.by_round[last][sid];
-    if (c.n && c.n < 30) out.warnings.push(`${sid}: n=${c.n} — read rates as directional, not as a forecast`);
-    if (c.n >= 10 && c.intent_sd < 0.6) out.warnings.push(`${sid}: intent is unusually uniform (sd ${c.intent_sd}); the crowd may be speaking in one voice — check persona diversity`);
-    if (c.n >= 10 && c.appeal_top2 >= 85) out.warnings.push(`${sid}: ${c.appeal_top2}% top-2 appeal; simulated crowds skew positive — weigh objections and the skeptic segments`);
+    if (b.reached && b.reached < 30) warnings.push(`${s.id}: reached ${b.reached} personas — read rates as directional, not as a forecast`);
+    if (b.recorded < b.reached) warnings.push(`${s.id}: ${b.reached - b.recorded} personas saw it and recorded nothing`);
+    if (b.reached >= 10 && b.full.pct >= 80) warnings.push(`${s.id}: ${b.full.pct}% gave it full attention; simulated people are kinder than real ones — read its rank among the context posts, not the rate alone`);
   }
-  if (stimuli.length > 1) {
-    const prefs = lastRows.map(([, r]) => r.preferred).filter(Boolean), n = prefs.length;
-    out.preference = { n, shares: Object.fromEntries(stimuli.map(sid => { const k = prefs.filter(p => p === sid).length; return [sid, { pct: pct(k, n), ci95: wilson(k, n) }]; })) };
-    const ranked = Object.entries(out.preference.shares).filter(([, v]) => v.ci95).sort((a, b) => b[1].pct - a[1].pct);
-    if (ranked.length) { const [leader, top] = ranked[0]; out.preference.leader = leader; out.preference.clear = ranked.slice(1).every(([, v]) => top.ci95[0] > v.ci95[1]); }
-    if (n && n < lastRows.length) out.warnings.push(`${lastRows.length - n} personas stated no preference`);
+  const ids = world.brief.subjects.map(s => s.id);
+  if (ids.length > 1) {
+    const ranked = ids.map(id => [id, out.subjects[id].full]).filter(([, f]) => f.ci95).sort((a, b) => b[1].pct - a[1].pct);
+    if (ranked.length) out.comparison = { metric: 'full', leader: ranked[0][0], clear: ranked.slice(1).every(([, f]) => ranked[0][1].ci95[0] > f.ci95[1]), order: ranked.map(([id, f]) => ({ subject: id, pct: f.pct, ci95: f.ci95 })) };
   }
-  const cited = citations(world), authored = Object.fromEntries(rounds.flatMap(r => posts(world, r)).map(p => [p.id, p]));
-  out.influential_posts = Object.entries(cited).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, k]) => ({ id, cited: k, author: `${people[authored[id]?.author]?.name} (${people[authored[id]?.author]?.segment})`, text: authored[id]?.text }));
   const panel = Object.entries(world.experts);
   if (panel.length) out.experts = {
-    n: panel.length, verdicts: counts(panel.map(([, e]) => e.verdict), 3), overall_mean: r2(avg(panel.map(([, e]) => e.overall))),
-    blocking: panel.flatMap(([id, e]) => e.findings.filter(f => ['P0', 'P1'].includes(f.severity)).map(f => ({ expert: id, ...f }))).slice(0, 12),
-    other: panel.reduce((s, [, e]) => s + e.findings.filter(f => !['P0', 'P1'].includes(f.severity)).length, 0),
+    n: panel.length, lenses: panel.map(([id, e]) => ({ expert: id, lens: e.lens, coverage: e.coverage })),
+    blocking: panel.flatMap(([id, e]) => e.findings.filter(f => ['P0', 'P1'].includes(f.severity)).map(f => ({ expert: id, ...f }))).slice(0, 16),
+    other: panel.flatMap(([id, e]) => e.findings.filter(f => !['P0', 'P1'].includes(f.severity)).map(f => ({ expert: id, ...f }))).slice(0, 16),
   };
-  if (!out.complete) out.warnings.push('Simulation is incomplete; these numbers cover recorded reactions only');
-  out.caveat = 'Simulated personas from one model family: use for direction, objections and wording, never as a market-size or conversion forecast. Validate the decision with real people.';
-  while (Buffer.byteLength(JSON.stringify(out)) > PREVIEW && out.influential_posts.length) out.influential_posts.pop();
+  if (!out.complete) warnings.push('Simulation is incomplete; these numbers cover what was recorded so far');
+  out.caveat = 'Simulated personas from one model family, reading a text description of the content: use for direction, objections and wording, never as a forecast of reach, views or conversion. Validate the decision with real people.';
+  for (const s of Object.values(out.subjects)) while (Buffer.byteLength(JSON.stringify(out)) > PREVIEW && s.comments.length > 5) s.comments.pop();
+  for (const s of Object.values(out.subjects)) for (const q of Object.values(s.interview)) while (Buffer.byteLength(JSON.stringify(out)) > PREVIEW && q?.answers?.length > 5) q.answers.pop();
   return out;
 }
-
 export async function status(dir, input) {
   keys(input, ['sim'], []);
   if (!input.sim) {
-    const files = await readdir(dir).catch(() => []);
-    const sims = [];
-    for (const f of files.filter(f => f.endsWith('.json') && !f.startsWith('.')).slice(0, 50)) { const w = await load(dir, f.slice(0, -5)).catch(() => null); if (w) sims.push({ sim: w.id, goal: w.brief.goal, kind: w.brief.kind, personas: Object.keys(w.personas).length, updated_at: w.updated_at }); }
+    const files = await readdir(dir).catch(() => []), sims = [];
+    for (const f of files.filter(f => f.endsWith('.json') && !f.startsWith('.')).slice(0, 50)) { const w = await load(dir, f.slice(0, -5)).catch(() => null); if (w) sims.push({ sim: w.id, goal: w.brief.goal, agents: Object.keys(w.agents).length, phase: w.phase, updated_at: w.updated_at }); }
     return { sims };
   }
-  const world = await need(dir, input.sim), total = Object.keys(world.personas).length;
-  const rounds = Array.from({ length: world.design.rounds + 1 }, (_, r) => ({ round: r, reacted: Object.keys(world.reactions[r] || {}).length, of: total }));
-  const current = rounds.find(r => r.reacted < r.of);
-  return { sim: world.id, goal: world.brief.goal, kind: world.brief.kind, stimuli: world.brief.stimuli.map(s => ({ id: s.id, label: s.label })), personas: total, mix: mix(Object.values(world.personas)), rounds, experts: Object.keys(world.experts), next: !total ? 'add personas' : current ? `run round ${current.round}` : 'tally and report' };
+  const world = await need(dir, input.sim);
+  return { sim: world.id, goal: world.brief.goal, platform: world.brief.platform, subjects: world.brief.subjects, agents: Object.keys(world.agents).length, round: world.round, rounds: world.design.rounds, phase: world.phase, interviews: Object.keys(world.answers).length, experts: Object.keys(world.experts) };
 }
-
 export async function profile(dir, input) {
   keys(input, ['sim', 'persona'], ['sim', 'persona']);
-  const world = await need(dir, input.sim), p = world.personas[ident(input.persona, 'persona')];
+  const world = await need(dir, input.sim), id = ident(input.persona, 'persona'), p = world.agents[id];
   if (!p) fail(`Unknown persona "${input.persona}"`);
-  const history = Object.keys(world.reactions).map(Number).sort((a, b) => a - b).filter(r => world.reactions[r][p.id]).map(r => ({ round: r, ...world.reactions[r][p.id], feed_seen: feed(world, p.id, r).map(f => `${f.author}: ${f.text}`) }));
-  return { sim: world.id, persona: p, stimuli: world.brief.stimuli.map(s => ({ id: s.id, label: s.label })), history, interview: 'Answer as this persona: same voice, same knowledge, same objections. Say "I would not know" rather than invent facts the persona could not have.' };
+  const label = pid => { const post = world.posts.find(x => x.id === pid); return post.subject ? `subject ${post.subject}` : (post.account || who(world, post.author)); };
+  return { sim: world.id, persona: { id, ...p }, sessions: [...new Set(world.impressions.filter(i => i.agent === id).map(i => i.round))].map(round => ({ round, saw: world.impressions.filter(i => i.agent === id && i.round === round).map(i => label(i.post)) })),
+    reactions: world.reactions.filter(r => r.agent === id).map(r => ({ round: r.round, on: label(r.post), attention: r.attention, like: r.like, share: r.share, comment: r.comment })),
+    posts: world.posts.filter(x => x.author === id && x.content).map(x => x.content), answers: world.answers[id]?.values || null };
 }
 
-const OPERATIONS = { create, stimulus: addStimulus, add_personas: addPersonas, plan_round: planRound, packet, react, expert, tally, status, profile };
+const AS_SELF = { timeline, act, answer };
+const SHARED = { brief, expert, tally, status, profile };
 export async function execute(call, operation, env = process.env) {
   if (!call || call.api_version !== 'soot/v1') fail('Unsupported Soot contract');
-  const run = OPERATIONS[operation]; if (!run) fail('Unknown Micro Fish operation');
   const input = typeof call.input === 'string' ? JSON.parse(call.input || '{}') : (call.input ?? {});
-  return run(join(stateDirectory(env), scope(call)), input);
+  const dir = stateDirectory(env);
+  if (AS_SELF[operation]) return AS_SELF[operation](dir, call.soot || fail('The host did not name the calling Soot'), input);
+  if (SHARED[operation]) return SHARED[operation](dir, input);
+  fail('Unknown Micro Fish operation');
 }

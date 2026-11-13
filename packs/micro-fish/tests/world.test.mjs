@@ -1,143 +1,164 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, readdir } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execute, scope } from '../tools/world.mjs';
+import { active, advance, create, execute, load } from '../tools/world.mjs';
 
-async function fixture(t, subject = 'conv-1') {
-  const state = await mkdtemp(join(tmpdir(), 'society-test-')); t.after(() => rm(state, { recursive: true, force: true }));
-  const env = { SOOT_PACK_STATE: state };
-  const call = (op, input, who = 'crowd', sub = subject) => execute({ api_version: 'soot/v1', hook: 'tool.call', operation: 'micro-fish_' + op, soot: who, root: 'moderator', event: { id: 'run-1', source: 'conversation', subject: sub }, input }, op, env);
-  return { state, env, call };
+async function fixture(t) {
+  const state = await mkdtemp(join(tmpdir(), 'micro-fish-test-')); t.after(() => rm(state, { recursive: true, force: true }));
+  const env = { SOOT_PACK_STATE: state }, dir = join(state, 'sims');
+  const call = (who, op, input) => execute({ api_version: 'soot/v1', hook: 'tool.call', operation: 'micro-fish_' + op, soot: who, input }, op, env);
+  return { state, dir, env, call };
 }
-const stimuli = [{ id: 'a', label: 'Phương án A', content: 'Gói 49k/tháng, nghe truyện không giới hạn.' }, { id: 'b', label: 'Phương án B', content: 'Gói 99k/tháng, kèm tải offline.' }];
-const persona = (i, segment = i % 2 ? 'student' : 'office', market = i % 3 ? 'vn' : 'us') => ({ id: `p-${i}`, name: `Persona ${i}`, segment, market, bio: `Synthetic persona ${i}.`, influence: i === 1 ? 0.9 : 0.2, skepticism: 0.5 });
-const scores = (sid, intent, extra = {}) => ({ stimulus: sid, attention: 3, appeal: intent, clarity: 4, trust: 3, intent, sentiment: intent >= 4 ? 1 : -1, quote: `intent ${intent}`, objections: intent < 3 ? ['too-expensive'] : [], ...extra });
-const react = (id, ia, ib, more = {}) => ({ persona: id, stimuli: [scores('a', ia), scores('b', ib)], preferred: ia >= ib ? 'a' : 'b', post: `post by ${id}`, ...more });
+const agents = n => Array.from({ length: n }, (_, i) => ({ id: `p-${i}`, name: `Người ${i}`, age: 20 + i, sex: i % 2 ? 'Nam' : 'Nữ', zone: i % 3 ? 'Đô Thị' : 'Nông Thôn', activity: 1 }));
+const context = n => Array.from({ length: n }, (_, i) => ({ account: `kenh-${i}`, content: `Bài nền ${i}` }));
+const brief = (over = {}) => ({ sim: 'demo', goal: 'Có nên đăng bài này', platform: 'TikTok', subjects: [{ id: 'a', label: 'Bản A', account: 'lohi', content: 'Nội dung A' }], context: context(6), rounds: 3, feed_size: 3, agents: agents(8), ...over });
+const reactAll = (feed, how = () => ({ attention: 'skip' })) => feed.feed.map(p => ({ post: p.post, ...how(p) }));
 
-async function seeded(t, n = 6) {
+test('every persona meets its subject in its first session and nothing twice', async t => {
+  const f = await fixture(t); await create(f.dir, brief());
+  await advance(f.dir, 'demo', { round: 1 });
+  const seen = {};
+  for (let round = 1; round <= 3; round++) {
+    await advance(f.dir, 'demo', { round });
+    for (const a of agents(8)) {
+      const feed = await f.call(a.id, 'timeline', { sim: 'demo' });
+      if (round === 1) assert.ok(feed.feed.some(p => p.post === 'a'), 'subject in the first feed');
+      for (const p of feed.feed) { assert.ok(!(seen[a.id] ||= new Set()).has(p.post), 'no post twice'); seen[a.id].add(p.post); }
+      if (feed.feed.length) await f.call(a.id, 'act', { sim: 'demo', reactions: reactAll(feed) });
+    }
+  }
+  const again = await f.call('p-0', 'timeline', { sim: 'demo' });
+  assert.deepEqual(again.feed.map(p => p.post), [...seen['p-0']].slice(-again.feed.length), 'a second call in a round returns the same feed');
+});
+
+test('identity comes from the host, not from the input', async t => {
+  const f = await fixture(t); await create(f.dir, brief()); await advance(f.dir, 'demo', { round: 1 });
+  await assert.rejects(f.call('stranger', 'timeline', { sim: 'demo' }), /not part of that simulation/);
+  await assert.rejects(f.call('p-0', 'timeline', { sim: 'demo', agent: 'p-1' }), /unknown field agent/);
+  await assert.rejects(execute({ api_version: 'soot/v1', input: { sim: 'demo' } }, 'timeline', f.env), /did not name the calling Soot/);
+});
+
+test('act refuses posts that were not shown and reactions before a feed', async t => {
+  const f = await fixture(t); await create(f.dir, brief()); await advance(f.dir, 'demo', { round: 1 });
+  await assert.rejects(f.call('p-0', 'act', { sim: 'demo', reactions: [{ post: 'a', attention: 'full' }] }), /timeline first/);
+  const feed = await f.call('p-0', 'timeline', { sim: 'demo' });
+  await assert.rejects(f.call('p-0', 'act', { sim: 'demo', reactions: [{ post: 'nope', attention: 'full' }] }), /was not in your feed/);
+  await assert.rejects(f.call('p-0', 'act', { sim: 'demo', reactions: [{ post: feed.feed[0].post, attention: 'loved' }] }), /attention must be/);
+  const done = await f.call('p-0', 'act', { sim: 'demo', reactions: [{ post: feed.feed[0].post, attention: 'some' }] });
+  assert.equal(done.missing.length, feed.feed.length - 1);
+});
+
+test('a share reaches other people, with the sharer named and the comments carried', async t => {
+  const f = await fixture(t); await create(f.dir, brief({ context: context(12), feed_size: 2 })); await advance(f.dir, 'demo', { round: 1 });
+  const feed = await f.call('p-0', 'timeline', { sim: 'demo' });
+  await f.call('p-0', 'act', { sim: 'demo', reactions: reactAll(feed, p => p.post === 'a' ? { attention: 'full', like: true, share: true, follow: true, comment: 'đỉnh thật', quote: 'ai xem chưa' } : { attention: 'skip' }), new_post: 'hôm nay mưa quá' });
+  const world = await load(f.dir, 'demo');
+  assert.equal(world.posts.filter(p => p.author === 'p-0').length, 3, 'a repost, a quote and an own post');
+  assert.deepEqual(world.follows.map(x => x.account), ['lohi']);
+  // Someone who never met the subject can now meet it as a share.
+  await create(f.dir, brief({ sim: 'two', subjects: [{ id: 'a', content: 'A' }, { id: 'b', content: 'B' }], agents: agents(8) }));
+  const tallied = await f.call('analyst', 'tally', { sim: 'demo' });
+  assert.equal(tallied.subjects.a.spread.shares, 1); assert.equal(tallied.subjects.a.spread.quotes, 1);
+  assert.equal(tallied.subjects.a.comments[0].text, 'đỉnh thật'); assert.equal(tallied.totals.user_posts, 3);
+});
+
+test('an A/B is between subjects: an arm never sees the other subject or its users\' posts', async t => {
   const f = await fixture(t);
-  await f.call('create', { sim: 'plan', goal: 'Chọn giá gói nghe', kind: 'pricing', markets: ['vn', 'us'], stimuli, rounds: 1, feed_size: 3 }, 'moderator');
-  for (let i = 0; i < n; i += 10) await f.call('add_personas', { sim: 'plan', personas: Array.from({ length: Math.min(10, n - i) }, (_, k) => persona(i + k)) }, 'architect');
-  return f;
-}
+  const made = await create(f.dir, brief({ subjects: [{ id: 'a', content: 'Nội dung A' }, { id: 'b', content: 'Nội dung B' }], agents: agents(10), rounds: 2 }));
+  assert.deepEqual(made.arms, { a: 5, b: 5 });
+  const world = await load(f.dir, 'demo');
+  for (let round = 1; round <= 2; round++) {
+    await advance(f.dir, 'demo', { round });
+    for (const a of agents(10)) {
+      const arm = world.agents[a.id].arm, other = arm === 'a' ? 'b' : 'a';
+      // A later persona may first meet its subject as someone's share of it.
+      const feed = await f.call(a.id, 'timeline', { sim: 'demo' });
+      assert.ok(!feed.feed.some(p => p.post === other || p.content === `Nội dung ${other.toUpperCase()}` || p.content === `from ${other}`));
+      if (feed.feed.length) await f.call(a.id, 'act', { sim: 'demo', reactions: reactAll(feed, p => p.content === `Nội dung ${arm.toUpperCase()}` ? { attention: arm === 'a' ? 'full' : 'skip', share: true } : { attention: 'skip' }), new_post: `from ${arm}` });
+    }
+  }
+  const out = await f.call('analyst', 'tally', { sim: 'demo' });
+  assert.equal(out.subjects.a.full.pct, 100); assert.equal(out.subjects.b.full.pct, 0);
+  assert.equal(out.comparison.leader, 'a'); assert.equal(out.comparison.clear, true, '5/5 against 0/5 does not overlap');
+  assert.ok(out.warnings.some(w => /directional/.test(w)));
+});
 
-test('creates a world scoped to the conversation and refuses duplicates', async t => {
+test('the tally ranks a subject among the context posts and counts only recorded behaviour', async t => {
+  const f = await fixture(t); await create(f.dir, brief({ rounds: 1, feed_size: 8, context: context(4) })); await advance(f.dir, 'demo', { round: 1 });
+  for (const a of agents(8)) {
+    const feed = await f.call(a.id, 'timeline', { sim: 'demo' });
+    await f.call(a.id, 'act', { sim: 'demo', reactions: reactAll(feed, p => p.post === 'a' ? { attention: Number(a.id.slice(2)) < 2 ? 'full' : 'skip' } : { attention: p.post === 'c1' ? 'full' : 'some' }) });
+  }
+  const out = await f.call('analyst', 'tally', { sim: 'demo', by: 'zone' });
+  assert.equal(out.subjects.a.reached, 8); assert.equal(out.subjects.a.full.k, 2); assert.equal(out.subjects.a.full.pct, 25);
+  assert.deepEqual(out.subjects.a.full.ci95.map(Math.round), [7, 59]);
+  assert.equal(out.feed_rank[0].post, 'c1'); assert.equal(out.subjects.a.rank_in_feed, 2); assert.equal(out.subjects.a.of, 5);
+  assert.deepEqual(Object.keys(out.subjects.a.by_zone).sort(), ['Nông Thôn', 'Đô Thị']);
+  assert.equal(out.complete, false); assert.ok(out.caveat);
+  await assert.rejects(f.call('analyst', 'tally', { sim: 'demo', by: 'income' }), /by must be/);
+});
+
+test('interviews open after the feed closes and validate each answer by its type', async t => {
   const f = await fixture(t);
-  const made = await f.call('create', { sim: 'demo', goal: 'Test', kind: 'feature', stimuli: stimuli.slice(0, 1) });
-  assert.equal(made.sim, 'demo');
-  await assert.rejects(f.call('create', { sim: 'demo', goal: 'Test', kind: 'feature', stimuli: stimuli.slice(0, 1) }), /already exists/);
-  await assert.rejects(f.call('create', { sim: 'x', goal: 'Test', kind: 'nope', stimuli }), /kind/);
-  await f.call('create', { sim: 'empty', goal: 'Test', kind: 'video' });
-  await f.call('add_personas', { sim: 'empty', personas: [persona(0)] });
-  await assert.rejects(f.call('plan_round', { sim: 'empty', round: 0 }), /No stimulus/);
-  const added = await f.call('stimulus', { sim: 'empty', stimulus: { id: 'cut-a', label: 'Bản dựng A', content: 'Kịch bản dài '.repeat(200) } });
-  assert.equal(added.stimuli.length, 1);
-  assert.equal((await f.call('stimulus', { sim: 'empty', stimulus: { id: 'cut-a', label: 'Bản dựng A', content: 'ngắn' } })).replaced, true);
-  await assert.rejects(f.call('stimulus', { sim: 'empty', stimulus: { id: 'cut-b', label: 'B', content: 'x'.repeat(3001) } }), /3000/);
-  await assert.rejects(f.call('create', { sim: 'x', goal: 'Test', kind: 'video', stimuli, extra: 1 }), /unknown field extra/);
-  assert.equal((await f.call('status', {})).sims.length, 2);
-  assert.equal((await f.call('status', {}, 'crowd', 'conv-2')).sims.length, 0, 'another conversation sees nothing');
-  await assert.rejects(f.call('status', { sim: 'demo' }, 'crowd', 'conv-2'), /No simulation/);
-  assert.notEqual(scope({ root: 'moderator', event: { subject: 'a' } }), scope({ root: 'other', event: { subject: 'a' } }));
+  await create(f.dir, brief({ questions: [{ id: 'clarity', type: 'scale', ask: 'Hiểu không' }, { id: 'retell', type: 'text', ask: 'Kể lại' }, { id: 'objections', type: 'tags', ask: 'Vướng gì' }, { id: 'buy', type: 'yesno', ask: 'Mua không' }] }));
+  await advance(f.dir, 'demo', { round: 1 });
+  await assert.rejects(f.call('p-0', 'answer', { sim: 'demo', answers: { clarity: 4 } }), /not started/);
+  await advance(f.dir, 'demo', { phase: 'interview' });
+  await assert.rejects(f.call('p-0', 'timeline', { sim: 'demo' }), /feed is closed/);
+  await assert.rejects(f.call('p-0', 'answer', { sim: 'demo', answers: { clarity: 9 } }), /integer 1–5/);
+  await assert.rejects(f.call('p-0', 'answer', { sim: 'demo', answers: { mood: 'ok' } }), /unknown field mood/);
+  const rec = await f.call('p-0', 'answer', { sim: 'demo', answers: { clarity: 4, retell: 'Kể về một sát thủ', objections: ['Ad Feel', 'too-long'], buy: false } });
+  assert.deepEqual(rec.skipped, []);
+  await f.call('p-1', 'answer', { sim: 'demo', answers: { clarity: 2, objections: ['ad-feel'] } });
+  const out = (await f.call('analyst', 'tally', { sim: 'demo' })).subjects.a.interview;
+  assert.equal(out.answered, 2); assert.equal(out.clarity.mean, 3); assert.equal(out.clarity.top2.k, 1);
+  assert.deepEqual(out.objections.tags[0], ['ad-feel', 2]); assert.equal(out.buy.yes.k, 0); assert.equal(out.retell.answers[0].text, 'Kể về một sát thủ');
 });
 
-test('population validates and freezes once round 0 starts', async t => {
-  const f = await seeded(t);
-  await assert.rejects(f.call('add_personas', { sim: 'plan', personas: [persona(0)] }), /already exists/);
-  await assert.rejects(f.call('add_personas', { sim: 'plan', personas: [{ ...persona(9), influence: 2 }] }), /influence/);
-  await assert.rejects(f.call('add_personas', { sim: 'plan', personas: [{ id: 'Bad Id', name: 'x', segment: 's', market: 'm', bio: 'b' }] }), /id/);
-  const status = await f.call('status', { sim: 'plan' });
-  assert.deepEqual(status.mix.segment, { office: 3, student: 3 });
-  await f.call('react', { sim: 'plan', round: 0, reactions: [react('p-0', 4, 2)] });
-  await assert.rejects(f.call('add_personas', { sim: 'plan', personas: [persona(7)] }), /fixed/);
-  await assert.rejects(f.call('stimulus', { sim: 'plan', stimulus: { id: 'c', label: 'C', content: 'late' } }), /fixed/);
+test('an expert records findings without a verdict, and the brief gives the full subject', async t => {
+  const f = await fixture(t); await create(f.dir, brief({ subjects: [{ id: 'a', content: 'x'.repeat(9000) }] }));
+  assert.equal((await f.call('sim-expert', 'brief', { sim: 'demo' })).subjects[0].content.length, 9000);
+  await assert.rejects(f.call('sim-expert', 'expert', { sim: 'demo', expert: 'hook', lens: 'Hook', findings: [], coverage: 'text only', verdict: 'GO' }), /unknown field verdict/);
+  await assert.rejects(f.call('sim-expert', 'expert', { sim: 'demo', expert: 'hook', lens: 'Hook', findings: [{ severity: 'P1', subject: 'z', issue: 'i', fix: 'f' }], coverage: 'c' }), /subject is unknown/);
+  await f.call('sim-expert', 'expert', { sim: 'demo', expert: 'hook', lens: 'Hook', findings: [{ severity: 'P1', subject: 'a', issue: 'Mở đầu chậm', evidence: '3 giây đầu', fix: 'Cắt câu chào' }, { severity: 'P3', issue: 'Chữ nhỏ', fix: 'Tăng cỡ' }], strengths: ['Giọng rõ'], coverage: 'Chỉ đọc kịch bản' });
+  const out = (await f.call('analyst', 'tally', { sim: 'demo' })).experts;
+  assert.equal(out.n, 1); assert.equal(out.blocking.length, 1); assert.equal(out.other.length, 1); assert.equal(out.lenses[0].coverage, 'Chỉ đọc kịch bản');
 });
 
-test('rounds gate on completion, feeds exclude self and memory carries forward', async t => {
-  const f = await seeded(t);
-  const plan0 = await f.call('plan_round', { sim: 'plan', round: 0, batch_size: 4 });
-  assert.deepEqual(plan0.batches.map(b => b.length), [4, 2]);
-  assert.equal((await f.call('plan_round', { sim: 'plan', round: 1 })).ready, false);
-  const p0 = await f.call('packet', { sim: 'plan', round: 0, personas: ['p-0', 'p-1'] });
-  assert.deepEqual(p0.personas[0].feed, []);
-  assert.deepEqual([...p0.personas[0].stimulus_order].sort(), ['a', 'b']);
-  await assert.rejects(f.call('react', { sim: 'plan', round: 0, reactions: [{ persona: 'p-0', stimuli: [scores('a', 4)] }] }), /score every stimulus/);
-  await assert.rejects(f.call('react', { sim: 'plan', round: 0, reactions: [react('p-0', 6, 2)] }), /1–5/);
-  await assert.rejects(f.call('react', { sim: 'plan', round: 0, reactions: [react('ghost', 3, 3)] }), /unknown persona/);
-  await assert.rejects(f.call('react', { sim: 'plan', round: 1, reactions: [react('p-0', 3, 3)] }), /not complete/);
-  await f.call('react', { sim: 'plan', round: 0, reactions: ['p-0', 'p-1', 'p-2'].map((id, i) => react(id, 4 + (i % 2), 2)) });
-  await f.call('react', { sim: 'plan', round: 0, reactions: ['p-3', 'p-4', 'p-5'].map(id => react(id, 2, 3)) });
-  const p1 = await f.call('packet', { sim: 'plan', round: 1, personas: ['p-0'] });
-  const me = p1.personas[0];
-  assert.equal(me.feed.length, 3);
-  assert.ok(me.feed.every(post => post.id !== 'r0-p-0'), 'own post never in own feed');
-  assert.equal(me.memory[0].intent.a, 4);
-  const again = await f.call('packet', { sim: 'plan', round: 1, personas: ['p-0'] });
-  assert.deepEqual(again.personas[0].feed, me.feed, 'feed is seeded and reproducible');
-  await assert.rejects(f.call('react', { sim: 'plan', round: 1, reactions: [react('p-0', 4, 2, { influenced_by: ['r0-p-0'] })] }), /another persona/);
-  await assert.rejects(f.call('react', { sim: 'plan', round: 1, reactions: [react('p-0', 4, 2, { influenced_by: ['r9-p-1'] })] }), /another persona/);
-  assert.equal((await f.call('plan_round', { sim: 'plan', round: 1 })).remaining, 6);
+test('activity is seeded: the same round wakes the same people', async t => {
+  const f = await fixture(t); await create(f.dir, brief({ agents: agents(40).map(a => ({ ...a, activity: 0.5 })) }));
+  const world = await load(f.dir, 'demo'), first = active(world, 1);
+  assert.deepEqual(active(world, 1), first); assert.notDeepEqual(active(world, 2), first);
+  assert.ok(first.length > 10 && first.length < 30);
 });
 
-test('tally reports shift, preference, segments, objections and warnings', async t => {
-  const f = await seeded(t);
-  await f.call('react', { sim: 'plan', round: 0, reactions: ['p-0', 'p-1', 'p-2', 'p-3', 'p-4', 'p-5'].map((id, i) => react(id, i < 3 ? 4 : 2, 3)) });
-  await f.call('react', { sim: 'plan', round: 1, reactions: ['p-0', 'p-1', 'p-2', 'p-3', 'p-4', 'p-5'].map((id, i) => react(id, i < 5 ? 4 : 2, 3, i === 3 ? { changed: true, change_reason: 'convinced', influenced_by: ['r0-p-1'] } : {})) });
-  await f.call('expert', { sim: 'plan', expert: 'vn-pricing', lens: 'VN pricing strategist', verdict: 'ITERATE', overall: 6.5, scores: { price: 5 }, findings: [{ severity: 'P1', stimulus: 'b', issue: 'Too expensive for students', fix: 'Add a 59k student plan' }], coverage: 'Pricing only' }, 'expert');
-  const out = await f.call('tally', { sim: 'plan' }, 'analyst');
-  assert.equal(out.complete, true);
-  assert.equal(out.by_round[1].a.intent_top2, 83.3);
-  assert.deepEqual(out.by_round[1].a.intent_dist, [0, 1, 0, 5, 0]);
-  assert.equal(out.shift.a.won, 2);
-  assert.equal(out.shift.a.lost, 0);
-  assert.equal(out.preference.shares.a.pct, 83.3);
-  assert.equal(out.preference.leader, 'a');
-  assert.equal(out.preference.clear, false, 'n=6 cannot separate A from B');
-  assert.equal(out.shift.a.direction, 'no clear change');
-  assert.equal(out.objections.a.first[0][0], 'too-expensive');
-  assert.equal(out.influential_posts[0].id, 'r0-p-1');
-  assert.equal(out.experts.blocking[0].severity, 'P1');
-  assert.ok(out.warnings.some(w => /n=6/.test(w)));
-  assert.ok(Object.keys(out.by_segment).includes('student'));
-  assert.ok((await f.call('tally', { sim: 'plan', by: 'market' })).by_market.vn);
-  const p = await f.call('profile', { sim: 'plan', persona: 'p-3' });
-  assert.equal(p.history.length, 2);
-  assert.equal(p.history[1].changed, true);
+test('create validates the brief and refuses a duplicate id', async t => {
+  const f = await fixture(t); await create(f.dir, brief());
+  await assert.rejects(create(f.dir, brief()), /already exists/);
+  await assert.rejects(create(f.dir, brief({ sim: 'x', subjects: [] })), /subjects needs/);
+  await assert.rejects(create(f.dir, brief({ sim: 'x', kind: 'video' })), /unknown field kind/);
+  await assert.rejects(create(f.dir, brief({ sim: 'x', agents: [{ id: 'p-1', name: 'A', activity: 0 }] })), /activity/);
+  await assert.rejects(create(f.dir, brief({ sim: '../x' })), /sim must match/);
+  assert.deepEqual((await f.call('analyst', 'status', {})).sims.map(s => s.sim), ['demo']);
+  assert.equal((await f.call('analyst', 'profile', { sim: 'demo', persona: 'p-0' })).persona.name, 'Người 0');
 });
 
-test('parallel crowd writes all land', async t => {
-  const f = await seeded(t, 24);
-  const ids = Array.from({ length: 24 }, (_, i) => `p-${i}`);
-  await Promise.all(Array.from({ length: 6 }, (_, b) => f.call('react', { sim: 'plan', round: 0, reactions: ids.slice(b * 4, b * 4 + 4).map(id => react(id, 3, 3)) })));
-  assert.equal((await f.call('status', { sim: 'plan' })).rounds[0].reacted, 24);
-  const dir = join(f.state, 'worlds', scope({ root: 'moderator', event: { subject: 'conv-1' } }));
-  assert.ok((await readdir(dir)).every(name => !name.endsWith('.lock')), 'no lock left behind');
+test('parallel writers all land and leave no lock or temp file', async t => {
+  const f = await fixture(t); await create(f.dir, brief({ agents: agents(24), rounds: 1 })); await advance(f.dir, 'demo', { round: 1 });
+  await Promise.all(agents(24).map(async a => { const feed = await f.call(a.id, 'timeline', { sim: 'demo' }); await f.call(a.id, 'act', { sim: 'demo', reactions: reactAll(feed) }); }));
+  const world = await load(f.dir, 'demo');
+  assert.equal(new Set(world.reactions.map(r => r.agent)).size, 24);
+  assert.deepEqual(await readdir(f.dir), ['demo.json']);
 });
 
-test('packet stays inside one tool preview', async t => {
-  const f = await fixture(t);
-  const long = Array.from({ length: 4 }, (_, i) => ({ id: `s${i}`, label: `Phương án ${i}`, content: 'x'.repeat(2990) }));
-  await f.call('create', { sim: 'big', goal: 'Size', kind: 'video', stimuli: long, rounds: 1, feed_size: 8 });
-  for (const start of [0, 6]) await f.call('add_personas', { sim: 'big', personas: Array.from({ length: 6 }, (_, i) => ({ ...persona(start + i), bio: 'b'.repeat(500) })) });
-  const full = s => ({ stimulus: s, attention: 3, appeal: 3, clarity: 3, trust: 3, intent: 3, sentiment: 0, quote: 'q'.repeat(200) });
-  for (const start of [0, 6]) await f.call('react', { sim: 'big', round: 0, reactions: Array.from({ length: 6 }, (_, i) => ({ persona: `p-${start + i}`, stimuli: long.map(s => full(s.id)), post: 'p'.repeat(240) })) });
-  const out = await f.call('packet', { sim: 'big', round: 1, personas: ['p-0', 'p-1', 'p-2', 'p-3', 'p-4', 'p-5'] });
-  assert.ok(Buffer.byteLength(JSON.stringify(out)) <= 30000);
-});
-
-test('the executable answers through the soot/v1 stdin contract', async t => {
-  const f = await fixture(t);
-  const envelope = input => JSON.stringify({ api_version: 'soot/v1', hook: 'tool.call', operation: 'micro-fish_create', soot: 'moderator', root: 'moderator', event: { id: 'r', source: 'conversation', subject: 'c' }, input });
-  const tool = new URL('../tools/micro-fish.mjs', import.meta.url).pathname;
-  const ok = spawnSync(process.execPath, [tool, 'create'], { input: envelope({ sim: 'cli', goal: 'g', kind: 'other', stimuli: stimuli.slice(0, 1) }), env: { SOOT_PACK_STATE: f.state }, encoding: 'utf8' });
-  assert.equal(ok.status, 0, ok.stderr);
-  assert.equal(JSON.parse(ok.stdout).sim, 'cli');
-  const bad = spawnSync(process.execPath, [tool, 'create'], { input: envelope({ sim: 'cli', goal: 'g', kind: 'other', stimuli: stimuli.slice(0, 1) }), env: { SOOT_PACK_STATE: f.state }, encoding: 'utf8' });
-  assert.equal(bad.status, 1);
-  assert.match(bad.stderr, /already exists/);
-  const nostate = spawnSync(process.execPath, [tool, 'status'], { input: envelope({}), env: {}, encoding: 'utf8' });
-  assert.match(nostate.stderr, /SOOT_PACK_STATE/);
+test('the entry point prints a safe message and a result', async t => {
+  const f = await fixture(t); await create(f.dir, brief());
+  const run = (op, call) => spawnSync(process.execPath, [join(import.meta.dirname, '../tools/micro-fish.mjs'), op], { input: JSON.stringify(call), env: { ...process.env, ...f.env }, encoding: 'utf8' });
+  const ok = run('status', { api_version: 'soot/v1', soot: 'analyst', input: { sim: 'demo' } });
+  assert.equal(ok.status, 0); assert.equal(JSON.parse(ok.stdout).agents, 8);
+  const bad = run('tally', { api_version: 'soot/v1', soot: 'analyst', input: { sim: 'missing' } });
+  assert.equal(bad.status, 1); assert.match(bad.stderr, /No simulation "missing"/);
 });

@@ -1,25 +1,25 @@
 # Analyse and report
 
-You turn a finished simulation into a decision report. The task gives the sim id, the decision and the user's questions.
+You turn a finished simulation into a decision report. The task gives the sim id. The same conversation may then ask follow-up questions.
 
-1. Call `micro-fish_tally` (default grouping by segment; call again with `by: market` when markets matter). Read `micro-fish_status` for the stimuli labels.
-2. Use only numbers from the tally and quotes that personas recorded. Never compute a number the tally did not give you, never round a 41% into "almost half", never invent a quote. If you need a persona's reasoning, `micro-fish_profile` shows their full record.
-3. Write the report in the user's language, in this order:
+1. Call `micro-fish_tally` (call again with `by: age`, `zone` or `sex` when the audience split matters). `micro-fish_brief` shows the goal and the subjects.
+2. Use only numbers from the tally and words that personas recorded. Never compute a number the tally did not give, never round a 41% into "almost half", never invent a quote. `micro-fish_profile` shows one persona's whole record when you need their reasoning.
+3. Write the report in the language of the brief, in this order:
 
-**Kết luận / Bottom line** — the recommendation for the decision (ship, revise, pick A, change the price, re-cut the hook) and how confident the evidence allows you to be.
+**Bottom line** — the recommendation for the goal (publish, revise, pick A, change the price, re-cut the opening) and how far the evidence carries it.
 
-**Key numbers** — one compact table per stimulus from the last round: n, attention, appeal, clarity, trust, intent top-2 % with its 95% interval, sentiment, share rate, and price_ok or watch-through when present. For A/B, the preference shares with intervals. Call B the winner only when the tally says `preference.clear: true`; otherwise write that the leader is ahead but not separated at this sample size.
+**What people did** — per subject: reached, the skip / some / full split with the 95% interval of `full`, like, share, comment and follow rates, and `rank_in_feed` among the other posts the same people saw. The rank is the honest reading: a subject that 70% finished means little when the cat video beside it got 75%. For an A/B, name a winner only when `comparison.clear` is true; otherwise write that the leader is ahead but not separated at this sample size.
 
-**Who and why** — the segments or markets that carry it and the ones that reject it, each with one recorded quote.
+**What they understood** — the interview: scale questions with `top2` and its interval, the objection tags with counts, and two or three `retell` answers quoted exactly, including one from someone who skipped or misread it. A retell that misses the point is a finding about the content, not about the persona.
 
-**What to fix** — the top objections (tags with counts), contagious objections that grew from round 0 to the last round, and the expert P0/P1 findings, merged into one prioritised fix list with the concrete change for each.
+**Who** — the segment breakdown: who carried it and who scrolled past, each with one recorded line.
 
-**Social dynamics** — state each stimulus's `shift.direction` exactly as the tally gives it (`up`, `down` or `no clear change`) with the delta and interval, the `changed_mind` share, and the influential posts: these are the comments the real launch is likely to get. A post moved only the personas who cited it; never write that it moved a whole segment unless `changed_mind` and the citations show that.
+**How it travelled** — `spread`, the comments and the quote posts. These are the replies a real post is likely to draw. Report zero shares as zero.
 
-**Expert panel** — verdicts and overall scores; where the experts and the crowd disagree, say so plainly.
+**What to fix** — objections, weak retells and the expert P0/P1 findings merged into one prioritised list with the concrete change for each. Where the experts and the crowd disagree, say so.
 
-**Next test with real people** — the one or two cheapest real-world checks that would confirm or overturn the main conclusion (five user interviews, a small paid test, a hook A/B on a small audience).
+**Next check with real people** — the one or two cheapest real checks that would confirm or overturn the bottom line.
 
-**Caveats** — repeat every tally warning word for word, the population size, and the caveat that simulated personas show direction and objections, not market forecasts.
+**Caveats** — every tally warning word for word, the population size, and the tally's `caveat`.
 
-Keep it scannable: headings, short tables, short bullets. Return the report text to the moderator.
+Keep it scannable: headings, short tables, short bullets.

@@ -210,7 +210,7 @@ test('the built catalog says which templates ask for a Đầu mối (root "")', 
     const built = JSON.parse(await read(join(dist, 'groups.json'), 'utf8'));
     const byId = Object.fromEntries(built.groups.map(g => [g.id, g]));
     assert.equal(byId['marketing-team'].root, '', 'no root: the installer picks the Đầu mối');
-    assert.equal(byId['society-sim'].root, 'moderator');
+    assert.equal(byId['society-sim'].root, 'analyst');
   } finally { await rm(work, { recursive: true, force: true }); }
 });
 

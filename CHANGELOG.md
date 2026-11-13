@@ -3,6 +3,14 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.14.5 — 2026-11-13
+
+Baseline: v0.14.4. Pairs with Soot 0.16.2+. New pack `crm` (storage version 1); no other storage changes.
+
+- **New pack `crm`, a micro-CRM for Soot teams.** Contacts with consent, exact identity keys across channels (one owner each), one deal per product with a stage and a next step, a timeline of touches, follow-ups that come due, and a `pipeline` report. Ten tools: `contact_find`, `contact_save`, `lead_record`, `touch_record`, `deal_update`, `followups_due`, `pipeline_report`, `inbox_file`, `contact_merge`, `contact_forget`. It is a passive record: saving a contact sends nothing and starts no run. Select it on **one** home runtime; other runtimes read the `pipeline` team contract and file into the `crm_inbox` queue through `remotes` (pack storage is per runtime). Public Soots never select it.
+- **micro-fish is a simulated society (breaking for existing simulations).** Every persona is now its own Soot with its own conversation and memory. A shared feed runs in rounds; personas meet the subject among ordinary context posts and skip, finish, like, share, comment, follow or post, seeing each other's actions; afterwards each is interviewed, an expert panel records P0–P3 findings, and `tally` computes reach, rates with 95% Wilson intervals, rank among context posts, A/B comparisons and segment breakdowns. A new driver (`tools/driver.mjs populate | run | tally | ask`) adds the persona Soots and runs the rounds; it ships a 400-persona Vietnamese library (`personas/`, see its NOTICE) and a `vi-short-video` context feed. Tools are now `timeline`, `act`, `answer`, `brief`, `expert`, `tally`, `status`, `profile`; the old `packet`, `create`, `stimulus`, `plan_round`, `add_personas` and `react` tools and the coordinate/crowd/media/populate/product skills are removed, so a simulation started on 0.14.4 cannot be continued.
+- **society-sim template.** The team is now Analyst (root, `micro-fish:read`) and Expert panel (`micro-fish:tools=brief,expert`); Moderator, Population architect and Crowd are gone because the driver runs the society. The Claude Code `micro-fish` skill drives the new flow.
+
 ## 0.14.4 — 2026-11-12
 
 Baseline: v0.14.3. Pairs with Soot 0.16.2+. No storage changes.

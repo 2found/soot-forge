@@ -1,0 +1,1067 @@
+{
+  "api_version": "soot/v1",
+  "id": "crm",
+  "label": {
+    "vi": "Khách hàng",
+    "en": "Customers"
+  },
+  "keywords": {
+    "vi": [
+      "khách hàng",
+      "crm",
+      "khách tiềm năng",
+      "bán hàng",
+      "phễu",
+      "chăm sóc khách"
+    ],
+    "en": [
+      "crm",
+      "contacts",
+      "leads",
+      "sales",
+      "pipeline",
+      "follow-up"
+    ]
+  },
+  "description": {
+    "vi": "CRM gọn cho đội Soot: khách, cách liên hệ có đồng ý, cơ hội theo sản phẩm, dòng thời gian và việc theo khách đến hạn.",
+    "en": "A micro-CRM for Soot teams: contacts, consented ways to reach them, one deal per product, a timeline and follow-ups that come due."
+  },
+  "skills": [
+    {
+      "name": "crm-capture",
+      "description": "Record a buying intent or a contact once, with consent, from a conversation or a desk note; never store what the person did not give to be contacted.",
+      "file": "skills/capture.md"
+    },
+    {
+      "name": "crm-followup",
+      "description": "Work the follow-ups that came due: one next step per open deal, honest stages, touches logged, what needs a person raised.",
+      "file": "skills/followup.md"
+    },
+    {
+      "name": "crm-review",
+      "description": "Read the pipeline for a product, compare with the goal and last period, and check in the numbers without contact details.",
+      "file": "skills/review.md"
+    }
+  ],
+  "tools": [
+    {
+      "name": "contact_find",
+      "title": "Tìm khách",
+      "description": "Find contacts by an exact identity (email, phone, handle, product account), by ref, by the signed-in person of this conversation, or by a fuzzy, accent-insensitive name/org/identity query. Returns each contact card: identities, one deal per product, recent touches.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^C-[0-9A-F]{10}$",
+            "maxLength": 12
+          },
+          "identity": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "email",
+                  "phone",
+                  "telegram",
+                  "discord",
+                  "zalo",
+                  "facebook",
+                  "x",
+                  "github",
+                  "linkedin",
+                  "account",
+                  "website"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "conversation_person": {
+            "type": "boolean",
+            "description": "The contact linked to this conversation's signed-in person (host-derived)."
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "contact_find"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "contact_save",
+      "title": "Lưu khách",
+      "description": "Create or update a contact. Joins an existing contact only on an exact identity or the conversation's signed-in person, never on a similar name (similar names come back as possible_duplicates). Storing a way to reach the person needs consent yes. A new contact needs request_id.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^C-[0-9A-F]{10}$",
+            "maxLength": 12
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Any unique string for this write; repeating it returns the first result and writes nothing."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "org": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "What a teammate should know; no secrets, no copied chat."
+          },
+          "identities": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "phone",
+                    "telegram",
+                    "discord",
+                    "zalo",
+                    "facebook",
+                    "x",
+                    "github",
+                    "linkedin",
+                    "account",
+                    "website"
+                  ]
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Ways to reach (email, phone, chat handles: need consent yes) or recognize (account in the product, company website) this person."
+          },
+          "consent": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ],
+            "description": "Did the person agree to be contacted? yes is required to store an email, phone or handle; no removes the ones on file."
+          },
+          "link_conversation_person": {
+            "type": "boolean",
+            "description": "Link the signed-in person of this conversation (the host knows who; erasing them in Nest erases this contact)."
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+          },
+          "owner": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Soot id or team id that follows this contact up."
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 32
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "contact_save"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "lead_record",
+      "title": "Ghi khách tiềm năng",
+      "description": "Record a buying intent in one call: finds or creates the contact (same rules as contact_save), opens a deal at stage new for the product with a next step due now unless given, and logs the inbound touch. A contact with an open deal gets the touch only.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Any unique string for this write; repeating it returns the first result and writes nothing."
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "description": "One actionable line: what they want."
+          },
+          "channel": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "web-chat, email, telegram, discord, form, call, event…"
+          },
+          "link": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Where it happened (conversation link, FB-… note id, post URL)."
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Campaign or channel that brought them (utm id, site)."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "org": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "identities": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "phone",
+                    "telegram",
+                    "discord",
+                    "zalo",
+                    "facebook",
+                    "x",
+                    "github",
+                    "linkedin",
+                    "account",
+                    "website"
+                  ]
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Ways to reach (email, phone, chat handles: need consent yes) or recognize (account in the product, company website) this person."
+          },
+          "consent": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ],
+            "description": "Did the person agree to be contacted? yes is required to store an email, phone or handle; no removes the ones on file."
+          },
+          "link_conversation_person": {
+            "type": "boolean"
+          },
+          "owner": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "next_step": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "next_at": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "ISO 8601 date and time, e.g. 2026-11-20T09:00:00+07:00."
+          }
+        },
+        "required": [
+          "request_id",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "lead_record"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "touch_record",
+      "title": "Ghi lần liên hệ",
+      "description": "Append one touch to a contact's timeline: an inbound message, an outbound reply, or a note. Updates the deal's last touch for that product. Never sends anything.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Any unique string for this write; repeating it returns the first result and writes nothing."
+          },
+          "contact": {
+            "type": "string",
+            "pattern": "^C-[0-9A-F]{10}$",
+            "maxLength": 12
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+          },
+          "channel": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out",
+              "note"
+            ],
+            "default": "note"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1
+          },
+          "link": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "at": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "ISO 8601 date and time, e.g. 2026-11-20T09:00:00+07:00."
+          }
+        },
+        "required": [
+          "request_id",
+          "contact",
+          "channel",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "touch_record"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "deal_update",
+      "title": "Cập nhật cơ hội",
+      "description": "Set a contact's deal for one product: stage (new, contacted, qualified, proposal, won, lost, churned), next step and when, value, source, owner. An open deal always keeps a next step; lost and churned need lost_reason; only won churns. A stage change is logged; moving to qualified or won returns record_outcome for the host outcome tool.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "type": "string",
+            "pattern": "^C-[0-9A-F]{10}$",
+            "maxLength": 12
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "new",
+              "contacted",
+              "qualified",
+              "proposal",
+              "won",
+              "lost",
+              "churned"
+            ]
+          },
+          "next_step": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "next_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 8
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "owner": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "lost_reason": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "contact"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "deal_update"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "followups_due",
+      "title": "Việc theo khách đến hạn",
+      "description": "List deals whose next step is due (optionally within horizon_hours), oldest first, with the contact's name, and inbox rows held for a decision. notify is true when there is anything to do, so a tool-only recurring task wakes a Soot only then.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+          },
+          "horizon_hours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 168,
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "followups_due"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "pipeline_report",
+      "title": "Báo cáo phễu",
+      "description": "The pipeline for one product or all: open deals and value per stage, and over the last N days new deals, stage entries, won, lost (with reasons), churned, win rate and won value, and new/qualified/won per source. Counts only; no contact details.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "default": 30
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "pipeline_report"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "inbox_file",
+      "title": "Nhận việc từ đội khác",
+      "description": "File the rows other teams put in the CRM inbox (kind lead, touch or stage, a payload shaped like lead_record, touch_record or deal_update input). Each row is checked like a tool call; a row that cannot be filed (identity conflict, unknown contact, missing consent) is held with its reason. dismiss or retry held rows by request_id.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 25
+          },
+          "retry": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "dismiss": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "inbox_file"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "contact_merge",
+      "title": "Gộp hai khách",
+      "description": "Join two contacts a person decided are the same: identities, touches and deals move to keep (when both have a deal for a product, keep's stays), drop is deleted and its ref recorded on keep. Two contacts linked to different signed-in people are never merged.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keep": {
+            "type": "string",
+            "pattern": "^C-[0-9A-F]{10}$",
+            "maxLength": 12
+          },
+          "drop": {
+            "type": "string",
+            "pattern": "^C-[0-9A-F]{10}$",
+            "maxLength": 12
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "keep",
+          "drop"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "contact_merge"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    },
+    {
+      "name": "contact_forget",
+      "title": "Xoá khách",
+      "description": "Erase one contact on the person's request: the contact, its identities, deals, touches and filed inbox rows. Conversations and memory are erased through Nest's person erasure, not here.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "type": "string",
+            "pattern": "^C-[0-9A-F]{10}$",
+            "maxLength": 12
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "contact",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/crm.mjs",
+          "contact_forget"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 131072,
+        "max_input_bytes": 32768
+      }
+    }
+  ],
+  "outcomes": [
+    {
+      "id": "lead_qualified",
+      "label": {
+        "vi": "Khách tiềm năng đủ điều kiện",
+        "en": "Lead qualified"
+      },
+      "unit": "lead",
+      "void_window": "72h"
+    },
+    {
+      "id": "deal_won",
+      "label": {
+        "vi": "Chốt được khách",
+        "en": "Deal won"
+      },
+      "unit": "deal",
+      "void_window": "72h"
+    }
+  ],
+  "storage": {
+    "version": 1,
+    "tables": [
+      {
+        "name": "contacts",
+        "description": "Người và tổ chức đội đang theo: tên, đồng ý liên hệ, người phụ trách.",
+        "columns": [
+          {
+            "name": "ref",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "request_id",
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "name",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "org",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "note",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "consent",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "consent_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "owner",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "tags",
+            "type": "json"
+          },
+          {
+            "name": "merged",
+            "type": "json"
+          },
+          {
+            "name": "principal",
+            "type": "text",
+            "index": true,
+            "principal": true
+          }
+        ]
+      },
+      {
+        "name": "identities",
+        "description": "Cách liên hệ hoặc nhận ra một người (email, số điện thoại, tài khoản trong sản phẩm); mỗi cái thuộc đúng một khách.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "contact",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "kind",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "value",
+            "type": "text",
+            "required": true,
+            "search": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "principal",
+            "type": "text",
+            "index": true,
+            "principal": true
+          }
+        ]
+      },
+      {
+        "name": "deals",
+        "description": "Mỗi khách một cơ hội cho mỗi sản phẩm: giai đoạn, bước tiếp theo và hạn.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "contact",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "stage",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "stage_at",
+            "type": "timestamp",
+            "index": true
+          },
+          {
+            "name": "next_step",
+            "type": "text"
+          },
+          {
+            "name": "next_at",
+            "type": "timestamp",
+            "index": true
+          },
+          {
+            "name": "last_touch_at",
+            "type": "timestamp",
+            "index": true
+          },
+          {
+            "name": "value",
+            "type": "number"
+          },
+          {
+            "name": "currency",
+            "type": "text"
+          },
+          {
+            "name": "source",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "owner",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "won_at",
+            "type": "timestamp",
+            "index": true
+          },
+          {
+            "name": "closed_at",
+            "type": "timestamp",
+            "index": true
+          },
+          {
+            "name": "lost_reason",
+            "type": "text"
+          },
+          {
+            "name": "principal",
+            "type": "text",
+            "index": true,
+            "principal": true
+          }
+        ]
+      },
+      {
+        "name": "touches",
+        "description": "Dòng thời gian của từng khách: tin đến, trả lời, ghi chú, đổi giai đoạn. Chỉ ghi thêm.",
+        "columns": [
+          {
+            "name": "request_id",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "contact",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "channel",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "direction",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "stage",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "summary",
+            "type": "text",
+            "required": true,
+            "search": true
+          },
+          {
+            "name": "link",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "by_soot",
+            "type": "text"
+          },
+          {
+            "name": "principal",
+            "type": "text",
+            "index": true,
+            "principal": true
+          }
+        ]
+      },
+      {
+        "name": "inbox",
+        "description": "Hàng đợi chỉ-thêm cho đội khác và runtime khác: khách tiềm năng, lần liên hệ, đổi giai đoạn chờ được ghi vào CRM.",
+        "columns": [
+          {
+            "name": "request_id",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "kind",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "payload",
+            "type": "json",
+            "required": true
+          },
+          {
+            "name": "from_team",
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "name": "contact",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "filed_at",
+            "type": "timestamp"
+          }
+        ]
+      }
+    ]
+  }
+}

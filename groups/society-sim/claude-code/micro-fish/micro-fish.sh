@@ -4,7 +4,8 @@
 set -euo pipefail
 
 HOME_DIR="${MICRO_FISH_HOME:-$HOME/.soot/micro-fish}"
-WS="$HOME_DIR/sim"
+# Micro Fish 1 kept its workspace in $HOME_DIR/sim; this one never touches it.
+WS="$HOME_DIR/society"
 DEPLOY="$WS/deployment.json"
 PORT="${MICRO_FISH_PORT:-7801}"
 AI_CONFIG="${MICRO_FISH_AI_CONFIG:-$HOME/.soot/config.json}"
@@ -27,7 +28,7 @@ packs_dir() {
 doctor() {
   local ok=1
   command -v soot >/dev/null || { echo "MISSING soot — install Soot first"; ok=0; }
-  command -v node >/dev/null || { echo "MISSING node — Micro Fish tools run on Node.js 20+"; ok=0; }
+  command -v node >/dev/null || { echo "MISSING node — Micro Fish tools run on Node.js 22+"; ok=0; }
   [[ -f "$AI_CONFIG" ]] || { echo "MISSING $AI_CONFIG — configure an AI provider and model"; ok=0; }
   if [[ $ok == 1 ]]; then
     soot version | head -1
@@ -76,13 +77,13 @@ setup() {
   rm -rf groups.d/society-sim
   soot group add "$archive" --sha256 "$sha" >/dev/null
   soot group create groups.d/society-sim --name sim --output "$WS" --ai-config "$AI_CONFIG" >/dev/null
-  # A standard run (48 personas, two social rounds) needs more than the default budget.
+  # Persona Soots run side by side; each run is one short feed session.
   node -e '
     const fs = require("fs"), [file, port] = process.argv.slice(1);
     const d = JSON.parse(fs.readFileSync(file, "utf8"));
-    d.listen = `127.0.0.1:${port}`; d.run_timeout = "45m";
-    Object.assign(d.collaboration["sim-moderator"], {max_delegations: 48, max_concurrent: 8, max_model_calls: 320});
+    d.listen = `127.0.0.1:${port}`; d.run_timeout = "15m"; d.workers = 8;
     fs.writeFileSync(file, JSON.stringify(d, null, 2) + "\n");' "$DEPLOY" "$PORT"
+  [[ -f "$(packs_dir)/micro-fish/tools/driver.mjs" ]] || die "the installed micro-fish pack has no driver; this release predates Micro Fish 2 — rerun with --from <soot-forge checkout>"
   soot check --config "$DEPLOY" | tail -1
   echo "workspace created: $WS"
 }
@@ -101,34 +102,37 @@ start() {
   die "server not ready after 30s; see $LOG"
 }
 
-# ask <message-file> [conversation-id]: one run; prints the conversation id and the answer path.
-ask() {
-  local file="${1:?message file}" conv="${2:-}" stamp out
-  running || die "server not running; run start"
-  stamp=$(date +%Y%m%d-%H%M%S); out="$RUNS/$stamp"
+driver() { node "$(packs_dir)/micro-fish/tools/driver.mjs" "$@" --workspace "$WS"; }
+
+# run <brief.json> [--parallel n] [--no-report]: one simulation, start to report.
+# Adds the brief's personas as Soots first; the runtime reads its roster at
+# start, so new personas mean one stop, adopt and start.
+run() {
+  local brief="${1:?brief.json}"; shift
+  [[ -f "$DEPLOY" ]] || die "no workspace; run setup first"
+  [[ -f "$brief" ]] || die "no brief at $brief"
+  local added
+  added=$(driver populate "$brief" | node -e 'let s = ""; process.stdin.on("data", d => s += d).on("end", () => console.log(JSON.parse(s).added))') || die "could not build the population"
+  if [[ "$added" != 0 ]]; then
+    echo "added $added persona Soots" >&2
+    running && stop >/dev/null
+    soot check --config "$DEPLOY" >/dev/null || die "the workspace no longer validates; run: soot check --config $DEPLOY"
+    # A runtime that has served before keeps starting from the roster it knew
+    # until the edited one is adopted.
+    (cd "$WS" && soot migrate adopt --config "$DEPLOY" >/dev/null) || die "could not adopt the new roster; run: soot migrate adopt --config $DEPLOY"
+  fi
+  running || start >&2
   mkdir -p "$RUNS"
-  soot run --config "$DEPLOY" --timeout "${MICRO_FISH_TIMEOUT:-40m}" --json --progress ${conv:+--conversation "$conv"} --stdin <"$file" >"$out.json" 2>"$out.progress" || true
-  node -e '
-    const fs = require("fs"), [json, md] = process.argv.slice(1);
-    let r = {}; try { r = JSON.parse(fs.readFileSync(json, "utf8")); } catch {}
-    fs.writeFileSync(md, r.text ?? "");
-    console.log(`state=${r.state ?? "failed"} conversation=${r.conversation_id ?? ""} answer=${md}`);' "$out.json" "$out.md"
-  echo "progress=$out.progress"
+  driver run "$brief" --out "$RUNS" "$@"
 }
 
-# tally <sim-id>: the deterministic statistics the report must match.
-tally() {
-  local sim="${1:?sim id}" file
-  file=$(ls -t "$WS"/data/pack-state/micro-fish/worlds/*/"$sim".json 2>/dev/null | head -1 || true)
-  [[ -n "$file" ]] || die "no simulation $sim"
-  node --input-type=module -e '
-    const [tools, dir, sim] = process.argv.slice(1);
-    const { tally } = await import(tools + "/world.mjs");
-    try { console.log(JSON.stringify(await tally(dir, { sim }), null, 1)); }
-    catch (e) { console.error(`micro-fish: ${e.message}`); process.exit(1); }' "$(packs_dir)/micro-fish/tools" "$(dirname "$file")" "$sim"
-}
+# ask <sim> <persona id or name> <message-file>: interview one persona in its own conversation.
+ask() { running || die "server not running; run start"; driver ask "$@"; }
 
-sims() { ls -t "$WS"/data/pack-state/micro-fish/worlds/*/*.json 2>/dev/null | sed -E 's#.*/([^/]+)\.json#\1#' || true; }
+# tally <sim> [--by age|zone|sex]: the deterministic statistics the report must match.
+tally() { driver tally "$@"; }
+
+sims() { driver sims; }
 
 stop() {
   local pid
@@ -146,6 +150,6 @@ stop() {
 
 cmd="${1:-doctor}"; shift || true
 case "$cmd" in
-  doctor|setup|start|ask|tally|sims|stop) "$cmd" "$@" ;;
-  *) die "usage: micro-fish.sh doctor|setup [--from dir]|start|ask <file> [conversation]|sims|tally <sim>|stop" ;;
+  doctor|setup|start|run|ask|tally|sims|stop) "$cmd" "$@" ;;
+  *) die "usage: micro-fish.sh doctor|setup [--from dir]|start|run <brief.json>|ask <sim> <persona> <file>|sims|tally <sim>|stop" ;;
 esac

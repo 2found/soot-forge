@@ -1,6 +1,6 @@
 ---
 name: micro-fish
-description: Run a Micro Fish simulated society on the user's local Soot — a persona crowd, expert panel and analyst judge a feature, product, price, video script or marketing campaign and return a cited report. Use when the user wants to test an idea, A/B a hook, pick a price or pre-test a campaign with simulated people before real ones.
+description: Run a Micro Fish simulated society on the user's local Soot — every persona is its own Soot on a shared feed, meeting a post, video script, article, product, price or campaign among ordinary posts and reacting to each other; interviews, an expert panel and an analyst return a cited report. Use when the user wants to test content or an idea, A/B variants, pick a price or pre-test a campaign with simulated people before real ones.
 ---
 
 # Micro Fish
@@ -17,10 +17,10 @@ the user through the missing lines in step 2 and run `doctor` again.
 
 ## 2. What the user sets up (you only guide)
 
-- **Soot** on PATH (`soot version` works) and **Node.js 20+**: the pack's
+- **Soot** on PATH (`soot version` works) and **Node.js 22+**: the pack's
   tools run on node.
-- **The AI model** in `~/.soot/config.json`. Every Micro Fish member uses the
-  `flash` tier, so a fast, cheap model fits best. For example, with OpenCode
+- **The AI model** in `~/.soot/config.json`. A run is many short persona sessions, so a
+  fast, cheap model fits best. For example, with OpenCode
   Go and DeepSeek v4.1 flash:
 
   ```json
@@ -58,10 +58,9 @@ the user through the missing lines in step 2 and run `doctor` again.
 ## 3. Prepare the workspace (once)
 
 `micro-fish.sh setup` installs the group template from the latest soot-forge
-release and creates the workspace in `~/.soot/micro-fish/sim`, with a budget
-large enough for a standard run.
+release and creates the workspace in `~/.soot/micro-fish/society`.
 
-If the release has no `society-sim` yet, use
+If the release predates Micro Fish 2 (setup says so), use
 `micro-fish.sh setup --from <soot-forge checkout>` and say that this build
 comes from the checkout.
 
@@ -71,58 +70,71 @@ Environment overrides:
 - `MICRO_FISH_AI_CONFIG` points at another AI config.
 
 A model change in `~/.soot/config.json` does not reach an existing workspace.
-To apply it, delete `~/.soot/micro-fish/sim` (after `stop`) and run `setup`
-again. Stored simulations live in that directory, so tell the user before
-deleting it.
+To apply it, delete `~/.soot/micro-fish/society` (after `stop`) and run
+`setup` again. Stored simulations live in that directory, so tell the user
+before deleting it.
 
 ## 4. Write the brief
 
-Put the request in a file, in the user's language. Include:
-- the decision to make (A vs B, go/no-go, which price);
-- target markets and audiences;
-- the run size: quick (24 personas, ~10 min), standard (48), deep (96);
-- **the real material, verbatim**: the feature description, price table,
-  video script with timestamps, campaign posts.
+The brief is a JSON file; the pack's README (`packs/micro-fish/README.md` in
+the workspace) has the full shape. What you decide:
 
-A simulation can judge only what it is shown, so ask the user for the
-material rather than summarising it. When the user gives no size, choose
-quick.
+- `sim`: a new id. `goal`: the decision in one sentence, in the audience's
+  language. Do not name a preferred variant or call anything a control.
+- `subjects`: **the real material, verbatim**, one entry per variant (up to 4),
+  each with the `account` that would post it. A simulation judges only what it
+  is shown, so ask the user for the material rather than summarising it. A
+  video or image goes in as an honest description of what is seen and heard,
+  in order; say in your report that nobody saw the footage.
+- `platform` and `context`: where it will run and what it competes with.
+  `vi-short-video` ships with the pack; for another platform, market or
+  language, write 12–20 ordinary posts of that platform as
+  `[{account, content}]`, spanning things people finish and things they skip.
+- `audience`: `n` and filters over the persona library (`age`, `sex`, `zone`,
+  `region`, a `match` regex). The shipped library is the general Vietnamese
+  adult population, so filter it to who would actually meet the post.
+- `rounds` (default 4), `questions` (default: retell, clarity, intent,
+  objections, why), `experts` (lenses; none by default).
+
+Size: quick is `n` 24 (a few minutes), standard 48, deep 96 or more. With
+variants every arm gets `n / variants` people; under 30 per arm the tally
+calls the result directional. When the user gives no size, choose quick.
 
 ## 5. Run
 
 ```sh
-micro-fish.sh start
-micro-fish.sh ask /path/brief.txt     # prints state, conversation id, answer and progress paths
+micro-fish.sh run /path/brief.json     # prints one JSON line: state, tally and report paths
 ```
 
-A run takes 10–30 minutes, so start it as a background command and tell the
-user it is running.
+`run` adds the brief's personas as Soots (restarting the server when it adds
+any), plays the feed rounds, interviews, runs the experts and asks the analyst
+for the report. Start it as a background command when `n` is large.
 
-When it finishes, read the answer file. If `state` is not `completed`, read
-the progress file and the server log (`~/.soot/micro-fish/serve.log`, look
-for `failure_kind`). If the run failed on turn 1, the model call was
-rejected; that is a provider or config problem, so a retry will not help. A stopped run resumes when you send "làm tiếp" / "continue"
-in the same conversation (`ask <file> <conversation-id>`).
+`completed_with_failures` means some sessions failed; the tally's warnings say
+how many personas recorded nothing. For a failed run read
+`~/.soot/micro-fish/serve.log` (look for `failure_kind`): a rejected model
+call is a provider or config problem, so a retry will not help. Otherwise run
+the same command again; it resumes from the recorded round.
 
 ## 6. Verify before you relay
 
-`micro-fish.sh sims` lists the simulations; `micro-fish.sh tally <sim-id>`
-prints the deterministic statistics. Check the report's headline numbers
-against the tally:
-- `preference` shares, with `clear` (true means the leader is separated);
-- `shift.*.direction`;
-- per-round `intent_top2`, `price_ok`, `watch_through_mean`;
-- expert verdicts;
-- `warnings`.
+`micro-fish.sh tally <sim>` prints the deterministic statistics (also saved
+beside the report). Check the report's headline numbers against it:
+- per subject `reached`, the `skip` / `some` / `full` split and `rank_in_feed`;
+- `comparison.clear` (true means the leader is separated) before any "winner";
+- interview `top2` rates and the quoted `retell` answers;
+- `spread`, `experts.blocking`, `warnings`.
 
-Correct any mismatch in your summary, and pass the tally's warnings and caveat
-through unchanged. If the report draws on more than one simulation (for
-example after a failed population build), say so.
+Correct any mismatch in your summary, and pass the warnings and caveat through
+unchanged. Read rates against the context posts: simulated people are kinder
+than real ones, so "70% finished it" matters only next to what the same people
+did with the other posts.
 
 ## 7. Follow up, then stop
 
-Follow-up questions and persona interviews go to the same conversation id:
-"Hỏi lại ba sinh viên ghét phương án B vì sao".
+Interview a persona in its own conversation:
+`micro-fish.sh ask <sim> "<persona id or name>" question.txt`.
+`micro-fish.sh tally <sim> --by age|zone|sex` splits the audience.
 
 When the user is done, or before you end your turn without a follow-up
 pending, run `micro-fish.sh stop`. It stops only the server this script
@@ -131,6 +143,6 @@ started.
 Report in the user's language:
 - the decision and the evidence for it;
 - the objections and what to fix;
-- the limits: one model family imagining people. It gives direction,
-  objections and wording, never a forecast, so the decision still needs
-  confirming with real people.
+- the limits: one model family imagining people who read text. It gives
+  direction, objections and wording, never a forecast, so the decision still
+  needs confirming with real people.

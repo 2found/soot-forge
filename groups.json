@@ -84,7 +84,7 @@
     {
       "id": "society-sim",
       "name": "Simulated society",
-      "description": "A persona crowd, an expert panel and an analyst judge your feature, product, price, video or campaign: independent first impressions, social rounds, then a cited report.",
+      "description": "A society of persona Soots meets your content, product, price or campaign in a shared feed and reacts to each other; an expert panel and an analyst turn what they did into a cited report.",
       "source": "groups/society-sim/group.source.json"
     },
     {

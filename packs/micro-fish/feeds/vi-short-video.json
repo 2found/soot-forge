@@ -1,0 +1,23 @@
+{
+  "platform": "TikTok",
+  "language": "vi",
+  "note": "Ordinary posts a Vietnamese short-video feed mixes together. They are the scale a subject is read against, so they span what people finish, what they half-watch and what they scroll past.",
+  "posts": [
+    {"account": "bep-nha-na", "content": "Video 28 giây. HÌNH: tay đập trứng vào chảo, cận cảnh. CHỮ: CƠM RANG 5 PHÚT. GIỌNG: \"Cơm nguội hôm qua đừng bỏ. Ba quả trứng, chút nước mắm, đảo lửa to là xong bữa sáng.\""},
+    {"account": "meo-mun", "content": "Video 12 giây. HÌNH: con mèo đen gạt cốc nước khỏi bàn rồi nhìn thẳng máy quay. CHỮ: nó cố tình. Nhạc vui, không lời."},
+    {"account": "bong-da-24h", "content": "Video 35 giây. HÌNH: pha ghi bàn phút 90 quay chậm. CHỮ: PHÚT 90+3. GIỌNG: \"Bàn thắng này đưa đội tuyển vào bán kết. Xem lại góc quay từ khán đài.\""},
+    {"account": "tieng-anh-moi-ngay", "content": "Video 40 giây. HÌNH: cô giáo trẻ trước bảng trắng. CHỮ: ĐỪNG NÓI \"I'M FINE\". GIỌNG: \"Người bản xứ ít ai nói I'm fine. Ba câu thay thế nghe tự nhiên hơn là...\""},
+    {"account": "shop-quan-ao-linh", "content": "Video 20 giây. HÌNH: cô gái xoay người trước gương, váy hoa. CHỮ: SALE 50% HÔM NAY. GIỌNG: \"Váy này bên em còn đúng hai mươi cái, chốt đơn trong tối nay freeship nha.\""},
+    {"account": "review-phim-toi-nay", "content": "Video 45 giây. HÌNH: cảnh phim Hàn, hai nhân vật cãi nhau dưới mưa. CHỮ: TẬP 8 GÂY TRANH CÃI. GIỌNG: \"Tập tám vừa chiếu, khán giả chia hai phe vì quyết định của nữ chính.\""},
+    {"account": "di-dau-cuoi-tuan", "content": "Video 30 giây. HÌNH: flycam đèo Hải Vân lúc bình minh. CHỮ: 2 NGÀY 1 ĐÊM, 1 TRIỆU 2. GIỌNG: \"Lịch trình Đà Nẵng hai ngày cho người đi làm, tổng chi một triệu hai.\""},
+    {"account": "tin-nhanh", "content": "Video 25 giây. HÌNH: bản đồ thời tiết, vùng mưa đỏ. CHỮ: MƯA LỚN TỪ ĐÊM NAY. GIỌNG: \"Miền Bắc mưa to từ đêm nay tới hết thứ năm, người đi xe máy chú ý ngập.\""},
+    {"account": "tai-chinh-de-hieu", "content": "Video 50 giây. HÌNH: người đàn ông mặc sơ mi nói thẳng vào máy quay, biểu đồ phía sau. CHỮ: LƯƠNG 10 TRIỆU ĐỂ DÀNH BAO NHIÊU. GIỌNG: \"Quy tắc năm mươi ba mươi hai mươi nghe thì dễ, nhưng ở trọ Sài Gòn thì chia lại thế này.\""},
+    {"account": "me-bim-sua", "content": "Video 33 giây. HÌNH: em bé ngồi ghế ăn, mặt lem cháo, cười. CHỮ: 9 THÁNG TUỔI TỰ XÚC. GIỌNG: \"Tuần đầu bé ném hết xuống đất. Tuần thứ ba thì ăn được nửa bát.\""},
+    {"account": "sua-xe-chu-ba", "content": "Video 38 giây. HÌNH: bàn tay dính dầu tháo bugi xe máy. CHỮ: XE KHÓ NỔ BUỔI SÁNG. GIỌNG: \"Chín trên mười xe khó nổ là do cái này, tự thay mất hai chục nghìn.\""},
+    {"account": "hai-mien-tay", "content": "Video 22 giây. HÌNH: hai thanh niên diễn tiểu phẩm ở sân nhà, một người giả làm mẹ. CHỮ: KHI MẸ HỎI LƯƠNG. Tiếng cười dựng sẵn."},
+    {"account": "gym-tai-nha", "content": "Video 27 giây. HÌNH: cô gái tập plank trong phòng trọ. CHỮ: 7 NGÀY BỤNG PHẲNG. GIỌNG: \"Mỗi ngày bốn động tác, không cần dụng cụ, làm theo mình.\""},
+    {"account": "nhac-xua-bolero", "content": "Video 60 giây. HÌNH: ca sĩ trung niên hát trên sân khấu hội chợ. CHỮ: lời bài hát chạy bên dưới. Nhạc bolero, không lời dẫn."},
+    {"account": "cong-nghe-moi-tuan", "content": "Video 42 giây. HÌNH: tay cầm hai chiếc điện thoại đặt cạnh nhau. CHỮ: 5 TRIỆU CHỌN MÁY NÀO. GIỌNG: \"Cùng tầm giá năm triệu, một máy pin trâu, một máy chụp đẹp, mình dùng cả hai một tháng rồi.\""},
+    {"account": "nong-san-que-minh", "content": "Video 31 giây. HÌNH: vườn sầu riêng, người nông dân gõ vào quả. CHỮ: GÕ SAO BIẾT CHÍN. GIỌNG: \"Tiếng bộp bộp là già, tiếng coong coong là còn non, bà con mua nhớ gõ thử.\""}
+  ]
+}

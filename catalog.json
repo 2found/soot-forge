@@ -176,6 +176,19 @@
       }
     },
     {
+      "id": "crm",
+      "name": "CRM",
+      "description": "A micro-CRM for Soot teams: consented contacts, one deal per product with a next step, a timeline, follow-ups that come due and a pipeline other runtimes read through a team contract.",
+      "tags": [
+        "records",
+        "sales"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/crm"
+      }
+    },
+    {
       "id": "data-pool",
       "name": "Data pool",
       "description": "Query and manage shared company data pools through explicitly bound tools.",
@@ -354,7 +367,7 @@
     {
       "id": "micro-fish",
       "name": "Micro Fish",
-      "description": "Run persona crowds and expert panels on a feature, product, video or campaign, with deterministic tallies.",
+      "description": "A simulated society where every persona is its own Soot on a shared feed: test content, a product, a price or a campaign, with deterministic tallies.",
       "tags": [
         "research",
         "marketing",
