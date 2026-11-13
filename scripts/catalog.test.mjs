@@ -310,3 +310,15 @@ test('the lohi-cs runner passes its own tests (principal header, anonymous refus
   const { stdout } = await promisify(execFile)(process.execPath, ['--test', '--test-reporter=tap', file], { env });
   assert.match(stdout, /^# fail 0$/m);
 });
+
+test('a pack tab sorts after Nest\'s own tabs (goals 10, support 20) and before Kết quả (900), its pieces in their declared order', async () => {
+  const { readdir } = await import('node:fs/promises');
+  const dir = join(import.meta.dirname, '..', 'packs');
+  for (const id of await readdir(dir)) {
+    let pack; try { pack = JSON.parse(await readFile(join(dir, id, 'pack.json'), 'utf8')); } catch { continue; }
+    const tabs = (pack.interface?.pieces ?? []).filter(p => p.slot === 'project.tab');
+    for (const p of tabs) { const order = p.order ?? 500; assert.ok(order > 20 && order < 900, `${id}/${p.id}: order ${order} sorts its tab among Nest's own`); }
+  }
+  const marketing = JSON.parse(await readFile(join(dir, 'marketing', 'pack.json'), 'utf8')).interface.pieces.filter(p => p.slot === 'project.tab');
+  assert.deepEqual([...marketing].sort((a, b) => a.order - b.order).map(p => p.id), ['posts', 'queue', 'campaigns']);
+});
