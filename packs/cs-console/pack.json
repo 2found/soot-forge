@@ -130,19 +130,18 @@
     ]
   },
   "interface": {
-    "pages": [
+    "pieces": [
       {
-        "id": "khach-hang",
+        "id": "customers",
+        "slot": "project.tab",
+        "tab": {"id": "support", "label": {"vi": "Hỗ trợ", "en": "Support"}},
         "label": {
           "vi": "Khách hàng",
           "en": "Customers"
         },
         "icon": "users",
-        "placement": "rail",
         "access": "member",
-        "provides": ["flow-ho-tro"],
-        "view_tool": "console_view",
-        "action_tool": "console_action",
+        "data": {"view_tool": "console_view", "action_tool": "console_action"},
         "bundle": "page/"
       }
     ]

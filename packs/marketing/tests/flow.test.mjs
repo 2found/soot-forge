@@ -15,9 +15,9 @@ function world() {
   w.env = { MARKETING_CLAIM_KEY: KEY };
   w.fetch = async () => { throw new Error('no network'); };
   w.call = (name, input, extra = {}) => run(name, { input, ...extra }, { store: w.store, now: w.now, env: w.env, fetchImpl: w.fetch });
-  w.act = (op, input = {}) => w.call('page_action', { op, request_id: `r-${Math.random()}`, ...input }, { page: { soot: 'lohi-editor', page: 'hang-doi' } });
-  w.list = (input = {}) => w.call('page_view', input, { page: { soot: 'lohi-editor', page: 'bai-viet' } });
-  w.queue = () => w.call('page_view', {}, { page: { soot: 'lohi-editor', page: 'hang-doi' } });
+  w.act = (op, input = {}) => w.call('page_action', { op, request_id: `r-${Math.random()}`, ...input }, { page: { soot: 'lohi-editor', page: 'queue' } });
+  w.list = (input = {}) => w.call('page_view', input, { page: { soot: 'lohi-editor', page: 'posts' } });
+  w.queue = () => w.call('page_view', {}, { page: { soot: 'lohi-editor', page: 'queue' } });
   return w;
 }
 const BODY = 'Nếu bạn mê tiên hiệp, đây là chín bộ đáng đọc nhất năm nay, mỗi bộ một lý do riêng. Xem thêm [kho truyện](https://lohi2.com/novel/tien-hiep).';

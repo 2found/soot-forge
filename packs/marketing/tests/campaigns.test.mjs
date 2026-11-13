@@ -25,7 +25,7 @@ function world({ env = {} } = {}) {
   return w;
 }
 const CAMPAIGN = { name: 'Lohi tháng 12: truyện mới', goal: { metric: 'signups', target: 300 }, channels: ['blog-lohi', 'x-lohi', 'facebook-lohi', 'reddit-lohi'], starts: '2026-12-01', ends: '2026-12-31', token_budget: 2_000_000 };
-const view = (w, input = {}) => w.call('page_view', { ...input }, { page: { page: 'chien-dich' } });
+const view = (w, input = {}) => w.call('page_view', { ...input }, { page: { page: 'campaigns' } });
 
 test('campaign_save: slug code, one tagged short link per channel through POST /admin/links, saved again without new links', async () => {
   api.reset();
@@ -95,7 +95,7 @@ test('campaign_report: api numbers stored per channel; new signups are lead outc
   assert.deepEqual(r3.tokens_due, [c.id], 'the Đầu mối is woken to update the token count');
   // A page refresh reads the api but never consumes new signups.
   api.analysis.signups[0].registrations = 60;
-  await w.call('page_action', { op: 'campaign_refresh', request_id: 'rq1', campaign_id: c.id }, { page: { page: 'chien-dich' } });
+  await w.call('page_action', { op: 'campaign_refresh', request_id: 'rq1', campaign_id: c.id }, { page: { page: 'campaigns' } });
   assert.deepEqual((await w.call('campaign_report', {})).outcomes, [{ id: 'lead', count: 6, ref: 'utm:lohi-thang-12-truyen-moi:2026-12-06' }]);
   // A finished campaign is read for 30 more days, then no longer.
   w.now = Date.parse('2027-02-15T03:00:00Z');
@@ -118,7 +118,7 @@ test('the token budget: told once at 80 %, never stopped', async () => {
 test('Chiến dịch page: list with goal progress, detail per channel against the goal, links and tokens', async () => {
   api.reset();
   const w = world();
-  const c = await w.call('page_action', { op: 'campaign_save', request_id: 'rq-new', campaign: CAMPAIGN }, { page: { page: 'chien-dich' } });
+  const c = await w.call('page_action', { op: 'campaign_save', request_id: 'rq-new', campaign: CAMPAIGN }, { page: { page: 'campaigns' } });
   assert.equal(c.read.ok, true);
   await w.store.insert('posts', { ref: 'P-0000000001', kind: 'social', channel: 'x-lohi', campaign: c.id, body: 'b', state: 'published', url: 'https://x.com/lohi2com/status/1', revision: 1 });
   await w.store.insert('metrics', { url: 'https://x.com/lohi2com/status/1', source: 'x', day: '2026-12-03', query: '', impressions: 0, clicks: 0, views: 8900 });
@@ -154,7 +154,7 @@ for (const [name, setup, code] of [
     api.reset();
     const w = world();
     setup(w);
-    const out = await w.call('page_action', { op: 'campaign_save', request_id: 'rq', campaign: CAMPAIGN }, { page: { page: 'chien-dich' } });
+    const out = await w.call('page_action', { op: 'campaign_save', request_id: 'rq', campaign: CAMPAIGN }, { page: { page: 'campaigns' } });
     assert.equal(out.links.length, 0);
     assert.deepEqual(out.links_missing, CAMPAIGN.channels);
     assert.equal(out.links_error.code, code);
@@ -172,7 +172,7 @@ for (const [name, setup, code] of [
     assert.equal(r.campaigns[0].ok, false);
     // The api comes back: saving again makes the links, and a read clears the error.
     api.mode = 'ok'; w.env.PRODUCT_ADMIN_KEY = KEY;
-    const fixed = await w.call('page_action', { op: 'campaign_save', request_id: 'rq2', campaign: { ...CAMPAIGN, id: out.id } }, { page: { page: 'chien-dich' } });
+    const fixed = await w.call('page_action', { op: 'campaign_save', request_id: 'rq2', campaign: { ...CAMPAIGN, id: out.id } }, { page: { page: 'campaigns' } });
     assert.equal(fixed.links.length, 4);
     assert.equal(fixed.links_missing, undefined);
     assert.equal((await view(w, { campaign: out.id })).read.ok, true);
@@ -184,7 +184,7 @@ test('no key: every campaign op answers needs_credential with a Vietnamese line 
   const w = world();
   delete w.env.PRODUCT_ADMIN_KEY;
   for (const [tool, input] of [['page_action', { op: 'campaign_save', request_id: 'rq', campaign: CAMPAIGN }], ['page_action', { op: 'campaign_refresh', request_id: 'rq3', campaign_id: 'x-y' }], ['campaign_save', CAMPAIGN]]) {
-    const out = await w.call(tool, input, { page: { page: 'chien-dich' } });
+    const out = await w.call(tool, input, { page: { page: 'campaigns' } });
     assert.deepEqual([out.ok, out.reason_code, out.key], [false, 'needs_credential', 'PRODUCT_AGENT_KEY'], tool);
     assert.match(out.message, /Thiết lập.*PRODUCT_AGENT_KEY|PRODUCT_AGENT_KEY.*Thiết lập/, tool);
     assert.equal(out.link, 'nest://settings/setup');
@@ -207,7 +207,7 @@ test('the key goes only to PRODUCT_API_URL: no tool takes an api address from it
   assert.equal(pack.needs.credentials.PRODUCT_ADMIN_KEY.from, 'operator');
   assert.deepEqual(pack.needs.env, ['PRODUCT_API_URL', 'YT_DLP_BIN', 'PATH', 'HOME'], 'one api address is an operator env; the rest is where yt-dlp is found');
   assert.equal(pack.tools.find(t => t.name === 'campaign_report').run.mode, 'write');
-  assert.deepEqual(pack.interface.pages.find(p => p.id === 'chien-dich').provides, ['flow-marketing']);
+  assert.deepEqual(pack.interface.pieces.find(p => p.id === 'campaigns').tab, { id: 'marketing', label: { vi: 'Marketing', en: 'Marketing' } });
 });
 
 test('p5 review: span ≤ 62 days, one channel per platform, https-only api, api error code kept, a new budget gets its own 80 % note, an old free-text tag stays editable', async () => {

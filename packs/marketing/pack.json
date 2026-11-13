@@ -230,7 +230,7 @@
       "name": "page_view",
       "title": "Xem trang marketing",
       "description": "Bài viết / Hàng đợi / Chiến dịch page model: {page?, filter?, id?, campaign?}. The page id comes from the page context when omitted.",
-      "parameters": {"type":"object","properties":{"page":{"type":"string","enum":["bai-viet","hang-doi","chien-dich"]},"campaign":{"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},"filter":{"type":"string","enum":["all","need","draft","ready","waiting","published","refused","removed"]},"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"}},"required":[],"additionalProperties":false},
+      "parameters": {"type":"object","properties":{"page":{"type":"string","enum":["posts","queue","campaigns"]},"campaign":{"type":"string","maxLength":64,"pattern":"^[a-z0-9][a-z0-9-]{1,63}$"},"filter":{"type":"string","enum":["all","need","draft","ready","waiting","published","refused","removed"]},"id":{"type":"string","maxLength":16,"pattern":"^P-[0-9A-F]{10}$"}},"required":[],"additionalProperties":false},
       "run": { "program": "node", "args": ["tools/marketing.mjs","page_view"], "stdin": "context", "mode": "read", "timeout": "20s", "max_output_bytes": 1048576 }
     },
     {
@@ -645,49 +645,48 @@
     ]
   },
   "interface": {
-    "pages": [
+    "pieces": [
       {
-        "id": "bai-viet",
+        "id": "posts",
+        "slot": "project.tab",
+        "tab": {"id": "marketing", "label": {"vi":"Marketing","en":"Marketing"}},
+        "order": 10,
         "label": {"vi":"Bài viết","en":"Posts"},
         "icon": "file-text",
-        "placement": "rail",
         "access": "operator",
-        "provides": ["flow-marketing"],
-        "view_tool": "page_view",
-        "action_tool": "page_action",
+        "data": {"view_tool": "page_view", "action_tool": "page_action"},
         "bundle": "page/"
       },
       {
-        "id": "hang-doi",
+        "id": "queue",
+        "slot": "project.tab",
+        "tab": {"id": "marketing", "label": {"vi":"Marketing","en":"Marketing"}},
+        "order": 20,
         "label": {"vi":"Hàng đợi","en":"Queue"},
         "icon": "calendar-clock",
-        "placement": "rail",
         "access": "operator",
-        "provides": ["flow-marketing"],
-        "view_tool": "page_view",
-        "action_tool": "page_action",
+        "data": {"view_tool": "page_view", "action_tool": "page_action"},
         "bundle": "page/"
       },
       {
-        "id": "kenh",
+        "id": "channels",
+        "slot": "settings",
+        "group": "server",
         "label": {"vi":"Kênh đăng bài","en":"Channels"},
         "icon": "radio",
-        "placement": "settings",
-        "settings_group": "server",
         "access": "operator",
-        "view_tool": "page_view",
-        "action_tool": "page_action",
+        "data": {"view_tool": "page_view", "action_tool": "page_action"},
         "bundle": "page/"
       },
       {
-        "id": "chien-dich",
+        "id": "campaigns",
+        "slot": "project.tab",
+        "tab": {"id": "marketing", "label": {"vi":"Marketing","en":"Marketing"}},
+        "order": 30,
         "label": {"vi":"Chiến dịch","en":"Campaigns"},
         "icon": "target",
-        "placement": "rail",
         "access": "operator",
-        "provides": ["flow-marketing"],
-        "view_tool": "page_view",
-        "action_tool": "page_action",
+        "data": {"view_tool": "page_view", "action_tool": "page_action"},
         "bundle": "page/"
       }
     ]

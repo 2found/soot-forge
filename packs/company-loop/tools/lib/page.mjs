@@ -1,6 +1,6 @@
 // The "Công ty" page (operator): the one next step, what needs the founder, the scorecard (north star
 // and tiles with deltas and targets), the build pipeline, the decision log with outcomes and the loop's
-// health. The page passes Nest's product scope (or its own switch) as input; every section narrows to
+// health. The page passes Nest's chosen project (or its own switch) as input; every section narrows to
 // that product, and the model says what it left out. The model carries codes and numbers; the page
 // words them in Vietnamese. Every state names its next step.
 import { eq, fail, getState, iso, short } from './base.mjs';
@@ -37,7 +37,7 @@ export function nextStep({ setup, sync, proposals, handoffs, topics, handed = 0,
   return { code: 'idle' };
 }
 
-/** Nest's products from the page context: [{id, name, teams}], ids as the data carries them. */
+/** Nest's chosen project as the page passes it: [{id, name, teams}], ids as the data carries them. */
 function contextProducts(list) {
   if (!Array.isArray(list)) return [];
   const out = [];
@@ -148,7 +148,7 @@ export async function page_view(input, { store, env, now, soot }) {
   const tiles = scoreboard ? [scoreboard.north, ...scoreboard.tiles].filter(Boolean) : (boards ?? []).flatMap(b => [b.north, ...(b.tiles ?? [])]).filter(Boolean);
 
   return {
-    page: 'cong-ty', at: iso(now), soot: typeof soot === 'string' ? soot : null, setup, sync,
+    page: 'company', at: iso(now), soot: typeof soot === 'string' ? soot : null, setup, sync,
     scope: {
       product: want ? { id: want, name: nameOf(want) } : null, host,
       products: ids.map(id => ({ id, name: nameOf(id), waiting: oppsAll.filter(x => x.product === id && x.state === 'proposed').length + handoffsAll.filter(x => x.product === id && (x.state === 'delivered' || isTask(x))).length })),
@@ -174,7 +174,7 @@ export async function page_view(input, { store, env, now, soot }) {
 export async function page_action(input, deps) {
   const { store, now } = deps;
   // The founder's tap is the approval: a model call (no page context) must never reach a Go.
-  if (deps.page !== 'cong-ty') fail('forbidden', 'Chỉ trang Công ty (bấm của người) mới đổi được cơ hội; Soot không tự quyết.');
+  if (deps.page !== 'company') fail('forbidden', 'Chỉ trang Công ty (bấm của người) mới đổi được cơ hội; Soot không tự quyết.');
   // Nest names the server's product: rows from before products get it.
   if (productId(input.host)) await rememberHost(store, input.host);
   await adoptProducts(store, await hostProduct(store, input.host));

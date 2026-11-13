@@ -702,18 +702,20 @@
     ]
   },
   "interface": {
-    "pages": [
+    "pieces": [
       {
-        "id": "cong-ty",
+        "id": "company",
+        "slot": "rail",
         "label": {
           "vi": "Công ty",
           "en": "Company"
         },
         "icon": "building-2",
-        "placement": "rail",
         "access": "operator",
-        "view_tool": "page_view",
-        "action_tool": "page_action",
+        "data": {
+          "view_tool": "page_view",
+          "action_tool": "page_action"
+        },
         "bundle": "page/"
       }
     ]
@@ -1123,7 +1125,7 @@
     {
       "name": "opportunities_card",
       "title": "Thẻ cơ hội chờ bạn chọn",
-      "description": "Tool-only, no model. Keep the one Cần bạn card for the product opportunities still proposed: raise answers it for the runtime to file (id = the waiting set, count current, link nest://page/cong-ty); settle answers it once none is proposed. Đã xem only acknowledges. With product the card is that product's own (group company:proposals:<product>).",
+      "description": "Tool-only, no model. Keep the one Cần bạn card for the product opportunities still proposed: raise answers it for the runtime to file (id = the waiting set, count current, link nest://page/company); settle answers it once none is proposed. Đã xem only acknowledges. With product the card is that product's own (group company:proposals:<product>).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1288,23 +1290,23 @@
           "page": {
             "type": "string",
             "enum": [
-              "cong-ty"
+              "company"
             ]
           },
           "product": {
             "type": "string",
             "maxLength": 64,
-            "description": "The product to show (Nest's scope or the page's own switch); absent for every product."
+            "description": "The product to show (Nest's chosen project or the page's own switch); absent for every product."
           },
           "host": {
             "type": "string",
             "maxLength": 64,
-            "description": "The server's own product label, from Nest's context."
+            "description": "The server's own product label, when the caller knows it (the page does not send it)."
           },
           "products": {
             "type": "array",
             "maxItems": 64,
-            "description": "Nest's products on this server, with their team ids.",
+            "description": "Nest's chosen project as a product, with its team ids (bridge v2 init.project or context.project).",
             "items": {
               "type": "object",
               "properties": {

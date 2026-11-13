@@ -28,14 +28,14 @@ test('cohorts and plans reach the packet and the page; absent is null, malformed
   const w = mk();
   api.over = { cohorts: COHORTS, plans: PLANS };
   await w.call('scoreboard_sync');
-  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  const v = await w.call('page_view', {}, { page: { page: 'company' } });
   const view = v.output ?? v;
   assert.equal(view.scoreboard.cohorts[0].cohort, '2026-W44');
   assert.equal(view.scoreboard.plans[0].tier, 'pro');
   api.over = { cohorts: [{ cohort: 'bad' }, 5], plans: 'x' };
   const w2 = mk();
   await w2.call('scoreboard_sync');
-  const v2 = (await w2.call('page_view', {}, { page: { page: 'cong-ty' } }));
+  const v2 = (await w2.call('page_view', {}, { page: { page: 'company' } }));
   const s2 = (v2.output ?? v2).scoreboard;
   assert.equal(s2.cohorts ?? null, null);
   assert.equal(s2.plans ?? null, null);
@@ -62,7 +62,7 @@ test('health_sync on a runtime before teams: per stage last run, tokens, starvin
   const out = await w.call('health_sync', { inputs: [{ key: 'gsc', label: 'GSC', starving: true, detail: 'GSC 0 dòng', rows: 0 }, { key: 'bad key!', label: 'x' }] });
   assert.equal(out.ok, true);
   assert.equal(out.runtime, true);
-  const v = (await w.call('page_view', {}, { page: { page: 'cong-ty' } }));
+  const v = (await w.call('page_view', {}, { page: { page: 'company' } }));
   const h = (v.output ?? v).health;
   const mkt = h.stages.find(s => s.key === 'marketing');
   assert.equal(mkt.tokens_7d, 4000);
@@ -91,7 +91,7 @@ test('health_sync on the teams CLI: one row per team from `teams health`, answer
   const w = mk({ LOOP_SOOT_BIN: bin, LOOP_SOOT_CONFIG: join(tmp, 'deployment.json') });
   await w.call('scoreboard_sync');
   assert.equal((await w.call('health_sync', { inputs: [] })).runtime, true);
-  const h = ((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).output ?? {}).health ?? (await w.call('page_view', {}, { page: { page: 'cong-ty' } })).health;
+  const h = ((await w.call('page_view', {}, { page: { page: 'company' } })).output ?? {}).health ?? (await w.call('page_view', {}, { page: { page: 'company' } })).health;
   assert.deepEqual(h.stages.map(s => s.key), ['insight', 'marketing', 'cs']);
   const ins = h.stages[0];
   assert.equal(ins.tokens_7d, 43000);
@@ -114,7 +114,7 @@ test('health_sync without a reachable soot CLI still stores the inputs and says 
     const w = mk(env);
     const out = await w.call('health_sync', { inputs: [{ key: 'tiktok', label: 'TikTok', starving: true, detail: 'chưa có số TikTok' }] });
     assert.equal(out.runtime, false);
-    const h = ((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).output ?? {}).health ?? (await w.call('page_view', {}, { page: { page: 'cong-ty' } })).health;
+    const h = ((await w.call('page_view', {}, { page: { page: 'company' } })).output ?? {}).health ?? (await w.call('page_view', {}, { page: { page: 'company' } })).health;
     assert.ok(h.runtime.reason);
     assert.ok(h.stages.find(s => s.key === 'marketing').starving.some(i => i.key === 'tiktok'));
   }
@@ -122,7 +122,7 @@ test('health_sync without a reachable soot CLI still stores the inputs and says 
 
 test('page_view names every outcome key an opportunity is measured by', async () => {
   const w = mk({});
-  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  const v = await w.call('page_view', {}, { page: { page: 'company' } });
   const labels = (v.output ?? v).metric_labels;
   assert.equal(labels.support_threads_new, 'Hỗ trợ mới');
   assert.equal(labels.waiting_human, 'Bạn đọc chờ người');

@@ -10,7 +10,7 @@ const api = await startBoardApi();
 const other = await startBoardApi();
 other.over = { product: 'ignored-label', metrics: { revenue_vnd: { label: 'Doanh thu', unit: 'vnd', value: 300_000, previous: 400_000 }, signups: { label: 'x', unit: 'count', value: 40, previous: 38 } } };
 after(() => { api.close(); other.close(); });
-const PAGE = { page: { page: 'cong-ty' } };
+const PAGE = { page: { page: 'company' } };
 const view = (w, input = {}) => w.call('page_view', input, PAGE);
 const act = (w, input) => w.call('page_action', input, PAGE);
 const SACH = { ...ITEM.product, title: 'Gói đọc thử 3 ngày', product: 'sach-hay', summary: 'Cho người mới đọc thử ba ngày trước khi trả tiền để tăng người nạp lần đầu.', target_outcome: 'first_payers', expected_delta: 4 };

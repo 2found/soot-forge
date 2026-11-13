@@ -78,12 +78,12 @@ test('AC1: draft → check → schedule → due → claim → publish → record
   assert.equal(w.store.data.queue.length, 0);
   assert.equal(w.store.data.publish_log[0].status, 'published');
 
-  const list = await w.call('page_view', {}, { page: { soot: 'lohi-editor', page: 'bai-viet', mode: 'view' } });
-  assert.equal(list.page, 'bai-viet');
+  const list = await w.call('page_view', {}, { page: { soot: 'lohi-editor', page: 'posts', mode: 'view' } });
+  assert.equal(list.page, 'posts');
   assert.equal(list.counts.published, 1);
   assert.equal(list.items[0].url, url);
   assert.equal(list.items[0].metrics_28, null, 'no Search Console read yet: null, never 0');
-  const q = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  const q = await w.call('page_view', {}, { page: { page: 'queue' } });
   assert.equal(q.empty, true);
   assert.equal(q.recent[0].status, 'published');
   assert.equal(q.channels[0].id, 'blog-lohi');
@@ -196,7 +196,7 @@ test('AC11: a guard-failed item is never posted and shows its reason', async () 
   assert.equal(claim.claim, undefined);
   assert.equal(claim.refused.code, 'not_queued');
   assert.equal(w.store.data.publish_log.length, 0, 'no intent, so no publisher is ever called');
-  const view = await w.call('page_view', { page: 'bai-viet', id: d.id });
+  const view = await w.call('page_view', { page: 'posts', id: d.id });
   assert.equal(view.post.state, 'refused');
   assert.match(view.post.reason, /50%/);
   assert.equal(view.check.auto.find(a => a.rule === 'facts').ok, false);
@@ -343,7 +343,7 @@ test('page actions pull and restore a queued post; pages refuse unknown ops', as
   assert.equal(w.store.data.queue.length, 0);
   assert.equal((await w.call('page_action', { op: 'restore', request_id: 'req-00000004', id: d.id })).state, 'scheduled');
   await w.call('page_action', { op: 'pause', request_id: 'req-00000005' });
-  const q = await w.call('page_view', { page: 'hang-doi' });
+  const q = await w.call('page_view', { page: 'queue' });
   assert.equal(q.paused_all, true);
   assert.equal(q.items[0].id, d.id);
   await assert.rejects(w.call('page_action', { op: 'publish', request_id: 'req-00000006', id: d.id }), { code: 'invalid_request' });
@@ -375,7 +375,7 @@ test('AC3: gsc_sync fills metrics for published URLs; the post shows numbers; se
   const { claim } = await w.call('claim', { id: d.id, action: 'publish' });
   await w.call('record', { intent_id: claim.intent_id, url });
 
-  const before = await w.call('page_view', { page: 'bai-viet', id: d.id });
+  const before = await w.call('page_view', { page: 'posts', id: d.id });
   assert.equal(before.search_console.last_28, null, '"Chưa có số liệu" before the first read, never 0');
   assert.deepEqual((await w.call('seo_brief', {})).posts[0].last_14_days, null);
 
@@ -389,7 +389,7 @@ test('AC3: gsc_sync fills metrics for published URLs; the post shows numbers; se
   await w.call('gsc_sync', { site: 'sc-domain:lohi2.com', days: 3 });
   assert.equal(w.store.data.metrics.length, 5, 'a second read replaces, never doubles');
 
-  const detail = await w.call('page_view', { page: 'bai-viet', id: d.id });
+  const detail = await w.call('page_view', { page: 'posts', id: d.id });
   assert.deepEqual(detail.search_console.last_28, { impressions: 200, clicks: 8, position: 8 });
   assert.equal(detail.search_console.queries[0].query, 'truyện tiên hiệp hay');
   const brief = await w.call('seo_brief', {});
@@ -475,15 +475,19 @@ test('the CLI entry talks to pack storage over HTTP with the per-call token and 
   } finally { server.close(); }
 });
 
-test('the declaration: hub optional, three flow-marketing pages and the Kênh đăng bài settings page, unguarded page tools, node built-ins only', async () => {
+test('the declaration: hub optional, three pieces of the Marketing project tab and the Kênh đăng bài settings piece, unguarded page tools, node built-ins only', async () => {
   const { readFileSync, readdirSync } = await import('node:fs');
   const pack = JSON.parse(readFileSync(new URL('../pack.json', import.meta.url), 'utf8'));
   const tools = Object.fromEntries(pack.tools.map(t => [t.name, t]));
   assert.equal(pack.needs.credentials.MARKETING_HUB.optional, true);
-  assert.deepEqual(pack.interface.pages.map(p => [p.id, p.label.vi, p.provides]), [['bai-viet', 'Bài viết', ['flow-marketing']], ['hang-doi', 'Hàng đợi', ['flow-marketing']], ['kenh', 'Kênh đăng bài', undefined], ['chien-dich', 'Chiến dịch', ['flow-marketing']]]);
-  for (const p of pack.interface.pages) {
-    assert.equal(tools[p.view_tool].run.mode, 'read');
-    for (const name of [p.view_tool, p.action_tool]) assert.equal(tools[name].run.approval, undefined, name);
+  const marketing = { id: 'marketing', label: { vi: 'Marketing', en: 'Marketing' } };
+  assert.deepEqual(pack.interface.pieces.map(p => [p.id, p.slot, p.label.vi, p.tab, p.group, p.order]), [
+    ['posts', 'project.tab', 'Bài viết', marketing, undefined, 10], ['queue', 'project.tab', 'Hàng đợi', marketing, undefined, 20],
+    ['channels', 'settings', 'Kênh đăng bài', undefined, 'server', undefined], ['campaigns', 'project.tab', 'Chiến dịch', marketing, undefined, 30]]);
+  for (const p of pack.interface.pieces) {
+    assert.equal(p.provides, undefined, `${p.id}: a piece is placed by its slot, never by a flow capability`);
+    assert.equal(tools[p.data.view_tool].run.mode, 'read');
+    for (const name of [p.data.view_tool, p.data.action_tool]) assert.equal(tools[name].run.approval, undefined, name);
   }
   assert.equal(tools.claim.run.approval, 'operator', 'a host approves claims, or a recipe maps marketing_claim to auto');
   assert.deepEqual(tools.claim.run.secret_env, { MARKETING_CLAIM_KEY: '{{cred:MARKETING_CLAIM_KEY}}' });

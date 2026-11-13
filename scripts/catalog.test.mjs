@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateCatalog, validatePack, checkPackModel, checkPageBundles, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
+import { validateCatalog, validatePack, checkPackModel, checkPieceBundles, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -60,17 +60,17 @@ test('a retired pack merges into a listed one by an explicit tool map', () => {
   assert.throws(() => checkRetiredTarget({ ...retired, tools: { view: 'view' } }, manifest), /no tool view/);
 });
 
-test('outcomes and page capabilities are checked like the host checks them', () => {
+test('outcomes and piece capabilities are checked like the host checks them', () => {
   const tool = { name: 'view', run: { program: 'tools/run', mode: 'read', stdin: 'context' } };
   const base = () => ({ id: 'p', skills: [], tools: [tool], outcomes: [{ id: 'conversation_resolved', label: { vi: 'Đã giải quyết' }, unit: 'conversation', void_window: '72h', void_on: 'binding_activity' }],
-    interface: { pages: [{ id: 'kho', label: 'Kho', icon: 'library', placement: 'data', access: 'operator', view_tool: 'view', bundle: 'page/', provides: ['knowledge'] }] } });
+    interface: { pieces: [{ id: 'library', slot: 'data.tab', label: 'Kho', icon: 'library', access: 'operator', data: { view_tool: 'view' }, bundle: 'page/', provides: ['knowledge'] }] } });
   checkPackModel(base(), 'p');
   const bad = (change, pattern) => assert.throws(() => checkPackModel(change(base()), 'p'), pattern);
   bad(p => { p.outcomes[0].void_on = 'always'; return p; }, /void_on/);
   bad(p => { p.outcomes[0].void_window = 'soon'; return p; }, /void_window/);
   bad(p => { p.outcomes.push(p.outcomes[0]); return p; }, /duplicate/);
   bad(p => { p.outcomes[0].unit = ''; return p; }, /unit/);
-  bad(p => { p.interface.pages[0].provides = ['Knowledge!']; return p; }, /provides/);
+  bad(p => { p.interface.pieces[0].provides = ['Knowledge!']; return p; }, /provides/);
 });
 
 test('the pack model: write tools are marked, and needs match the credentials tools read', () => {
@@ -145,35 +145,46 @@ test('every external entry names the upstream release its pin belongs to', async
   for (const pack of external) assert.match(pack.source.version, /^\d+\.\d+\.\d+$/);
 });
 
-test('pages and programs name pack tools with the right mode, or the pack is refused', () => {
+test('pieces and programs name pack tools with the right mode, or the pack is refused', () => {
   const tool = (name, mode, stdin = 'context') => ({ name, description: name, run: { program: 'soot', args: [], mode, ...(stdin ? { stdin } : {}) } });
   const base = () => ({
-    api_version: 'soot/v1', id: 'kho', label: { vi: 'Kho tài liệu', en: 'Library' },
+    api_version: 'soot/v1', id: 'library', label: { vi: 'Kho tài liệu', en: 'Library' },
     tools: [tool('view', 'read'), tool('action', 'write'), tool('chromium_check', 'read', ''), tool('chromium_install', 'write', '')],
-    interface: { pages: [{ id: 'kho-tai-lieu', label: 'Kho tài liệu', icon: 'library', placement: 'data', access: 'operator', view_tool: 'view', action_tool: 'action', bundle: 'page/' }] },
+    interface: { pieces: [{ id: 'library', slot: 'data.tab', label: 'Kho tài liệu', icon: 'library', access: 'operator', data: { view_tool: 'view', action_tool: 'action' }, bundle: 'page/' }] },
     programs: [{ id: 'chromium', label: { vi: 'Trình duyệt Chromium' }, size_mb: 170, check_op: 'chromium_check', install_op: 'chromium_install' }],
   });
-  checkPackModel(base(), 'kho');
+  checkPackModel(base(), 'library');
   const refusals = [
-    [m => m.interface.pages[0].view_tool = 'action', /view_not_read/],
-    [m => m.interface.pages[0].view_tool = 'missing', /tool_missing/],
+    [m => m.interface.pieces[0].data.view_tool = 'action', /view_not_read/],
+    [m => m.interface.pieces[0].data.view_tool = 'missing', /tool_missing/],
     [m => delete m.tools[0].run.stdin, /stdin_not_context/],
     [m => delete m.tools[1].run.stdin, /stdin_not_context action/],
-    [m => m.interface.pages[0].action_tool = 'nope', /tool_missing action_tool/],
-    [m => m.interface.pages.push(structuredClone(m.interface.pages[0])), /duplicate_id/],
-    [m => m.interface.pages[0].placement = 'toolbar', /unknown_placement/],
-    [m => m.interface.pages[0].access = 'public', /access/],
-    [m => m.interface.pages[0].settings_group = 'server', /settings_group/],
-    [m => m.interface.pages[0].id = 'Kho', /invalid id/],
-    [m => m.interface.pages[0].bundle = 'page', /bundle/],
-    [m => m.interface.pages[0].label = { en: 'Library' }, /label/],
+    [m => m.interface.pieces[0].data.action_tool = 'nope', /tool_missing action_tool/],
+    [m => m.interface.pieces.push(structuredClone(m.interface.pieces[0])), /duplicate_id/],
+    [m => m.interface.pieces[0].slot = 'toolbar', /unknown_slot/],
+    [m => m.interface.pieces[0].slot = 'data', /unknown_slot/],
+    [m => m.interface.pieces[0].slot = 'tool-area', /slot_not_allowed/],
+    [m => m.interface.pieces[0].slot = 'project.tab', /tab_required/],
+    [m => m.interface.pieces[0].tab = { id: 'marketing', label: 'Marketing' }, /tab_not_allowed/],
+    [m => { m.interface.pieces[0].slot = 'project.tab'; m.interface.pieces[0].tab = { id: 'Marketing', label: 'Marketing' }; }, /tab id/],
+    [m => { const [a] = m.interface.pieces; a.slot = 'project.tab'; a.tab = { id: 'marketing', label: { vi: 'Marketing' } }; m.interface.pieces.push({ ...structuredClone(a), id: 'queue', tab: { id: 'marketing', label: { vi: 'Tiếp thị' } } }); }, /tab_conflict/],
+    [m => m.interface.pieces[0].group = 'server', /group_not_allowed/],
+    [m => { m.interface.pieces[0].slot = 'settings'; m.interface.pieces[0].group = 'team'; }, /group_not_allowed/],
+    [m => m.interface.pieces[0].order = 1000, /order/],
+    [m => m.interface.pieces[0].provides = ['flow-marketing'], /flow-/],
+    [m => m.interface.pieces = [], /1 to 8 pieces/],
+    [m => { m.interface.pages = m.interface.pieces; delete m.interface.pieces; }, /interface.pages is retired/],
+    [m => m.interface.pieces[0].access = 'public', /access/],
+    [m => m.interface.pieces[0].id = 'Kho', /invalid id/],
+    [m => m.interface.pieces[0].bundle = 'page', /bundle/],
+    [m => m.interface.pieces[0].label = { en: 'Library' }, /label/],
     [m => m.label = 'x'.repeat(49), /label must be/],
     [m => m.description = { vi: '' }, /description must be/],
     [m => delete m.programs[0].install_op, /install_op undefined must be a write tool/],
     [m => m.programs[0].check_op = 'chromium_install', /check_op chromium_install must be a read tool/],
     [m => m.programs[0].size_mb = 1.5, /size_mb/],
     [m => m.programs.push(structuredClone(m.programs[0])), /duplicate id/],
-    [m => m.interface.pages[0].icon = 'Library Icon', /icon/],
+    [m => m.interface.pieces[0].icon = 'Library Icon', /icon/],
     [m => m.keywords = { vi: ['x'.repeat(33)] }, /keywords.vi/],
     [m => m.keywords = { fr: ['livre'] }, /only vi and en/],
     [m => m.interface.tool_area = { id: 'b', kind: 'browser', view_tool: 'view', capabilities: { input: 'mouse' } }, /unsupported capabilities/],
@@ -181,7 +192,7 @@ test('pages and programs name pack tools with the right mode, or the pack is ref
   ];
   for (const [mutate, reason] of refusals) {
     const manifest = base(); mutate(manifest);
-    assert.throws(() => checkPackModel(manifest, 'kho'), reason, reason.source);
+    assert.throws(() => checkPackModel(manifest, 'library'), reason, reason.source);
   }
 });
 
@@ -216,14 +227,14 @@ test('channel.platforms declarations follow the host rules: id, mode, request_pr
   }
 });
 
-test('a page bundle must hold index.html and stay within 5 MiB', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'page-bundle-')); t.after(() => rm(root, { recursive: true, force: true }));
-  const manifest = { interface: { pages: [{ id: 'kho-tai-lieu', bundle: 'page/' }] } };
-  await assert.rejects(checkPageBundles(root, manifest), /bundle_missing/);
+test('a piece bundle must hold index.html and stay within 5 MiB', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'piece-bundle-')); t.after(() => rm(root, { recursive: true, force: true }));
+  const manifest = { interface: { pieces: [{ id: 'library', bundle: 'page/' }] } };
+  await assert.rejects(checkPieceBundles(root, manifest), /bundle_missing/);
   await mkdir(join(root, 'page')); await writeFile(join(root, 'page', 'index.html'), '<!doctype html>');
-  await checkPageBundles(root, manifest);
+  await checkPieceBundles(root, manifest);
   await writeFile(join(root, 'page', 'big.js'), Buffer.alloc(5 * 1024 * 1024));
-  await assert.rejects(checkPageBundles(root, manifest), /bundle_too_large/);
+  await assert.rejects(checkPieceBundles(root, manifest), /bundle_too_large/);
 });
 
 test('team-cs ships only generic skills and role Soots that hand off to members (P4.4, P4.5)', async () => {

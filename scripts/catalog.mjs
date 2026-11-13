@@ -174,7 +174,13 @@ export function checkPackModel(manifest, expectedID) {
   if (problems.length) throw new Error(`Pack ${expectedID}: ${problems.join('; ')}`);
 }
 
-const pageID = /^[a-z][a-z0-9-]{1,47}$/;
+const pieceID = /^[a-z][a-z0-9-]{1,47}$/;
+// The runtime's slot registry (config.PieceSlots): whether a pack may declare
+// the slot, whether it takes tab (required there) and whether it takes group.
+const PIECE_SLOTS = {
+  rail: { pack: true }, home: { pack: true }, 'project.tab': { pack: true, tab: true },
+  'data.tab': { pack: true }, settings: { pack: true, group: true }, 'tool-area': { pack: false },
+};
 const programID = /^[a-z][a-z0-9-]{1,31}$/;
 const bundleDir = /^[A-Za-z0-9._/-]{1,256}\/$/;
 // LocalizedText (pack-manifest-ui): a string or {vi, en?}, each at most max characters.
@@ -185,8 +191,8 @@ export function localizedText(value, max) {
     (value.en === undefined || ok(value.en)) && Object.keys(value).every(key => key === 'vi' || key === 'en');
 }
 
-// soot-pages §1 and pack-manifest-ui §1: pages and programs name tools of the
-// pack with the right mode, so the host refusal (page_invalid) never reaches an
+// soot-pages §1 and pack-manifest-ui §1: pieces and programs name tools of the
+// pack with the right mode, so the host refusal (piece_invalid) never reaches an
 // installed pack. Presentation only: none of this grants an operation.
 function checkPresentation(manifest, byName) {
   const problems = [];
@@ -228,27 +234,47 @@ function checkPresentation(manifest, byName) {
     }
     if (ui.errors !== undefined && !(allowed(ui.errors, Object.keys(ui.errors ?? {})) && Object.entries(ui.errors).every(([code, text]) => /^[a-z][a-z0-9_]{0,63}$/.test(code) && localizedText(text, 400)))) problems.push(`${at}: ui.errors maps lowercase codes to localized text`);
   }
-  const pages = new Set();
-  for (const page of manifest.interface?.pages ?? []) {
-    const at = `Page ${page.id}`;
-    if (!pageID.test(page.id ?? '')) problems.push(`${at}: invalid id`);
-    else if (pages.has(page.id)) problems.push(`${at}: duplicate_id`);
-    pages.add(page.id);
-    if (!localizedText(page.label, 48)) problems.push(`${at}: label must be a string or {vi, en?} of at most 48 characters`);
-    if (!/^[a-z0-9-]{1,64}$/.test(page.icon ?? '')) problems.push(`${at}: icon must be a lowercase icon name`);
-    if (!['rail', 'data', 'settings'].includes(page.placement)) problems.push(`${at}: unknown_placement ${page.placement}`);
-    if (!['operator', 'member'].includes(page.access)) problems.push(`${at}: access must be operator or member`);
-    if (page.settings_group !== undefined && (page.placement !== 'settings' || !['server', 'soot'].includes(page.settings_group))) problems.push(`${at}: settings_group is server or soot, only on a settings page`);
-    if (typeof page.bundle !== 'string' || !bundleDir.test(page.bundle)) problems.push(`${at}: bundle must be a pack folder ending in /`);
-    const view = byName.get(page.view_tool);
-    if (!view?.run) problems.push(`${at}: tool_missing view_tool ${page.view_tool}`);
-    else if (view.run.mode !== 'read') problems.push(`${at}: view_not_read ${page.view_tool}`);
-    else if (view.run.stdin !== 'context') problems.push(`${at}: stdin_not_context ${page.view_tool}`);
-    if (page.provides !== undefined && !(Array.isArray(page.provides) && page.provides.length <= 8 && page.provides.every(c => typeof c === 'string' && pageID.test(c)))) problems.push(`${at}: provides is at most 8 capability names`);
-    if (page.action_tool !== undefined) {
-      const action = byName.get(page.action_tool);
-      if (!action?.run) problems.push(`${at}: tool_missing action_tool ${page.action_tool}`);
-      else if (action.run.stdin !== 'context') problems.push(`${at}: stdin_not_context ${page.action_tool}`);
+  // interface.pieces (soot-pages v2 §1, nest-extensions §3), mirroring the host's
+  // validatePieces: a refused piece (piece_invalid) never reaches an installed pack.
+  if (manifest.interface?.pages !== undefined) problems.push('interface.pages is retired: declare interface.pieces (soot-pages v2)');
+  const pieces = manifest.interface?.pieces;
+  if (pieces !== undefined && !(Array.isArray(pieces) && pieces.length >= 1 && pieces.length <= 8)) problems.push('a pack declares 1 to 8 pieces');
+  const seen = new Set(), tabs = new Map();
+  for (const piece of Array.isArray(pieces) ? pieces : []) {
+    const at = `Piece ${piece.id}`;
+    if (!pieceID.test(piece.id ?? '')) problems.push(`${at}: invalid id`);
+    else if (seen.has(piece.id)) problems.push(`${at}: duplicate_id`);
+    seen.add(piece.id);
+    const slot = PIECE_SLOTS[piece.slot];
+    if (!slot) problems.push(`${at}: unknown_slot ${piece.slot}`);
+    else if (!slot.pack) problems.push(`${at}: slot_not_allowed ${piece.slot}`);
+    if (slot?.tab && piece.tab === undefined) problems.push(`${at}: tab_required`);
+    if (slot && !slot.tab && piece.tab !== undefined) problems.push(`${at}: tab_not_allowed`);
+    if (piece.tab !== undefined) {
+      if (!pieceID.test(piece.tab?.id ?? '')) problems.push(`${at}: tab id must match ${pieceID}`);
+      else if (!localizedText(piece.tab.label, 48)) problems.push(`${at}: a tab needs a label of at most 48 characters`);
+      else {
+        const label = JSON.stringify(typeof piece.tab.label === 'string' ? { vi: piece.tab.label } : { vi: piece.tab.label.vi, en: piece.tab.label.en });
+        if (tabs.has(piece.tab.id) && tabs.get(piece.tab.id) !== label) problems.push(`${at}: tab_conflict ${piece.tab.id}`);
+        tabs.set(piece.tab.id, label);
+      }
+    }
+    if (piece.group !== undefined && (!slot?.group || !['server', 'soot'].includes(piece.group))) problems.push(`${at}: group_not_allowed (group is server or soot, only on a settings piece)`);
+    if (piece.order !== undefined && !(Number.isInteger(piece.order) && piece.order >= 0 && piece.order <= 999)) problems.push(`${at}: order is 0 to 999`);
+    if (!['operator', 'member'].includes(piece.access)) problems.push(`${at}: access must be operator or member`);
+    if (!localizedText(piece.label, 48)) problems.push(`${at}: label must be a string or {vi, en?} of at most 48 characters`);
+    if (!/^[a-z0-9-]{1,64}$/.test(piece.icon ?? '')) problems.push(`${at}: icon must be a lowercase icon name`);
+    if (typeof piece.bundle !== 'string' || !bundleDir.test(piece.bundle)) problems.push(`${at}: bundle must be a pack folder ending in /`);
+    if (piece.provides !== undefined && !(Array.isArray(piece.provides) && piece.provides.length <= 8 && piece.provides.every(c => typeof c === 'string' && pieceID.test(c)))) problems.push(`${at}: provides is at most 8 capability names`);
+    if (Array.isArray(piece.provides) && piece.provides.some(c => typeof c === 'string' && c.startsWith('flow-'))) problems.push(`${at}: provides flow-<id> is refused: use slot project.tab with tab {id, label}`);
+    const view = byName.get(piece.data?.view_tool);
+    if (!view?.run) problems.push(`${at}: tool_missing view_tool ${piece.data?.view_tool}`);
+    else if (view.run.mode !== 'read') problems.push(`${at}: view_not_read ${piece.data.view_tool}`);
+    else if (view.run.stdin !== 'context') problems.push(`${at}: stdin_not_context ${piece.data.view_tool}`);
+    if (piece.data?.action_tool !== undefined) {
+      const action = byName.get(piece.data.action_tool);
+      if (!action?.run) problems.push(`${at}: tool_missing action_tool ${piece.data.action_tool}`);
+      else if (action.run.stdin !== 'context') problems.push(`${at}: stdin_not_context ${piece.data.action_tool}`);
     }
   }
   // outcomes (host config.validateOutcomes): what a finished unit of work is.
@@ -277,10 +303,10 @@ function checkPresentation(manifest, byName) {
   return problems;
 }
 
-// A page bundle is a pack folder holding index.html, at most 5 MiB (soot-pages §1).
-export async function checkPageBundles(root, manifest) {
-  for (const page of manifest.interface?.pages ?? []) {
-    const folder = safePath(page.bundle.replace(/\/$/, ''));
+// A piece bundle is a pack folder holding index.html, at most 5 MiB (soot-pages v2 §1).
+export async function checkPieceBundles(root, manifest) {
+  for (const piece of manifest.interface?.pieces ?? []) {
+    const folder = safePath(piece.bundle.replace(/\/$/, ''));
     let bytes = 0;
     async function size(path) {
       const info = await lstat(path);
@@ -288,9 +314,9 @@ export async function checkPageBundles(root, manifest) {
       for (const name of await readdir(path)) if (!skipped.has(name)) await size(join(path, name));
     }
     const index = await lstat(join(root, folder, 'index.html')).catch(() => null);
-    if (!index?.isFile()) throw new Error(`Page ${page.id}: bundle_missing ${page.bundle}index.html`);
+    if (!index?.isFile()) throw new Error(`Piece ${piece.id}: bundle_missing ${piece.bundle}index.html`);
     await size(join(root, folder));
-    if (bytes > 5 * 1024 * 1024) throw new Error(`Page ${page.id}: bundle_too_large (${bytes} bytes; at most 5 MiB)`);
+    if (bytes > 5 * 1024 * 1024) throw new Error(`Piece ${piece.id}: bundle_too_large (${bytes} bytes; at most 5 MiB)`);
   }
 }
 
@@ -303,7 +329,7 @@ export async function validatePack(root, expectedID) {
   if (manifest.api_version !== 'soot/v1' || manifest.id !== expectedID) throw new Error(`Pack manifest id/version mismatch: ${expectedID}`);
   for (const retired of ['capabilities', 'use']) if (retired in manifest) throw new Error(`Pack ${expectedID} has retired field ${retired}`);
   checkPackModel(manifest, expectedID);
-  await checkPageBundles(root, manifest);
+  await checkPieceBundles(root, manifest);
   for (const skill of manifest.skills ?? []) {
     safePath(skill.file);
     const info = await lstat(join(root, skill.file));

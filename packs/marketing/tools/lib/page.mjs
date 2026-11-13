@@ -59,11 +59,11 @@ export async function metricsRows(store, now) {
 
 export async function page_view(input, { store, now, page, env, soot }) {
   const id = input.page ?? page;
-  if (id === 'bai-viet') return input.id ? postDetail(input.id, { store, now, soot }) : postList(input.filter, { store, now, soot });
-  if (id === 'hang-doi') return queueView({ store, now, soot });
-  if (id === 'kenh') return { ...(await queueView({ store, now, soot })), page: 'kenh' };
-  if (id === 'chien-dich') return campaignView(input, { store, now, env, soot });
-  fail('invalid_request', 'page is bai-viet, hang-doi, kenh or chien-dich.');
+  if (id === 'posts') return input.id ? postDetail(input.id, { store, now, soot }) : postList(input.filter, { store, now, soot });
+  if (id === 'queue') return queueView({ store, now, soot });
+  if (id === 'channels') return { ...(await queueView({ store, now, soot })), page: 'channels' };
+  if (id === 'campaigns') return campaignView(input, { store, now, env, soot });
+  fail('invalid_request', 'page is posts, queue, channels or campaigns.');
 }
 
 const HOUR = 3_600_000;
@@ -134,7 +134,7 @@ async function postList(filter = 'all', { store, now, soot }) {
   const counts = Object.fromEntries(Object.keys(TABS).map(k => [k, posts.filter(p => inTab(k, p)).length]));
   const shown = posts.filter(p => inTab(filter, p));
   return {
-    page: 'bai-viet', filter, counts, writer: settings.writer, product: settings.product, editor: soot ?? null,
+    page: 'posts', filter, counts, writer: settings.writer, product: settings.product, editor: soot ?? null,
     items: shown.slice(0, 100).map(p => ({
       id: p.ref, kind: p.kind, title: title(p), channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url, ...hold(p),
       scheduled_at: q[p.ref]?.scheduled_at ?? null, wait_reason: q[p.ref]?.wait_reason ?? null, updated_at: p.updated_at,
@@ -176,7 +176,7 @@ async function postDetail(id, { store, now, soot }) {
   const check = checks[0] ?? null;
   const queries = p.url ? metrics.filter(r => r.url === p.url && r.query).sort((a, b) => b.impressions - a.impressions).slice(0, 5).map(r => ({ query: r.query, position: r.position, impressions: r.impressions })) : [];
   return {
-    page: 'bai-viet', id: p.ref, writer: settings.writer, product: settings.product, editor: soot ?? null,
+    page: 'posts', id: p.ref, writer: settings.writer, product: settings.product, editor: soot ?? null,
     post: { id: p.ref, title: title(p), kind: p.kind, channel: channelLabel(p.channel), state: p.state, label: STATE_LABEL[p.state], reason: p.reason, url: p.url, revision: p.revision, body: p.body, updated_at: p.updated_at,
       scheduled_at: q?.scheduled_at ?? null, late: isLate(q, now, settings.stale_after_h), next: nextStep(p, q, ch, settings, now), ...hold(p) },
     video: p.kind === 'video' ? (await videoBlocks(store, [p]))[p.ref] ?? null : null,
@@ -209,7 +209,7 @@ async function queueView({ store, now, soot }) {
   const vparents = [...new Set(Object.keys(videos).map(r => byRef[r]?.parent).filter(Boolean))];
   const source = vparents.length ? Object.fromEntries((await store.query('posts', [{ column: 'ref', op: 'in', values: vparents }], { limit: 50 })).map(p => [p.ref, title(p)])) : {};
   return {
-    page: 'hang-doi', writer: settings.writer, product: settings.product, editor: soot ?? null,
+    page: 'queue', writer: settings.writer, product: settings.product, editor: soot ?? null,
     paused_all: settings.paused_all, paused_at: settings.paused_at, quiet_hours: settings.quiet_hours,
     channels: [...channels].sort((a, b) => rank(a.key) - rank(b.key)).map(c => ({ id: c.key, label: channelLabel(c.key), paused: !!c.paused, paused_reason: c.paused_reason ?? null, paused_label: c.paused ? PAUSED_LABEL[c.paused_reason] ?? null : null, cap_per_day: c.cap_per_day, spacing_min: c.spacing_min,
       reply_cap_per_day: c.reply_cap_per_day ?? 0, posts_today: used(c.key, 'publish'), replies_today: used(c.key, 'reply'),

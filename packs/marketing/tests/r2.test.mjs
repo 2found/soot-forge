@@ -258,7 +258,7 @@ test('probe chain: nothing to probe is quiet; a confirmed, really signed-in chan
   assert.deepEqual(start, { action: 'navigate', url: 'https://x.com/home' }, 'the browser-use_control input, confirmed channel first');
   const out = await w.call('channels_probe', control(SNAP.x_in));
   assert.deepEqual([out.state, out.unpaused, out.resolves_need], ['signed_in', true, true]);
-  const ch = (await w.call('page_view', {}, { page: { page: 'hang-doi' } })).channels.find(c => c.id === 'x-lohi');
+  const ch = (await w.call('page_view', {}, { page: { page: 'queue' } })).channels.find(c => c.id === 'x-lohi');
   assert.equal(ch.paused, false);
 });
 
@@ -307,7 +307,7 @@ test('page actions: reschedule, pull, restore, pause and set_limits need no PROD
   const w = world();
   const id = await passed(w, 'truyện tiên hiệp hay', 'tien-hiep-hay-nhat-2026');
   await w.call('schedule', { id });
-  const act = (op, extra = {}) => w.call('page_action', { op, request_id: `q-${op}`, ...extra }, { page: { page: 'hang-doi' } });
+  const act = (op, extra = {}) => w.call('page_action', { op, request_id: `q-${op}`, ...extra }, { page: { page: 'queue' } });
   const at = new Date(w.now + 3 * DAY).toISOString();
   assert.equal((await act('reschedule', { id, scheduled_at: at })).scheduled_at, at);
   assert.equal((await act('pull', { id })).state, 'pulled');

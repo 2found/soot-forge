@@ -94,7 +94,7 @@
     "interface": {
       "additionalProperties": false,
       "properties": {
-        "pages": {
+        "pieces": {
           "items": {
             "additionalProperties": false,
             "properties": {
@@ -104,13 +104,34 @@
                   "null"
                 ]
               },
-              "action_tool": {
+              "bundle": {
                 "type": [
                   "string",
                   "null"
                 ]
               },
-              "bundle": {
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "action_tool": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "view_tool": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "group": {
                 "type": [
                   "string",
                   "null"
@@ -153,9 +174,9 @@
                   }
                 ]
               },
-              "placement": {
+              "order": {
                 "type": [
-                  "string",
+                  "integer",
                   "null"
                 ]
               },
@@ -171,15 +192,49 @@
                   "null"
                 ]
               },
-              "settings_group": {
+              "slot": {
                 "type": [
                   "string",
                   "null"
                 ]
               },
-              "view_tool": {
+              "tab": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "label": {
+                    "oneOf": [
+                      {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "en": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "vi": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "vi"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
                 "type": [
-                  "string",
+                  "object",
                   "null"
                 ]
               }
@@ -619,7 +674,7 @@
           ]
         },
         "runtime": {
-          "description": "Runtime API scopes the pack's tools call back through SOOT_RUNTIME_URL and SOOT_RUNTIME_TOKEN, such as goals.read, goals.checkin, data.read or data.insert (team-contract items). Nothing is issued until the host grants them.",
+          "description": "Runtime API scopes the pack's tools call back through SOOT_RUNTIME_URL and SOOT_RUNTIME_TOKEN, such as goals.read or goals.checkin. Nothing is issued until the host grants them.",
           "items": {
             "enum": [
               "goals.read",
@@ -820,6 +875,12 @@
               "null"
             ]
           },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "name": {
             "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
             "type": "string"
@@ -885,6 +946,12 @@
                   "null"
                 ]
               },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "max_input_bytes": {
                 "description": "Raise the 16 KiB model-input limit (bytes of JSON input) for a tool whose parameters legitimately carry more text, such as a document draft. Up to 128 KiB; keep blobs out of tool input.",
                 "maximum": 131072,
@@ -906,13 +973,6 @@
                   "null"
                 ]
               },
-              "rerun": {
-                "description": "Write only; the only value is \"safe\": running the call again with the same input converges on the same effect, so a result left unknown by a restart is settled by the host instead of waiting for a person.",
-                "enum": [
-                  "safe"
-                ],
-                "type": "string"
-              },
               "parameters": {
                 "additionalProperties": {},
                 "type": [
@@ -933,6 +993,12 @@
               "program": {
                 "minLength": 1,
                 "type": "string"
+              },
+              "rerun": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "resource": {
                 "type": [

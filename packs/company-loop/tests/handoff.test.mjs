@@ -26,7 +26,7 @@ test('walk: proposed -> Go -> spawned -> building -> delivered -> released, repo
   await w.call('digest_save', { opportunities: [ITEM.product] });
   const opp = w.rows('opportunities')[0];
   assert.equal(opp.state, 'proposed');
-  const out = await w.call('page_action', { op: 'go', id: opp.ref, request_id: 'req-aaaaaaaa' }, { page: { page: 'cong-ty' } });
+  const out = await w.call('page_action', { op: 'go', id: opp.ref, request_id: 'req-aaaaaaaa' }, { page: { page: 'company' } });
   assert.equal(out.handoff.state, 'spawned');
   assert.equal(gitStatus(dir), '', 'the founder working tree is clean after a Go');
   assert.ok(!existsSync(`${dir}/docs/requirements`));
@@ -53,7 +53,7 @@ test('bbs missing: draft_ready is watched, reminded once after the wait, and adv
   const { w, b } = await ready({ bbs: false });
   await w.call('digest_save', { opportunities: [ITEM.product] });
   const ref = w.rows('opportunities')[0].ref;
-  const out = await w.call('page_action', { op: 'go', id: ref, request_id: 'req-bbbbbbbb' }, { page: { page: 'cong-ty' } });
+  const out = await w.call('page_action', { op: 'go', id: ref, request_id: 'req-bbbbbbbb' }, { page: { page: 'company' } });
   assert.equal(out.handoff.state, 'draft_ready');
   assert.match(out.handoff.note, /theo dõi/);
   // Soon after the Go: quiet (the founder may be about to run it), and the row is still draft_ready.

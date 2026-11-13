@@ -1,6 +1,6 @@
-// A fake Nest: answers bridge v1 calls from its own frame with an in-memory
+// A fake Nest: answers bridge v2 calls from its own frame with an in-memory
 // data-pool service (the shapes of packs/data-pool/runner) and a host receipt
-// store keyed by request id (soot-pages §3). window.kho is the test driver.
+// store keyed by request id (soot-pages §3). window.library is the test driver.
 const frame = document.getElementById('frame');
 const now = () => new Date().toISOString();
 const pools = new Map([['lohi-support', { id: 'lohi-support', name: 'lohi-support', generation: 'g1', policy_revision: 1 }], ['lohi-content-style', { id: 'lohi-content-style', name: 'lohi-content-style', generation: 'g1', policy_revision: 1 }]]);
@@ -65,11 +65,11 @@ const tokens = { '--background': '#ffffff', '--foreground': '#1f1f1f', '--primar
 window.addEventListener('message', e => {
   if (e.source !== frame.contentWindow) return;
   const m = e.data, keys = Object.keys(m ?? {});
-  if (m?.v !== 1) return;
-  if (m.type === 'ready' && keys.length === 2) { post({ v: 1, type: 'init', theme: 'light', locale: 'vi', tokens }); return; }
+  if (m?.v !== 2) return;
+  if (m.type === 'ready' && keys.length === 2) { post({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens, viewer: { kind: 'operator' }, project: null }); return; }
   if (m.type !== 'call' || keys.some(k => !['v', 'type', 'id', 'mode', 'input', 'request_id'].includes(k))) return;
   state.calls.push({ mode: m.mode, kind: m.input?.kind, request_id: m.request_id });
-  const reply = r => setTimeout(() => post({ v: 1, type: 'result', id: m.id, ...r }), 30);
+  const reply = r => setTimeout(() => post({ v: 2, type: 'result', id: m.id, ...r }), 30);
   if (state.busyNext) { state.busyNext = false; reply({ ok: false, error: { code: 'busy', message: 'busy' } }); return; }
   try {
     if (m.mode === 'action') {
@@ -82,7 +82,7 @@ window.addEventListener('message', e => {
     } else reply({ ok: true, output: view(m.input) });
   } catch (err) { reply({ ok: false, error: { code: 'tool_refused', message: err.message } }); }
 });
-window.kho = {
+window.library = {
   state, docs, receipts,
   dropNext() { state.dropNext = true; }, busyNext() { state.busyNext = true; },
   externalEdit(pool, id, content) { const d = docs.get(pool).get(id); Object.assign(d, { content, revision: d.revision + 1, updated_at: now() }); return d.revision; },

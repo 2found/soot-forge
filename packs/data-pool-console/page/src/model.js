@@ -94,7 +94,7 @@ export function viewOutput(result) {
 // reload, never document contents or credentials. Storage may be blocked (an
 // opaque-origin frame, private mode): every access is guarded and the page
 // works without it.
-export const RECOVERY_KEY = 'soot.kho-tai-lieu.pending.v1';
+export const RECOVERY_KEY = 'soot.library.pending.v1';
 const RECOVERY_FIELDS = ['request_id', 'kind', 'action', 'pool', 'at'];
 
 /** @param {{ request_id: string, kind: string, action: string, pool: string, at: string }} pending */

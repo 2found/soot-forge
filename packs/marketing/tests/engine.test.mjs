@@ -178,14 +178,14 @@ test('page: one state vocabulary, a checked post is not "waiting", the body show
   await w.call('facts_sync', { url: 'https://api.example/app-config' });
   const d = await w.call('draft_save', { request_id: 'p', ...article(['https://lohi2.com/', 'https://blog.lohi2.com/truyen-hay/x/vi/']) });
   await w.call('check', { id: d.id, revision: 1, verdict: 'pass' });
-  const ctx = { store: w.store, now: w.now, page: 'bai-viet', env: {} };
+  const ctx = { store: w.store, now: w.now, page: 'posts', env: {} };
   const { page_view } = await import('../tools/lib/page.mjs');
   const list = await page_view({}, ctx);
   assert.deepEqual([list.counts.ready, list.counts.waiting], [1, 0], 'Đã kiểm tra is its own tab; nothing is queued yet');
   const detail = await page_view({ id: d.id }, ctx);
   assert.match(detail.post.body, /Gợi ý truyện/);
   assert.ok(!detail.brief.find(f => f.label === 'Liên kết nội bộ').value.includes('//'));
-  const q = await page_view({ page: 'hang-doi' }, ctx);
+  const q = await page_view({ page: 'queue' }, ctx);
   assert.equal(q.empty, true);
 });
 

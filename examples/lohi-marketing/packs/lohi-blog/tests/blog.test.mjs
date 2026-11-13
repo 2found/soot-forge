@@ -332,7 +332,7 @@ test('chain: claim → publish → record publishes the post with its URL; unpub
   assert.equal(store.data.queue.length, 0);
 
   // Gỡ bài: the same chain shape ends in `removed`, and main gains exactly one more commit.
-  await marketing('page_action', { input: { op: 'unpublish', id: d.id, request_id: 'r-unpub-0001' }, page: { soot: 'lohi-editor', page: 'hang-doi' } }, { store, now: T0, env: menv, fetchImpl: async () => { throw new Error('no network'); } });
+  await marketing('page_action', { input: { op: 'unpublish', id: d.id, request_id: 'r-unpub-0001' }, page: { soot: 'lohi-editor', page: 'queue' } }, { store, now: T0, env: menv, fetchImpl: async () => { throw new Error('no network'); } });
   const claim2 = await call('claim', { action: 'unpublish', id: d.id });
   const out2 = JSON.parse(JSON.stringify(asChainStep(await unpublish(claim2.claim, w.env, s), claim2.claim)));
   assert.equal(out2.ok, true, JSON.stringify(out2));

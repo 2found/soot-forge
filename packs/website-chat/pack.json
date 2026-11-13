@@ -175,20 +175,22 @@
     }
   },
   "interface": {
-    "pages": [
+    "pieces": [
       {
         "id": "live-chat-settings",
+        "slot": "settings",
         "label": {
           "vi": "Live chat",
           "en": "Live chat"
         },
         "icon": "message-circle",
-        "placement": "settings",
+        "group": "server",
         "access": "operator",
-        "settings_group": "server",
-        "view_tool": "website_view",
-        "action_tool": "website_action",
-        "bundle": "page/"
+        "bundle": "page/",
+        "data": {
+          "view_tool": "website_view",
+          "action_tool": "website_action"
+        }
       }
     ]
   }

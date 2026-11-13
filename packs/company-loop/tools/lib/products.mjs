@@ -1,11 +1,11 @@
 // Products: which product a row belongs to, where each product's scoreboard comes from, and which
 // metric is its north star. The pack serves one company with one or more products. Every row it
 // writes carries `product`. A row written before storage v4 has none. It reads as its opportunity's
-// product, else the host's (Nest's context, else the product of the single SCOREBOARD_URL board),
+// product, else the host's (said by a caller, else the product of the single SCOREBOARD_URL board),
 // and the next write labels it. Nothing is dropped.
 import { eq, isNull, getState, setState, safeUrl, fail } from './base.mjs';
 
-/** A product id as the data carries it (Nest sends the same id in the page context). */
+/** A product id as the data carries it (Nest's project of the same id narrows the page to it). */
 export const PRODUCT = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 export const productId = v => (typeof v === 'string' && PRODUCT.test(v.trim()) ? v.trim() : null);
 

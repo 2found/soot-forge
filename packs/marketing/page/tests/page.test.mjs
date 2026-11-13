@@ -37,7 +37,7 @@ test('no Search Console data reads "Chưa có số liệu", never 0; numbers use
 
 test('a tool error in the output is thrown with its code; a lost answer reads as unknown', () => {
   assert.throws(() => M.output({ ok: true, output: { error: { code: 'not_found', message: 'x' } } }), e => e.code === 'not_found');
-  assert.deepEqual(M.output({ ok: true, output: { page: 'hang-doi' } }), { page: 'hang-doi' });
+  assert.deepEqual(M.output({ ok: true, output: { page: 'queue' } }), { page: 'queue' });
   const t = M.strings('vi');
   assert.equal(M.errorText(t, { code: 'no_response' }), t.unknown);
   assert.equal(M.errorText(t, { code: 'x', message: 'Không có bài này.' }), t.failed + 'Không có bài này.');
@@ -49,7 +49,7 @@ test('links open through the bridge; the frame never navigates and drops anythin
   bridge.open('https://blog.lohi2.com/truyen-hay/a/vi/');
   bridge.open('javascript:alert(1)');
   bridge.open('http://example.com');
-  assert.deepEqual(posted.filter(m => m.type === 'open'), [{ v: 1, type: 'open', link: 'https://blog.lohi2.com/truyen-hay/a/vi/' }]);
+  assert.deepEqual(posted.filter(m => m.type === 'open'), [{ v: 2, type: 'open', link: 'https://blog.lohi2.com/truyen-hay/a/vi/' }]);
 });
 
 test('the bundle makes no network call, sets text only and has no inline script, form or modal', async () => {
@@ -220,4 +220,21 @@ test('a paused channel is the headline, not "Soot đang tự chạy"', () => {
   assert.equal(h.button.do, 'resume_channel');
   assert.match(h.text, /Blog đang dừng/);
   assert.doesNotMatch(h.text, /Không cần làm gì/);
+});
+
+test('bridge v2: posts carry v 2; init carries viewer and project; v1 messages and product contexts are dropped', () => {
+  const posted = [], listeners = [], parent = {}, seen = [];
+  const bridge = createBridge({ post: m => posted.push(m), listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project]), onContext: p => seen.push(['context', p]) });
+  bridge.ready();
+  assert.deepEqual(posted[0], { v: 2, type: 'ready' });
+  const project = { id: 'lohi', name: 'Lohi', teams: ['marketing'] };
+  const deliver = m => listeners.forEach(h => h(m, parent));
+  deliver({ v: 1, type: 'init', theme: 'light', locale: 'vi', tokens: {} });
+  deliver({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: {}, project: null }); // no viewer
+  deliver({ v: 2, type: 'context', product: null, products: [] });
+  deliver({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: { '--background': '#fff' }, viewer: { kind: 'operator' }, project });
+  deliver({ v: 2, type: 'context', project: null });
+  assert.deepEqual(seen, [['init', project], ['context', null]]);
+  void bridge.call('view', {});
+  assert.equal(posted[1].v, 2);
 });

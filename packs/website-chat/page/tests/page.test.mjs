@@ -15,12 +15,12 @@ const pack = JSON.parse(await readFile(new URL('../../pack.json', import.meta.ur
 const tool = name => pack.tools.find(t => t.name === name);
 const site = { id: 'site_1', revision: 3, published_revision: 2, paused: false, draft: M.defaultConfig('cs'), published: null };
 
-test('the declaration is a server settings page on the pack\'s read view tool and stdin-context action tool', () => {
-  const [p] = pack.interface.pages;
-  assert.deepEqual({ id: p.id, placement: p.placement, access: p.access, group: p.settings_group, bundle: p.bundle }, { id: 'live-chat-settings', placement: 'settings', access: 'operator', group: 'server', bundle: 'page/' });
-  assert.equal(tool(p.view_tool).run.mode, 'read');
-  assert.equal(tool(p.view_tool).run.stdin, 'context');
-  assert.equal(tool(p.action_tool).run.stdin, 'context');
+test('the declaration is a server settings piece on the pack\'s read view tool and stdin-context action tool', () => {
+  const [p] = pack.interface.pieces;
+  assert.deepEqual({ id: p.id, slot: p.slot, access: p.access, group: p.group, bundle: p.bundle }, { id: 'live-chat-settings', slot: 'settings', access: 'operator', group: 'server', bundle: 'page/' });
+  assert.equal(tool(p.data.view_tool).run.mode, 'read');
+  assert.equal(tool(p.data.view_tool).run.stdin, 'context');
+  assert.equal(tool(p.data.action_tool).run.stdin, 'context');
   assert.equal(pack.interface.tool_area, undefined, 'the tool area is replaced by the page');
   assert.equal(pack.label.vi, 'Live chat trên website');
   assert.ok(pack.keywords.vi.includes('live chat'));
@@ -72,7 +72,7 @@ test('a lost answer resent with the same request id writes once', async () => {
     const replayed = receipts.has(call.request_id);
     if (!replayed) { writes++; receipts.set(call.request_id, { ...site, revision: 4 }); }
     if (drop) { drop = false; return; }
-    listeners.forEach(h => h({ v: 1, type: 'result', id: call.id, ok: true, output: receipts.get(call.request_id), receipt: { request_id: call.request_id, status: 'done', at: new Date().toISOString(), ...(replayed ? { replayed: true } : {}) } }, parent));
+    listeners.forEach(h => h({ v: 2, type: 'result', id: call.id, ok: true, output: receipts.get(call.request_id), receipt: { request_id: call.request_id, status: 'done', at: new Date().toISOString(), ...(replayed ? { replayed: true } : {}) } }, parent));
   };
   const id = randomID('lc', 12), body = M.actionBody('save', id, { site });
   const first = bridge.call('action', body, id); answer();
@@ -127,4 +127,21 @@ test('the shipped classic app.js is the current build of src/ and parses as a cl
   const built = await build();
   assert.equal(await readFile(new URL('app.js', page), 'utf8'), built, 'run node packs/website-chat/page/tests/build.mjs');
   assert.doesNotThrow(() => new Function(built));
+});
+
+test('bridge v2: posts carry v 2; init carries viewer and project; v1 messages and product contexts are dropped', () => {
+  const posted = [], listeners = [], parent = {}, seen = [];
+  const bridge = createBridge({ post: m => posted.push(m), listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project]), onContext: p => seen.push(['context', p]) });
+  bridge.ready();
+  assert.deepEqual(posted[0], { v: 2, type: 'ready' });
+  const project = { id: 'lohi', name: 'Lohi', teams: ['marketing'] };
+  const deliver = m => listeners.forEach(h => h(m, parent));
+  deliver({ v: 1, type: 'init', theme: 'light', locale: 'vi', tokens: {} });
+  deliver({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: {}, project: null }); // no viewer
+  deliver({ v: 2, type: 'context', product: null, products: [] });
+  deliver({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: { '--background': '#fff' }, viewer: { kind: 'operator' }, project });
+  deliver({ v: 2, type: 'context', project: null });
+  assert.deepEqual(seen, [['init', project], ['context', null]]);
+  void bridge.call('view', {});
+  assert.equal(posted[1].v, 2);
 });

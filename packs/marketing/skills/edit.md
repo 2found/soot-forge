@@ -54,7 +54,7 @@ Writer already checks and schedules its daily post; review it on request.
 
 Answer in plain Vietnamese, short, with the result first. No tool names, ids
 or English. For "hôm nay làm gì" and similar: call `marketing_page_view` for
-`bai-viet` and `hang-doi` once each, then give four lines: bài đã đăng, bài
+`posts` and `queue` once each, then give four lines: bài đã đăng, bài
 chờ đăng (giờ), bài bị từ chối (lý do), và việc cần bạn làm (nếu có). End with
 that summary; never end on a tool call or a list of steps.
 

@@ -25,7 +25,7 @@ function world() {
   w.env = { MARKETING_CLAIM_KEY: KEY };
   w.fetch = async () => { throw new Error('no network in this test'); };
   w.call = (name, input, extra = {}) => run(name, { input, ...extra }, { store: w.store, now: w.now, env: w.env, fetchImpl: w.fetch });
-  w.page = (op, input = {}) => w.call('page_action', { op, request_id: `r-${Math.random()}`, ...input }, { page: { page: 'hang-doi' } });
+  w.page = (op, input = {}) => w.call('page_action', { op, request_id: `r-${Math.random()}`, ...input }, { page: { page: 'queue' } });
   w.ch = key => w.store.data.channels.find(c => c.key === key);
   return w;
 }
@@ -84,7 +84,7 @@ test('AC5: an X post goes claim → browser → record with its URL and the post
   assert.deepEqual(w.store.data.publish_log.map(r => r.status), ['intent'], 'the intent is written before the browser acts');
   const url = 'https://x.com/lohi2com/status/1854000000000000001';
   assert.deepEqual(await w.call('record', { intent_id: claim.intent_id, url, platform_id: '1854000000000000001' }), { state: 'published', outcome: { id: 'post_published', ref: url } });
-  const q = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  const q = await w.call('page_view', {}, { page: { page: 'queue' } });
   const x = q.channels.find(c => c.id === 'x-lohi');
   assert.deepEqual([x.label, x.posts_today, x.cap_per_day, x.replies_today, x.reply_cap_per_day], ['X', 1, 4, 0, 10]);
   assert.deepEqual([q.recent[0].url, q.recent[0].live], [url, true], 'a live post offers Gỡ bài');
@@ -101,7 +101,7 @@ for (const reason of ['signed_out', 'layout_changed', 'captcha']) {
     assert.deepEqual([w.ch('x-lohi').paused, w.ch('x-lohi').paused_reason], [true, reason]);
     assert.equal(w.ch('facebook-lohi').paused, false, 'the other channels go on');
     assert.equal(w.store.data.publish_log[0].status, 'needs_person');
-    const view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+    const view = await w.call('page_view', {}, { page: { page: 'queue' } });
     assert.deepEqual([view.recent[0].status, view.recent[0].reason], ['needs_person', { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha' }[reason]], 'the queue names the reason, not its code');
     const due = await w.call('due', {});
     assert.deepEqual(due.publish, [fb], 'X waits; Facebook still posts');
@@ -192,7 +192,7 @@ test('AC5: an item 6 h or more past its time is "Bài lỡ giờ", never posted 
   const refused = await w.call('claim', { id, action: 'publish' });
   assert.equal(refused.refused.code, 'late');
   assert.equal(w.store.data.publish_log.length, 0, 'no intent, nothing went out');
-  const view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  const view = await w.call('page_view', {}, { page: { page: 'queue' } });
   assert.deepEqual([view.items[0].late, view.items[0].label], [true, 'Bài lỡ giờ']);
   assert.equal(view.channels.find(c => c.id === 'facebook-lohi').paused_label, 'chưa đăng nhập');
   // "Đăng ngay" is the person's decision.
@@ -425,7 +425,7 @@ test('AC11: the Hàng đợi view on a fresh workspace never writes (its storage
   await w.call('channels_setup', { channels: CHANNELS });
   const store = w.store, ro = { ...store };
   for (const m of ['insert', 'update', 'remove']) ro[m] = async () => { const e = new Error('this storage token is read-only'); e.code = 'scope_forbidden'; throw e; };
-  const v = await run('page_view', { input: {}, page: { page: 'hang-doi' } }, { store: ro, now: w.now, env: w.env });
+  const v = await run('page_view', { input: {}, page: { page: 'queue' } }, { store: ro, now: w.now, env: w.env });
   assert.deepEqual(v.channels.map(c => [c.id, c.paused]).sort(), [['blog-lohi', false], ['facebook-lohi', true], ['reddit-lohi', true], ['x-lohi', true]]);
   assert.equal(store.data.channels.some(c => c.key === 'blog-lohi'), false);
 });
@@ -457,7 +457,7 @@ test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest b
   assert.equal(after.notify, false, 'the platforms left stay raised');
   assert.equal(after.ask, undefined, 'a raised sign-in is not filed again on its own');
   assert.equal((await w.call('due', { refile: true })).ask.summary, 'Đăng nhập Facebook, Reddit cho Lohi', 'after a pick it is filed again');
-  const view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  const view = await w.call('page_view', {}, { page: { page: 'queue' } });
   assert.equal(view.channels.find(c => c.id === 'x-lohi').paused_label, 'đã đăng nhập, chờ Bật');
   // Never resumes a channel the person paused, or one already checked.
   await assert.rejects(w.call('pause', { channel: 'x-lohi', paused: true, signed_in: true }), { code: 'conflict' });
@@ -516,13 +516,13 @@ test('Hàng đợi rows read like the prototype: Blog, X, Facebook, Reddit; a so
   const w = world();
   await seeded(w, { signIn: ['x-lohi', 'facebook-lohi', 'reddit-lohi'] });
   const id = await post(w, { body: '9 bộ tiên hiệp đáng đọc năm nay 👇 https://lohi2.com/novel/tien-hiep', at: w.now + 2 * H });
-  let view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  let view = await w.call('page_view', {}, { page: { page: 'queue' } });
   assert.deepEqual(view.channels.map(c => c.id), ['blog-lohi', 'x-lohi', 'facebook-lohi', 'reddit-lohi']);
   assert.deepEqual([view.items[0].text, view.items[0].has_link], ['9 bộ tiên hiệp đáng đọc năm nay 👇', true]);
   w.now += 2 * H + MIN;
   const { claim } = await w.call('claim', { id, action: 'publish' });
   await w.call('fail', { intent_id: claim.intent_id, status: 'failed', reason: 'X không phản hồi' });
-  view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+  view = await w.call('page_view', {}, { page: { page: 'queue' } });
   assert.equal(view.items.filter(q => q.id === id).length, 1);
   assert.ok(view.items.find(q => q.id === id).retry_at, 'the failed post waits for its retry');
   assert.equal(view.recent.filter(r => r.id === id).length, 0, 'not repeated under Vừa xong');

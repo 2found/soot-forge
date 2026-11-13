@@ -1,8 +1,8 @@
 // Công ty (company-loop). Plain DOM, no network: every read and write is a `call` posted to Nest
-// (soot-pages bridge v1), which runs this pack's page_view / page_action tool. Text is set with
+// (soot-pages bridge v2), which runs this pack's page_view / page_action tool. Text is set with
 // textContent only; sizes are set through CSSOM (no style attributes). The view model carries codes and
-// numbers; the words are here. Nest's product scope arrives in a `context` message (before `init` and on
-// every change); an older Nest sends none and the page shows every product the data names.
+// numbers; the words are here. Nest's chosen project ({id, name, teams} or null for every project) arrives
+// in `init` and again in a `context` message on every change; the standalone shell sends null.
 'use strict';
 (() => {
 const BRIDGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -11,50 +11,49 @@ const rid = (prefix, bytes = 12) => prefix + '-' + Array.from(crypto.getRandomVa
 const isTokens = t => !!t && typeof t === 'object' && !Array.isArray(t) && Object.entries(t).every(([k, v]) => /^--[A-Za-z0-9-]{1,64}$/.test(k) && typeof v === 'string' && v.length <= 512);
 
 const waiting = new Map();
+// project: Nest's chosen project (undefined before init; null = every project).
 // local: the page's own switch (undefined = follow Nest; null = every product; an id).
-const S = { edit: null, draft: null, data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', ctx: null, local: undefined, started: false, seq: 0 };
+const S = { edit: null, draft: null, data: null, error: '', busy: false, notice: '', pending: null, locale: 'vi', project: undefined, local: undefined, started: false, seq: 0 };
 const embedded = window.parent !== window;
 
 const str = (v, max) => typeof v === 'string' && v.length <= max;
-function parseContext(m) {
-  const named = p => p && typeof p === 'object' && str(p.id, 64) && p.id && str(p.name, 128);
-  if (m.product !== null && !named(m.product)) return null;
-  if (!Array.isArray(m.products) || m.products.length > 64 || !m.products.every(p => named(p) && Array.isArray(p.teams) && p.teams.every(t => str(t, 128)))) return null;
-  if (m.host !== undefined && !str(m.host, 128)) return null;
-  return m;
-}
+const only = (m, keys) => Object.keys(m).every(k => keys.includes(k)) && keys.every(k => k in m);
+const isProject = p => p === null || (!!p && typeof p === 'object' && only(p, ['id', 'name', 'teams']) && str(p.id, 64) && p.id !== '' && str(p.name, 128) &&
+  Array.isArray(p.teams) && p.teams.length <= 64 && p.teams.every(t => str(t, 64)));
 function parse(m) {
-  if (!m || typeof m !== 'object' || m.v !== 1) return null;
-  if (m.type === 'init') return ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) ? m : null;
-  if (m.type === 'theme') return ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) ? m : null;
-  if (m.type === 'context') return parseContext(m);
+  if (!m || typeof m !== 'object' || m.v !== 2) return null;
+  if (m.type === 'init') return only(m, ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project']) && ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) && isProject(m.project) ? m : null;
+  if (m.type === 'theme') return only(m, ['v', 'type', 'theme', 'tokens']) && ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) ? m : null;
+  if (m.type === 'context') return only(m, ['v', 'type', 'project']) && isProject(m.project) ? m : null;
   if (m.type === 'result' && typeof m.id === 'string' && BRIDGE_ID.test(m.id)) return m;
   return null;
 }
 function applyTheme(m) { for (const [k, v] of Object.entries(m.tokens)) document.documentElement.style.setProperty(k, v); document.documentElement.dataset.theme = m.theme; }
+function follow(project) {
+  const before = S.project;
+  S.project = project;
+  // A project change in Nest wins over the page's own switch; a new name or teams only reloads.
+  if ((project?.id ?? null) !== (before?.id ?? null)) S.local = undefined;
+  if (JSON.stringify(before) !== JSON.stringify(project) && S.started) reload();
+}
 window.addEventListener('message', e => {
   if (embedded && e.source !== window.parent) return;
   const m = parse(e.data);
   if (!m) return;
-  if (m.type === 'init') { applyTheme(m); S.locale = m.locale; start(); }
+  if (m.type === 'init') { applyTheme(m); S.locale = m.locale; follow(m.project); start(); }
   else if (m.type === 'theme') applyTheme(m);
-  else if (m.type === 'context') {
-    const before = JSON.stringify(S.ctx), product = S.ctx?.product?.id ?? null;
-    S.ctx = m;
-    // A product change in Nest wins over the page's own switch; new names or teams only reload.
-    if ((m.product?.id ?? null) !== product) S.local = undefined;
-    if (before !== JSON.stringify(m) && S.started) reload();
-  } else { const w = waiting.get(m.id); if (w) { waiting.delete(m.id); clearTimeout(w.timer); w.resolve(m.ok ? { ok: true, output: m.output } : { ok: false, error: m.error }); } }
+  else if (m.type === 'context') follow(m.project);
+  else { const w = waiting.get(m.id); if (w) { waiting.delete(m.id); clearTimeout(w.timer); w.resolve(m.ok ? { ok: true, output: m.output } : { ok: false, error: m.error }); } }
 });
 function call(mode, input, requestID) {
   const id = rid('c', 8);
   return new Promise(resolve => {
     const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, error: { code: 'no_response', message: 'no result from the host' } }); }, 90000);
     waiting.set(id, { resolve, timer });
-    window.parent.postMessage({ v: 1, type: 'call', id, mode, input, ...(requestID ? { request_id: requestID } : {}) }, '*');
+    window.parent.postMessage({ v: 2, type: 'call', id, mode, input, ...(requestID ? { request_id: requestID } : {}) }, '*');
   });
 }
-const open = link => { if (/^(https|nest):\/\//.test(link)) window.parent.postMessage({ v: 1, type: 'open', link }, '*'); };
+const open = link => { if (/^(https|nest):\/\//.test(link) && link.length <= 2048) window.parent.postMessage({ v: 2, type: 'open', link }, '*'); };
 function output(r) {
   if (!r.ok) throw r.error;
   if (r.output?.error) throw r.output.error;
@@ -62,13 +61,13 @@ function output(r) {
 }
 
 // ---------- scope ----------
-const nestProduct = () => (S.ctx?.product && PRODUCT.test(S.ctx.product.id) ? S.ctx.product.id : null);
+// Nest's project is the product of the same id: its name and teams narrow the page.
+const nestProduct = () => (S.project && PRODUCT.test(S.project.id) ? S.project.id : null);
 const chosen = () => (S.local !== undefined ? S.local : nestProduct());
-const host = () => (S.ctx?.host && PRODUCT.test(S.ctx.host) ? S.ctx.host : undefined);
 function viewInput() {
   const product = chosen();
-  const products = (S.ctx?.products ?? []).filter(p => PRODUCT.test(p.id)).map(p => ({ id: p.id, name: p.name, teams: p.teams.slice(0, 64) }));
-  return { page: 'cong-ty', ...(product ? { product } : {}), ...(host() ? { host: host() } : {}), ...(products.length ? { products } : {}) };
+  const products = nestProduct() ? [{ id: S.project.id, name: S.project.name, teams: S.project.teams.slice(0, 64) }] : [];
+  return { page: 'company', ...(product ? { product } : {}), ...(products.length ? { products } : {}) };
 }
 const choose = id => { S.local = id === nestProduct() ? undefined : id; S.notice = ''; reload(); };
 
@@ -173,7 +172,7 @@ async function act(op, rest = {}) {
   S.pending = S.pending?.key === key ? S.pending : { key, id: rid('cl', 12) };
   S.busy = true; render();
   try {
-    const r = await call('action', { op, request_id: S.pending.id, ...(host() ? { host: host() } : {}), ...rest }, S.pending.id);
+    const r = await call('action', { op, request_id: S.pending.id, ...rest }, S.pending.id);
     if (!r.ok && r.error.code === 'no_response') S.notice = 'Chưa chắc việc đã xong: bấm Tải lại để xem.';
     else {
       S.pending = null;
@@ -194,20 +193,20 @@ function nextOf(d) {
       : ['warn', `Chưa có bảng số cho ${name}`, 'Nối địa chỉ bảng số của sản phẩm, hoặc để một Soot ghi số mỗi tuần vào bảng của trang này (công cụ Ghi số liệu).', ['Mở Thiết lập', () => open(SETTINGS('SCOREBOARD_URL')), 'primary']];
     case 'key_refused': return ['bad', `Chưa đọc được số mới${d.sync?.since ? ` từ ${dm(d.sync.since)}` : ''}`, `Máy chủ sản phẩm từ chối khoá quản trị. Nhập khoá mới có quyền đọc bảng số; ${sb ? `số bên dưới là của ${dm(sb.from)}–${dm(sb.to)}` : 'chưa có số cũ để hiện'}.`, ['Đổi khoá trong Thiết lập', () => open(SETTINGS('PRODUCT_ADMIN_KEY')), 'primary']];
     case 'no_data': return ['idle', `${name} chưa có số liệu hay cơ hội nào`, 'Nối bảng số cho sản phẩm này (SCOREBOARD_URLS) hoặc để Soot ghi số, rồi bản tin thứ Hai sẽ đưa cơ hội vào đây. Các mục của sản phẩm khác đang được ẩn.', ['Xem mọi sản phẩm', () => choose(null), 'strong']];
-    case 'choose': return ['warn', `${n.n} cơ hội chờ bạn chọn`, 'Chọn Go, Để sau hoặc Bỏ ở từng cơ hội. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.', [`Xem ${n.n} cơ hội`, jump('can-ban'), 'primary']];
+    case 'choose': return ['warn', `${n.n} cơ hội chờ bạn chọn`, 'Chọn Go, Để sau hoặc Bỏ ở từng cơ hội. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.', [`Xem ${n.n} cơ hội`, jump('needs'), 'primary']];
     case 'draft_ready': return ['warn', 'Yêu cầu đã viết, đội dựng chưa mở', 'Soot chưa mở được đội bbs:team. Mở Orca rồi bấm Chạy lại, hoặc chạy lệnh trong mục Cần bạn.', ['Chạy lại', () => act('retry_handoff', { id: n.ref }), 'primary']];
     case 'no_repo': return ['bad', 'Chưa có kho mã để ghi yêu cầu', 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa PRODUCT_REPOS rồi bấm Chạy lại, hoặc giao việc cho người ở mục Cần bạn.', ['Mở Thiết lập', () => open(SETTINGS('PRODUCT_REPOS')), 'primary']];
     case 'task': return ['warn', `${n.n} việc đã ghi chờ người làm`, 'Máy này không có kho mã, nên sau Go Soot ghi quyết định và yêu cầu. Máy dựng của sản phẩm sẽ tự nhận; chưa có máy dựng thì giao việc cho người trong nhóm, xong thì đánh dấu để Soot đo kết quả từ ngày đó.', ['Giao việc', () => open(taskDraft(task)), 'primary']];
-    case 'release_go': return ['warn', 'Bản giao chờ bạn duyệt phát hành', 'Đọc bản bàn giao trong terminal của đội ở Orca; hài lòng thì cho phép phát hành. Đó là lượt bấm cuối của bạn.', ['Xem bản giao', jump('can-ban'), 'primary']];
-    case 'building': return ['ok', 'Đội đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi có bản giao cần bạn duyệt.', ['Xem tiến độ', jump('dang-dung'), 'strong']];
+    case 'release_go': return ['warn', 'Bản giao chờ bạn duyệt phát hành', 'Đọc bản bàn giao trong terminal của đội ở Orca; hài lòng thì cho phép phát hành. Đó là lượt bấm cuối của bạn.', ['Xem bản giao', jump('needs'), 'primary']];
+    case 'building': return ['ok', 'Đội đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi có bản giao cần bạn duyệt.', ['Xem tiến độ', jump('pipeline'), 'strong']];
     case 'sync_failed': return ['bad', 'Chưa đọc được số mới', 'Bảng số không trả lời ở lần đọc gần nhất. Soot thử lại mỗi sáng; bấm Đọc số ngay để thử lại bây giờ.', ['Đọc số ngay', () => act('sync'), 'primary']];
     case 'part_hong': {
       const x = d.parts?.items.find(i => i.part === n.part);
       const move = x && x.pct !== null && x.pct !== undefined ? `${x.label} ${x.pct > 0 ? 'tăng' : 'giảm'} ${nf.format(Math.abs(x.pct))}%` : x ? `${x.label} chưa đạt mục tiêu` : '';
       return ['warn', `Bộ phận ${PART[n.part] ?? n.part} đang hỏng${move ? `: ${move}` : ''}`, 'Không có việc nào khác cần bạn. Xem “Khám 5 bộ phận”: giao người phụ trách, rồi chọn việc sửa đúng bộ phận này.', ['Xem 5 bộ phận', jump('5-bo-phan'), 'primary']];
     }
-    case 'topic_handed': return ['ok', `${n.n} chủ đề đã giao Writer, chưa viết`, 'Bài lên ở lượt viết kế tiếp; bạn không phải làm gì.', ['Xem chủ đề', jump('dang-dung'), 'strong']];
-    case 'topics': return ['ok', `${n.n} chủ đề đang chờ Writer`, 'Bài sẽ tự lên lịch; bạn không phải làm gì.', ['Xem chủ đề', jump('dang-dung'), 'strong']];
+    case 'topic_handed': return ['ok', `${n.n} chủ đề đã giao Writer, chưa viết`, 'Bài lên ở lượt viết kế tiếp; bạn không phải làm gì.', ['Xem chủ đề', jump('pipeline'), 'strong']];
+    case 'topics': return ['ok', `${n.n} chủ đề đang chờ Writer`, 'Bài sẽ tự lên lịch; bạn không phải làm gì.', ['Xem chủ đề', jump('pipeline'), 'strong']];
     default: return ['ok', 'Không có việc nào cần bạn', 'Soot đang tự chạy. Bản tin cơ hội kế tiếp: thứ Hai 08:30.', ['Xem lịch chạy', () => open(`nest://schedules/${encodeURIComponent(d.soot || 'company-digest')}`), 'strong']];
   }
 }
@@ -224,7 +223,7 @@ function nextBar(d) {
 
 // ---------- header and scope ----------
 function header(d) {
-  const ps = d.scope.products ?? [], cur = d.scope.product?.id ?? null, follows = S.ctx && S.local === undefined && nestProduct();
+  const ps = d.scope.products ?? [], cur = d.scope.product?.id ?? null, follows = S.local === undefined && nestProduct();
   const sub = [`Số lúc ${when(d.at)}`, follows ? 'theo sản phẩm đang chọn ở Nest' : null].filter(Boolean).join(' · ');
   return h('div', { class: 'head' },
     h('div', {}, h('h1', {}, 'Công ty'), h('p', { class: 'sub muted small' }, sub)),
@@ -235,9 +234,8 @@ function header(d) {
 }
 function scopeLine(d) {
   const out = [];
-  if (!S.ctx) out.push(small('Bản Nest này chưa gửi sản phẩm đang chọn, nên trang hiện mọi sản phẩm có trong dữ liệu.'));
-  if (S.ctx && S.local !== undefined && nestProduct() !== chosen()) {
-    out.push(h('div', { class: 'notice' }, h('span', {}, `Bạn đang xem ${scopeName(d)} trên trang này; Nest đang chọn ${S.ctx.product?.name ?? 'mọi sản phẩm'}.`), btn('Theo Nest', () => { S.local = undefined; reload(); }, 'link')));
+  if (S.local !== undefined && nestProduct() !== chosen()) {
+    out.push(h('div', { class: 'notice' }, h('span', {}, `Bạn đang xem ${scopeName(d)} trên trang này; Nest đang chọn ${S.project?.name ?? 'mọi sản phẩm'}.`), btn('Theo Nest', () => { S.local = undefined; reload(); }, 'link')));
   }
   const lo = d.scope.left_out ?? {};
   const parts = [['cơ hội', lo.opportunities], ['bàn giao', lo.handoffs], ['quyết định', lo.decisions], ['chủ đề', lo.topics]].filter(([, n]) => n).map(([w, n]) => `${n} ${w}`);
@@ -314,7 +312,7 @@ function needsSection(d) {
   const later = d.opportunities.filter(o => o.state === 'later');
   const hand = d.handoffs.filter(x => ['delivered', 'task', 'draft_ready', 'no_repo'].includes(x.state));
   const items = [setupNeed(d), ...hand.filter(x => x.state !== 'delivered').map(x => handoffNeed(x, d)), ...proposed.map(o => oppItem(o, d)), ...hand.filter(x => x.state === 'delivered').map(x => handoffNeed(x, d))].filter(Boolean);
-  return sec('can-ban', `Cần bạn${items.length ? ` · ${items.length}` : ''}`, 'Mỗi mục nói việc gì và làm ở đâu',
+  return sec('needs', `Cần bạn${items.length ? ` · ${items.length}` : ''}`, 'Mỗi mục nói việc gì và làm ở đâu',
     h('div', { class: 'list' }, items.length ? items : empty(h('span', {}, 'Không có việc nào cần bạn lúc này.'), h('span', { class: 'small' }, 'Bản tin thứ Hai 08:30 sẽ đưa cơ hội mới vào đây.'))),
     later.length ? h('details', { class: 'later' }, h('summary', {}, `Để sau · ${later.length}`), h('div', { class: 'list' }, later.map(o => oppItem(o, d)))) : null);
 }
@@ -341,13 +339,13 @@ function spark(vals) {
 const SOURCE = b => (b.source === 'table' ? `do Soot ghi${b.recorded_source ? ` · ${b.recorded_source}` : ''}` : b.source === 'both' ? 'bảng số sản phẩm và số Soot ghi' : 'bảng số sản phẩm');
 const period = b => `${dm(b.from)}–${dm(b.to)}`;
 function scorecard(d) {
-  if (d.boards) return sec('bang-so', 'Bảng số theo sản phẩm', '7 ngày, so với 7 ngày trước',
+  if (d.boards) return sec('scoreboard', 'Bảng số theo sản phẩm', '7 ngày, so với 7 ngày trước',
     h('div', { class: 'list boards' }, d.boards.map(x => h('div', { class: 'board' },
       h('div', { class: 'stack tight' }, h('span', { class: 'strong' }, x.name), h('span', { class: 'small muted' }, x.none ? 'Chưa có số' : `${period(x)} · ${SOURCE(x)}`)),
       x.none ? small('Chưa có bảng số cho sản phẩm này.') : h('div', { class: 'mini' }, [x.north, ...x.tiles].filter(Boolean).map((t, i) => h('div', {}, h('span', { class: 'small muted' }, t.label), h('span', { class: i ? 'strong' : 'strong big' }, fmt(t.value, t.unit)), delta(t)))),
       btn('Xem', () => choose(x.product), 'text')))));
   const b = d.scoreboard;
-  const head = (aside, ...body) => sec('bang-so', 'Bảng số', aside, ...body);
+  const head = (aside, ...body) => sec('scoreboard', 'Bảng số', aside, ...body);
   if (!b) {
     if (d.next.code === 'setup') return head(null, h('div', { class: 'card empty' }, h('strong', {}, 'Chưa có bảng số'), h('span', {}, 'Số sẽ hiện ở đây khi Soot đọc được kỳ đầu tiên. Nhãn và đơn vị lấy từ chính dữ liệu.'), btn('Mở Thiết lập', () => open(SETTINGS(d.next.missing === 'key' ? 'PRODUCT_ADMIN_KEY' : 'SCOREBOARD_URL')))));
     return head(null, h('div', { class: 'card empty' }, h('strong', {}, `${scopeName(d)} chưa có bảng số`),
@@ -435,7 +433,7 @@ function pipeline(d) {
   const build = d.setup.build;
   const rows = d.handoffs.filter(x => !['delivered', 'task', 'draft_ready', 'no_repo'].includes(x.state) || !build);
   const topics = (d.topics ?? []).filter(t => t.state !== 'written').slice(0, 8);
-  return sec('dang-dung', build ? 'Đang dựng' : 'Việc sau Go', build ? null : 'Chưa nối đội dựng · Go ghi quyết định và một việc',
+  return sec('pipeline', build ? 'Đang dựng' : 'Việc sau Go', build ? null : 'Chưa nối đội dựng · Go ghi quyết định và một việc',
     h('div', { class: 'list' }, rows.length ? rows.map(x => pipeItem(x, d)) : empty(h('span', {}, build ? 'Chưa có cơ hội sản phẩm nào đang dựng.' : 'Chưa có việc nào sau Go.'))),
     topics.length ? h('div', { class: 'list' }, topics.map(t => h('div', { class: 'item' }, h('div', { class: 'item-h' }, h('span', { class: 't' }, `Chủ đề: ${t.query}`), badge(TOPIC[t.state]?.[0] ?? t.state, TOPIC[t.state]?.[1] ?? '')),
       t.state === 'handed' && t.until ? small(`Chưa có bài; quá ${dm(t.until)} vẫn chưa viết thì chủ đề quay lại hàng chờ.`) : null))) : null);
@@ -452,7 +450,7 @@ function verdict(x, d) {
 function decisions(d) {
   const r = d.hit_rate ?? {};
   const moats = Object.entries(d.moats ?? {}).filter(([k]) => MOAT[k]).map(([k, n]) => `${MOAT[k]} ${n}`);
-  return sec('quyet-dinh', 'Quyết định và kết quả', r.measured ? `Trúng ${r.hits}/${r.measured} (${Math.round(r.rate * 100)}%) · trúng là đạt ít nhất nửa mức kỳ vọng` : 'Chưa đo được quyết định nào',
+  return sec('decisions', 'Quyết định và kết quả', r.measured ? `Trúng ${r.hits}/${r.measured} (${Math.round(r.rate * 100)}%) · trúng là đạt ít nhất nửa mức kỳ vọng` : 'Chưa đo được quyết định nào',
     moats.length ? small(`Hào đang xây: ${moats.join(' · ')}`) : null,
     d.decisions.length ? h('div', { class: 'list scroll' }, h('table', { class: 'rows' },
       h('thead', {}, h('tr', {}, ['Ngày', 'Quyết định', 'Cơ hội', ...(many(d) ? ['Sản phẩm'] : []), 'Kỳ vọng', 'Kết quả'].map(t => h('th', { scope: 'col' }, t)))),
@@ -478,13 +476,13 @@ function side(d) {
   };
   const e = hl?.effort ?? {};
   return h('div', { class: 'stack gap' },
-    sec('nhip', 'Nhịp tuần', null, h('div', { class: 'card' }, h('ul', { class: 'rhythm' }, RHYTHM.map(([id, what, at]) => h('li', {}, h('span', { class: 'stack tight' }, h('span', { class: 'strong' }, what), h('span', { class: 'small muted' }, at)), linkBtn('Lịch chạy', `nest://schedules/${id}`)))))),
-    sec('vong-lap', 'Vòng lặp', hl ? `Số lúc ${when(hl.at)}${hl.age_h > 30 ? ' · đã cũ' : ''}` : null,
+    sec('rhythm', 'Nhịp tuần', null, h('div', { class: 'card' }, h('ul', { class: 'rhythm' }, RHYTHM.map(([id, what, at]) => h('li', {}, h('span', { class: 'stack tight' }, h('span', { class: 'strong' }, what), h('span', { class: 'small muted' }, at)), linkBtn('Lịch chạy', `nest://schedules/${id}`)))))),
+    sec('loop', 'Vòng lặp', hl ? `Số lúc ${when(hl.at)}${hl.age_h > 30 ? ' · đã cũ' : ''}` : null,
       !hl ? h('div', { class: 'list' }, empty(h('span', {}, 'Chưa có số về vòng lặp.'), h('span', { class: 'small' }, 'Soot cập nhật mỗi sáng; chưa có nghĩa là các bước chưa chạy lần nào.'))) : [
         d.scope.product && hl.split === 'shared' ? small('Vòng lặp chung cho mọi sản phẩm của máy chủ: chưa tách được theo sản phẩm.') : null,
         hl.split === 'product' && hl.left_out ? small(`Không tính ${hl.left_out} đội của sản phẩm khác.`) : null,
         h('div', { class: 'list' }, hl.stages.length ? hl.stages.map(stage) : empty(h('span', {}, 'Không có đội nào của sản phẩm này.')))]),
-    hl ? sec('cong-suc', 'Công sức của bạn · 7 ngày', null, h('div', { class: 'card stack' },
+    hl ? sec('effort', 'Công sức của bạn · 7 ngày', null, h('div', { class: 'card stack' },
       h('p', {}, [`${e.decisions_tapped_7d ?? 0} quyết định`, e.chat_instructions_7d != null ? `${e.chat_instructions_7d} lần nhắn Soot` : null, e.cards_open != null ? `${e.cards_open} thẻ Cần bạn đang mở` : null].filter(Boolean).join(' · ')),
       e.median_answer_s != null ? small(`Chờ trả lời trung vị ${Math.round(e.median_answer_s)} giây.`) : null, e.note ? small(e.note) : null,
       linkBtn('Mở Hộp thư', 'nest://inbox'))) : null);
@@ -512,6 +510,6 @@ async function start() {
   S.started = true;
   await reload();
 }
-window.parent.postMessage({ v: 1, type: 'ready' }, '*');
+window.parent.postMessage({ v: 2, type: 'ready' }, '*');
 render();
 })();

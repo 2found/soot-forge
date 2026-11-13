@@ -123,19 +123,21 @@
     }
   },
   "interface": {
-    "pages": [
+    "pieces": [
       {
-        "id": "kho-tai-lieu",
+        "id": "library",
+        "slot": "data.tab",
         "label": {
           "vi": "Kho tài liệu",
           "en": "Library"
         },
         "icon": "library",
-        "placement": "data",
         "access": "operator",
-        "view_tool": "view",
-        "action_tool": "action",
         "bundle": "page/",
+        "data": {
+          "view_tool": "view",
+          "action_tool": "action"
+        },
         "provides": [
           "knowledge"
         ]

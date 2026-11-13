@@ -10,7 +10,7 @@ const api = await startBoardApi();
 const cs = await startCsApi();
 after(() => { api.close(); cs.close(); });
 const mk = (extra = {}) => world({ env: { SCOREBOARD_URL: api.url, PRODUCT_ADMIN_KEY: KEY, PRODUCT_REPO: scratchRepo(), BBS_BIN: fakeBbs().bin, ...extra } });
-const view = (w) => w.call('page_view', {}, { page: { page: 'cong-ty' } });
+const view = (w) => w.call('page_view', {}, { page: { page: 'company' } });
 
 test('signals without any scoreboard is a quiet stop, not a wake', async () => {
   const out = await mk().call('signals');
@@ -119,7 +119,7 @@ test('page_view: the next step is one code that follows the founder through the 
   const w = mk();
   assert.equal((await view(w)).next.code, 'idle');
   api.mode = 'forbidden';
-  await w.call('page_action', { op: 'sync', request_id: 'req-00000001' }, { page: { page: 'cong-ty' } }).catch(() => {});
+  await w.call('page_action', { op: 'sync', request_id: 'req-00000001' }, { page: { page: 'company' } }).catch(() => {});
   api.mode = 'ok';
   await w.call('scoreboard_sync');
   await w.call('digest_save', { opportunities: [ITEM.content, ITEM.product] });
@@ -129,7 +129,7 @@ test('page_view: the next step is one code that follows the founder through the 
   assert.equal(v.opportunities.length, 2);
   assert.ok(!JSON.stringify(v).includes(KEY));
   const ref = v.opportunities.find(o => o.kind === 'product').ref;
-  await w.call('page_action', { op: 'go', id: ref, request_id: 'req-00000002' }, { page: { page: 'cong-ty' } });
+  await w.call('page_action', { op: 'go', id: ref, request_id: 'req-00000002' }, { page: { page: 'company' } });
   assert.equal((await view(w)).next.code, 'building');
   assert.equal((await view(w)).handoffs[0].state, 'spawned');
 });
@@ -154,7 +154,7 @@ test('page_view holds no credential: a stored sync is the proof of the key, and 
 
 test('page_action refuses an unknown op and a missing request id', async () => {
   const w = mk();
-  await assert.rejects(w.call('page_action', { op: 'nope', request_id: 'req-00000003' }, { page: { page: 'cong-ty' } }), /op là/);
+  await assert.rejects(w.call('page_action', { op: 'nope', request_id: 'req-00000003' }, { page: { page: 'company' } }), /op là/);
 });
 
 // ---------- pack shape ----------

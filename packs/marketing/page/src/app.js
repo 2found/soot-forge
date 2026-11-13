@@ -1,7 +1,8 @@
 // @ts-check
-// Bài viết, Hàng đợi and Chiến dịch (marketing pack, flow-marketing). One bundle serves
-// the three pages: the view tool answers for the page in its context. Plain DOM,
-// no network: every read and write goes through the soot-pages bridge.
+// Bài viết, Hàng đợi and Chiến dịch (marketing pack, the project's Marketing tab) and the
+// Kênh đăng bài settings piece. One bundle serves the four pieces (posts, queue, campaigns,
+// channels): the view tool answers for the piece in its context. Plain DOM, no network:
+// every read and write goes through the soot-pages bridge v2.
 // Text is set with textContent only.
 import { createBridge, applyTheme, randomID } from './bridge.js';
 import * as M from './model.js';
@@ -356,12 +357,12 @@ function render() {
   const out = [];
   if (S.loadError) out.push(h('div', { class: 'notice err', role: 'alert' }, h('p', {}, S.loadError), button(t.reload, () => void run(load), 'btn sm')));
   else if (!d) out.push(h('p', { class: 'muted', role: 'status' }, t.loading));
-  else if (d.page === 'hang-doi') out.push(...queue(d));
-  else if (d.page === 'kenh') out.push(...channelsPage(d));
-  else if (d.page === 'chien-dich') out.push(...(d.campaign ? campaignDetail(d) : campaignList(d)));
+  else if (d.page === 'queue') out.push(...queue(d));
+  else if (d.page === 'channels') out.push(...channelsPage(d));
+  else if (d.page === 'campaigns') out.push(...(d.campaign ? campaignDetail(d) : campaignList(d)));
   else out.push(...(d.post ? postDetail(d) : postList(d)));
   if (S.notice) { const n = S.notice; out.push(h('div', { class: `notice ${n.kind}`, role: 'status' }, h('span', {}, n.text), n.fix && button(n.fix.label, () => bridge.open(/** @type {{link: string}} */ (n.fix).link), 'btn sm primary'))); }
-  if (S.sheet && d?.page === 'chien-dich') out.push(...campaignSheet(d));
+  if (S.sheet && d?.page === 'campaigns') out.push(...campaignSheet(d));
   const c = S.confirm;
   if (c) out.push(h('div', { class: 'scrim', onclick: closeConfirm }),
     h('div', { class: 'dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': c.title, onkeydown: (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Escape') closeConfirm(); } },

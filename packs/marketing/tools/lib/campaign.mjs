@@ -244,7 +244,7 @@ const summary = (c, now) => ({ id: c.key, name: c.name, starts: c.starts, ends: 
 
 export async function campaignView(input, { store, now, env, soot }) {
   const settings = await getSettings(store);
-  const head = { page: 'chien-dich', product: settings.product ?? null, writer: settings.writer ?? null, editor: soot ?? null, api_host: apiHost({ env }) === 'api' ? null : apiHost({ env }) };
+  const head = { page: 'campaigns', product: settings.product ?? null, writer: settings.writer ?? null, editor: soot ?? null, api_host: apiHost({ env }) === 'api' ? null : apiHost({ env }) };
   const all = await store.query('campaigns', [], { order: 'starts', limit: 100 });
   const known = await store.query('channels', [], { limit: 50 });
   const choices = [...new Set(['blog-lohi', ...known.map(k => k.key)])].sort(byRank).map(key => ({ id: key, label: label(key) }));

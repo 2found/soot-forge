@@ -1,11 +1,11 @@
-// Khách hàng page bundle: the declaration, bodies that pass the tools'
+// Khách hàng piece bundle (customers): the declaration, bodies that pass the tools'
 // parameters, outcomes that keep the request id while an answer is unknown,
 // and a bundle that never fetches. tests/ is not shipped in the pack archive.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { createBridge, randomID, REQUEST_ID } from '../src/bridge.js';
+import { createBridge, parseNestMessage, randomID, REQUEST_ID } from '../src/bridge.js';
 import * as M from '../src/model.js';
 import { build } from './build.mjs';
 
@@ -13,12 +13,14 @@ const page = new URL('../', import.meta.url);
 const pack = JSON.parse(await readFile(new URL('../../pack.json', import.meta.url), 'utf8'));
 const tool = name => pack.tools.find(t => t.name === name);
 
-test('the declaration is a member rail page on a read view tool and a write action tool; storage keeps only tags, notes and links by principal', () => {
-  const [p] = pack.interface.pages;
-  assert.deepEqual({ id: p.id, placement: p.placement, access: p.access, bundle: p.bundle, vi: p.label.vi }, { id: 'khach-hang', placement: 'rail', access: 'member', bundle: 'page/', vi: 'Khách hàng' });
-  assert.equal(tool(p.view_tool).run.mode, 'read');
-  assert.equal(tool(p.action_tool).run.mode, 'write', 'storage writes need a write-mode token');
-  for (const t of pack.tools) { assert.equal(t.run.stdin, 'context'); assert.equal(t.approval, undefined, 'pages refuse approval-gated tools'); }
+test('the declaration is a member project.tab piece (tab support) on a read view tool and a write action tool; storage keeps only tags, notes and links by principal', () => {
+  const [p] = pack.interface.pieces;
+  assert.deepEqual({ id: p.id, slot: p.slot, tab: p.tab, access: p.access, bundle: p.bundle, vi: p.label.vi },
+    { id: 'customers', slot: 'project.tab', tab: { id: 'support', label: { vi: 'Hỗ trợ', en: 'Support' } }, access: 'member', bundle: 'page/', vi: 'Khách hàng' });
+  assert.equal(p.provides, undefined, 'a project tab is placed by its slot, never by a flow capability');
+  assert.equal(tool(p.data.view_tool).run.mode, 'read');
+  assert.equal(tool(p.data.action_tool).run.mode, 'write', 'storage writes need a write-mode token');
+  for (const t of pack.tools) { assert.equal(t.run.stdin, 'context'); assert.equal(t.approval, undefined, 'pieces refuse approval-gated tools'); }
   assert.deepEqual(pack.storage.tables.map(t => t.name), ['tags', 'notes', 'links', 'proofs', 'proof_claims']);
   for (const t of pack.storage.tables.filter(t => !['proofs', 'proof_claims'].includes(t.name))) assert.equal(t.columns.find(c => c.name === 'sub').principal, true, t.name);
   // Used proof ids only (no person in them): kept past an unlink so a proof is never replayed.
@@ -61,7 +63,7 @@ test('a lost action answer resent with the same request id writes once', async (
     const call = posted.at(-1), replayed = receipts.has(call.request_id);
     if (!replayed) { writes++; receipts.set(call.request_id, { tag: 'VIP', added: true }); }
     if (drop) { drop = false; return; }
-    listeners.forEach(h => h({ v: 1, type: 'result', id: call.id, ok: true, output: receipts.get(call.request_id), receipt: { request_id: call.request_id, status: 'done', at: new Date().toISOString(), ...(replayed ? { replayed: true } : {}) }, ...(replayed ? { replayed: true } : {}) }, parent));
+    listeners.forEach(h => h({ v: 2, type: 'result', id: call.id, ok: true, output: receipts.get(call.request_id), receipt: { request_id: call.request_id, status: 'done', at: new Date().toISOString(), ...(replayed ? { replayed: true } : {}) }, ...(replayed ? { replayed: true } : {}) }, parent));
   };
   const id = randomID('cs', 12), body = M.actionBody(id, M.tagBody('lohi:u-1', 'VIP'));
   const first = bridge.call('action', body, id); answer();
@@ -69,6 +71,24 @@ test('a lost action answer resent with the same request id writes once', async (
   const second = bridge.call('action', body, id); answer();
   const c = M.classify(await second);
   assert.deepEqual([c.state, c.replayed, writes], ['done', true, 1]);
+});
+
+test('bridge v2: posts carry v 2; init carries viewer and project; v1 messages and product contexts are dropped', () => {
+  const posted = [], listeners = [], parent = {}, seen = [];
+  const bridge = createBridge({ post: m => posted.push(m), listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project]), onContext: p => seen.push(['context', p]) });
+  bridge.ready();
+  assert.deepEqual(posted[0], { v: 2, type: 'ready' });
+  const project = { id: 'lohi', name: 'Lohi', teams: ['support'] };
+  const deliver = m => listeners.forEach(h => h(m, parent));
+  deliver({ v: 1, type: 'init', theme: 'light', locale: 'vi', tokens: {} });
+  deliver({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: {}, project: null }); // no viewer
+  deliver({ v: 2, type: 'context', product: null, products: [] });
+  deliver({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: { '--background': '#fff' }, viewer: { kind: 'member' }, project });
+  deliver({ v: 2, type: 'context', project: null });
+  assert.deepEqual(seen, [['init', project], ['context', null]]);
+  assert.equal(parseNestMessage({ v: 2, type: 'context', project: { ...project, extra: 1 } }), null);
+  void bridge.call('view', M.listBody());
+  assert.equal(posted[1].v, 2);
 });
 
 test('labels exist in Vietnamese and English with the same keys', () => {

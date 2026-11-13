@@ -67,7 +67,7 @@ test('content opportunities go by themselves (decision by soot) and queue a topi
   const card = await w.call('opportunities_card');
   assert.equal(card.raise.title, '1 cơ hội chờ bạn chọn');
   assert.match(card.raise.id, /^company:proposals:/);
-  assert.equal(card.raise.link, 'nest://page/cong-ty', 'a structured link, not text');
+  assert.equal(card.raise.link, 'nest://page/company', 'a structured link, not text');
   assert.ok(card.raise.options.length >= 1);
   assert.deepEqual((await w.call('opportunities_card')).raise.id, card.raise.id, 'the same set is the same card id');
   const again = await w.call('digest_save', { opportunities: [ITEM.product] });
@@ -106,7 +106,7 @@ test('a product Go writes REQ-<id>.md in the shape bbs:team expects and spawns a
   const { w, b, dir } = await ready();
   await w.call('digest_save', { opportunities: [ITEM.product] });
   const ref = refOf(w, 'product');
-  const out = await w.call('page_action', { op: 'go', id: ref, request_id: 'req-12345678' }, { page: { page: 'cong-ty' } });
+  const out = await w.call('page_action', { op: 'go', id: ref, request_id: 'req-12345678' }, { page: { page: 'company' } });
   assert.equal(out.handoff.state, 'spawned');
   assert.equal(out.handoff.team_id, `loop-${ref.toLowerCase()}`);
   const path = w.reqPath(dir, ref);
@@ -160,7 +160,7 @@ test('a product Go with bbs absent is draft_ready with the exact command, never 
   assert.equal(w.rows('opportunities').find(o => o.ref === ref).state, 'go');
   assert.match(out.handoff.note, /chưa có bbs/);
   // The page offers the command and a retry; the next step names what to do.
-  const view = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  const view = await w.call('page_view', {}, { page: { page: 'company' } });
   assert.equal(view.next.code, 'draft_ready');
   assert.equal(view.handoffs[0].command, out.handoff.command);
 });
@@ -174,7 +174,7 @@ test('a spawn that fails (Orca not running) is draft_ready with the reason; Ch�
   assert.equal(out.handoff.state, 'draft_ready');
   assert.match(out.handoff.note, /orca: not running/);
   b.failSpawn(false);
-  const retry = await w.call('page_action', { op: 'retry_handoff', id: ref, request_id: 'req-87654321' }, { page: { page: 'cong-ty' } });
+  const retry = await w.call('page_action', { op: 'retry_handoff', id: ref, request_id: 'req-87654321' }, { page: { page: 'company' } });
   assert.equal(retry.handoff.state, 'spawned');
   assert.equal(w.rows('handoffs').length, 1, 'one handoff per opportunity');
 });
@@ -191,27 +191,27 @@ test('a product Go with no PRODUCT_REPO records the decision and an approved han
   assert.deepEqual([row.product, row.target_outcome, row.repo, row.requirement_path], ['lohi', 'support_handoffs', null, null], 'no repo write: the requirement travels in the row');
   assert.equal(b.calls().filter(c => c.argv[1] === 'spawn').length, 0);
   assert.equal(w.rows('decisions').filter(d => d.decision === 'go' && d.opportunity_ref === ref).length, 1, 'the Go is in the decision log');
-  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  const v = await w.call('page_view', {}, { page: { page: 'company' } });
   assert.deepEqual([v.next.code, v.next.n], ['task', 1]);
   assert.equal(v.handoffs[0].state, 'task');
   // Marking it done is the release: review measures from now, never from the Go.
   w.now += 86_400_000;
-  await w.call('page_action', { op: 'task_done', id: ref, request_id: 'req-task0001' }, { page: { page: 'cong-ty' } });
+  await w.call('page_action', { op: 'task_done', id: ref, request_id: 'req-task0001' }, { page: { page: 'company' } });
   const h = w.rows('handoffs')[0];
   assert.equal(h.state, 'released');
   assert.equal(h.released_at, new Date(w.now).toISOString());
-  assert.equal((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).next.code, 'idle');
-  await assert.rejects(w.call('page_action', { op: 'task_done', id: ref, request_id: 'req-task0002' }, { page: { page: 'cong-ty' } }), /Không có việc/);
+  assert.equal((await w.call('page_view', {}, { page: { page: 'company' } })).next.code, 'idle');
+  await assert.rejects(w.call('page_action', { op: 'task_done', id: ref, request_id: 'req-task0002' }, { page: { page: 'company' } }), /Không có việc/);
   // A task row from before (no_repo with no repo) reads as a task too.
   await w.store.update('handoffs', h.id, { state: 'no_repo', repo: null, released_at: null });
-  assert.equal((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).handoffs[0].state, 'task');
+  assert.equal((await w.call('page_view', {}, { page: { page: 'company' } })).handoffs[0].state, 'task');
 });
 
 test('the decide tool needs the operator approval; the model tool list of the Lead never includes it', async () => {
   const pack = JSON.parse(readFileSync(new URL('../pack.json', import.meta.url), 'utf8'));
   assert.equal(pack.tools.find(t => t.name === 'decide').run.approval, 'operator');
   assert.equal(pack.tools.find(t => t.name === 'page_action').run.approval, undefined, 'a page is never approval-gated: the operator-only page is the approval');
-  assert.equal(pack.interface.pages[0].access, 'operator');
+  assert.deepEqual(pack.interface.pieces.map(p => [p.id, p.slot, p.access]), [['company', 'rail', 'operator']]);
 });
 
 // ---------- topic_next ----------
@@ -248,14 +248,14 @@ test('topic_sync: handed until a post with the keyword exists, then written with
   const idle = await w.call('topic_sync', plan);
   assert.deepEqual(idle, plan, 'passes the plan verdict through unchanged');
   assert.deepEqual(w.rows('topics').map(t => [t.state, t.post ?? null]), [['handed', null]]);
-  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  const v = await w.call('page_view', {}, { page: { page: 'company' } });
   assert.deepEqual([v.topics[0].state, v.topics[0].post, v.next.code], ['handed', null, 'topic_handed']);
   w.now += 20 * HOUR;
   const out = await w.call('topic_sync', { wake: true, topic_posts: [{ keyword: 'Truyện Tiên Hiệp full', post: 'P-9' }, ...plan.topic_posts] });
   assert.deepEqual(out.topic_sync, [{ query: 'truyện tiên hiệp full', state: 'written', post: 'P-9' }]);
   assert.equal(out.wake, true);
   assert.deepEqual(w.rows('topics').map(t => [t.state, t.post]), [['written', 'P-9']]);
-  assert.deepEqual((await w.call('page_view', {}, { page: { page: 'cong-ty' } })).topics.map(t => [t.state, t.post]), [['written', 'P-9']]);
+  assert.deepEqual((await w.call('page_view', {}, { page: { page: 'company' } })).topics.map(t => [t.state, t.post]), [['written', 'P-9']]);
 });
 
 test('topic_sync: a topic still unwritten after the 48 h hold returns to the queue (and can be handed again)', async () => {
@@ -273,7 +273,7 @@ test('a row already in the old state taken reads as handed, is written by topic_
   const { w } = await ready();
   await w.call('digest_save', { opportunities: [ITEM.content, { ...ITEM.content, title: 'Truyện ngôn tình hay', query: 'truyện ngôn tình hay' }] });
   for (const t of w.rows('topics')) await w.store.update('topics', t.id, { state: 'taken' });
-  const v = await w.call('page_view', {}, { page: { page: 'cong-ty' } });
+  const v = await w.call('page_view', {}, { page: { page: 'company' } });
   assert.deepEqual(v.topics.map(t => t.state), ['handed', 'handed']);
   assert.equal(v.next.code, 'topic_handed');
   assert.equal((await w.call('topic_next', { chain: true })).query, undefined, 'an old taken row is a live hold too');
@@ -321,7 +321,7 @@ test('team_watch: delivered waits for the founder; released records requirement_
   b.snapshot({ phases: [phase('p1', 'delivered', 'none'), phase('p2', 'delivered', 'none')] });
   const delivered = await w.call('team_watch');
   assert.deepEqual([delivered.changed[0].state, delivered.outcomes, delivered.notify], ['delivered', undefined, false]);
-  assert.equal((await w.call('page_view', {}, { page: 'cong-ty' })).next.code, 'release_go');
+  assert.equal((await w.call('page_view', {}, { page: 'company' })).next.code, 'release_go');
   assert.equal(w.rows('topics').length, 0);
   b.snapshot({ phases: [phase('p1', 'delivered', 'none'), phase('p2', 'released')] });
   w.now += 3_600_000;
@@ -372,7 +372,7 @@ test('team_watch: the parent is not created yet (kickoff still clarifying) is st
   assert.equal(w.rows('handoffs')[0].detail, 'Đội đang đọc yêu cầu — chưa có việc cần bạn.');
   assert.equal(b.calls().filter(c => c.argv[1] === 'snapshot').length, 0);
   assert.deepEqual(await w.call('team_watch'), { done: true });
-  assert.equal((await w.call('page_view', {}, { page: 'cong-ty' })).next.code, 'building');
+  assert.equal((await w.call('page_view', {}, { page: 'company' })).next.code, 'building');
   kickoff(w, b);
   b.snapshot({ phases: [] });
   assert.equal((await w.call('team_watch')).changed[0].state, 'building');
@@ -407,7 +407,7 @@ test('team_watch: a handover waiting for the release go files ONE Cần bạn ne
   assert.match(first.raise[0].why, new RegExp(w.rows('handoffs')[0].team_id));
   assert.deepEqual([first.notify, first.wake], [false, false], 'a card needs no model');
   for (let i = 0; i < 3; i++) { w.now += 30 * 60_000; { const t = await w.call('team_watch'); assert.deepEqual([t.changed, t.notify, t.wake, t.raise.map(r => r.id)], [[], false, false, first.raise.map(r => r.id)], 'every tick restates the same card id and wakes nobody'); }; }
-  assert.equal((await w.call('page_view', {}, { page: 'cong-ty' })).next.code, 'release_go');
+  assert.equal((await w.call('page_view', {}, { page: 'company' })).next.code, 'release_go');
   // The go is given; the release lands: the outcome and the launch topic, no second need.
   b.snapshot({ phases: [phase('p1', 'released'), phase('p2', 'released', 'ask')] });
   const out = await w.call('team_watch');
@@ -420,8 +420,8 @@ test('team_watch uses the linked ticket when the page links one, in the product 
   await w.call('digest_save', { opportunities: [ITEM.product] });
   const ref = refOf(w, 'product');
   await w.call('decide', { id: ref, decision: 'go' });
-  await assert.rejects(w.call('page_action', { op: 'link_ticket', id: ref, ticket: 'bad ticket!', request_id: 'req-11112222' }, { page: { page: 'cong-ty' } }), /ticket cha/);
-  await w.call('page_action', { op: 'link_ticket', id: ref, ticket: 'bs-abc12345', request_id: 'req-11112223' }, { page: { page: 'cong-ty' } });
+  await assert.rejects(w.call('page_action', { op: 'link_ticket', id: ref, ticket: 'bad ticket!', request_id: 'req-11112222' }, { page: { page: 'company' } }), /ticket cha/);
+  await w.call('page_action', { op: 'link_ticket', id: ref, ticket: 'bs-abc12345', request_id: 'req-11112223' }, { page: { page: 'company' } });
   await w.call('team_watch');
   const snap = b.calls().filter(c => c.argv[1] === 'snapshot').at(-1);
   assert.deepEqual(snap.argv, ['team', 'snapshot', 'bs-abc12345', '--json']);

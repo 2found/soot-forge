@@ -55,7 +55,7 @@ function world(root) {
   w.store = fakeStore({ clock: () => w.now });
   w.env = { MARKETING_CLAIM_KEY: KEY, FILE_ROOT: root };
   w.call = (name, input, extra = {}) => run(name, { input, ...extra }, { store: w.store, now: w.now, env: w.env, fetchImpl: async () => { throw new Error('no network'); } });
-  w.page = (op, input = {}) => w.call('page_action', { op, request_id: `r-${Math.random()}`, ...input }, { page: { page: 'hang-doi' } });
+  w.page = (op, input = {}) => w.call('page_action', { op, request_id: `r-${Math.random()}`, ...input }, { page: { page: 'queue' } });
   w.import = (over = {}) => w.call('video_import', { request_id: 'v-1', campaign: CAMP, channels: ['x-lohi', 'facebook-lohi'], ...over });
   return w;
 }
@@ -102,7 +102,7 @@ test('an mvf campaign becomes one video draft per channel with its video, captio
     const s = await w.call('schedule', { id: x.ref, scheduled_at: new Date(w.now - MIN).toISOString() });
     assert.ok(s.scheduled_at);
 
-    const view = await w.call('page_view', {}, { page: { page: 'hang-doi' } });
+    const view = await w.call('page_view', {}, { page: { page: 'queue' } });
     const item = JSON.stringify(view).includes(x.ref) && findItem(view, x.ref);
     assert.equal(item.kind, 'video');
     assert.equal(item.video.poster, poster);
@@ -161,7 +161,7 @@ test('#p4-video-failed: a render failure stays a draft with "Lỗi dựng" and i
         await assert.rejects(w.call('schedule', { id: p.id }), name);
       }
       assert.equal(w.store.data.queue.length, 0, name);
-      const list = await w.call('page_view', {}, { page: { page: 'bai-viet' } });
+      const list = await w.call('page_view', {}, { page: { page: 'posts' } });
       assert.match(JSON.stringify(list), /Lỗi dựng/, name);
     } finally { rmSync(root, { recursive: true, force: true }); }
   }

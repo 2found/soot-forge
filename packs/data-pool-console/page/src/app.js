@@ -129,7 +129,7 @@ function edit(/** @type {'text' | 'url'} */ mode, /** @type {Doc | undefined} */
 }
 function saveDraft() {
   const d = S.draft;
-  return mutate(M.saveDocument({ ...d, tags: parseTags(d.tags), ...(d.mode === 'url' ? { url: d.url } : { url: '' }) }, randomID('kho')));
+  return mutate(M.saveDocument({ ...d, tags: parseTags(d.tags), ...(d.mode === 'url' ? { url: d.url } : { url: '' }) }, randomID('lib')));
 }
 /** The conflict path: read the latest, keep the person's text, save over that revision when they say so. */
 async function viewLatest() {
@@ -205,7 +205,7 @@ function headerView() {
 
 function createView() {
   const t = S.t;
-  const submit = () => { const value = /** @type {HTMLInputElement} */ (document.getElementById('c-name')).value.trim(); if (value) void mutate(M.createPool({ pool: randomID('collection', 8), name: value, organized: organized() }, randomID('kho'))); else document.getElementById('c-name')?.focus(); };
+  const submit = () => { const value = /** @type {HTMLInputElement} */ (document.getElementById('c-name')).value.trim(); if (value) void mutate(M.createPool({ pool: randomID('collection', 8), name: value, organized: organized() }, randomID('lib'))); else document.getElementById('c-name')?.focus(); };
   return h('div', { class: 'card stack', role: 'group', 'aria-label': t.newCollection },
     h('div', { class: 'field' }, h('label', { for: 'c-name' }, t.collectionName), h('input', { id: 'c-name', class: 'input', required: true, maxLength: 128, onkeydown: onEnter(submit) })),
     h('div', { class: 'row' }, h('span', { class: 'sp' }), btn(t.cancel, () => { S.creating = false; render(); }, 'quiet'), btn(t.create, submit, 'primary', !!S.pending)));
@@ -228,7 +228,7 @@ function listView() {
       S.docNext || S.searchOffset > 0 ? btn(t.nextPage, later(() => browse(S.docNext, S.searched, S.searchOffset)), 'sm') : null) : null,
     h('hr', { class: 'rule' }),
     h('div', { class: 'row' }, h('span', { class: 'who grow' }, t.documents(d.documents ?? S.docs.length)),
-      btn(t.removeCollection, () => { S.confirm = { text: t.confirmRemovePool(d.pool.name, d.documents ?? 0), run: () => void mutate(M.removePool(d.pool, randomID('kho'))) }; render(); }, 'danger sm', !!S.pending)),
+      btn(t.removeCollection, () => { S.confirm = { text: t.confirmRemovePool(d.pool.name, d.documents ?? 0), run: () => void mutate(M.removePool(d.pool, randomID('lib'))) }; render(); }, 'danger sm', !!S.pending)),
   ];
 }
 
@@ -247,7 +247,7 @@ function docView() {
     S.complete && tooLong ? h('p', { class: 'muted' }, t.tooLongToEdit) : null,
     h('hr', { class: 'rule' }),
     h('div', { class: 'row' }, h('span', { class: 'who grow' }, t.removeDocHint),
-      btn(t.remove, () => { S.confirm = { text: t.confirmRemoveDoc(docTitle(doc.title, doc.id, t)), run: () => void mutate(M.removeDocument({ pool: S.detail.pool.id, generation: S.detail.pool.generation }, doc, randomID('kho'))) }; render(); }, 'danger sm', !!S.pending)));
+      btn(t.remove, () => { S.confirm = { text: t.confirmRemoveDoc(docTitle(doc.title, doc.id, t)), run: () => void mutate(M.removeDocument({ pool: S.detail.pool.id, generation: S.detail.pool.generation }, doc, randomID('lib'))) }; render(); }, 'danger sm', !!S.pending)));
 }
 
 function editorView() {

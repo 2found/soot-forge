@@ -92,7 +92,7 @@ Drafts live in this pack's own storage; there is no `content` table to keep.
   the guard refuses any amount it cannot find in `facts`.
 - **In a campaign** (the task or the brief names one), pass `campaign: <id>`
   and write only on that campaign's channels (`marketing_page_view {page:
-  "chien-dich", campaign}` lists them). A social or video post goes out with
+  "campaigns", campaign}` lists them). A social or video post goes out with
   the channel's campaign link: leave `link` out and the save fills it; an
   article puts the returned `campaign_link` in its call to action. A
   `campaign_link_missing` lint means the link is not made yet: say so on the

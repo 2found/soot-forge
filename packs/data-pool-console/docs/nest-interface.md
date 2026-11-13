@@ -1,9 +1,9 @@
 # Human data-pool interface
 
 This pack provides the fixed `view` and `action` executables, selected as a whole (`"packs": ["data-pool-console"]`).
-The human surface is the `kho-tai-lieu` page (`interface.pages`, placement `data`,
+The human surface is the `library` piece (`interface.pieces`, slot `data.tab`,
 access `operator`), whose bundle sends exactly the bodies below over the
-soot-pages bridge; Nest's link sheets and knowledge picker send the same
+soot-pages bridge v2; Nest's link sheets and knowledge picker send the same
 `pools`/`query` bodies to `view`. Both operations
 require host-derived `interaction: true`, a namespace-manager identity and a
 separate `DATA_POOL_UI` binding. Ordinary model operations ignore a human marker.
