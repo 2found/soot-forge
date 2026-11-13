@@ -482,8 +482,8 @@ test('the declaration: hub optional, three pieces of the Marketing project tab a
   assert.equal(pack.needs.credentials.MARKETING_HUB.optional, true);
   const marketing = { id: 'marketing', label: { vi: 'Marketing', en: 'Marketing' } };
   assert.deepEqual(pack.interface.pieces.map(p => [p.id, p.slot, p.label.vi, p.tab, p.group, p.order]), [
-    ['posts', 'project.tab', 'Bài viết', marketing, undefined, 10], ['queue', 'project.tab', 'Hàng đợi', marketing, undefined, 20],
-    ['channels', 'settings', 'Kênh đăng bài', undefined, 'server', undefined], ['campaigns', 'project.tab', 'Chiến dịch', marketing, undefined, 30]]);
+    ['posts', 'project.tab', 'Bài viết', marketing, undefined, 510], ['queue', 'project.tab', 'Hàng đợi', marketing, undefined, 520],
+    ['channels', 'settings', 'Kênh đăng bài', undefined, 'server', undefined], ['campaigns', 'project.tab', 'Chiến dịch', marketing, undefined, 530]]);
   for (const p of pack.interface.pieces) {
     assert.equal(p.provides, undefined, `${p.id}: a piece is placed by its slot, never by a flow capability`);
     assert.equal(tools[p.data.view_tool].run.mode, 'read');
