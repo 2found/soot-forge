@@ -33,6 +33,10 @@ function run(cmd, input, { token = TOKEN, hook = 'tool.call', stdinToken } = {})
     let stdout = '', stderr = '';
     child.stdout.on('data', d => stdout += d); child.stderr.on('data', d => stderr += d);
     child.on('close', code => resolve({ code, stdout, stderr }));
+    // A runner that refuses before reading stdin (a bad token, an unknown
+    // command) may exit first; the write then fails with EPIPE, which is that
+    // case, not a test failure.
+    child.stdin.on('error', err => { if (err.code !== 'EPIPE') throw err; });
     child.stdin.end(JSON.stringify(call) + '\n');
   });
 }
