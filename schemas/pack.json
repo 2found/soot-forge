@@ -149,6 +149,12 @@
                   "null"
                 ]
               },
+              "kit": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
               "label": {
                 "oneOf": [
                   {

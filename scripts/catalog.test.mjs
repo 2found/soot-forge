@@ -162,6 +162,7 @@ test('pieces and programs name pack tools with the right mode, or the pack is re
     [m => m.interface.pieces[0].data.action_tool = 'nope', /tool_missing action_tool/],
     [m => m.interface.pieces.push(structuredClone(m.interface.pieces[0])), /duplicate_id/],
     [m => m.interface.pieces[0].slot = 'toolbar', /unknown_slot/],
+    [m => m.interface.pieces[0].kit = 2, /kit_unsupported/],
     [m => m.interface.pieces[0].slot = 'data', /unknown_slot/],
     [m => m.interface.pieces[0].slot = 'tool-area', /slot_not_allowed/],
     [m => m.interface.pieces[0].slot = 'project.tab', /tab_required/],

@@ -177,6 +177,9 @@ export function checkPackModel(manifest, expectedID) {
 const pieceID = /^[a-z][a-z0-9-]{1,47}$/;
 // The runtime's slot registry (config.PieceSlots): whether a pack may declare
 // the slot, whether it takes tab (required there) and whether it takes group.
+// The kit version the runtime serves (2agent config.PieceKit): a piece that
+// names another is refused there as kit_unsupported.
+const PIECE_KIT = 1;
 const PIECE_SLOTS = {
   rail: { pack: true }, home: { pack: true }, 'project.tab': { pack: true, tab: true },
   'data.tab': { pack: true }, settings: { pack: true, group: true }, 'tool-area': { pack: false },
@@ -261,6 +264,7 @@ function checkPresentation(manifest, byName) {
     }
     if (piece.group !== undefined && (!slot?.group || !['server', 'soot'].includes(piece.group))) problems.push(`${at}: group_not_allowed (group is server or soot, only on a settings piece)`);
     if (piece.order !== undefined && !(Number.isInteger(piece.order) && piece.order >= 0 && piece.order <= 999)) problems.push(`${at}: order is 0 to 999`);
+    if (piece.kit !== undefined && piece.kit !== PIECE_KIT) problems.push(`${at}: kit_unsupported ${piece.kit} (the runtime serves kit ${PIECE_KIT})`);
     if (!['operator', 'member'].includes(piece.access)) problems.push(`${at}: access must be operator or member`);
     if (!localizedText(piece.label, 48)) problems.push(`${at}: label must be a string or {vi, en?} of at most 48 characters`);
     if (!/^[a-z0-9-]{1,64}$/.test(piece.icon ?? '')) problems.push(`${at}: icon must be a lowercase icon name`);

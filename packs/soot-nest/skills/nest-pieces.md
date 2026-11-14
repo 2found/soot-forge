@@ -144,6 +144,7 @@ Read strictly: an unknown field refuses the save.
 | `access` | `operator` (the person who runs the workspace) or `member` (also members who can reach you) |
 | `data.queries` | up to 8 named reads, names `^[a-z][a-z0-9_]{0,31}$` |
 | `data.actions` | `true` lets buttons send you events |
+| `kit` | optional: the kit version the screen was written for. `1` today; left out, it is 1 |
 
 | `slot` | Shows as | Use for |
 |---|---|---|
@@ -202,6 +203,7 @@ it. `_kit/piece.js` gives you `soot`:
 | `soot.on(name, fn)` | `context` (project changed), `theme`, `shown`, `hidden`, `changed` |
 | `soot.el(tag, props?, ...children)` | builds an element without HTML strings: text stays text. `props`: `class`, `text`, `on<event>`, attributes |
 | `soot.project`, `soot.projects`, `soot.viewer`, `soot.locale`, `soot.theme`, `soot.visible` | read only. `project` is `{id, name, teams}` or `null` |
+| `soot.kit`, `soot.level` | read only. `kit` is this kit's version (1). `level` counts what Nest's bridge has learned since (1 today); check it before you use something added later |
 
 A rejected call has `code` and `message` (`rate_limited`, `tool_refused`,
 `timeout`, …). The frame has no network: no `fetch`, no form posts, no
@@ -230,6 +232,8 @@ The result of writing `piece.json` carries `notes`. Read them every time.
 | `query_invalid`, `query_not_readable` | a query cannot run | fix it, or ask for access with `report_blocker` |
 | `approval_needed` | a placed screen may not start reaching more (slot, access, actions, what a query reads) | keep those as placed, or save the wider one under a new id so the person is asked |
 | `too_many_pieces` | you keep 8 | retire one first |
+| `kit_unsupported` | `kit` names a version this runtime does not serve | leave `kit` out, or write the version the message names |
+| `state_newer` | a newer Soot last saved this screen and this one cannot change it | tell the person Soot needs an update, or save under a new id |
 
 Writing any other file answers "saved as a file only": that is normal until
 `piece.json` is written. To see where a screen stands, write the same
