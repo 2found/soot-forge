@@ -1,0 +1,71 @@
+#!/bin/sh
+# soot-lohi-character — lohi-character pack tool runner (soot/v1 tool.call,
+# stdin:"context"). Two read tools for the generic `character` Soot:
+#
+#   soot-lohi-character context   GET $LOHI_API_BASE/agent/companions/<id>/context[?q=]
+#   soot-lohi-character remember  GET $LOHI_API_BASE/agent/companions/<id>/memory
+#
+# Reads ONE ToolCall JSON line on stdin; the model's input is .input
+# ({companion_id, q?}). Who asked comes from the host, never from the model:
+# the signed principal token (env SOOT_PRINCIPAL_TOKEN, or .principal_token on
+# stdin) is forwarded as X-Soot-Principal, and the api bounds every read by
+# THAT reader's progress. With no token nothing is sent and the tool answers
+# {"code":"principal_required"}. Neither the key nor the token is ever echoed
+# or put on a command line: headers reach curl through its config on stdin
+# (-K -). Both commands are reads: the runner never writes anything.
+#
+# Deps: POSIX sh, curl, jq. Env: LOHI_API_BASE, LOHI_CHARACTER_API_KEY.
+set -eu
+
+cmd=${1:-}
+
+err() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
+command -v curl >/dev/null 2>&1 || err '{"error":"missing_dep","dep":"curl"}'
+command -v jq   >/dev/null 2>&1 || err '{"error":"missing_dep","dep":"jq"}'
+case $cmd in context|remember) ;; *) err '{"error":"unknown_command"}' ;; esac
+[ -n "${LOHI_API_BASE:-}" ]          || err '{"error":"missing_env","env":"LOHI_API_BASE"}'
+[ -n "${LOHI_CHARACTER_API_KEY:-}" ] || err '{"error":"missing_env","env":"LOHI_CHARACTER_API_KEY"}'
+case $LOHI_CHARACTER_API_KEY in *[\"\\]*|*'
+'*) err '{"error":"bad_env","env":"LOHI_CHARACTER_API_KEY"}' ;; esac
+base=${LOHI_API_BASE%/}
+
+call=$(cat)
+[ -n "$call" ] || err '{"error":"empty_stdin"}'
+printf '%s\n' "$call" | jq -e '(.api_version == "soot/v1") and (.hook == "tool.call")' >/dev/null 2>&1 \
+  || err '{"error":"bad_toolcall","detail":"api_version/hook"}'
+
+principal=${SOOT_PRINCIPAL_TOKEN:-$(printf '%s\n' "$call" | jq -r '.principal_token // empty')}
+if [ -z "$principal" ]; then
+  printf '%s\n' '{"code":"principal_required","detail":"no asker: a linh thể answers only a signed-in reader"}'
+  exit 1
+fi
+# A JWS compact token is three base64url parts; anything else is never sent.
+printf '%s' "$principal" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$' \
+  || err '{"code":"principal_invalid","detail":"malformed token"}'
+
+id=$(printf '%s\n' "$call" | jq -r '.input.companion_id // empty')
+printf '%s' "$id" | grep -Eq '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' \
+  || err '{"error":"bad_input","field":"companion_id"}'
+
+if [ "$cmd" = context ]; then
+  q=$(printf '%s\n' "$call" | jq -r '(.input.q // "") | tostring | .[0:400]')
+  url="$base/agent/companions/$id/context"
+  [ -z "$q" ] || url="$url?q=$(jq -rn --arg v "$q" '$v|@uri')"
+else
+  url="$base/agent/companions/$id/memory"
+fi
+
+out=$(mktemp "${TMPDIR:-/tmp}/soot-lohi-character.XXXXXX")
+trap 'rm -f "$out"' EXIT
+rc=0
+code=$({
+  printf 'header = "X-API-Key: %s"\n' "$LOHI_CHARACTER_API_KEY"
+  printf 'header = "X-Soot-Principal: %s"\n' "$principal"
+} | curl -sS -K - -o "$out" -w '%{http_code}' "$url") || rc=$?
+if [ "$rc" -ne 0 ]; then
+  # A read changed nothing, so every transport failure is a decided failure.
+  jq -cn --arg c "transport_$rc" '{code: $c}'
+  exit 1
+fi
+cat "$out"
+case $code in 2*) exit 0 ;; *) exit 1 ;; esac

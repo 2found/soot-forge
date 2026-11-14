@@ -14,7 +14,7 @@ After the multi-agent social simulations MiroFish and OASIS, on the Soot runtime
 4. **Between subjects** — with several subjects, each persona is assigned one and never sees the others, so nobody compares variants side by side.
 5. **Interview** — the feed closes and every persona that met its subject answers the brief's questions from memory, in the same conversation. Someone who scrolled past says so.
 6. **Experts** — each lens reads the brief and records P0–P3 findings with fixes. No verdict, no overall score.
-7. **Tally and report** — `tally` computes reach, the skip / some / full split, like, share, comment and follow rates with 95% Wilson intervals, the subject's rank among the context posts, the A/B comparison, interview results, segment breakdowns and warnings. The analyst writes the report from it.
+7. **Tally and report** — `tally` computes reach, the skip / some / full split, the average `depth` (percent of the post people got through), like, share, comment and follow rates with 95% Wilson intervals, the subject's rank among the context posts, the A/B comparison, interview results, segment breakdowns and warnings. The analyst writes the report from it.
 
 The model never computes a statistic and the driver never judges content. A simulation shows direction, objections and wording problems, never a market forecast. Subjects are text: a video or an image is judged from its description, and the report must say so.
 
@@ -39,7 +39,7 @@ The model never computes a statistic and the driver never judges content. A simu
 }
 ```
 
-Only `sim`, `goal` and `subjects` are required. `context` is a shipped feed name (`feeds/`) or a list of `{account, content}`; give your own for another platform or market, because the context posts are the scale the subject is read against. `audience` filters by `age`, `sex`, `zone`, `region` and `match`; `cap: true` takes the whole filtered pool when it is smaller than `n`. `audience.library` names a file in `personas/` or an absolute path (see [personas/NOTICE.md](personas/NOTICE.md)). Question types are `scale` (1–5), `yesno`, `tags` and `text`; without `questions` the pack asks retell, clarity, intent, objections and why. A subject is at most 12,000 characters.
+Only `sim`, `goal` and `subjects` are required. `context` is a shipped feed name (`feeds/`) or a list of `{account, content}`; give your own for another platform or market, because the context posts are the scale the subject is read against. `audience` filters by `age`, `sex`, `zone`, `region` and `match`; `cap: true` takes the whole filtered pool when it is smaller than `n`. `audience.library` names a file in `personas/` or an absolute path (see [personas/NOTICE.md](personas/NOTICE.md)). Question types are `scale` (1–5), `yesno`, `tags` and `text`; without `questions` the pack asks retell, clarity, intent, objections and why. `metric` (`full`, `stopped`, `depth`, `like`, `share` or `comment`; default `full`) is what the A/B comparison and the rank in the feed are decided on; use `depth` where few people finish, such as short video. A subject is at most 12,000 characters.
 
 ## Driver
 

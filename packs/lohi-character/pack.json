@@ -1,0 +1,124 @@
+{
+  "api_version": "soot/v1",
+  "id": "lohi-character",
+  "name": "Lohi Character",
+  "label": {
+    "vi": "Linh thể Lohi",
+    "en": "Lohi characters"
+  },
+  "description": {
+    "vi": "Một Soot `character` chung đóng vai linh thể trong phòng truyện Lohi: nhân vật như tới chương người hỏi đã đọc, không lộ nội dung phía trước, luôn nhận là AI.",
+    "en": "One generic `character` Soot that plays a Lohi novel room's linh thể: the character as of the asker's own chapter, never past it, always honest that it is an AI."
+  },
+  "keywords": {
+    "vi": [
+      "lohi",
+      "linh thể",
+      "nhân vật",
+      "nhập vai",
+      "phòng truyện"
+    ],
+    "en": [
+      "lohi",
+      "character",
+      "roleplay",
+      "novel room"
+    ]
+  },
+  "skills": [
+    {
+      "name": "character",
+      "file": "skills/character.md",
+      "description": "Answer one companion.answer job as the linh thể named in the job: stay in character as of the asker's chapter, refuse spoilers, say you are an AI when asked, 120-250 tokens, return {reply, remember}."
+    }
+  ],
+  "tools": [
+    {
+      "name": "context",
+      "title": "Xem nhân vật và đoạn truyện liên quan",
+      "description": "Read what this linh thể may know for THIS asker: its character card as of the asker's chapter, the room's top teachings, its mood, and the passages Tàng Kinh Các finds for q — all bounded by the asker's own reading progress (from the host-signed principal, never a parameter). beyondProgress=true means the question names a chapter the asker has not read: refuse it in character and give no passage. Call it only when the job's prompt lacks a passage you need.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "companion_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F-]{36}$",
+            "description": "the job input's companion_id"
+          },
+          "q": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "what to look up, in the asker's words (a name, an event, a place)"
+          }
+        },
+        "required": [
+          "companion_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-character",
+        "args": [
+          "context"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "10s",
+        "max_output_bytes": 32768,
+        "secret_env": {
+          "LOHI_CHARACTER_API_KEY": "{{cred:LOHI_CHARACTER}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CHARACTER_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "remember",
+      "title": "Xem linh thể nhớ gì về người hỏi",
+      "description": "Read what this linh thể already remembers about THIS asker (from the host-signed principal): up to 5 short notes, the bond and when they last talked, plus the note limits. Read-only: to remember something new, put ONE short note in the answer's `remember` field; the api stores it when it settles the answer.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "companion_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F-]{36}$",
+            "description": "the job input's companion_id"
+          }
+        },
+        "required": [
+          "companion_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-character",
+        "args": [
+          "remember"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "10s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CHARACTER_API_KEY": "{{cred:LOHI_CHARACTER}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CHARACTER_BASE}}"
+        }
+      }
+    }
+  ],
+  "needs": {
+    "credentials": {
+      "LOHI_CHARACTER": {
+        "title": "Lohi character API key",
+        "description": "Read-only Lohi agent key with catalog.read, for the linh thể context and memory reads.",
+        "from": "env:LOHI_CHARACTER_API_KEY"
+      },
+      "LOHI_CHARACTER_BASE": {
+        "title": "Lohi API base URL",
+        "description": "Base URL of the Lohi novel API (for example https://api.lohi2.com/novel).",
+        "from": "env:LOHI_API_BASE"
+      }
+    }
+  }
+}

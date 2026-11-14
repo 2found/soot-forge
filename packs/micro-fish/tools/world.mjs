@@ -10,6 +10,8 @@ import { join, isAbsolute } from 'node:path';
 
 const ID = /^[a-z0-9][a-z0-9_-]{0,47}$/;
 const ATTENTION = ['skip', 'some', 'full'];
+// What an A/B is decided on and the feed is ranked by. `depth` is how far through a post people got, on average.
+const METRICS = ['full', 'stopped', 'depth', 'like', 'share', 'comment'];
 const SEVERITIES = ['P0', 'P1', 'P2', 'P3'];
 const TYPES = ['scale', 'text', 'tags', 'yesno'];
 const MAX = { agents: 1000, subjects: 4, context: 60, content: 12000, rounds: 48, feed: 8, questions: 8, text: 400, post: 280, record: 16 * 1024 * 1024 };
@@ -112,7 +114,8 @@ function agentCard(v, where) {
 // A brief names the decision, the platform, the subjects under test (one arm
 // each), the other content they compete with, and what to ask afterwards.
 export async function create(dir, input) {
-  keys(input, ['sim', 'goal', 'platform', 'language', 'subjects', 'context', 'questions', 'rounds', 'feed_size', 'seed', 'agents'], ['sim', 'goal', 'subjects', 'agents']);
+  keys(input, ['sim', 'goal', 'platform', 'language', 'subjects', 'context', 'questions', 'rounds', 'feed_size', 'seed', 'metric', 'agents'], ['sim', 'goal', 'subjects', 'agents']);
+  const metric = input.metric ?? 'full'; if (!METRICS.includes(metric)) fail(`metric must be one of ${METRICS.join(', ')}`);
   const language = text(input.language, 20, 'language', true) || 'vi';
   const subjects = list(input.subjects, MAX.subjects, 'subjects', (v, w) => {
     keys(v, ['id', 'label', 'account', 'content'], ['id', 'content'], w);
@@ -136,7 +139,7 @@ export async function create(dir, input) {
   const world = {
     version: 2, id: ident(input.sim, 'sim'), created_at: new Date().toISOString(), revision: 0,
     brief: { goal: text(input.goal, 600, 'goal'), platform: text(input.platform, 60, 'platform', true) || 'feed', language, subjects: subjects.map(({ id, label, account }) => ({ id, label, account })), questions: questions.length ? questions : (DEFAULT_QUESTIONS[language.slice(0, 2)] || DEFAULT_QUESTIONS.en) },
-    design: { rounds: int(input.rounds ?? 6, 1, MAX.rounds, 'rounds'), feed_size: int(input.feed_size ?? 5, 1, MAX.feed, 'feed_size'), seed },
+    design: { rounds: int(input.rounds ?? 6, 1, MAX.rounds, 'rounds'), feed_size: int(input.feed_size ?? 5, 1, MAX.feed, 'feed_size'), seed, metric },
     round: 0, phase: 'feed',
     agents: Object.fromEntries(cards.map(a => [a.id, { ...a, id: undefined, arm: arm[a.id] }])),
     posts: [
@@ -220,11 +223,12 @@ export async function act(dir, me, input) {
     const shown = new Set(world.impressions.filter(i => i.agent === me && i.round === round).map(i => i.post));
     if (!shown.size) fail('Open the feed with micro-fish_timeline first');
     const rows = list(input.reactions, MAX.feed, 'reactions', (v, w) => {
-      keys(v, ['post', 'attention', 'like', 'share', 'follow', 'comment', 'quote'], ['post', 'attention'], w);
+      keys(v, ['post', 'attention', 'depth', 'like', 'share', 'follow', 'comment', 'quote'], ['post', 'attention'], w);
       if (!shown.has(v.post)) fail(`${w}: "${v.post}" was not in your feed this session`);
       if (!ATTENTION.includes(v.attention)) fail(`${w}.attention must be one of ${ATTENTION.join(', ')}`);
       for (const k of ['like', 'share', 'follow']) if (v[k] !== undefined && typeof v[k] !== 'boolean') fail(`${w}.${k} must be true or false`);
-      return { post: v.post, attention: v.attention, like: v.like === true, share: v.share === true, follow: v.follow === true, comment: text(v.comment, MAX.post, `${w}.comment`, true) || null, quote: text(v.quote, MAX.post, `${w}.quote`, true) || null };
+      const depth = v.attention === 'full' ? 100 : v.depth === undefined || v.depth === null ? null : int(v.depth, 0, 100, `${w}.depth`);
+      return { post: v.post, attention: v.attention, depth, like: v.like === true, share: v.share === true, follow: v.follow === true, comment: text(v.comment, MAX.post, `${w}.comment`, true) || null, quote: text(v.quote, MAX.post, `${w}.quote`, true) || null };
     });
     if (new Set(rows.map(r => r.post)).size !== rows.length) fail('A post appears twice');
     const own = text(input.new_post, MAX.post, 'new_post', true);
@@ -232,7 +236,7 @@ export async function act(dir, me, input) {
       const shownPost = world.posts.find(p => p.id === r.post), original = world.posts.find(p => p.id === rootOf(shownPost));
       const before = world.reactions.find(x => x.agent === me && x.post === original.id);
       world.reactions = world.reactions.filter(x => x !== before);
-      world.reactions.push({ agent: me, post: original.id, round, attention: r.attention, like: r.like, share: r.share, comment: r.comment, via: shownPost.id });
+      world.reactions.push({ agent: me, post: original.id, round, attention: r.attention, depth: r.depth, like: r.like, share: r.share, comment: r.comment, via: shownPost.id });
       const account = original.account || original.author;
       if (r.follow && !world.follows.some(f => f.agent === me && f.account === account)) world.follows.push({ agent: me, account, round });
       if (r.share && !before?.share) world.posts.push({ id: `u${world.posts.length}`, author: me, round, repost_of: original.id, arm: self.arm });
@@ -307,6 +311,15 @@ function wilson(k, n) {
   return [Math.round(1000 * Math.max(0, c - m)) / 10, Math.round(1000 * Math.min(1, c + m)) / 10];
 }
 const rate = (k, n) => ({ k, pct: pct(k, n), ci95: wilson(k, n) });
+// How far through a post a reaction got, 0–100. A skip with no depth recorded
+// is 0 and a full is 100; a "some" without one is unknown and left out.
+const depthOf = r => r.depth ?? (r.attention === 'full' ? 100 : r.attention === 'skip' ? 0 : null);
+function mean(xs) {
+  if (!xs.length) return { n: 0, pct: null, ci95: null };
+  const m = avg(xs), half = xs.length > 1 ? 1.96 * Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (xs.length - 1) / xs.length) : null;
+  const r1 = x => Math.round(10 * x) / 10;
+  return { n: xs.length, pct: r1(m), ci95: half === null ? null : [r1(Math.max(0, m - half)), r1(Math.min(100, m + half))] };
+}
 function top(values, limit) {
   const c = {}; for (const v of values) c[v] = (c[v] || 0) + 1;
   return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, limit);
@@ -316,7 +329,7 @@ function behaviour(world, post, agents) {
   const rs = world.reactions.filter(r => r.post === post && ids.has(r.agent)), n = reached.size, c = f => rs.filter(f).length;
   return {
     reached: n, recorded: rs.length, skip: rate(c(r => r.attention === 'skip'), n), some: rate(c(r => r.attention === 'some'), n), full: rate(c(r => r.attention === 'full'), n),
-    stopped: rate(c(r => r.attention !== 'skip'), n), like: rate(c(r => r.like), n), share: rate(c(r => r.share), n), comment: rate(c(r => r.comment), n),
+    stopped: rate(c(r => r.attention !== 'skip'), n), depth: mean(rs.map(depthOf).filter(x => x !== null)), like: rate(c(r => r.like), n), share: rate(c(r => r.share), n), comment: rate(c(r => r.comment), n),
     follow: rate(world.follows.filter(f => ids.has(f.agent) && f.account === (world.posts.find(p => p.id === post).account)).length, n),
   };
 }
@@ -326,7 +339,7 @@ export async function tally(dir, input) {
   const world = await need(dir, input.sim);
   const by = input.by ?? 'segment'; if (!['segment', 'zone', 'sex', 'age'].includes(by)) fail('by must be segment, zone, sex or age');
   const group = a => by === 'age' ? ageBand(a.age) : (a[by] || 'unknown');
-  const everyone = Object.keys(world.agents), warnings = [];
+  const everyone = Object.keys(world.agents), warnings = [], metric = world.design.metric || 'full';
   const out = {
     sim: world.id, goal: world.brief.goal, platform: world.brief.platform, population: everyone.length, rounds: { run: world.round, planned: world.design.rounds }, phase: world.phase,
     complete: world.phase === 'done', totals: { impressions: world.impressions.length, reactions: world.reactions.length, user_posts: world.posts.filter(p => p.author).length, follows: world.follows.length },
@@ -336,8 +349,8 @@ export async function tally(dir, input) {
   // context posts are the scale, so "60% finished it" reads against what the
   // same people did with the other things they were shown.
   const originals = world.posts.filter(p => !p.author);
-  out.feed_rank = originals.map(p => { const b = behaviour(world, p.id, everyone); return { post: p.id, account: p.account, subject: Boolean(p.subject), reached: b.reached, full_pct: b.full.pct, stopped_pct: b.stopped.pct, like_pct: b.like.pct }; })
-    .sort((a, b) => (b.full_pct ?? -1) - (a.full_pct ?? -1)).map((row, i) => ({ rank: i + 1, ...row }));
+  out.feed_rank = originals.map(p => { const b = behaviour(world, p.id, everyone); return { post: p.id, account: p.account, subject: Boolean(p.subject), reached: b.reached, full_pct: b.full.pct, stopped_pct: b.stopped.pct, depth_pct: b.depth.pct, like_pct: b.like.pct, comment_pct: b.comment.pct, share_pct: b.share.pct }; })
+    .sort((a, b) => (b[`${metric}_pct`] ?? -1) - (a[`${metric}_pct`] ?? -1)).map((row, i) => ({ rank: i + 1, ...row }));
   for (const s of world.brief.subjects) {
     const arm = everyone.filter(id => world.agents[id].arm === s.id), b = behaviour(world, s.id, arm);
     const rs = world.reactions.filter(r => r.post === s.id);
@@ -357,7 +370,7 @@ export async function tally(dir, input) {
       quotes: descendants.filter(p => p.quote_of).map(p => ({ who: who(world, p.author), round: p.round, text: p.content })),
       spread: { shares: descendants.filter(p => p.repost_of).length, quotes: descendants.filter(p => p.quote_of).length, reached_by_share: world.impressions.filter(i => descendants.some(p => p.id === i.post)).length },
       interview: { asked: [...new Set(world.impressions.filter(i => rootOf(world.posts.find(p => p.id === i.post)) === s.id).map(i => i.agent))].length, answered: answered.length, ...interview },
-      [`by_${by}`]: Object.fromEntries(Object.entries(groups).map(([g, ids]) => { const x = behaviour(world, s.id, ids); return [g, { reached: x.reached, full_pct: x.full.pct, stopped_pct: x.stopped.pct, like_pct: x.like.pct }]; })),
+      [`by_${by}`]: Object.fromEntries(Object.entries(groups).map(([g, ids]) => { const x = behaviour(world, s.id, ids); return [g, { reached: x.reached, full_pct: x.full.pct, stopped_pct: x.stopped.pct, depth_pct: x.depth.pct, like_pct: x.like.pct }]; })),
     };
     if (b.reached && b.reached < 30) warnings.push(`${s.id}: reached ${b.reached} personas — read rates as directional, not as a forecast`);
     if (b.recorded < b.reached) warnings.push(`${s.id}: ${b.reached - b.recorded} personas saw it and recorded nothing`);
@@ -365,8 +378,8 @@ export async function tally(dir, input) {
   }
   const ids = world.brief.subjects.map(s => s.id);
   if (ids.length > 1) {
-    const ranked = ids.map(id => [id, out.subjects[id].full]).filter(([, f]) => f.ci95).sort((a, b) => b[1].pct - a[1].pct);
-    if (ranked.length) out.comparison = { metric: 'full', leader: ranked[0][0], clear: ranked.slice(1).every(([, f]) => ranked[0][1].ci95[0] > f.ci95[1]), order: ranked.map(([id, f]) => ({ subject: id, pct: f.pct, ci95: f.ci95 })) };
+    const ranked = ids.map(id => [id, out.subjects[id][metric]]).filter(([, f]) => f.ci95).sort((a, b) => b[1].pct - a[1].pct);
+    if (ranked.length) out.comparison = { metric, leader: ranked[0][0], clear: ranked.slice(1).every(([, f]) => ranked[0][1].ci95[0] > f.ci95[1]), order: ranked.map(([id, f]) => ({ subject: id, pct: f.pct, ci95: f.ci95 })) };
   }
   const panel = Object.entries(world.experts);
   if (panel.length) out.experts = {
@@ -396,7 +409,7 @@ export async function profile(dir, input) {
   if (!p) fail(`Unknown persona "${input.persona}"`);
   const label = pid => { const post = world.posts.find(x => x.id === pid); return post.subject ? `subject ${post.subject}` : (post.account || who(world, post.author)); };
   return { sim: world.id, persona: { id, ...p }, sessions: [...new Set(world.impressions.filter(i => i.agent === id).map(i => i.round))].map(round => ({ round, saw: world.impressions.filter(i => i.agent === id && i.round === round).map(i => label(i.post)) })),
-    reactions: world.reactions.filter(r => r.agent === id).map(r => ({ round: r.round, on: label(r.post), attention: r.attention, like: r.like, share: r.share, comment: r.comment })),
+    reactions: world.reactions.filter(r => r.agent === id).map(r => ({ round: r.round, on: label(r.post), attention: r.attention, depth: depthOf(r), like: r.like, share: r.share, comment: r.comment })),
     posts: world.posts.filter(x => x.author === id && x.content).map(x => x.content), answers: world.answers[id]?.values || null };
 }
 

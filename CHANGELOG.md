@@ -3,6 +3,14 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+On `main` since v0.15.0; ships with the next package release. No storage changes.
+
+- **New pack `lohi-character`.** The tools and skill of Lohi's one generic character Soot, which plays a novel room's linh thể. Two read tools, `context` (the card as of the asker's own chapter, teachings, mood, passages for a question) and `remember` (what the linh thể remembers of the asker), both bounded by the host-signed principal: with no principal nothing is sent and the tool answers `principal_required`. Credentials `LOHI_CHARACTER` and `LOHI_CHARACTER_BASE`. Needs the Lohi api that serves `/agent/companions/:id/context` and `/memory`.
+- **micro-fish: `depth`.** Every reaction records `depth`, the percent of a post a persona got through (`act` now requires it; a `full` is 100, a skip with none is 0). `tally` reports the average depth with its interval per subject, per breakdown group and in `feed_rank`, and a brief's new `metric` (`full`, `stopped`, `depth`, `like`, `share`, `comment`; default `full`) decides the A/B and ranks the feed. `marketing` reads a pretest's `watch_pct` and falls back to `watch_through`.
+- **lohi-cs: ask before filing a novel request, then say where it stands.** The `novel-request` skill asks once before `lohi_request_novel` (a reader who already asked for it has said yes) and afterwards reports the request from the response's own numbers (`score` / `threshold`, `autoOnboard`, `stage`), never as a promise or a date. The knowledge page says the same to readers.
+
 ## 0.15.0 — 2026-11-14
 
 Baseline: v0.14.5. Pairs with the Soot release after 0.17.2 (the first with pieces); a Soot up to 0.17.2 holds these packs back as `invalid_release` and keeps the versions it has. Needs the Soot runtime that serves `interface.pieces` and bridge v2 (2agent soot-pages v2, nest-extensions); an older runtime refuses these packs' `interface`, and this runtime refuses the old `interface.pages`. Clean break: Soot has no outside users yet.

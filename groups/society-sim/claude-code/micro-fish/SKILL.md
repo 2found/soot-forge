@@ -120,7 +120,8 @@ the same command again; it resumes from the recorded round.
 
 `micro-fish.sh tally <sim>` prints the deterministic statistics (also saved
 beside the report). Check the report's headline numbers against it:
-- per subject `reached`, the `skip` / `some` / `full` split and `rank_in_feed`;
+- per subject `reached`, the `skip` / `some` / `full` split, `depth` (average percent
+  of the post people got through) and `rank_in_feed`;
 - `comparison.clear` (true means the leader is separated) before any "winner";
 - interview `top2` rates and the quoted `retell` answers;
 - `spread`, `experts.blocking`, `warnings`.

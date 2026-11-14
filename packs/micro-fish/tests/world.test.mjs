@@ -162,3 +162,23 @@ test('the entry point prints a safe message and a result', async t => {
   const bad = run('tally', { api_version: 'soot/v1', soot: 'analyst', input: { sim: 'missing' } });
   assert.equal(bad.status, 1); assert.match(bad.stderr, /No simulation "missing"/);
 });
+
+test('depth is the average share of a post people got through, and a brief can decide the A/B on it', async t => {
+  const two = [{ id: 'a', content: 'Nội dung A' }, { id: 'b', content: 'Nội dung B' }];
+  const f = await fixture(t); await create(f.dir, brief({ subjects: two, rounds: 1, feed_size: 8, agents: agents(10), metric: 'depth' }));
+  await assert.rejects(create(f.dir, brief({ sim: 'bad', metric: 'vibes' })), /metric must be/);
+  await advance(f.dir, 'demo', { round: 1 });
+  const world = await load(f.dir, 'demo');
+  for (const a of agents(10)) {
+    const feed = await f.call(a.id, 'timeline', { sim: 'demo' }), arm = world.agents[a.id].arm;
+    // Nobody finishes either one: arm a leaves around 60%, arm b around 10%.
+    await f.call(a.id, 'act', { sim: 'demo', reactions: reactAll(feed, p => p.post === arm ? { attention: 'some', depth: (arm === 'a' ? 55 : 5) + Number(a.id.slice(2)) } : { attention: 'skip' }) });
+  }
+  await assert.rejects(f.call('p-0', 'act', { sim: 'demo', reactions: [{ post: 'a', attention: 'some', depth: 140 }] }), /depth/);
+  const out = await f.call('analyst', 'tally', { sim: 'demo' });
+  assert.equal(out.subjects.a.full.pct, 0); assert.equal(out.subjects.a.depth.n, 5);
+  assert.ok(out.subjects.a.depth.pct > 55 && out.subjects.b.depth.pct < 15);
+  assert.deepEqual([out.comparison.metric, out.comparison.leader, out.comparison.clear], ['depth', 'a', true]);
+  assert.equal(out.feed_rank[0].post, 'a', 'the feed is ranked by the same metric');
+  assert.equal(out.feed_rank.find(r => r.post === 'c1').depth_pct, 0, 'a skip with no depth counts as 0');
+});

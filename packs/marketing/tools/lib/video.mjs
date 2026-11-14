@@ -88,7 +88,7 @@ export async function readPretest(ws, dir, sid, script, bar) {
   const winner = typeof decision.winner === 'string' && decision.winner.includes('/') ? decision.winner : null;
   const hooks = Object.values(judge?.stimuli ?? {}).filter(x => x?.kind === 'candidate' && String(x.id).startsWith(`${sid}/`)).map(x => {
     const id = String(x.id).split('/')[1];
-    return { id, text: hookText(script, id), score: typeof x.watch_through === 'number' ? Math.round(x.watch_through) : null, intent_top2: x.intent_top2 ?? null, n: x.n ?? null };
+    return { id, text: hookText(script, id), score: typeof (x.watch_pct ?? x.watch_through) === 'number' ? Math.round(x.watch_pct ?? x.watch_through) : null, intent_top2: x.intent_top2 ?? null, n: x.n ?? null };
   }).sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
   const chosen = winner?.startsWith(`${sid}/`) ? winner.split('/')[1] : null;
   for (const h of hooks) h.chosen = h.id === chosen;

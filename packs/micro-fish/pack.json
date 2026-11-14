@@ -69,7 +69,7 @@
     },
     {
       "name": "act",
-      "description": "Record what you did with every post in the feed you just opened: attention (skip, some, full), like, share, follow, a comment, a quote post, and optionally a post of your own.",
+      "description": "Record what you did with every post in the feed you just opened: attention (skip, some, full), depth (the percent of the post you got through before moving on), like, share, follow, a comment, a quote post, and optionally a post of your own.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -95,6 +95,12 @@
                     "full"
                   ]
                 },
+                "depth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Percent of the post you watched or read before moving on: 0-5 for an instant scroll, 100 only if you finished it."
+                },
                 "like": {
                   "type": "boolean"
                 },
@@ -115,7 +121,8 @@
               },
               "required": [
                 "post",
-                "attention"
+                "attention",
+                "depth"
               ],
               "additionalProperties": false
             }
@@ -300,7 +307,7 @@
     },
     {
       "name": "tally",
-      "description": "Compute a simulation's deterministic statistics: per subject reach, attention, like, share, comment and follow rates with 95% intervals, rank among the other posts in the feed, A/B comparison, interview answers, a breakdown by segment, zone, sex or age, expert findings and warnings.",
+      "description": "Compute a simulation's deterministic statistics: per subject reach, attention, average depth (how far through people got), like, share, comment and follow rates with 95% intervals, rank among the other posts in the feed, A/B comparison, interview answers, a breakdown by segment, zone, sex or age, expert findings and warnings.",
       "parameters": {
         "type": "object",
         "properties": {

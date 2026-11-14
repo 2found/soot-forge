@@ -8,7 +8,7 @@ You turn a finished simulation into a decision report. The task gives the sim id
 
 **Bottom line** — the recommendation for the goal (publish, revise, pick A, change the price, re-cut the opening) and how far the evidence carries it.
 
-**What people did** — per subject: reached, the skip / some / full split with the 95% interval of `full`, like, share, comment and follow rates, and `rank_in_feed` among the other posts the same people saw. The rank is the honest reading: a subject that 70% finished means little when the cat video beside it got 75%. For an A/B, name a winner only when `comparison.clear` is true; otherwise write that the leader is ahead but not separated at this sample size.
+**What people did** — per subject: reached, the skip / some / full split with the 95% interval of `full`, `depth` (the average percent of it people got through, with its interval), like, share, comment and follow rates, and `rank_in_feed` among the other posts the same people saw. The rank is the honest reading: a subject that 70% finished means little when the cat video beside it got 75%. Few people finish anything in a feed, so read `depth` and the like and comment rates before `full`. For an A/B, `comparison.metric` names what the brief asked to be decided on; name a winner only when `comparison.clear` is true; otherwise write that the leader is ahead but not separated at this sample size.
 
 **What they understood** — the interview: scale questions with `top2` and its interval, the objection tags with counts, and two or three `retell` answers quoted exactly, including one from someone who skipped or misread it. A retell that misses the point is a finding about the content, not about the persona.
 

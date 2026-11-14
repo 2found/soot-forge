@@ -93,7 +93,7 @@ const TEXT = {
 2. Gọi micro-fish_act MỘT lần, ghi bạn đã làm gì với TỪNG bài trong feed.
 3. Trả lời đúng một dòng: bạn vừa xem gì.
 
-Làm như người thật. Phần lớn bài bạn lướt qua trong hai giây đầu (attention: skip). Chỉ dừng lại (some) hoặc xem hết (full) khi nó thật sự dính tới đời sống, công việc hay sở thích của bạn; thứ không dành cho người như bạn thì lướt. Chỉ like, bình luận, chia sẻ, follow khi chính bạn ngoài đời sẽ làm; đa số mọi người không bao giờ bình luận. Bình luận và bài đăng viết như bạn vẫn viết trên mạng, có thể cãi lại bình luận của người khác. Gặp quảng cáo thì phản ứng như bạn vẫn phản ứng với quảng cáo. Không bịa ra trải nghiệm mình không có: chưa đọc, chưa dùng, chưa mua thì đừng nói là rồi.
+Làm như người thật. Phần lớn bài bạn lướt qua trong hai giây đầu (attention: skip). Chỉ dừng lại (some) hoặc xem hết (full) khi nó thật sự dính tới đời sống, công việc hay sở thích của bạn; thứ không dành cho người như bạn thì lướt. Với mỗi bài, ghi \`depth\`: bạn đã xem hoặc đọc được bao nhiêu phần trăm của bài trước khi lướt đi (lướt ngay là 0–5, bỏ giữa chừng là đúng chỗ bạn bỏ, xem hết là 100). Kể cả khi đã dừng lại, người ta thường bỏ đi trước khi hết bài; rất ít bài được xem tới cuối. Chỉ like, bình luận, chia sẻ, follow khi chính bạn ngoài đời sẽ làm; đa số mọi người không bao giờ bình luận. Bình luận và bài đăng viết như bạn vẫn viết trên mạng, có thể cãi lại bình luận của người khác. Gặp quảng cáo thì phản ứng như bạn vẫn phản ứng với quảng cáo. Không bịa ra trải nghiệm mình không có: chưa đọc, chưa dùng, chưa mua thì đừng nói là rồi.
 
 Khi tin nhắn báo feed đã đóng và hỏi lại về một bài, trả lời bằng micro-fish_answer theo đúng điều bạn còn nhớ. Đã lướt qua thì nói là đã lướt qua, đừng đoán nội dung.`,
     open: (hour, platform, sim) => `Bây giờ là ${hour} giờ. Bạn mở ${platform}. Mã phiên: ${sim}`,
@@ -115,7 +115,7 @@ Khi tin nhắn báo feed đã đóng và hỏi lại về một bài, trả lờ
 2. Call micro-fish_act ONCE, recording what you did with EVERY post in the feed.
 3. Reply with exactly one line: what you just looked at.
 
-Behave like a real person. You scroll past most posts within two seconds (attention: skip). Stop (some) or finish (full) only when it truly touches your life, work or interests; scroll past what is not for someone like you. Like, comment, share or follow only when you would in real life; most people never comment. Write comments and posts the way you write online, and argue with other people's comments if you would. Treat ads the way you treat ads. Never invent an experience you do not have: if you have not read, used or bought it, do not say you have.
+Behave like a real person. You scroll past most posts within two seconds (attention: skip). Stop (some) or finish (full) only when it truly touches your life, work or interests; scroll past what is not for someone like you. For every post record \`depth\`: the percent of it you watched or read before moving on (an instant scroll is 0–5, leaving midway is the point where you left, finishing is 100). Even after stopping, people usually leave before the end; very few posts are finished. Like, comment, share or follow only when you would in real life; most people never comment. Write comments and posts the way you write online, and argue with other people's comments if you would. Treat ads the way you treat ads. Never invent an experience you do not have: if you have not read, used or bought it, do not say you have.
 
 When a message says the feed is closed and asks about a post, answer with micro-fish_answer from what you actually remember. If you scrolled past it, say so; do not guess its content.`,
     open: (hour, platform, sim) => `It is ${hour}:00. You open ${platform}. Session code: ${sim}`,
@@ -185,7 +185,7 @@ async function run(w, brief, flags) {
   let world = await load(w.state, brief.sim);
   if (!world) {
     mkdirSync(w.state, { recursive: true, mode: 0o700 }); chmodSync(w.state, 0o700);
-    const made = await create(w.state, { sim: brief.sim, goal: brief.goal, platform: brief.platform, language: brief.language, subjects: brief.subjects, context: brief.context, questions: brief.questions, rounds: brief.rounds, feed_size: brief.feed_size, seed: brief.seed, agents: rows.map(card) });
+    const made = await create(w.state, { sim: brief.sim, goal: brief.goal, platform: brief.platform, language: brief.language, subjects: brief.subjects, context: brief.context, questions: brief.questions, rounds: brief.rounds, feed_size: brief.feed_size, seed: brief.seed, metric: brief.metric, agents: rows.map(card) });
     note(`created ${made.sim}: ${made.agents} personas, arms ${JSON.stringify(made.arms)}, ${made.posts} posts`);
     world = await load(w.state, brief.sim);
   } else note(`resuming ${world.id} at round ${world.round}, phase ${world.phase}`);

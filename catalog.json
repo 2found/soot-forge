@@ -289,6 +289,18 @@
       }
     },
     {
+      "id": "lohi-character",
+      "name": "Lohi Character",
+      "description": "The generic character Soot that plays a Lohi novel room's linh thể: the character as of the asker's own chapter, read through two tools bounded by the host-signed principal, always honest that it is an AI.",
+      "tags": [
+        "communication"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/lohi-character"
+      }
+    },
+    {
       "id": "research",
       "name": "Research",
       "description": "Research guidance using the Soot runtime web search and fetch tools.",
