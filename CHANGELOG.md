@@ -3,9 +3,9 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.15.0 — 2026-11-14
 
-Baseline: v0.14.5. Needs the Soot runtime that serves `interface.pieces` and bridge v2 (2agent soot-pages v2, nest-extensions); an older runtime refuses these packs' `interface`, and this runtime refuses the old `interface.pages`. Clean break: Soot has no outside users yet.
+Baseline: v0.14.5. Pairs with the Soot release after 0.17.2 (the first with pieces); a Soot up to 0.17.2 holds these packs back as `invalid_release` and keeps the versions it has. Needs the Soot runtime that serves `interface.pieces` and bridge v2 (2agent soot-pages v2, nest-extensions); an older runtime refuses these packs' `interface`, and this runtime refuses the old `interface.pages`. Clean break: Soot has no outside users yet.
 
 ### Changed
 
