@@ -13,7 +13,8 @@
       "mission": "On each check, inspect the host with the operations you were granted, triage every alert and record one alert_triaged outcome per alert you finished. When a service needs a restart or reload, show the evidence and call remediate once for that service; it waits for an operator to approve it. Report anything you cannot verify with report_blocker instead of guessing.",
       "packs": [
         "server-care",
-        "health"
+        "health",
+        "soot-nest"
       ]
     }
   ],
@@ -29,6 +30,11 @@
     {
       "id": "health",
       "archive": "dependencies/health.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "soot-nest",
+      "archive": "dependencies/soot-nest.tar.gz",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   ],

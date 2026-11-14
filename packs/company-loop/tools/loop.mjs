@@ -23,7 +23,7 @@ export const TOOLS = {
 export async function run(name, ctx, { env = process.env, store, now = Date.now(), fetchImpl = fetch, apiTimeoutMs } = {}) {
   const tool = TOOLS[name];
   if (!tool) fail('invalid_request', `Unknown tool ${name}.`);
-  return tool(ctx?.input ?? {}, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, soot: ctx?.soot ?? null, page: ctx?.page?.page ?? null });
+  return tool(ctx?.input ?? {}, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, soot: ctx?.soot ?? null, page: ctx?.piece?.piece ?? ctx?.page?.page ?? null });
 }
 
 async function readStdin() {

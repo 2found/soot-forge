@@ -27,6 +27,17 @@ test('the catalog lists the five standard teams first, then the utilities, then 
   }
 });
 
+test('the Đầu mối of every current template can make a Nest screen: it selects soot-nest, a pack of skills alone', () => {
+  assert.equal(packJson('soot-nest').tools, undefined, 'soot-nest grants no tool, so a read-only member stays read-only');
+  assert.ok(packJson('soot-nest').skills.some(s => s.name === 'nest-pieces'));
+  for (const id of [...STANDARD, 'workshop', 'server-watch']) {
+    const t = source(id);
+    assert.ok(t.members[0].packs.includes('soot-nest'), `${id}/${t.members[0].id}`);
+    assert.ok(t.packs.some(p => p.id === 'soot-nest'), `${id} ships soot-nest`);
+  }
+  assert.ok(source('workshop').members.every(m => m.packs.includes('soot-nest')), 'both workshop members talk to the founder on their own computer');
+});
+
 test('templates carry no credentials, grants or approvals', () => {
   for (const id of [...STANDARD, ...Object.keys(DEPRECATED)]) {
     const raw = readFileSync(new URL(`../groups/${id}/group.source.json`, import.meta.url), 'utf8');
@@ -94,7 +105,7 @@ test('company team groups: one group per team, roles by job, no private content 
   assert.deepEqual(g.support.members.map(m => m.id), ['desk', 'answerer'], 'a Soot cannot be its own feedback desk, and a public chat gets no pack tools');
   assert.deepEqual(g.operations.members.map(m => m.id), ['operator', 'curator']);
   assert.deepEqual(g.finance.members.map(m => m.id), ['controller']);
-  assert.deepEqual(g.finance.members[0].packs, ['company-loop:tools=signals', 'marketing:read'], 'the controller is read-only: one read tool and a read-only pack');
+  assert.deepEqual(g.finance.members[0].packs, ['company-loop:tools=signals', 'marketing:read', 'soot-nest'], 'the controller is read-only: one read tool, a read-only pack and the Nest skills');
   assert.equal(packTool('company-loop', 'signals').run.mode, 'read');
   assert.match(g.finance.members[0].mission, /never change a price|never change a price, a budget/i);
   const writer = g.growth.members.find(m => m.id === 'writer'), editor = g.growth.members.find(m => m.id === 'editor');
@@ -103,9 +114,9 @@ test('company team groups: one group per team, roles by job, no private content 
   assert.deepEqual(writer.packs, ['marketing', 'writing', 'research'], 'the writer watches the radar (marketing pack, research) and writes');
   assert.match(writer.mission, /marketing_radar_read/);
   assert.match(writer.mission, /Never post, reply, sign in/);
-  assert.deepEqual(editor.packs, ['marketing', 'browser-use', 'team-rhythm'], 'the Đầu mối holds the posting tools and the rhythm skill; the writer does not');
+  assert.deepEqual(editor.packs, ['marketing', 'browser-use', 'team-rhythm', 'soot-nest'], 'the Đầu mối holds the posting tools, the rhythm skill and the Nest skills; the writer does not');
   assert.deepEqual(g.growth.bindings.map(b => [b.member, b.name]), [['editor', 'MARKETING_CLAIM_KEY']]);
-  assert.deepEqual(g.insight.members[0].packs, ['company-loop', 'marketing:read', 'team-rhythm'], 'the analyst reads the market, it does not collect it');
+  assert.deepEqual(g.insight.members[0].packs, ['company-loop', 'marketing:read', 'team-rhythm', 'soot-nest'], 'the analyst reads the market, it does not collect it');
   assert.doesNotMatch(JSON.stringify(g.insight), /radar_read|marketing_radar/, 'insight carries no radar');
   assert.ok(g.insight.schedules.some(s => s.id === 'money' && s.member === 'analyst'), 'the weekly money review is the analyst\'s');
   assert.match(g.insight.members[0].mission, /never change a price/, 'the money review is read-only');
@@ -280,7 +291,7 @@ test('workshop: builder and poster for a computer with a browser and a coding ag
   assert.deepEqual(entry.entries, ['builder'], 'the builder is the Đầu mối');
   assert.equal(entry.parts, undefined, 'workshop owns no part: the standard owners stay');
   const [builder, poster] = w.members;
-  assert.deepEqual(builder.packs, ['company-loop:tools=builds_pull,team_watch', 'team-rhythm'], 'two tools of the loop pack, not the whole loop');
+  assert.deepEqual(builder.packs, ['company-loop:tools=builds_pull,team_watch', 'team-rhythm', 'soot-nest'], 'two tools of the loop pack, not the whole loop');
   assert.match(builder.mission, /Go in the insight team is the approval/);
   assert.ok(poster.packs.includes('browser-use') && poster.packs.some(r => refPack(r) === 'marketing' && refTools(r).includes('claim')), 'the poster uses the browser and the claim');
   assert.ok(!refTools(poster.packs[0]).includes('draft_save'), 'the poster never writes');

@@ -13,7 +13,8 @@
       "mission": "The founder's Go in the insight team is the approval: never ask for a second one. Tools pull approved requirements (company-loop_builds_pull) and watch the builds (company-loop_team_watch); read their answers. When a tool answers with an ask, or a build needs the person (a release go, a missing repository), file it as one Cần bạn item with report_blocker exactly as given. Hand posting work to the poster as a task. Never release without the founder's go and never touch money or accounts.",
       "packs": [
         "company-loop:tools=builds_pull,team_watch",
-        "team-rhythm"
+        "team-rhythm",
+        "soot-nest"
       ]
     },
     {
@@ -25,7 +26,8 @@
       "packs": [
         "marketing:tools=due,items,claim,record,fail,social_channels,social_queue,social_publish,social_record",
         "browser-use",
-        "team-rhythm"
+        "team-rhythm",
+        "soot-nest"
       ]
     }
   ],
@@ -52,6 +54,11 @@
     {
       "id": "team-rhythm",
       "archive": "dependencies/team-rhythm.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "soot-nest",
+      "archive": "dependencies/soot-nest.tar.gz",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   ],

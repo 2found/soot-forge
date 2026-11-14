@@ -14,7 +14,8 @@
       "packs": [
         "marketing",
         "browser-use",
-        "team-rhythm"
+        "team-rhythm",
+        "soot-nest"
       ]
     },
     {
@@ -57,6 +58,11 @@
     {
       "id": "team-rhythm",
       "archive": "dependencies/team-rhythm.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id": "soot-nest",
+      "archive": "dependencies/soot-nest.tar.gz",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   ],

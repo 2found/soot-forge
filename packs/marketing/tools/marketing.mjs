@@ -28,7 +28,7 @@ export async function run(name, ctx, { env = process.env, store, now = Date.now(
   const tool = TOOLS[name];
   if (!tool) throw new MarketingError('invalid_request', `Unknown tool ${name}.`);
   const input = ctx?.input ?? {};
-  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, exec, soot: ctx?.soot ?? ctx?.page?.soot ?? null, page: ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id });
+  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, exec, soot: ctx?.soot ?? ctx?.piece?.soot ?? ctx?.page?.soot ?? null, page: ctx?.piece?.piece ?? ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id });
 }
 
 async function readStdin() {

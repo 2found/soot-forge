@@ -67,7 +67,7 @@ test('content opportunities go by themselves (decision by soot) and queue a topi
   const card = await w.call('opportunities_card');
   assert.equal(card.raise.title, '1 cơ hội chờ bạn chọn');
   assert.match(card.raise.id, /^company:proposals:/);
-  assert.equal(card.raise.link, 'nest://page/company', 'a structured link, not text');
+  assert.equal(card.raise.link, 'nest://piece/company', 'a structured link, not text');
   assert.ok(card.raise.options.length >= 1);
   assert.deepEqual((await w.call('opportunities_card')).raise.id, card.raise.id, 'the same set is the same card id');
   const again = await w.call('digest_save', { opportunities: [ITEM.product] });

@@ -92,7 +92,7 @@ export async function opportunities_card(input, deps) {
   return { done: true, waiting: waiting.length, raise: {
     id: `${group}:${key}`, group, title: `${waiting.length} cơ hội chờ bạn chọn`,
     why: `${names}${waiting.length > 5 ? `\n… và ${waiting.length - 5} cơ hội nữa` : ''}\nMở trang Công ty: mỗi cơ hội có nút Go, Để sau, Bỏ. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.`,
-    link: 'nest://page/company', link_label: 'Mở Công ty',
+    link: 'nest://piece/company', link_label: 'Mở Công ty',
     options: [{ id: 'seen', label: 'Đã xem', recommended: true }], reraise_after_hours: 168,
   } };
 }

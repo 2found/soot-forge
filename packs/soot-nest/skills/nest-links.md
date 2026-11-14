@@ -1,8 +1,8 @@
 # Nest links
 
 In a reply, a `nest://` Markdown link sends the person to the right place in
-Nest: a collection or a document in the data pool, a Soot, a team, a page, a
-piece of work drafted for them, a drafted Soot, team or schedule, or a drafted
+Nest: a collection or a document in the data pool, a Soot, a team, a screen a
+pack or a Soot made, work drafted for them, a drafted Soot, team or schedule, or a drafted
 change to a Soot or to Phê duyệt công cụ. The people reading are often not technical, so
 a link beats directions like "open Dữ liệu, then choose Bảng giá".
 
@@ -24,7 +24,7 @@ wants to see it first (`nest-lead`).
 | `nest://team/<team>` | a team's page in Đội Soot |
 | `nest://team/<team>/channels`, `nest://team/<team>/perms` | that team's Kênh tab (its bots and websites) or Quyền tab (Nest 0.13.27+) |
 | `nest://schedules/<soot>` | a Soot's Lịch chạy |
-| `nest://page/<page>`, `nest://page/<soot>/<page>` | a piece a pack serves, by its piece id (`nest://page/company` is Công ty); without a Soot, the one on this server that serves it (Nest 0.13.18+) |
+| `nest://piece/<piece>`, `nest://piece/<soot>/<piece>` | a screen in the rail, by its piece id: one a pack serves (`nest://piece/company` is Công ty) or one a Soot wrote and the person placed (`nest-pieces`); without a Soot, the one on this server that serves it. Nest still opens the older `nest://page/…` |
 | `nest://schedules/nest-morning-brief` | the morning brief's schedule, to turn it off or change the time (the fixed id of the Lead's brief) |
 | `nest://overview`, `tasks`, `chat`, `team`, `data`, `reports` | that page; `tasks` (Việc) is every server's work in one list |
 | `nest://inbox` | Cần bạn, the queue on Tổng quan |
