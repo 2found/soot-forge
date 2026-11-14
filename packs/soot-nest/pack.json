@@ -12,7 +12,7 @@
       "cài đặt",
       "màn hình",
       "mảnh",
-      "mini app"
+      "công cụ"
     ],
     "en": [
       "nest",
@@ -20,7 +20,7 @@
       "setup",
       "screen",
       "piece",
-      "mini app"
+      "tool"
     ]
   },
   "description": {
@@ -40,7 +40,7 @@
     },
     {
       "name": "nest-pieces",
-      "description": "Make a screen of your own in Nest (a piece: a small page with live lists and buttons that ask you to act) when a person keeps coming back for the same view or request; write its files, read what the save answers, handle its button events, fix or retire it, and propose a layout change.",
+      "description": "Make a screen of your own in Nest (a piece) when a person keeps coming back for the same view or job: declare a tool that calls an outside service with a key the person enters in Nest, bind queries, named actions and questions, write the screen with the kit, read what each save answers, answer questions from the screen, fix or retire it, and propose a layout change.",
       "file": "skills/nest-pieces.md"
     }
   ]

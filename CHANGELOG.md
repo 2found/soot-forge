@@ -3,6 +3,13 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.16.0 — 2026-11-15
+
+Baseline: v0.15.1. Pairs with Soot 0.19.0 or later for screens that call a service and ask their Soot; read-only screens still work on 0.18.0. No storage changes.
+
+- **soot-nest: a Soot's screen calls a service and asks its Soot.** The `nest-pieces` skill now teaches the whole job through one example, a translation screen: check that the Soot has written tools (a `tools/<id>/tool.json` write answers a `tool` note); tell the person which service gets what and that the key goes on the approval card, never in chat; declare the tool (`run.http`, `needs.hosts`, `needs.credentials` with title, description and url, `mode`, `input`, `output.pick`, where `{{input.x}}` and `{{cred:NAME}}` may stand); bind it in `piece.json` as a named action, with table actions and `"ask": true`; write the screen with kit level 2 (`soot.run`, `soot.ask`, `soot.asks`, only from a click); answer a question with the last message and `piece_reply`. It lists every save and call refusal with its fix, the changes that need a new approval (host, key, method, `read` → `write`, new targets, `ask`, a memory search) and the limits. The example's files are the 2agent guide's (`docs/build-a-piece.md`), which `TestTranslateGuideExample` runs. The `mini app` keywords are gone. Evals in `packs/soot-nest/evals/`: the translation screen and a key pasted in chat.
+  **Timing:** the tool, action and ask parts need Soot 0.19.0 (written tools, bridge level 2) and its Nest. On 0.18.0 the skill makes the Soot notice there is no `tool` note and say Soot needs an update; read-only screens and `actions: true` work as before.
+
 ## 0.15.1 — 2026-11-14
 
 Baseline: v0.15.0. Pairs with Soot 0.18.0 or later; needed by Nest 0.18.0, where the pack screens of 0.15.0 never left "Đang tải…" (first entry). `company-loop` storage goes to version 8 (additive); no other storage changes.
