@@ -3,10 +3,11 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.15.1 — 2026-11-14
 
-On `main` since v0.15.0; ships with the next package release. `company-loop` storage goes to version 8 (additive); no other storage changes.
+Baseline: v0.15.0. Pairs with Soot 0.18.0 or later; needed by Nest 0.18.0, where the pack screens of 0.15.0 never left "Đang tải…" (first entry). `company-loop` storage goes to version 8 (additive); no other storage changes.
 
+- **Fix: pack screens open in Nest 0.18.0.** Nest 0.18.0 sends `level` in the bridge `init` message. The screens of `company-loop` (Công ty), `marketing`, `cs-console`, `data-pool-console` and `website-chat` dropped any host message with a key they did not know, so `init` never arrived and each screen stayed on "Đang tải…". A screen now checks the fields it reads and ignores the rest, in `init`, `context`, `theme` and `result`; a message of another version or with a missing or malformed field is still dropped.
 - **New pack `lohi-character`.** The tools and skill of Lohi's one generic character Soot, which plays a novel room's linh thể. Two read tools, `context` (the card as of the asker's own chapter, teachings, mood, passages for a question) and `remember` (what the linh thể remembers of the asker), both bounded by the host-signed principal: with no principal nothing is sent and the tool answers `principal_required`. Credentials `LOHI_CHARACTER` and `LOHI_CHARACTER_BASE`. Needs the Lohi api that serves `/agent/companions/:id/context` and `/memory`.
 - **micro-fish: `depth`.** Every reaction records `depth`, the percent of a post a persona got through (`act` now requires it; a `full` is 100, a skip with none is 0). `tally` reports the average depth with its interval per subject, per breakdown group and in `feed_rank`, and a brief's new `metric` (`full`, `stopped`, `depth`, `like`, `share`, `comment`; default `full`) decides the A/B and ranks the feed. `marketing` reads a pretest's `watch_pct` and falls back to `watch_through`.
 - **lohi-cs: ask before filing a novel request, then say where it stands.** The `novel-request` skill asks once before `lohi_request_novel` (a reader who already asked for it has said yes) and afterwards reports the request from the response's own numbers (`score` / `threshold`, `autoOnboard`, `stage`), never as a promise or a date. The knowledge page says the same to readers.
