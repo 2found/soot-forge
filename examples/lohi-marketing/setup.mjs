@@ -38,7 +38,7 @@ export const HOST_ENV = {
   LOHI_BLOG_TARGET: 'cms',
 };
 // LOHI_BLOG_REMOTE has no default: a workspace set up without `--blog-remote` must never be able to push to the real blog repo.
-// PRODUCT_REPO has no default either: the company loop writes a requirement file into it and spawns a bbs team there, so a scratch
+// PRODUCT_REPO has no default either: the company loop starts a bbs:autopilot session there, which edits that checkout, so a scratch
 // workspace never points at the real checkout unless `--product-repo` says so. CS_RUNTIME_URL (`--cs-runtime-url`) is optional.
 
 /**
@@ -174,7 +174,7 @@ export const personSteps = ({ productRepo, blog = 'cms' } = {}) => [
     ? 'Đăng blog lên lohi2.com/blog: nhập MARKETING_HUB cho Soot Ops trong Nest (Cài đặt → Kết nối), token người đăng của site lohi; thiếu hay bị từ chối thì Soot báo đúng một thẻ Cần bạn.'
     : 'Đăng blog (kho git): máy cần git qua SSH tới kho kiem-lai, go, 2server, gcloud đã đăng nhập; thiếu gì Soot báo đúng một thẻ Cần bạn.',
   'Chiến dịch và bảng số công ty (tuỳ chọn): khoá API vai trò agent_mod của Lohi, nhập PRODUCT_ADMIN_KEY trong Nest.',
-  'Vòng lặp công ty: mở trang Công ty, bấm Go / Để sau / Bỏ cho từng cơ hội sản phẩm (nội dung thì Soot tự chạy). ' + (productRepo ? 'Bấm Go thì Soot mở đội bbs:team; đội cần bbs và Orca trên máy này.' : 'Muốn Soot mở đội bbs:team thì chạy setup với --product-repo; đội cần bbs và Orca trên máy này.'),
+  'Vòng lặp công ty: mở trang Công ty, bấm Go / Để sau / Bỏ cho từng cơ hội sản phẩm (nội dung thì Soot tự chạy). ' + (productRepo ? 'Bấm Go thì Soot mở một phiên bbs:autopilot trong kho sản phẩm (cần bbs và Orca trên máy này); nó hỏi bạn ở trang Công ty, để thay đổi chưa commit, còn commit và phát hành là việc của bạn.' : 'Muốn Soot tự dựng bằng bbs:autopilot thì chạy setup với --product-repo; cần bbs và Orca trên máy này.'),
 ];
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -209,7 +209,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(r.connection ? 'Kết nối 2server: đã tìm thấy và ghi vào env (LOHI_CONNECTION).' : 'Kết nối 2server: chưa thấy .2server/connection.yaml; blog-ready sẽ báo một thẻ Cần bạn.');
   if (blog === 'cms') console.log(`Blog: lohi2.com/blog qua CMS của hub (LOHI_BLOG_TARGET=cms). Nhập MARKETING_HUB cho lohi-editor trong Nest; chưa có thì blog-ready báo một thẻ Cần bạn.${blogRemote ? ' --blog-remote bị bỏ qua.' : ''}`);
   else console.log(blogRemote ? 'Blog: kho git blog.lohi2.com (LOHI_BLOG_TARGET=git); đã ghi LOHI_BLOG_REMOTE theo --blog-remote.' : 'Blog: kho git (LOHI_BLOG_TARGET=git) chưa chọn (không có --blog-remote); Soot sẽ không đăng blog và blog-ready báo một thẻ Cần bạn.');
-  console.log(productRepo ? 'Kho sản phẩm: đã ghi PRODUCT_REPO theo --product-repo (Soot ghi yêu cầu vào docs/requirements/ và mở đội bbs:team khi bạn bấm Go).' : 'Kho sản phẩm: chưa chọn (không có --product-repo); bấm Go cho cơ hội sản phẩm sẽ báo chưa có kho và không mở đội.');
+  console.log(productRepo ? 'Kho sản phẩm: đã ghi PRODUCT_REPO theo --product-repo (khi bạn bấm Go, Soot mở một phiên bbs:autopilot sửa trong kho này và để thay đổi chưa commit).' : 'Kho sản phẩm: chưa chọn (không có --product-repo); bấm Go cho cơ hội sản phẩm sẽ ghi thành việc cho người làm, không mở phiên dựng.');
   console.log('Việc chỉ người làm được:');
   personSteps({ productRepo, blog }).forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
 }

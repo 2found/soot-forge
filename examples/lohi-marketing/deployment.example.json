@@ -412,7 +412,7 @@
     },
     {
       "id": "company-watch",
-      "name": "Theo dõi đội dựng",
+      "name": "Theo dõi phiên dựng",
       "soot": "lohi-editor",
       "cron": "*/30 7-23 * * *",
       "timezone": "Asia/Ho_Chi_Minh",

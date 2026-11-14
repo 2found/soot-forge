@@ -7,13 +7,14 @@ import { eq, fail, getState, iso, short } from './base.mjs';
 import { boardFor, dataProducts, labelOf, METRICS, scoreboard_sync } from './scoreboard.mjs';
 import { hitRate, isHit } from './review.mjs';
 import { decide, HOLD_MS, HANDED } from './opportunities.mjs';
-import { startHandoff, bbsReady, hasBuild, isTask, projectOf, PERSON_PREFIX } from './handoff.mjs';
+import { startHandoff, bbsReady, hasBuild, isTask, isTicketId, projectOf, PERSON_PREFIX } from './handoff.mjs';
+import { resolveApproval } from './watch.mjs';
 import { healthView } from './health.mjs';
 import { setParts, partHealth, partsOf, worstPart } from './parts.mjs';
 import { adoptProducts, hostProduct, productId, rememberHost, rowProduct, scoreboardKeys, scoreboardSources, syncKey } from './products.mjs';
 
 const DAY = 86_400_000;
-const BUILDING = ['spawned', 'starting', 'building', 'blocked'];
+const BUILDING = ['spawned', 'starting', 'building', 'answered', 'blocked', 'queued'];
 
 /** The one next step as a code: {code, n?, ref?}. */
 export function nextStep({ setup, sync, proposals, handoffs, topics, handed = 0, product = null, hasData = true, hong = null }) {
@@ -22,6 +23,8 @@ export function nextStep({ setup, sync, proposals, handoffs, topics, handed = 0,
   if (sync && sync.ok === false && sync.code === 'forbidden') return { code: 'key_refused' };
   if (product && !hasData) return { code: 'no_data' };
   if (proposals) return { code: 'choose', n: proposals };
+  const asking = handoffs.find(h => h.state === 'asking');
+  if (asking) return { code: 'answer', ref: asking.opportunity };
   const draft = handoffs.find(h => h.state === 'draft_ready' || h.state === 'no_repo');
   if (draft) return { code: draft.state, ref: draft.opportunity };
   const tasks = handoffs.filter(h => h.state === 'task');
@@ -141,7 +144,7 @@ export async function page_view(input, { store, env, now, soot }) {
   const proposals = o.keep.filter(x => x.state === 'proposed').length;
   const titleOf = ref => oppOf.get(ref)?.title ?? ref;
   const handoffs = h.keep.map(x => ({ opportunity: x.opportunity, product: x.product, title: titleOf(x.opportunity), summary: oppOf.get(x.opportunity)?.summary ?? null,
-    state: isTask(x) ? 'task' : x.state, build: !!projectOf(env, x.product), person: x.state === 'task' && String(x.note ?? '').startsWith(PERSON_PREFIX), repo: x.repo ?? null, requirement_path: x.requirement_path, team_id: x.team_id, ticket: x.ticket, command: x.command, note: x.note, detail: x.detail, released_at: x.released_at ?? null }));
+    state: isTask(x) ? 'task' : x.state, build: !!projectOf(env, x.product), person: x.state === 'task' && String(x.note ?? '').startsWith(PERSON_PREFIX), repo: x.repo ?? null, requirement_path: x.requirement_path, team_id: x.team_id, ticket: x.ticket, command: x.command, note: x.note, detail: x.detail, asked: x.asked ?? null, released_at: x.released_at ?? null }));
   const hasData = !!scoreboard || o.keep.length > 0 || h.keep.length > 0 || d.keep.length > 0;
   const handoffOf = new Map(handoffsAll.map(x => [x.opportunity, x]));
   const topicOf = new Map(topicsAll.filter(x => x.kind === 'content').map(x => [x.opportunity_ref, x]));
@@ -151,7 +154,7 @@ export async function page_view(input, { store, env, now, soot }) {
     page: 'company', at: iso(now), soot: typeof soot === 'string' ? soot : null, setup, sync,
     scope: {
       product: want ? { id: want, name: nameOf(want) } : null, host,
-      products: ids.map(id => ({ id, name: nameOf(id), waiting: oppsAll.filter(x => x.product === id && x.state === 'proposed').length + handoffsAll.filter(x => x.product === id && (x.state === 'delivered' || isTask(x))).length })),
+      products: ids.map(id => ({ id, name: nameOf(id), waiting: oppsAll.filter(x => x.product === id && x.state === 'proposed').length + handoffsAll.filter(x => x.product === id && (x.state === 'delivered' || x.state === 'asking' || isTask(x))).length })),
       left_out: { opportunities: o.out, handoffs: h.out, decisions: d.out, topics: t.out }, unlabeled,
     },
     next: nextStep({ setup, sync, proposals, handoffs, topics: queued.length, handed: handed.length, product: want, hasData, hong: parts ? worstPart(parts.items) : null }),
@@ -186,19 +189,21 @@ export async function page_action(input, deps) {
     case 'retry_handoff': {
       const h = await store.one('handoffs', [eq('opportunity', String(input.id))]);
       const opp = h && await store.one('opportunities', [eq('ref', h.opportunity)]);
-      if (!opp || !['draft_ready', 'no_repo', 'task', 'approved'].includes(h.state)) fail('invalid_request', 'Không có bàn giao nào chờ chạy lại.');
+      if (!opp || h.released_at || !['draft_ready', 'no_repo', 'task', 'approved', 'blocked'].includes(h.state)) fail('invalid_request', 'Không có bàn giao nào chờ chạy lại.');
       const out = await startHandoff(opp, deps);
       return { ok: true, handoff: { state: out.state, note: out.note, command: out.command } };
     }
     case 'to_person': {
       // The founder takes a build that is not running away from Soot: it becomes a task a person does and marks done.
       const h = await store.one('handoffs', [eq('opportunity', String(input.id))]);
-      if (!h || !['draft_ready', 'no_repo', 'approved', 'blocked'].includes(h.state)) fail('invalid_request', 'Không có bản dựng nào đang dừng để giao cho người với mã này.');
-      // A team that stopped midway left its changes in the checkout: the note says where, and the row keeps the repo and team.
-      const left = h.state === 'blocked' && h.repo;
-      const set = { state: 'task', command: null, detail: null, note: `${PERSON_PREFIX}${left ? ` Phần đội ${h.team_id ?? ''} đã làm còn nằm chưa commit trong ${h.repo}.` : ''} Xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó, hoặc bấm Để Soot dựng để Soot nhận lại.` };
+      if (!h || h.released_at || !['draft_ready', 'no_repo', 'approved', 'queued', 'blocked'].includes(h.state)) fail('invalid_request', 'Không có bản dựng nào đang dừng để giao cho người với mã này.');
+      // A session that stopped midway left its changes in the checkout: the note says where, and the task keeps the repo
+      // and ticket, so no other build starts there until the person is done.
+      const left = h.state === 'blocked';
+      const set = { state: 'task', command: null, detail: null, ...(left ? {} : { repo: null }),
+        note: `${PERSON_PREFIX}${left ? ` Phần phiên dựng đã làm còn nằm chưa commit trong ${h.repo ?? 'kho mã trên máy dựng'}${h.ticket ? ` (ticket ${h.ticket})` : ''}.` : ''} Xong thì đánh dấu đã xong để Soot đo kết quả từ ngày đó, hoặc bấm Để Soot dựng để Soot nhận lại.` };
       await store.update('handoffs', h.id, set);
-      return { ok: true, handoff: { state: 'task', note: set.note }, settle: [`company:handover:${h.opportunity}`, `company:unstarted:${h.opportunity}`] };
+      return { ok: true, handoff: { state: 'task', note: set.note } };
     }
     case 'task_done': {
       // A task done by a person: the outcome is measured from today, as a release would be.
@@ -207,11 +212,40 @@ export async function page_action(input, deps) {
       await store.update('handoffs', h.id, { state: 'released', released_at: iso(now), detail: input.note ? short(`Xong: ${input.note}`, 300) : 'Xong: bạn đã đánh dấu việc này xong.' });
       return { ok: true, handoff: { state: 'released', released_at: iso(now) } };
     }
+    case 'answer': {
+      // The founder's answer to the session's question (spec confirmation, a User Challenge): the same verdict the bbs dashboard writes.
+      const h = await store.one('handoffs', [eq('opportunity', String(input.id))]);
+      if (!h || h.state !== 'asking' || h.released_at) fail('invalid_request', 'Không có câu hỏi nào đang chờ bạn ở việc này.');
+      const note = typeof input.note === 'string' ? input.note.trim() : '';
+      if (!['approve', 'redirect', 'drop'].includes(input.action)) fail('invalid_request', 'action là approve, redirect hoặc drop.');
+      if (input.action === 'redirect' && !note) fail('invalid_request', 'Góp ý cần nói rõ phải đổi gì.');
+      const said = { approve: 'Bạn đã đồng ý', redirect: `Bạn đã góp ý: ${short(note, 200)}`, drop: 'Bạn đã dừng việc này' }[input.action];
+      let set;
+      if (h.repo) {
+        // Built on this runtime: the verdict goes straight to the ticket.
+        const r = await resolveApproval(deps.env, h, input.action, note);
+        if (!r.ok) fail('unavailable', `Chưa gửi được câu trả lời (${r.why}).`);
+        set = { state: 'answered', detail: `${said}. Phiên dựng nhận câu trả lời trong vài phút.` };
+      } else {
+        // Built on the workshop: the answer waits here, tied to this one question; team_watch there writes it to the ticket.
+        set = { state: 'answered', answer: input.action, answer_note: note || null, answer_for: h.asked ?? '', detail: `${said}. Máy dựng nhận câu trả lời ở lượt theo dõi kế tiếp.` };
+      }
+      await store.update('handoffs', h.id, set);
+      return { ok: true, handoff: { state: set.state, detail: set.detail, note: set.detail } };
+    }
+    case 'shipped': {
+      // Committing and releasing are a person's: this is them saying it is out, so the outcome is measured from today.
+      // The next tick (team_watch here, handoff_events_apply for a workshop build) records it and frees the checkout.
+      const h = await store.one('handoffs', [eq('opportunity', String(input.id))]);
+      if (!h || isTask(h) || h.released_at || !['delivered', 'building', 'asking', 'answered', 'blocked', 'spawned', 'starting'].includes(h.state)) fail('invalid_request', 'Không có bản dựng nào chờ đánh dấu đã phát hành với mã này.');
+      await store.update('handoffs', h.id, { released_at: iso(now), detail: 'Bạn đã đánh dấu đã phát hành; Soot ghi nhận ở lượt theo dõi kế tiếp.' });
+      return { ok: true, handoff: { state: h.state, released_at: iso(now), note: 'Đã ghi: Soot đo kết quả từ hôm nay.' } };
+    }
     case 'link_ticket': {
       const h = await store.one('handoffs', [eq('opportunity', String(input.id))]);
       if (!h) fail('not_found', 'Không có bàn giao này.');
-      if (typeof input.ticket !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$/.test(input.ticket)) fail('invalid_request', 'ticket là mã ticket cha của dự án bbs:team.');
-      await store.update('handoffs', h.id, { ticket: input.ticket });
+      if (!isTicketId(input.ticket)) fail('invalid_request', 'ticket là mã ticket bbs của việc này.');
+      await store.update('handoffs', h.id, { ticket: input.ticket, team_id: null });
       return { ok: true, linked: input.ticket };
     }
     case 'part_set': {
@@ -225,5 +259,5 @@ export async function page_action(input, deps) {
       return { ok: out.ok !== false, ...out };
     }
   }
-  return fail('invalid_request', 'op là go, later, drop, retry_handoff, to_person, task_done, link_ticket, part_set hoặc sync.');
+  return fail('invalid_request', 'op là go, later, drop, retry_handoff, to_person, answer, shipped, task_done, link_ticket, part_set hoặc sync.');
 }

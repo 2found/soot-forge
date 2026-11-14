@@ -366,7 +366,7 @@
     {
       "id": "company-loop",
       "name": "Company loop",
-      "description": "A product-agnostic company loop: reads the product scoreboard, makes a weekly digest of opportunities, sends content ideas to marketing, hands a founder-approved product change to bbs:team and measures what it did, on the Công ty page.",
+      "description": "A product-agnostic company loop: reads the product scoreboard, makes a weekly digest of opportunities, sends content ideas to marketing, builds a founder-approved product change with bbs:autopilot (the founder commits and ships it) and measures what it did, on the Công ty page.",
       "tags": [
         "operations",
         "collaboration"

@@ -166,7 +166,7 @@ export async function decide(input, deps, { by = 'operator' } = {}) {
     return { ok: true, opportunity: view({ ...opp, state: 'go' }), topic: opp.query };
   }
   const handoff = await startHandoff(opp, deps, { baseline: await baselineFor(store, opp.target_outcome, opp.product), person: input.build === 'person' });
-  return { ok: true, opportunity: view({ ...opp, state: 'go' }), handoff: { state: handoff.state, requirement_path: handoff.requirement_path, team_id: handoff.team_id, note: handoff.note, command: handoff.command } };
+  return { ok: true, opportunity: view({ ...opp, state: 'go' }), handoff: { state: handoff.state, requirement_path: handoff.requirement_path, ticket: handoff.ticket ?? null, note: handoff.note, command: handoff.command } };
 }
 
 const HOUR = 3_600_000;

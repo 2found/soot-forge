@@ -103,7 +103,7 @@ test('build: the Video Soot is added only when the workspace has the 2build pack
   assert.equal(build(dir, { env: true, video: false, connection: null, home: tmp() }).video, false, '--no-video wins');
 });
 
-test('personSteps: the bbs:team step asks for --product-repo only when it was not given', async () => {
+test('personSteps: the build step asks for --product-repo only when it was not given', async () => {
   const { personSteps } = await import('./setup.mjs');
   assert.match(personSteps().at(-1), /--product-repo/);
   assert.doesNotMatch(personSteps({ productRepo: '/tmp/p' }).at(-1), /--product-repo/);

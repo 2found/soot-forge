@@ -90,7 +90,7 @@ async function groupSource(root, id) {
  * Compiles a company. Options: mode `create` (teams are pinned group templates: needs `pins`) or `adopt` (teams are the
  * Soots a deployment already has), the repository root (for the group templates' packs and escalation triggers) and
  * `remotes`, a map from a forge team's external runtime to `{url, token_env, group?}`. An external team with no remote
- * entry has no runtime representation (build, which is Claude Code through `bbs team`); it is left out and named in notes.
+ * entry has no runtime representation (build, which is Claude Code through `bbs:autopilot`); it is left out and named in notes.
  */
 export async function compileCompany(template, overlay, { mode = 'create', root, pins = {}, remotes = {}, config } = {}) {
   if (template.api_version !== FORGE_VERSION) input(`api_version must be ${FORGE_VERSION}`);

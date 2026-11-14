@@ -110,19 +110,18 @@ test('a product without a project gets one Go (no person button) and its Go is u
   assert.equal((await act(w, 'retry_handoff', refs[0])).handoff.state, 'approved');
 });
 
-test('to_person: only a build that is not running; a blocked team keeps its repo and says where the half-done change is', async () => {
+test('to_person: only a build that is not running; a blocked build keeps its repo and ticket and says where the half-done change is', async () => {
   const repo = scratchRepo();
   const { w, refs } = await setup({ PRODUCT_REPOS: `lohi=${repo}` });
   const ref = refs[0];
   await goOf(w, ref);
   await assert.rejects(act(w, 'to_person', ref), /Không có bản dựng nào đang dừng/, 'spawned is running');
   const h = w.rows('handoffs')[0];
-  await w.store.update('handoffs', h.id, { state: 'blocked', detail: 'Phát hành giai đoạn p1 lỗi' });
+  await w.store.update('handoffs', h.id, { state: 'blocked', detail: 'Phiên dựng đã dừng và chưa xong.' });
   const out = await act(w, 'to_person', ref);
   assert.equal(out.handoff.state, 'task');
-  assert.match(out.handoff.note, new RegExp(`chưa commit trong ${repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
-  assert.deepEqual(out.settle, [`company:handover:${ref}`, `company:unstarted:${ref}`]);
-  assert.equal(w.rows('handoffs')[0].repo, repo);
+  assert.match(out.handoff.note, new RegExp(`chưa commit trong ${repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(ticket bs-tkt00001\\)`));
+  assert.deepEqual([w.rows('handoffs')[0].repo, w.rows('handoffs')[0].ticket], [repo, 'bs-tkt00001']);
   const done = await act(w, 'task_done', ref);
   assert.equal(done.handoff.state, 'released');
   await assert.rejects(act(w, 'to_person', ref), /Không có bản dựng nào đang dừng/);

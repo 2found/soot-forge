@@ -1,24 +1,31 @@
-// CL2: an approved product opportunity becomes a requirement file (in the ticket home, not the product repo) and
-// a `bbs team` project. The founder's Go on the operator-only page is the approval; this
-// file never calls land, release, integrate or seal. When bbs or Orca is not there the
-// handoff is `draft_ready` with the exact command, never a silent drop. A runtime with no
-// build stage (no PRODUCT_REPO, the always-on server) records the Go as `approved` with the requirement;
-// the runtime that has the repo pulls it (builds_pull). With no such runtime a person does the
-// work, and marking it done (page op task_done) starts the outcome clock. Each product builds in its own project
-// (`PRODUCT_REPOS`, else `PRODUCT_REPO`); the founder can also give a Go to a person (`person`), and take a build that
-// is not running away from Soot later (page op to_person).
+// CL2: an approved product opportunity becomes a requirement file (in the ticket home, not the product repo), a bbs
+// ticket and one `bbs:autopilot` session on the product checkout. The founder's Go on the operator-only page approves the
+// idea; the session asks them to confirm the spec through the ticket's approval record (AGENT_ROLE=dashboard), which
+// team_watch reads and the page answers. The session edits the checkout and never commits: a person reviews the uncommitted
+// change and ships it. One build at a time per checkout, so a second Go waits as `queued`. When bbs or Orca is not there
+// the handoff is `draft_ready` with the reason, never a silent drop. A runtime with no build stage (no project for the
+// product, the always-on server) records the Go as `approved` with the requirement; the runtime that has the repo pulls
+// it (builds_pull). With no such runtime a person does the work, and marking it done (page op task_done) starts the
+// outcome clock. Each product builds in its own project (`PRODUCT_REPOS`, else `PRODUCT_REPO`); the founder can also give
+// a Go to a person (`person`), and take a build that is not running away from Soot later (page op to_person).
 import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join } from 'node:path';
-import { eq, iso, short } from './base.mjs';
+import { eq, inList, iso, short } from './base.mjs';
 import { runBbs, findBbs, shq } from './bbs.mjs';
 import { productId } from './products.mjs';
 
 export const reqName = ref => `REQ-${ref}.md`;
-export const teamIdOf = ref => `loop-${ref.toLowerCase()}`;
+/** The Orca terminal the session runs in (`bbs team spawn` only opens and names it; no bbs:team project is involved). */
+export const sessionIdOf = ref => `loop-${ref.toLowerCase()}`;
+/** States in which a build has, or is about to have, uncommitted work in its checkout. */
+export const HOLDING = ['draft_ready', 'spawned', 'starting', 'building', 'asking', 'answered', 'blocked', 'delivered'];
+/** What a build says right after its session was started again on the ticket of an earlier try (team_watch gives it time to write a new status). */
+export const RESTARTED = 'Đã mở lại phiên dựng trên ticket cũ; phiên mới tiếp tục từ chỗ đã lưu.';
+export const isTicketId = v => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$/.test(v);
 
 const bullets = (xs, empty) => (xs?.length ? xs.map(x => `- ${x}`).join('\n') : empty);
 
-/** The requirement in the shape bbs:team's kickoff asks for: outcome, audience, scope, non-goals, criteria, evidence. */
+/** The requirement as 2build reads an agent-drafted one: the spec is confirmed by a person, the estimate is the appetite, the metric is measured after release. */
 export function requirementText(rawOpp, { baseline, at }) {
   // Model-written text stays one line per field, so it cannot open a heading or a section of its own.
   const one = s => short(s, 600);
@@ -27,7 +34,7 @@ export function requirementText(rawOpp, { baseline, at }) {
   return `# ${reqName(opp.ref).replace(/\.md$/, '')}: ${opp.title}
 
 Source: company-loop opportunity ${opp.ref} (product ${opp.product}), approved by the founder with Go at ${at}.
-Status: draft written by Soot; the team clarifies it, and the founder confirms the spec at the Brief touchpoint.
+Status: draft written by Soot. The founder approved the idea, not this spec: confirm the spec with them once before planning.
 
 ## Outcome
 
@@ -47,7 +54,7 @@ People who use ${opp.product} and produced the signals under Evidence.
 ## Non-goals
 
 - Anything the outcome does not need: no pricing, billing or data-model change unless the outcome requires it.
-- No release without the founder's go at handover (bbs:team's own release gate).
+- No commit, push or release: the change is left uncommitted for the founder to review and ship.
 
 ## Constraints
 
@@ -57,8 +64,11 @@ People who use ${opp.product} and produced the signals under Evidence.
 ## Acceptance criteria
 
 1. A person using the product can complete the journey this change serves (${short(opp.title, 100)}), checked by using it.
-2. The change can move \`${opp.target_outcome}\` by at least ${half} (half of ${opp.expected_delta}) within ${opp.check_after_days} days; the company loop measures it on the scoreboard.
-3. Existing tests and QA lanes of the repo pass, with at least one non-happy-path case.
+2. Existing tests and QA lanes of the repo pass, with at least one non-happy-path case.
+
+## Measured after release
+
+- \`${opp.target_outcome}\` moves by at least ${half} (half of ${opp.expected_delta}) within ${opp.check_after_days} days of release${baseline != null ? `, from ${baseline}` : ''}. The company loop reads it on the product scoreboard; it is not a QA criterion.
 
 ## Evidence
 
@@ -66,14 +76,8 @@ ${bullets(opp.evidence_refs, '- (none given)')}
 
 ## Open questions
 
-None recorded; the team decides Mechanical and Taste questions as assumptions.
+None recorded; decide Mechanical and Taste questions as assumptions and list them when confirming the spec.
 `;
-}
-
-/** The exact command a founder can run by hand. */
-export function spawnCommand(repo, teamId, reqPath, agent = 'claude') {
-  const inner = `${agent} ${shq(`/bbs:team --team-id ${teamId} --auto ${/^[\w./@+:-]+$/.test(reqPath) ? reqPath : shq(reqPath)}`)}`;
-  return { argv: ['team', 'spawn', teamId, '--dir', repo, '--auto', '--command', inner], text: `cd ${shq(repo)} && bbs team spawn ${teamId} --dir ${shq(repo)} --auto --command ${shq(inner)}` };
 }
 
 async function upsert(store, opp, set) {
@@ -90,9 +94,9 @@ export function requirementDir(env, repo) {
   return join(home, 'requirements', basename(repo).replace(/[^\w.-]+/g, '_') || 'product');
 }
 
-/** What happens next, in the founder's words: where the team works, what it needs from him, and where the release go is. */
-export const nextText = (teamId, reqPath) =>
-  `Bước tiếp: đội ${teamId} đọc yêu cầu (${reqPath}), tự làm rõ, thiết kế và dựng trong Orca; tiến độ hiện ở trang Công ty. Kho mã của bạn không bị ghi gì. Lần duy nhất cần bạn là cho phép phát hành, và việc đó làm trong terminal Orca của đội (bbs ticket approval resolve --action approve), không làm ở Nest.`;
+/** What happens next, in the founder's words: who asks them what, where the change lands, and that shipping is theirs. */
+export const nextText = (ticket, repo) =>
+  `Bước tiếp: phiên autopilot của ticket ${ticket} đọc yêu cầu rồi hỏi bạn xác nhận đặc tả; câu hỏi hiện ở trang Công ty và bạn trả lời ngay tại đó. Phiên dựng sửa thẳng trong ${repo}, tự review và QA, rồi để thay đổi chưa commit. Nó không commit và không phát hành: xong thì bạn xem, commit và phát hành.`;
 
 /**
  * The project a product builds in: its `PRODUCT_REPOS` entry (`product=<project>`, split by comma or newline), else
@@ -134,54 +138,90 @@ export async function resolveProject(env, project) {
 }
 
 /**
- * Write the requirement (never over a file a person may have edited) and spawn the team. Pure of the pack store: it
- * returns the row to keep, `{state, repo, requirement_path, team_id, command, note}`. The one place both halves use.
- * The repo is the product's project (`product`), resolved on this machine; one that cannot be is `no_repo` with the reason.
+ * Who holds a checkout: the other build (a local handoff or a pulled build) with uncommitted work there, or null. Autopilot
+ * edits the checkout it runs in, so two sessions would mix their changes. A build a person took over (a task that kept
+ * its ticket and repo) still has its changes there. Rows opened for bbs:team (they carry `team_id`) worked in their own worktrees.
  */
-export async function launchBuild({ ref, requirement, product = null }, { env }) {
+export async function holderOf(store, repo, ref) {
+  const held = (h, key) => h.repo === repo && key !== ref && !h.team_id && (h.state !== 'task' || !!h.ticket);
+  const states = [inList('state', [...HOLDING, 'task'])];
+  const a = (await store.query('handoffs', states, { limit: 100 })).find(h => held(h, h.opportunity));
+  if (a) return a.opportunity;
+  return (await store.query('builds', states, { limit: 100 })).find(h => held(h, h.handoff))?.handoff ?? null;
+}
+
+/**
+ * Write the requirement (never over a file a person may have edited), open the ticket and start its autopilot session.
+ * Pure of the pack store: it returns the row to keep, `{state, repo, requirement_path, ticket, command, note}`; `holder`
+ * (repo -> the build already there, or null) is how the caller says a checkout is taken. The one place both halves use.
+ * The repo is the product's project (`product`), resolved on this machine; one that cannot be is `no_repo` with the reason.
+ * `ticket` is the one an earlier try opened: a rerun continues it and never opens a second.
+ */
+export async function launchBuild({ ref, requirement, product = null, ticket = null }, { env, holder = null }) {
+  const none = { requirement_path: null, team_id: null, ticket: null, command: null, detail: null };
   const project = projectOf(env, product);
   const found = project ? await resolveProject(env, project) : { why: 'Chưa đặt PRODUCT_REPOS hay PRODUCT_REPO.' };
   const repo = found.repo ?? '';
   if (!repo.startsWith('/') || !existsSync(repo) || !statSync(repo).isDirectory()) {
-    return { repo: repo || project || null, requirement_path: null, team_id: null, state: 'no_repo', note: `Chưa tìm được kho mã của sản phẩm${product ? ` ${product}` : ''} trên máy này. ${found.why ?? `Không có thư mục ${repo}.`} Sửa PRODUCT_REPOS (hoặc PRODUCT_REPO) rồi bấm Chạy lại, hoặc giao việc này cho người.`, command: null };
+    return { ...none, repo: repo || project || null, state: 'no_repo', note: `Chưa tìm được kho mã của sản phẩm${product ? ` ${product}` : ''} trên máy này. ${found.why ?? `Không có thư mục ${repo}.`} Sửa PRODUCT_REPOS (hoặc PRODUCT_REPO) rồi bấm Chạy lại, hoặc giao việc này cho người.` };
   }
   // A requirement a person already put in the repo is used as it is; a new one goes beside the tickets, so a Go never dirties the working tree.
   const inRepo = join(repo, 'docs', 'requirements', reqName(ref));
   const dir = requirementDir(env, repo);
   if (!existsSync(inRepo) && !dir) {
-    return { repo, requirement_path: null, team_id: null, state: 'no_repo', note: 'Không có thư mục ticket (BABYSIT_HOME hoặc HOME) để ghi yêu cầu.', command: null };
+    return { ...none, repo, state: 'no_repo', note: 'Không có thư mục ticket (BABYSIT_HOME hoặc HOME) để ghi yêu cầu.' };
   }
   const reqPath = existsSync(inRepo) ? inRepo : join(dir, reqName(ref));
-  let wrote = false;
   try {
-    if (!existsSync(reqPath)) { mkdirSync(dirname(reqPath), { recursive: true }); writeFileSync(reqPath, requirement, { flag: 'wx' }); wrote = true; }
+    if (!existsSync(reqPath)) { mkdirSync(dirname(reqPath), { recursive: true }); writeFileSync(reqPath, requirement, { flag: 'wx' }); }
   } catch (e) {
-    return { repo, requirement_path: null, team_id: null, state: 'no_repo', note: `Không ghi được ${reqName(ref)}: ${short(e.message, 100)}`, command: null };
+    return { ...none, repo, state: 'no_repo', note: `Không ghi được ${reqName(ref)}: ${short(e.message, 100)}` };
   }
-  const teamId = teamIdOf(ref);
-  const cmd = spawnCommand(repo, teamId, reqPath, env.BBS_TEAM_AGENT || 'claude');
-  const r = await runBbs(env, cmd.argv, { cwd: repo, timeoutMs: 60_000 });
-  const base = { repo, requirement_path: reqPath, team_id: teamId, command: cmd.text };
-  const next = nextText(teamId, reqPath);
-  if (r.missing) return { ...base, state: 'draft_ready', note: `Máy này chưa có bbs nên đội chưa bắt đầu: bạn chạy lệnh dưới đây một lần. Soot tiếp tục theo dõi và sẽ báo nếu đội vẫn chưa bắt đầu. ${next}` };
-  if (!r.ok) return { ...base, state: 'draft_ready', note: `bbs team spawn không chạy được (${short(r.stderr, 140)}); bạn chạy lệnh dưới đây khi Orca đã mở. Soot tiếp tục theo dõi và sẽ báo nếu đội vẫn chưa bắt đầu. ${next}` };
-  return { ...base, state: 'spawned', note: `${wrote ? 'Đã ghi yêu cầu và mở đội bbs:team.' : 'Yêu cầu đã có sẵn; đã mở đội bbs:team.'} ${next}` };
+  if (!isTicketId(ticket)) ticket = null;
+  const resumed = !!ticket;
+  const base = { ...none, repo, requirement_path: reqPath, ticket };
+  const busy = holder ? await holder(repo) : null;
+  if (busy) return { ...base, state: 'queued', note: `Kho mã đang có một thay đổi khác chưa phát hành (${busy}). Việc này chờ tới lượt: Soot tự bắt đầu khi thay đổi kia đã phát hành.` };
+  const again = 'Sửa xong bấm Chạy lại ở trang Công ty.';
+  if (!ticket) {
+    const r = await runBbs(env, ['ticket', 'ensure', '--from-input-file', reqPath, '--no-branch'], { cwd: repo });
+    if (r.missing) return { ...base, state: 'draft_ready', note: 'Đã ghi yêu cầu, nhưng máy này chưa có bbs (2build) nên chưa dựng được. Cài 2build rồi bấm Chạy lại ở trang Công ty.' };
+    ticket = /^TICKET=(\S+)$/m.exec(r.stdout)?.[1] ?? null;
+    if (!r.ok || !isTicketId(ticket)) return { ...base, state: 'draft_ready', note: `Chưa mở được ticket (${short(r.stderr, 140) || 'bbs ticket ensure không trả mã ticket'}). ${again}` };
+    base.ticket = ticket;
+  }
+  // bbs knows how each agent CLI is told to run a skill unattended, and refuses here when it would stop on a prompt nobody sees.
+  const agent = env.BBS_TEAM_AGENT || 'claude';
+  const wc = await runBbs(env, ['team', 'worker-command', '--agent', agent, '--skill', 'autopilot', '--prompt', `--auto builder ${ticket}`, '--dir', repo], { cwd: repo });
+  const line = wc.ok ? wc.stdout.trim().split('\n').pop() : '';
+  if (wc.missing || !line) return { ...base, state: 'draft_ready', note: `Chưa chạy được ${agent} trong kho mã (${short(wc.stderr, 200) || 'không có bbs'}). ${again}` };
+  // AGENT_ROLE=dashboard: nobody watches this terminal, so every question becomes the ticket's approval record.
+  const run = `AGENT_ROLE=dashboard BABYSIT_TICKET=${ticket} ${line}`;
+  const command = `cd ${shq(repo)} && ${run}`;
+  const next = nextText(ticket, repo);
+  const sp = await runBbs(env, ['team', 'spawn', sessionIdOf(ref), '--dir', repo, '--command', run], { cwd: repo, timeoutMs: 60_000 });
+  if (!sp.ok) return { ...base, command, state: 'draft_ready', note: `Chưa mở được terminal trong Orca (${short(sp.stderr, 140)}). Mở Orca rồi bấm Chạy lại, hoặc tự chạy lệnh dưới đây trong một terminal. ${next}` };
+  return { ...base, command, state: 'spawned', ...(resumed ? { detail: RESTARTED } : {}), note: `Đã ghi yêu cầu và mở phiên autopilot. ${next}` };
 }
 
 /**
  * The founder's Go on a product opportunity. With a build stage here (the product's project: PRODUCT_REPOS, else PRODUCT_REPO) the requirement is written
- * and the team spawned now. Without one (the always-on server) nothing is written or spawned: the handoff is `approved` and
- * carries the requirement, product and target outcome for a runtime that has the repo (`builds_pull`); a company with no such
- * runtime treats it as a task for a person (`task_done`).
+ * and the session started now (or queued behind the build already in that checkout). Without one (the always-on server)
+ * nothing is written or started: the handoff is `approved` and carries the requirement, product and target outcome for a
+ * runtime that has the repo (`builds_pull`); a company with no such runtime treats it as a task for a person (`task_done`).
  */
 export async function startHandoff(opp, { store, env, now }, { baseline = null, person = false } = {}) {
   const requirement = requirementText(opp, { baseline, at: iso(now) });
+  const clear = { repo: null, requirement_path: null, team_id: null, command: null, detail: null, asked: null, answer: null, answer_note: null, answer_for: null };
   // The founder gave this Go to a person: the decision is logged and the work is a task, which no build runtime pulls.
-  if (person) return upsert(store, opp, { repo: null, requirement_path: null, team_id: null, state: 'task', note: PERSON_NOTE, command: null });
+  if (person) return upsert(store, opp, { ...clear, ticket: null, state: 'task', note: PERSON_NOTE });
   if (!buildsHere(env, opp.product)) {
-    return upsert(store, opp, { repo: null, requirement_path: null, team_id: null, state: 'approved', note: TASK_NOTE, command: null, requirement, target_outcome: opp.target_outcome ?? null, expected_delta: Number.isFinite(opp.expected_delta) ? opp.expected_delta : null });
+    return upsert(store, opp, { ...clear, state: 'approved', note: TASK_NOTE, requirement, target_outcome: opp.target_outcome ?? null, expected_delta: Number.isFinite(opp.expected_delta) ? opp.expected_delta : null });
   }
-  return upsert(store, opp, await launchBuild({ ref: opp.ref, requirement, product: opp.product }, { env }));
+  const prior = await store.one('handoffs', [eq('opportunity', opp.ref)]);
+  const ticket = prior && !prior.team_id ? prior.ticket : null;
+  const out = await launchBuild({ ref: opp.ref, requirement, product: opp.product, ticket }, { env, holder: repo => holderOf(store, repo, opp.ref) });
+  return upsert(store, opp, { ...out, asked: null, answer: null, answer_note: null, answer_for: null });
 }
 
 export const bbsReady = env => !!findBbs(env);

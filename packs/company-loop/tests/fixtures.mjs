@@ -68,8 +68,10 @@ export function addNotes(cs, notes, { created = '2026-11-08T10:00:00Z' } = {}) {
 }
 
 /**
- * A fake `bbs`: appends each argv as a JSON line to `log`; `team snapshot` prints the contents of `snapshot`
- * (default: an empty-phases envelope); `team spawn` exits 1 when the file `fail-spawn` exists.
+ * A fake `bbs`: appends each argv (with the ticket it ran on) as a JSON line to `log`. `ticket ensure` hands out
+ * bs-tkt00001, bs-tkt00002…; `ticket get status|approval` print what `ticket(id, {...})` set (default: `triage`, no
+ * record); `ticket approval resolve` moves that record as the real one does; `team worker-command` prints the agent
+ * line; `config workspace show` prints what `workspace(name, paths)` set. `fail(name)` makes one verb fail: ensure, worker, spawn, get, resolve, company.
  */
 export function fakeBbs() {
   const dir = mkdtempSync(join(tmpdir(), 'fake-bbs-'));
@@ -77,30 +79,47 @@ export function fakeBbs() {
   writeFileSync(bin, `#!/usr/bin/env node
 const fs = require('node:fs'), path = require('node:path');
 const dir = ${JSON.stringify(dir)};
-fs.appendFileSync(path.join(dir, 'log'), JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), envKeys: Object.keys(process.env) }) + '\\n');
-const a = process.argv.slice(2);
-if (a[0] === 'team' && a[1] === 'spawn') { if (fs.existsSync(path.join(dir, 'fail-spawn'))) { console.error('orca: not running'); process.exit(1); } console.log('spawned ' + a[2]); }
-else if (a[0] === 'team' && a[1] === 'snapshot') { const f = path.join(dir, 'snapshot'); if (fs.existsSync(path.join(dir, 'fail-snapshot'))) { console.error('open index.json: no such file'); process.exit(1); } console.log(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : JSON.stringify({ schema_version: 2, ok: true, data: { phases: [] } })); }
-else if (a[0] === 'ticket' && a[1] === 'find') { const f = path.join(dir, 'tickets'); console.log(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '[]'); }
-else if (a[0] === 'team' && a[1] === 'next') { const f = path.join(dir, 'next'); console.log(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : JSON.stringify({ schema_version: 2, ok: true, data: { ticket: a[2], steps: [] } })); }
+const a = process.argv.slice(2), T = process.env.BABYSIT_TICKET || '';
+fs.appendFileSync(path.join(dir, 'log'), JSON.stringify({ argv: a, cwd: process.cwd(), ticket: T, envKeys: Object.keys(process.env) }) + '\\n');
+const has = n => fs.existsSync(path.join(dir, n));
+const die = (n, msg, code = 1) => { if (has('fail-' + n)) { console.error(msg); process.exit(code); } };
+const state = () => { try { return JSON.parse(fs.readFileSync(path.join(dir, 't-' + T), 'utf8')); } catch { return {}; } };
+if (a[0] === 'ticket' && a[1] === 'ensure') {
+  die('ensure', 'ensure: not in a git work tree', 2);
+  const n = (has('n') ? Number(fs.readFileSync(path.join(dir, 'n'), 'utf8')) : 0) + 1; fs.writeFileSync(path.join(dir, 'n'), String(n));
+  console.log('TICKET=bs-tkt' + String(n).padStart(5, '0') + '\\nBRANCH=main\\nCREATED=1');
+} else if (a[0] === 'ticket' && a[1] === 'get') {
+  die('get', 'open index.json: no such file');
+  const s = state();
+  console.log(a[2] === 'status' ? (s.status ?? 'triage') : a[2] === 'approval' && s.approval ? JSON.stringify(s.approval) : '');
+} else if (a[0] === 'ticket' && a[1] === 'approval' && a[2] === 'resolve') {
+  die('resolve', 'approval: ticket is locked');
+  const s = state(), action = a[a.indexOf('--action') + 1], note = a.includes('--note') ? a[a.indexOf('--note') + 1] : '';
+  if (s.approval?.state !== 'pending') { console.error(T + ': nothing pending'); process.exit(1); }
+  s.approval = { ...s.approval, state: { approve: 'approved', redirect: 'redirected', drop: 'dropped' }[action], resolved: { note } };
+  fs.writeFileSync(path.join(dir, 't-' + T), JSON.stringify(s)); console.log(T + ': ' + s.approval.state);
+} else if (a[0] === 'team' && a[1] === 'worker-command') {
+  die('worker', 'agent "claude" has not been told to trust this directory');
+  console.log(a[a.indexOf('--agent') + 1] + " --dangerously-skip-permissions '/bbs:" + a[a.indexOf('--skill') + 1] + ' ' + a[a.indexOf('--prompt') + 1] + "'");
+} else if (a[0] === 'team' && a[1] === 'spawn') { die('spawn', 'orca: not running'); console.log('spawned ' + a[2]); }
 else if (a[0] === 'config' && a[1] === 'workspace' && a[2] === 'show') {
   const p = path.join(dir, 'ws-' + a[3]);
   if (!fs.existsSync(p)) { console.error('workspace ' + a[3] + ': not found'); process.exit(1); }
   console.log('workspace ' + a[3]); for (const r of JSON.parse(fs.readFileSync(p, 'utf8'))) console.log('  https://github.com/acme/' + path.basename(r) + '.git  ' + r + '  role=be');
 }
-else if (a[0] === 'company') { if (fs.existsSync(path.join(dir, 'fail-company'))) { console.error('company: invalid product'); process.exit(2); } console.log('scoreboard: recorded'); }
+else if (a[0] === 'company') { die('company', 'company: invalid product', 2); console.log('scoreboard: recorded'); }
 `);
   chmodSync(bin, 0o755);
+  const fail = (name, on = true) => (on ? writeFileSync(join(dir, `fail-${name}`), '') : execFileSync('rm', ['-f', join(dir, `fail-${name}`)]));
   return {
-    dir, bin,
+    dir, bin, fail,
     calls: () => (existsSync(join(dir, 'log')) ? readFileSync(join(dir, 'log'), 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)) : []),
+    /** What the autopilot session left on a ticket: {status?, approval?: {state, kind, note, at}}. */
+    ticket: (id, state) => writeFileSync(join(dir, `t-${id}`), JSON.stringify(state)),
     /** A registry workspace as `bbs config workspace show <name>` prints it: one line per repo path. */
     workspace: (name, paths) => writeFileSync(join(dir, `ws-${name}`), JSON.stringify(paths)),
-    tickets: rows => writeFileSync(join(dir, 'tickets'), JSON.stringify(rows)),
-    snapshot: data => writeFileSync(join(dir, 'snapshot'), JSON.stringify({ schema_version: 2, ok: true, data })),
-    failSpawn: on => (on ? writeFileSync(join(dir, 'fail-spawn'), '') : execFileSync('rm', ['-f', join(dir, 'fail-spawn')])),
-    failCompany: on => (on ? writeFileSync(join(dir, 'fail-company'), '') : execFileSync('rm', ['-f', join(dir, 'fail-company')])),
-    failSnapshot: on => (on ? writeFileSync(join(dir, 'fail-snapshot'), '') : execFileSync('rm', ['-f', join(dir, 'fail-snapshot')])),
+    failSpawn: on => fail('spawn', on),
+    failCompany: on => fail('company', on),
   };
 }
 

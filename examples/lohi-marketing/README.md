@@ -21,7 +21,7 @@ repository, since 0.11.12). See [Set it up](#set-it-up) below.
 
 ## The lean team (by job)
 
-The Soots are grouped into **teams** in [company.lohi.json](company.lohi.json), an overlay on the Forge's [company template](../../groups/company-team/README.md): insight (analyst, radar), growth (Editor, the Đầu mối, and Writer), finance (the controller), support (support and desk on the CS server, declared and not deployed by setup), build (Claude Code through `bbs team`, a contract) and `operations`, a slot for the `lohi-ops` pack. Chains such as publish, probe and GSC are schedules of growth, not teams.
+The Soots are grouped into **teams** in [company.lohi.json](company.lohi.json), an overlay on the Forge's [company template](../../groups/company-team/README.md): insight (analyst, radar), growth (Editor, the Đầu mối, and Writer), finance (the controller), support (support and desk on the CS server, declared and not deployed by setup), build (Claude Code through `bbs:autopilot`, a contract) and `operations`, a slot for the `lohi-ops` pack. Chains such as publish, probe and GSC are schedules of growth, not teams.
 
 | Soot | tier, daily tokens | does | wakes on |
 | --- | --- | --- | --- |
@@ -173,14 +173,15 @@ blog. The Editor is its Lead; the pack is product-neutral and Lohi is only confi
 Mon 08:30     scoreboard_sync{for_digest} ─▶ signals (packet ≤ 3 KiB) ──(notify)──▶ Editor: skill company-digest ─▶ digest_save
                  content opportunity ─▶ decided by Soot ─▶ topic queued ─▶ topic_next ─▶ marketing_plan ─▶ Writer ─▶ blog (no tap)
                  product opportunity ─▶ one "Cần bạn" card ─▶ page "Công ty": Go / Để sau / Bỏ        (tap 1)
-Go            requirement file REQ-OP-xxxx.md in the ticket home ($BABYSIT_HOME/requirements/<repo>/, never the product working tree) + `bbs team spawn` (never land, release, integrate or seal); the Go answer and the page say what happens next
-every 30 min  company_team_watch (no model; also a handoff left draft_ready: moves on once the team exists, one reminder if it never starts) ─▶ team delivered ─▶ founder reviews and gives bbs:team's release go   (tap 2)
+Go            requirement file REQ-OP-xxxx.md in the ticket home ($BABYSIT_HOME/requirements/<repo>/, never the product working tree) + a bbs ticket + one `bbs:autopilot --auto` session on it in the product checkout (never commit, land or release; a second Go for the same checkout waits its turn); the Go answer and the page say what happens next
+every 30 min  company_team_watch (no model; reads the ticket) ─▶ the session asks (spec confirmation) ─▶ "Cần bạn" card ─▶ founder answers on the page   (tap 2)
+              built, reviewed, QA'd, uncommitted ─▶ founder commits, ships (/bbs:release) and taps Đã phát hành                (tap 3)
               released ─▶ outcome requirement_shipped + a "launch" topic ─▶ marketing writes about it
 Mon 08:00     company_review (no model) ─▶ fills the real change against the baseline; hit = actual at least half of expected
 ```
 
-The founder taps twice per product change (Go on the opportunity, and bbs:team's own
-release go) and never for a content opportunity. Marketing receives topics through the
+The founder taps three times per product change (Go on the opportunity, the spec
+confirmation, Đã phát hành after shipping it themselves) and never for a content opportunity. Marketing receives topics through the
 chain `company-loop.topic_next` then `marketing.plan` (`input_from: previous`): the
 chain merges the topic into the plan call, and `marketing.plan` keeps it until a post about
 it exists, so the Writer's own plan call sees the same topic. A third step, `company-loop.topic_sync`,

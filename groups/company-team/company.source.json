@@ -128,9 +128,12 @@
             "requirement_path",
             "state",
             "ticket",
-            "released_at"
+            "released_at",
+            "answer",
+            "answer_note",
+            "answer_for"
           ],
-          "note": "yêu cầu làm sản phẩm đã duyệt và tình trạng (xưởng kéo về)"
+          "note": "yêu cầu làm sản phẩm đã duyệt, tình trạng và câu trả lời của người sáng lập cho phiên dựng (xưởng kéo về)"
         }
       ],
       "decides": {
@@ -448,12 +451,12 @@
       },
       "daily_tokens": 100000,
       "escalates_when": [
-        "một bản bàn giao đang chờ lệnh phát hành",
+        "phiên dựng hỏi người duyệt, hoặc bản dựng xong chờ người commit và phát hành",
         "việc dựng bị chặn hoặc sản phẩm chưa có kho mã trên máy này"
       ],
       "external": {
         "runtime": "founder-mac",
-        "via": "bbs team",
+        "via": "bbs autopilot",
         "note": "chạy trên máy người sáng lập (trình duyệt và agent lập trình); máy chủ không với tới, xưởng tự kéo việc từ insight"
       },
       "coordinator": "builder",
@@ -523,7 +526,11 @@
         "product",
         "requirement",
         "target_outcome",
-        "state"
+        "state",
+        "released_at",
+        "answer",
+        "answer_note",
+        "answer_for"
       ],
       "optional": true
     },
@@ -566,7 +573,8 @@
       "fields": [
         "handoff",
         "state",
-        "team_id",
+        "ticket",
+        "asked",
         "url",
         "note",
         "at",

@@ -116,18 +116,22 @@ const RHYTHM = [
   ['company-scoreboard', 'Đọc bảng số', 'Mỗi sáng 06:15'],
   ['company-digest', 'Bản tin cơ hội', 'Thứ Hai 08:30'],
   ['company-review', 'Chấm kết quả quyết định', 'Thứ Hai 08:00'],
-  ['company-watch', 'Theo dõi đội dựng', '30 phút một lần'],
+  ['company-watch', 'Theo dõi phiên dựng', '30 phút một lần'],
 ];
 const HAND = {
-  spawned: ['Đội đã mở', 1, 'Đội bbs:team đang làm rõ yêu cầu. Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
-  starting: ['Đội đang đọc yêu cầu', 1, 'Đội đang đọc yêu cầu: chưa có việc cần bạn.'],
+  spawned: ['Phiên dựng đã mở', 1, 'Phiên autopilot đang đọc yêu cầu. Soot kiểm tra mỗi 30 phút; việc đầu tiên nó cần là bạn xác nhận đặc tả.'],
+  starting: ['Đang đọc yêu cầu', 1, 'Phiên dựng đang đọc yêu cầu: chưa có việc cần bạn.'],
+  queued: ['Chờ tới lượt', 0, 'Kho mã đang có một thay đổi khác chưa phát hành. Soot tự bắt đầu việc này khi thay đổi kia đã phát hành.'],
+  asking: ['Chờ bạn trả lời', 1, 'Phiên dựng đang chờ câu trả lời của bạn.'],
+  answered: ['Đã trả lời', 1, 'Phiên dựng nhận câu trả lời trong vài phút.'],
   building: ['Đang dựng', 1, 'Soot kiểm tra mỗi 30 phút, bạn chưa phải làm gì.'],
-  blocked: ['Vướng khi phát hành', 1, 'Đội đang xử lý; mở terminal của đội trong Orca nếu cần xem.'],
-  delivered: ['Chờ bạn duyệt', 2, 'Duyệt bản giao rồi cho phép phát hành trong bbs:team. Soot không phát hành thay bạn.'],
+  blocked: ['Dừng giữa chừng', 1, 'Phiên dựng đã dừng và chưa xong. Xem terminal của nó trong Orca, hoặc bấm Chạy lại.'],
+  delivered: ['Chờ bạn phát hành', 2, 'Đã dựng, review và QA xong; thay đổi nằm chưa commit trong kho mã. Bạn xem, commit và phát hành.'],
   released: ['Đã phát hành', 3, 'Soot đo kết quả từ ngày phát hành.'],
-  draft_ready: ['Bản nháp sẵn', 0, 'Soot đã viết yêu cầu nhưng chưa mở được đội dựng.'],
+  dropped: ['Đã dừng', 0, 'Bạn đã dừng việc này.'],
+  draft_ready: ['Bản nháp sẵn', 0, 'Soot đã viết yêu cầu nhưng chưa mở được phiên dựng.'],
   no_repo: ['Chưa có kho mã', 0, 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa “Kho mã theo sản phẩm” trong Thiết lập rồi bấm Chạy lại, hoặc giao việc cho người.'],
-  task: ['Chờ người làm', 0, 'Đã ghi quyết định và một việc. Chưa nối đội dựng nên Soot không tự làm.'],
+  task: ['Chờ người làm', 0, 'Đã ghi quyết định và một việc cho người làm.'],
 };
 // The 5 parts of a product business, the 3 reader awareness levels and the 7 moats, in the founder's words.
 const PART = { value: 'Tạo giá trị', marketing: 'Marketing', sales: 'Bán hàng', delivery: 'Giao giá trị', finance: 'Tài chính' };
@@ -204,11 +208,12 @@ function nextOf(d) {
     case 'key_refused': return ['bad', `Chưa đọc được số mới${d.sync?.since ? ` từ ${dm(d.sync.since)}` : ''}`, `Máy chủ sản phẩm từ chối khoá quản trị. Nhập khoá mới có quyền đọc bảng số; ${sb ? `số bên dưới là của ${dm(sb.from)}–${dm(sb.to)}` : 'chưa có số cũ để hiện'}.`, ['Đổi khoá trong Thiết lập', () => open(SETTINGS('PRODUCT_ADMIN_KEY')), 'primary']];
     case 'no_data': return ['idle', `${name} chưa có số liệu hay cơ hội nào`, `Nối bảng số cho sản phẩm này (mục “Bảng số theo sản phẩm” trong Thiết lập) hoặc để Soot ghi số, rồi bản tin thứ Hai sẽ đưa cơ hội vào đây. Các mục của sản phẩm khác đang được ẩn. ${SWITCH_HINT}`, ['Mở Thiết lập', () => open(SETTINGS('SCOREBOARD_URLS')), 'strong']];
     case 'choose': return ['warn', `${n.n} cơ hội chờ bạn chọn`, 'Chọn Go, Để sau hoặc Bỏ ở từng cơ hội. Soot chỉ bắt đầu dựng sau khi bạn bấm Go.', [`Xem ${n.n} cơ hội`, jump('needs'), 'primary']];
-    case 'draft_ready': return ['warn', 'Yêu cầu đã viết, đội dựng chưa mở', 'Soot chưa mở được đội bbs:team. Mở Orca rồi bấm Chạy lại, hoặc chạy lệnh trong mục Cần bạn.', ['Chạy lại', () => act('retry_handoff', { id: n.ref }), 'primary']];
+    case 'answer': return ['warn', 'Phiên dựng đang chờ bạn trả lời', 'Nó hỏi một lần trước khi làm (thường là xác nhận đặc tả) và không tự quyết thay bạn.', ['Xem câu hỏi', jump('needs'), 'primary']];
+    case 'draft_ready': return ['warn', 'Yêu cầu đã viết, phiên dựng chưa mở', 'Soot chưa mở được phiên autopilot. Xem lý do ở mục Cần bạn rồi bấm Chạy lại.', ['Chạy lại', () => act('retry_handoff', { id: n.ref }), 'primary']];
     case 'no_repo': return ['bad', 'Chưa có kho mã để ghi yêu cầu', 'Soot chưa tìm được kho mã của sản phẩm này trên máy. Sửa “Kho mã theo sản phẩm” trong Thiết lập rồi bấm Chạy lại, hoặc giao việc cho người ở mục Cần bạn.', ['Mở Thiết lập', () => open(SETTINGS('PRODUCT_REPOS')), 'primary']];
     case 'task': return ['warn', `${n.n} việc đã ghi chờ người làm`, 'Máy này không có kho mã, nên sau Go Soot ghi quyết định và yêu cầu. Máy dựng của sản phẩm sẽ tự nhận; chưa có máy dựng thì giao việc cho người trong nhóm, xong thì đánh dấu để Soot đo kết quả từ ngày đó.', ['Giao việc', () => open(taskDraft(task)), 'primary']];
-    case 'release_go': return ['warn', 'Bản giao chờ bạn duyệt phát hành', 'Đọc bản bàn giao trong terminal của đội ở Orca; hài lòng thì cho phép phát hành. Đó là lượt bấm cuối của bạn.', ['Xem bản giao', jump('needs'), 'primary']];
-    case 'building': return ['ok', 'Đội đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi có bản giao cần bạn duyệt.', ['Xem tiến độ', jump('pipeline'), 'strong']];
+    case 'release_go': return ['warn', 'Bản dựng xong, chờ bạn commit và phát hành', 'Thay đổi đã qua review và QA, nằm chưa commit trong kho mã. Soot không commit hay phát hành thay bạn.', ['Xem bản dựng', jump('needs'), 'primary']];
+    case 'building': return ['ok', 'Đang dựng, bạn chưa phải làm gì', 'Soot kiểm tra tiến độ mỗi 30 phút và báo khi phiên dựng hỏi bạn hoặc đã xong.', ['Xem tiến độ', jump('pipeline'), 'strong']];
     case 'sync_failed': return ['bad', 'Chưa đọc được số mới', 'Bảng số không trả lời ở lần đọc gần nhất. Soot thử lại mỗi sáng; bấm Đọc số ngay để thử lại bây giờ.', ['Đọc số ngay', () => act('sync'), 'primary']];
     case 'part_hong': {
       const x = d.parts?.items.find(i => i.part === n.part);
@@ -276,12 +281,25 @@ function goButtons(o, d) {
   const soot = btn('Go: Soot dựng', () => act('go', { id: o.ref }), big ? undefined : 'strong');
   return big ? [person(true), soot] : [soot, person(false)];
 }
+const NEEDS = ['asking', 'delivered', 'task', 'draft_ready', 'no_repo'];
 function handoffNeed(x, d) {
   const prod = many(d) && x.product ? badge(productName(x.product)) : null;
+  if (x.state === 'asking') {
+    const note = () => document.getElementById(`a-${x.opportunity}`)?.value.trim() ?? '';
+    return h('div', { class: 'item' },
+      h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, `Phiên dựng hỏi về “${x.title}”`), prod, badge(HAND.asking[0], 'warn')),
+      h('p', {}, x.detail || HAND.asking[2]),
+      x.ticket ? small(`Đặc tả và kế hoạch nằm trong ticket ${x.ticket} (bbs dashboard mở được cả hai).`, 'muted') : null,
+      h('input', { class: 'input', id: `a-${x.opportunity}`, maxlength: '300', placeholder: 'Góp ý hoặc câu trả lời (bắt buộc khi bấm Góp ý)', 'aria-label': 'Góp ý cho phiên dựng' }),
+      h('div', { class: 'row' }, btn('Đồng ý', () => act('answer', { id: x.opportunity, action: 'approve', ...(note() ? { note: note() } : {}) }), 'strong'),
+        btn('Góp ý', () => { if (note()) act('answer', { id: x.opportunity, action: 'redirect', note: note() }); else document.getElementById(`a-${x.opportunity}`)?.focus(); }),
+        btn('Dừng việc này', () => act('answer', { id: x.opportunity, action: 'drop', ...(note() ? { note: note() } : {}) }), 'text')));
+  }
   if (x.state === 'delivered') return h('div', { class: 'item' },
-    h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, `Bản giao “${x.title}” chờ bạn duyệt phát hành`), prod, badge('Lượt bấm cuối', 'warn')),
+    h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, `“${x.title}” đã dựng xong, chờ bạn commit và phát hành`), prod, badge('Việc của bạn', 'warn')),
     small(x.detail || HAND.delivered[2], 'muted'),
-    x.command ? h('details', {}, h('summary', {}, 'Lệnh cho phép phát hành'), h('code', { class: 'cmd' }, x.command)) : null);
+    x.repo || x.ticket ? small([x.repo && `Kho mã: ${x.repo}`, x.ticket && `ticket ${x.ticket}`].filter(Boolean).join(' · '), 'muted') : null,
+    x.released_at ? small('Bạn đã đánh dấu đã phát hành; Soot ghi nhận ở lượt theo dõi kế tiếp.') : h('div', { class: 'row' }, btn('Đã phát hành', () => act('shipped', { id: x.opportunity }), 'strong')));
   if (x.state === 'task') return h('div', { class: 'item' },
     h('div', { class: 'item-h' }, lamp('warn'), h('span', { class: 't' }, x.title), prod, badge('Việc đã ghi', 'warn')),
     x.summary ? h('p', {}, x.summary) : null,
@@ -314,7 +332,7 @@ function setupNeed(d) {
 function needsSection(d) {
   const proposed = d.opportunities.filter(o => o.state === 'proposed');
   const later = d.opportunities.filter(o => o.state === 'later');
-  const hand = d.handoffs.filter(x => ['delivered', 'task', 'draft_ready', 'no_repo'].includes(x.state));
+  const hand = d.handoffs.filter(x => NEEDS.includes(x.state));
   const items = [setupNeed(d), ...hand.filter(x => x.state !== 'delivered').map(x => handoffNeed(x, d)), ...proposed.map(o => oppItem(o, d)), ...hand.filter(x => x.state === 'delivered').map(x => handoffNeed(x, d))].filter(Boolean);
   return sec('needs', `Cần bạn${items.length ? ` · ${items.length}` : ''}`, 'Mỗi mục nói việc gì và làm ở đâu',
     h('div', { class: 'list' }, items.length ? items : empty(h('span', {}, 'Không có việc nào cần bạn lúc này.'), h('span', { class: 'small' }, 'Bản tin thứ Hai 08:30 sẽ đưa cơ hội mới vào đây.'))),
@@ -420,23 +438,29 @@ function partsSection(d) {
 function steps(x) {
   if (x.state === 'task') return h('div', { class: 'steps' }, h('span', { class: 'done' }, 'Đã Go'), h('span', { class: 'now' }, 'Chờ người làm'), h('span', {}, 'Xong'));
   const at = HAND[x.state]?.[1] ?? 0;
-  return h('div', { class: 'steps' }, ['Đã Go', 'Đang dựng', 'Chờ bạn duyệt', 'Đã phát hành'].map((s, i) => h('span', { class: i < at ? 'done' : i === at ? 'now' : '' }, s)));
+  return h('div', { class: 'steps' }, ['Đã Go', 'Đang dựng', 'Chờ bạn phát hành', 'Đã phát hành'].map((s, i) => h('span', { class: i < at ? 'done' : i === at ? 'now' : '' }, s)));
 }
 function pipeItem(x, d) {
-  const tech = [x.team_id && `Đội ${x.team_id}`, x.ticket && `Ticket cha ${x.ticket}`, x.requirement_path && `Yêu cầu ${x.requirement_path}`].filter(Boolean);
-  const live = ['spawned', 'starting', 'building'].includes(x.state);
+  // A handoff opened for bbs:team before autopilot took over: Soot no longer reads it, the founder closes it.
+  const old = !!x.team_id && x.state !== 'released';
+  const tech = [x.ticket && `Ticket ${x.ticket}`, x.repo && `Kho mã ${x.repo}`, x.requirement_path && `Yêu cầu ${x.requirement_path}`, old && `Đội bbs:team ${x.team_id}`].filter(Boolean);
+  const live = ['spawned', 'starting', 'building', 'answered', 'blocked', 'queued'].includes(x.state) && !x.released_at;
+  const stopped = x.state === 'blocked' && !old;
   return h('div', { class: 'item' },
-    h('div', { class: 'item-h' }, h('span', { class: 't' }, x.title), many(d) && x.product ? badge(productName(x.product)) : null, x.state === 'blocked' ? badge(HAND.blocked[0], 'bad') : null),
+    h('div', { class: 'item-h' }, h('span', { class: 't' }, x.title), many(d) && x.product ? badge(productName(x.product)) : null, ['blocked', 'queued', 'dropped'].includes(x.state) ? badge(HAND[x.state][0], x.state === 'blocked' ? 'bad' : '') : null),
     steps(x),
-    small(x.state === 'released' && x.released_at ? `Xong ngày ${dm(x.released_at)}. Soot đo kết quả từ ngày đó.` : x.detail || HAND[x.state]?.[2] || ''),
-    x.state === 'blocked' ? h('div', { class: 'row' }, btn('Giao người làm', () => act('to_person', { id: x.opportunity }))) : null,
+    small(x.state === 'released' && x.released_at ? `Xong ngày ${dm(x.released_at)}. Soot đo kết quả từ ngày đó.` : x.released_at ? 'Bạn đã đánh dấu đã phát hành; Soot ghi nhận ở lượt theo dõi kế tiếp.' : old ? 'Việc này giao cho bbs:team trước đây; Soot không còn theo dõi đội đó. Phát hành xong thì bấm Đã phát hành.' : x.detail || HAND[x.state]?.[2] || ''),
+    live ? h('div', { class: 'row' }, stopped ? btn('Chạy lại', () => act('retry_handoff', { id: x.opportunity }), 'strong') : null,
+      (stopped || x.state === 'queued') ? btn('Giao người làm', () => act('to_person', { id: x.opportunity })) : null,
+      old || x.state === 'blocked' ? btn('Đã phát hành', () => act('shipped', { id: x.opportunity })) : null) : null,
     tech.length || live ? h('details', {}, h('summary', {}, 'Chi tiết kỹ thuật'), tech.map(t => h('p', {}, t)),
-      live ? h('div', { class: 'row' }, h('input', { class: 'input', id: `t-${x.opportunity}`, placeholder: x.ticket ? `Ticket cha: ${x.ticket}` : 'Mã ticket cha (nếu Soot chưa đọc được)', 'aria-label': 'Mã ticket cha' }),
+      x.command ? h('code', { class: 'cmd' }, x.command) : null,
+      live && d.setup.build ? h('div', { class: 'row' }, h('input', { class: 'input', id: `t-${x.opportunity}`, placeholder: x.ticket ? `Ticket: ${x.ticket}` : 'Mã ticket bbs (nếu Soot chưa có)', 'aria-label': 'Mã ticket bbs' }),
         btn('Gắn', () => { const v = document.getElementById(`t-${x.opportunity}`)?.value.trim(); if (v) act('link_ticket', { id: x.opportunity, ticket: v }); }, 'text')) : null) : null);
 }
 function pipeline(d) {
   const build = d.setup.build;
-  const rows = d.handoffs.filter(x => !['delivered', 'task', 'draft_ready', 'no_repo'].includes(x.state) || !build);
+  const rows = d.handoffs.filter(x => !NEEDS.includes(x.state) || !build);
   const topics = (d.topics ?? []).filter(t => t.state !== 'written').slice(0, 8);
   return sec('pipeline', build ? 'Đang dựng' : 'Việc sau Go', build ? null : 'Chưa nối đội dựng · Go ghi quyết định và một việc',
     h('div', { class: 'list' }, rows.length ? rows.map(x => pipeItem(x, d)) : empty(h('span', {}, build ? 'Chưa có cơ hội sản phẩm nào đang dựng.' : 'Chưa có việc nào sau Go.'))),

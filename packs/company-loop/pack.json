@@ -22,8 +22,8 @@
     ]
   },
   "description": {
-    "vi": "Vòng lặp công ty cho một sản phẩm: đọc bảng số, lập bản tin cơ hội mỗi tuần, nội dung tự chạy, sản phẩm chờ bạn bấm Go rồi bàn giao cho đội bbs:team và theo dõi đến khi phát hành.",
-    "en": "A product-agnostic company loop: reads the scoreboard, makes a weekly digest of opportunities, sends content to marketing by itself, hands a founder-approved product change to bbs:team and watches it to release."
+    "vi": "Vòng lặp công ty cho một sản phẩm: đọc bảng số, lập bản tin cơ hội mỗi tuần, nội dung tự chạy, sản phẩm chờ bạn bấm Go rồi một phiên bbs:autopilot dựng trong kho mã; nó hỏi bạn ở trang Công ty, để thay đổi chưa commit, còn commit và phát hành là việc của bạn.",
+    "en": "A product-agnostic company loop: reads the scoreboard, makes a weekly digest of opportunities, sends content to marketing by itself, builds a founder-approved product change with bbs:autopilot (it asks on the Công ty page; the founder commits and ships) and measures what it did."
   },
   "needs": {
     "runtime": [
@@ -97,7 +97,7 @@
     }
   ],
   "storage": {
-    "version": 7,
+    "version": 8,
     "tables": [
       {
         "name": "scoreboard",
@@ -329,7 +329,7 @@
       },
       {
         "name": "handoffs",
-        "description": "Bàn giao sang đội dựng (bbs:team): yêu cầu, mã đội, trạng thái. Trạng thái approved: đã Go trên máy không có kho mã, kèm yêu cầu cho máy dựng nhận.",
+        "description": "Bàn giao sang phiên dựng (bbs:autopilot): yêu cầu, ticket, trạng thái, câu hỏi đang chờ (asked) và câu trả lời của người sáng lập cho máy dựng (answer, answer_note, answer_for). Trạng thái approved: đã Go trên máy không có kho mã, kèm yêu cầu cho máy dựng nhận.",
         "columns": [
           {
             "name": "opportunity",
@@ -393,6 +393,22 @@
           },
           {
             "name": "url",
+            "type": "text"
+          },
+          {
+            "name": "asked",
+            "type": "text"
+          },
+          {
+            "name": "answer",
+            "type": "text"
+          },
+          {
+            "name": "answer_note",
+            "type": "text"
+          },
+          {
+            "name": "answer_for",
             "type": "text"
           }
         ]
@@ -593,7 +609,7 @@
       },
       {
         "name": "handoff_events",
-        "description": "Hàng đợi chỉ thêm: máy dựng báo tiến độ của một bàn giao (handoff = mã cơ hội): started, progress, handover, shipped, failed. handoff_events_apply gộp vào handoffs.",
+        "description": "Hàng đợi chỉ thêm: máy dựng báo tiến độ của một bàn giao (handoff = mã cơ hội): started, queued, progress, asking, stopped, handover, shipped, dropped. handoff_events_apply gộp vào handoffs.",
         "columns": [
           {
             "name": "handoff",
@@ -626,12 +642,20 @@
             "name": "product",
             "type": "text",
             "index": true
+          },
+          {
+            "name": "ticket",
+            "type": "text"
+          },
+          {
+            "name": "asked",
+            "type": "text"
           }
         ]
       },
       {
         "name": "builds",
-        "description": "Việc dựng trên máy có kho mã: một dòng cho mỗi bàn giao đã nhận (handoff = mã cơ hội), trạng thái đội, và sự kiện đã báo cho nhóm insight.",
+        "description": "Việc dựng trên máy có kho mã: một dòng cho mỗi bàn giao đã nhận (handoff = mã cơ hội), ticket và trạng thái phiên dựng, câu hỏi đang chờ (asked), và sự kiện đã báo cho nhóm insight.",
         "columns": [
           {
             "name": "handoff",
@@ -695,6 +719,10 @@
           },
           {
             "name": "pushed_detail",
+            "type": "text"
+          },
+          {
+            "name": "asked",
             "type": "text"
           }
         ]
@@ -961,7 +989,7 @@
     {
       "name": "decide",
       "title": "Quyết định một cơ hội",
-      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go on a runtime with a build stage (the product's project: its PRODUCT_REPOS entry, else PRODUCT_REPO) writes REQ-<id>.md beside the tickets and spawns bbs team (never land or release); without bbs or Orca the handoff is draft_ready with the exact command. On a runtime with no project for the product (the server) nothing is written or spawned: the handoff is approved and carries the requirement, product and target outcome for builds_pull on the runtime that has the repo. With build person the Go is recorded as a task for a person and no build runtime pulls it. Needs the operator approval; the Công ty page does the same on the founder tap. With product (input, else SOOT_PRODUCT) an opportunity of another product is refused.",
+      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go on a runtime with a build stage (the product's project: its PRODUCT_REPOS entry, else PRODUCT_REPO) writes REQ-<id>.md beside the tickets, opens a bbs ticket from it and starts one bbs:autopilot --auto session on that ticket in the product checkout (it edits the checkout and leaves the change uncommitted; never commit, land or release); a checkout that already holds an unshipped build makes the Go queued; without bbs or Orca the handoff is draft_ready with the reason. On a runtime with no project for the product (the server) nothing is written or started: the handoff is approved and carries the requirement, product and target outcome for builds_pull on the runtime that has the repo. With build person the Go is recorded as a task for a person and no build runtime pulls it. Needs the operator approval; the Công ty page does the same on the founder tap. With product (input, else SOOT_PRODUCT) an opportunity of another product is refused.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1068,8 +1096,8 @@
     },
     {
       "name": "team_watch",
-      "title": "Theo dõi đội dựng",
-      "description": "Read bbs team snapshot for each open handoff with no model; the parent ticket is found from the team id (bbs ticket find), `starting` until the kickoff creates it. A handover waiting for the release go returns one raise (Cần bạn card) that the runtime files, and settles it when the go is given. A released team returns outcomes requirement_shipped to record and queues one launch topic; nothing changed answers {done: true}. With product it watches only that product's handoffs and builds. Builds (rows of builds_pull) are reported to the insight team as handoff_events.",
+      "title": "Theo dõi phiên dựng",
+      "description": "Read each open build's ticket with no model (bbs ticket get status, bbs ticket get approval). A pending approval record is the session's question: state asking and one raise (Cần bạn card) the runtime files; the Công ty page answers it. Ticket in_review is delivered (built, reviewed, QA'd, left uncommitted): one card to commit and ship. blocked or cancelled is a session that stopped: one card. Shipped (the founder's Đã phát hành on the page, or a ticket closed as done) returns outcomes requirement_shipped to record and queues one launch topic. A queued handoff starts once its checkout is free; a draft_ready one is reminded once after 2 hours. Nothing changed answers {done: true}. With product it watches only that product's handoffs and builds. Builds (rows of builds_pull) are reported to the insight team as handoff_events, and what the founder decided on the insight team's page is read back from its handoffs row (soot data query): an answer is written to the ticket here (bbs ticket approval resolve), Đã phát hành closes the build, a build given to a person is no longer read. Handoffs opened for bbs:team (they carry team_id) are no longer read.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1352,7 +1380,7 @@
     {
       "name": "page_action",
       "title": "Đổi trang Công ty",
-      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval; build person records it as a task for a person instead of building), retry_handoff, to_person (a build that is not running, i.e. draft_ready, no_repo, approved (waiting for a build runtime) or blocked, becomes a task for a person; a task goes back to Soot with retry_handoff), task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the parent ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field. retry_handoff also takes an approved handoff.",
+      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval; build person records it as a task for a person instead of building), retry_handoff (also a session that stopped: it continues the same ticket), to_person (a build that is not running, i.e. draft_ready, no_repo, queued, approved (waiting for a build runtime) or blocked, becomes a task for a person; a task goes back to Soot with retry_handoff), answer (the founder's verdict on the session's question: action approve, redirect with a note, or drop; written to the ticket's approval record, here or by the workshop that runs the build), shipped (the founder committed and released the build: the outcome is measured from now), task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field. retry_handoff also takes an approved handoff.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1367,7 +1395,9 @@
               "sync",
               "task_done",
               "to_person",
-              "part_set"
+              "part_set",
+              "answer",
+              "shipped"
             ]
           },
           "build": {
@@ -1433,6 +1463,15 @@
           "promise": {
             "type": "string",
             "maxLength": 120
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "redirect",
+              "drop"
+            ],
+            "description": "answer only: the verdict. redirect needs a note."
           }
         },
         "required": [
@@ -1639,7 +1678,7 @@
     {
       "name": "builds_pull",
       "title": "Nhận yêu cầu đã duyệt để dựng",
-      "description": "Tool-only, no model, no approval of its own (the founder's Go on the server is the approval). On the runtime that has a project for the product (PRODUCT_REPOS, else PRODUCT_REPO) and bbs: reads the approved handoffs of the insight team (soot data query --team INSIGHT_TEAM --item handoffs, filter state approved, and product when given), skips those already in the local builds table, writes the requirement beside the tickets, starts bbs team spawn exactly as a local Go does, records a builds row and inserts a started event into the insight team's handoff_events queue. A repo that cannot be written is the only loud answer. Quiet skipped without PRODUCT_REPO, a runtime token (needs.runtime data.read, data.insert) or the soot CLI. Chain team_watch after it.",
+      "description": "Tool-only, no model, no approval of its own (the founder's Go on the server is the approval). On the runtime that has a project for the product (PRODUCT_REPOS, else PRODUCT_REPO) and bbs: reads the approved and queued handoffs of the insight team (soot data query --team INSIGHT_TEAM --item handoffs, filter state, and product when given), skips those already in the local builds table (one the founder sent back with Chạy lại or Để Soot dựng is started again on its ticket), writes the requirement beside the tickets, opens the ticket and starts its bbs:autopilot session exactly as a local Go does (one build at a time per checkout: the rest are queued), records a builds row and inserts a started or queued event into the insight team's handoff_events queue. A repo that cannot be written is the only loud answer. Quiet skipped without PRODUCT_REPO, a runtime token (needs.runtime data.read, data.insert) or the soot CLI. Chain team_watch after it.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1667,7 +1706,7 @@
     {
       "name": "handoff_events_apply",
       "title": "Gộp tiến độ dựng vào bàn giao",
-      "description": "Tool-only, no model. Folds the insert-only handoff_events queue (handoff, state started|progress|handover|shipped|failed, team_id, url, note, at) into handoffs in order, never moving a handoff backwards. A shipped event records requirement_shipped and queues the launch topic once. Answers {done: true} when nothing changed.",
+      "description": "Tool-only, no model. Folds the insert-only handoff_events queue (handoff, state started|queued|progress|asking|stopped|handover|shipped|dropped, ticket, asked, url, note, at) into handoffs in order, each event once; a handoff that is released, dropped or with a person is not moved, and a question is not asked again while its answer is on the way. For the builds the workshop runs it also raises the founder's cards (a question, a build to commit and ship, a session that stopped) and settles them when the handoff moves on, and closes a handoff the founder marked Đã phát hành. A shipped handoff records requirement_shipped and queues the launch topic once. Answers {done: true} when nothing changed.",
       "parameters": {
         "type": "object",
         "properties": {

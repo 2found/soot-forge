@@ -3,7 +3,7 @@
 Experimental, internal. Lohi is a single product `lohi`; nothing extra is declared.
 Teams (the five standard ones): insight (lead), growth, finance, operations (Soot `lohi-catalog`), and support as a
 remote team at `https://soot.lohi2.com`. Build stays outside Soot (Claude Code with
-`bbs team`), so it is not in the compiled company; the compiler says so.
+`bbs:autopilot`), so it is not in the compiled company; the compiler says so.
 
 You need a runtime with `soot company adopt` and `soot teams health` (L6), found through
 `LOOP_SOOT_BIN`. Run from the soot-forge checkout.

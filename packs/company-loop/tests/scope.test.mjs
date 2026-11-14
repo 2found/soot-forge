@@ -3,7 +3,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { world, ITEM, DAY } from './world.mjs';
-import { startBoardApi, KEY } from './fixtures.mjs';
+import { startBoardApi, fakeBbs, scratchRepo, KEY } from './fixtures.mjs';
 
 const OTHER_KEY = 'novel-product-key-1234';
 const home = await startBoardApi();
@@ -117,11 +117,18 @@ test('signals and page_view default to the run\'s product; the page narrows and 
 });
 
 test('team_watch and goals_checkin accept a product and ignore the others', async () => {
-  const w = world({ env: { ...env, BBS_BIN: '/nonexistent/bbs' } });
-  await w.store.insert('handoffs', { opportunity: 'OP-00000001', product: 'lohi', repo: '/tmp/x', state: 'building', team_id: 'loop-op-00000001' });
-  // bbs is absent: a product with no rows of its own is done before it needs bbs.
-  assert.deepEqual(await w.call('team_watch', { product: '2novel' }), { done: true });
-  assert.equal((await w.call('team_watch', { product: 'lohi' })).note, 'bbs_missing');
+  const b = fakeBbs(), repo = scratchRepo();
+  const w = world({ env: { ...env, BBS_BIN: b.bin } });
+  await w.store.insert('handoffs', { opportunity: 'OP-00000001', product: 'lohi', repo, state: 'spawned', ticket: 'bs-lohi0001' });
+  await w.store.insert('handoffs', { opportunity: 'OP-00000002', product: '2novel', repo: scratchRepo(), state: 'spawned', ticket: 'bs-novel001' });
+  for (const t of ['bs-lohi0001', 'bs-novel001']) b.ticket(t, { status: 'in_progress' });
+  // A product with no rows of its own is done before it needs bbs.
+  assert.deepEqual(await w.call('team_watch', { product: 'trysoot' }), { done: true });
+  assert.equal(b.calls().length, 0);
+  assert.deepEqual((await w.call('team_watch', { product: '2novel' })).changed, [{ ref: 'OP-00000002', state: 'building' }]);
+  assert.deepEqual([...new Set(b.calls().map(c => c.ticket))], ['bs-novel001'], 'the other product\'s ticket is not read');
+  assert.equal(w.rows('handoffs').find(h => h.product === 'lohi').state, 'spawned');
+  assert.deepEqual((await w.call('team_watch', { product: 'lohi' })).changed, [{ ref: 'OP-00000001', state: 'building' }]);
   const g = await w.call('goals_checkin', { product: '2novel' });
   assert.equal(g.reason_code, 'goals_unreadable', 'no runtime token: quiet skip, whatever the product');
 });

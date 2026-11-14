@@ -14,9 +14,13 @@ of roles: it is **teams**, and each team is an interface.
 
 The workshop runs where a browser and a coding agent are (the founder's computer). The server
 cannot reach it, so it **pulls**: the founder's Go on the server leaves a `handoffs` row in
-state `approved`; `builds_pull` on the Mac reads it (`soot data query`), starts the build and
-inserts `started`, `progress`, `handover`, `shipped` or `failed` events into the insight team's
-`handoff_events` queue; `handoff_events_apply` folds them back. Its edges are the contracts
+state `approved`; `builds_pull` on the Mac reads it (`soot data query`), opens a bbs ticket and
+its `bbs:autopilot` session, and inserts `started`, `queued`, `progress`, `asking`, `stopped`,
+`handover`, `shipped` or `dropped` events (each names the `ticket`; a question also its `asked`
+timestamp) into the insight team's `handoff_events` queue; `handoff_events_apply` folds them back
+and raises the founder's cards. What the founder decides on the server's page (the answer to a
+question as `answer`, `answer_note`, `answer_for`; "Đã phát hành" as `released_at`) is read by the
+Mac from the same `handoffs` row, which writes the answer to the ticket. Its edges are the contracts
 `build-request` (read) and `handoff-events` (write). Without a `remotes` entry for `founder-mac`
 the compiler leaves the team out and says so in its notes.
 
@@ -90,7 +94,7 @@ node scripts/company.mjs check   --mode adopt --overlay ... --config <workspace>
 - Overlay `remove` and `rename` go to the runtime unchanged, so it refuses a removal that a
   required edge depends on (`company_edge_required`) or that removes the lead.
 - A team with an entry in `--remotes` becomes a remote team (cs, `https://soot.lohi2.com`,
-  no roster). Build runs outside Soot (Claude Code with `bbs team`) and is left out of the
+  no roster). Build runs outside Soot (Claude Code with `bbs:autopilot`) and is left out of the
   compiled company; the compiler notes it.
 
 Runbook for a live workspace: [ADOPT.md](../../examples/lohi-marketing/ADOPT.md).
