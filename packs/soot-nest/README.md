@@ -29,7 +29,7 @@ it mirrors is `docs/build-a-piece.md` (Path 1), `docs/written-pieces.md` and
 skill's translation example is the guide's own, file for file, and the
 runtime's `TestTranslateGuideExample` runs it.
 
-Written tools, named actions and `ask` need the Soot release after 0.18.0 and
+Written tools, named actions and `ask` need Soot 0.19.0 or later and
 a Nest at bridge level 2. On an older Soot the skill tells the Soot to notice
 the missing `tool` note and say Soot needs an update; screens that only read
 and send events still work there.
