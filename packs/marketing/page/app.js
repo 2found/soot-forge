@@ -26,16 +26,17 @@ function randomID(prefix = 'r', bytes = 12, random = globalThis.crypto) {
   return prefix + '-' + Array.from(data, b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** @param {unknown} value @param {string[]} allowed */
-function exactKeys(value, allowed, required = allowed) {
+/** The fields a host message must carry (`required`, or all of `known`). A key this page does not know is
+ * ignored, never a reason to drop the message: a later host may send more (Nest 0.18.0 added `level` to `init`).
+ * @param {unknown} value @param {string[]} known */
+function hasKeys(value, known, required = known) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const keys = Object.keys(value);
-  return keys.every(k => allowed.includes(k)) && required.every(k => keys.includes(k));
+  return required.every(k => k in value);
 }
 const isTokens = (/** @type {unknown} */ t) => !!t && typeof t === 'object' && !Array.isArray(t) &&
   Object.entries(t).every(([k, v]) => /^--[A-Za-z0-9-]{1,64}$/.test(k) && typeof v === 'string' && v.length <= 512);
 /** A project as bridge v2 carries it, or null (every project, or the standalone shell). @param {any} p */
-const isProject = p => p === null || (exactKeys(p, ['id', 'name', 'teams']) && typeof p.id === 'string' && p.id.length >= 1 && p.id.length <= 64 &&
+const isProject = p => p === null || (hasKeys(p, ['id', 'name', 'teams']) && typeof p.id === 'string' && p.id.length >= 1 && p.id.length <= 64 &&
   typeof p.name === 'string' && p.name.length <= 128 && Array.isArray(p.teams) && p.teams.length <= 64 && p.teams.every((/** @type {unknown} */ t) => typeof t === 'string' && t.length <= 64));
 /** The optional `projects` list: absent, or at most 64 projects (never null entries). @param {any} l */
 const isProjects = l => l === undefined || (Array.isArray(l) && l.length <= 64 && l.every(p => p !== null && isProject(p)));
@@ -46,19 +47,19 @@ function parseNestMessage(m) {
   const msg = /** @type {any} */ (m);
   switch (msg.type) {
     case 'init':
-      if (!exactKeys(msg, ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project', 'projects'], ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project']) || !['light', 'dark'].includes(msg.theme) || !['vi', 'en'].includes(msg.locale) || !isTokens(msg.tokens) ||
-        !exactKeys(msg.viewer, ['kind']) || !['operator', 'member'].includes(msg.viewer.kind) || !isProject(msg.project) || !isProjects(msg.projects)) return null;
+      if (!hasKeys(msg, ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project', 'projects'], ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project']) || !['light', 'dark'].includes(msg.theme) || !['vi', 'en'].includes(msg.locale) || !isTokens(msg.tokens) ||
+        !hasKeys(msg.viewer, ['kind']) || !['operator', 'member'].includes(msg.viewer.kind) || !isProject(msg.project) || !isProjects(msg.projects)) return null;
       return msg;
     case 'context':
-      if (!exactKeys(msg, ['v', 'type', 'project', 'projects'], ['v', 'type', 'project']) || !isProject(msg.project) || !isProjects(msg.projects)) return null;
+      if (!hasKeys(msg, ['v', 'type', 'project', 'projects'], ['v', 'type', 'project']) || !isProject(msg.project) || !isProjects(msg.projects)) return null;
       return msg;
     case 'theme':
-      if (!exactKeys(msg, ['v', 'type', 'theme', 'tokens']) || !['light', 'dark'].includes(msg.theme) || !isTokens(msg.tokens)) return null;
+      if (!hasKeys(msg, ['v', 'type', 'theme', 'tokens']) || !['light', 'dark'].includes(msg.theme) || !isTokens(msg.tokens)) return null;
       return msg;
     case 'result':
       if (typeof msg.id !== 'string' || !BRIDGE_ID.test(msg.id)) return null;
-      if (msg.ok === true && exactKeys(msg, ['v', 'type', 'id', 'ok', 'output', 'receipt', 'replayed'], ['v', 'type', 'id', 'ok', 'output']) && (msg.replayed === undefined || msg.replayed === true)) return msg;
-      if (msg.ok === false && exactKeys(msg, ['v', 'type', 'id', 'ok', 'error']) && exactKeys(msg.error, ['code', 'message']) &&
+      if (msg.ok === true && hasKeys(msg, ['v', 'type', 'id', 'ok', 'output', 'receipt', 'replayed'], ['v', 'type', 'id', 'ok', 'output']) && (msg.replayed === undefined || msg.replayed === true)) return msg;
+      if (msg.ok === false && hasKeys(msg, ['v', 'type', 'id', 'ok', 'error']) && hasKeys(msg.error, ['code', 'message']) &&
         typeof msg.error.code === 'string' && typeof msg.error.message === 'string') return msg;
       return null;
   }

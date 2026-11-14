@@ -77,7 +77,7 @@ test('bridge v2: calls carry only v/type/id/mode/input/request_id; results route
   const call = posted[1];
   assert.deepEqual(Object.keys(call).sort(), ['id', 'input', 'mode', 'type', 'v']);
   assert.ok(call.id.length <= 64);
-  deliver({ v: 2, type: 'result', id: call.id, ok: true, output: { pools: [] }, soot: 'x' }); // extra key: dropped
+  deliver({ v: 2, type: 'result', id: call.id, ok: true }); // no output: dropped
   deliver({ v: 1, type: 'result', id: call.id, ok: true, output: { pools: [] } }); // other version: dropped
   deliver({ v: 2, type: 'result', id: call.id, ok: true, output: { pools: [] } }, { name: 'another frame' }); // other source: dropped
   assert.equal(bridge.pending(), 1);
@@ -100,6 +100,20 @@ test('bridge v2: calls carry only v/type/id/mode/input/request_id; results route
   assert.match(randomID('lib'), REQUEST_ID);
 });
 
+test('a later host: keys the page does not know are ignored, so the page never waits for an init it was sent', () => {
+  const listeners = [], parent = {}, seen = [];
+  createBridge({ post: () => {}, listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project?.id ?? null]), onContext: p => seen.push(['context', p?.id ?? null]) });
+  const project = { id: 'acme', name: 'Acme', teams: ['team-a'] };
+  const deliver = m => listeners.forEach(h => h(m, parent));
+  // Nest 0.18.0's init: `level`, and from level 2 `visible` and `cached`.
+  deliver({ v: 2, type: 'init', level: 1, visible: true, cached: [], theme: 'light', locale: 'vi', tokens: {}, viewer: { kind: 'operator', later: 1 }, project, projects: [{ ...project, later: 1 }] });
+  deliver({ v: 2, type: 'context', project: null, projects: [], later: 1 });
+  assert.deepEqual(seen, [['init', 'acme'], ['context', null]]);
+  assert.equal(parseNestMessage({ v: 2, type: 'theme', theme: 'dark', tokens: {}, later: 1 })?.type, 'theme');
+  assert.equal(parseNestMessage({ v: 2, type: 'result', id: 'c-1', ok: true, output: {}, later: 1 })?.ok, true);
+  assert.equal(parseNestMessage({ v: 2, type: 'result', id: 'c-1', ok: false, error: { code: 'busy', message: 'm', later: 1 } })?.ok, false);
+});
+
 test('bridge v2: a host that also sends projects (the projects the viewer can see) is still heard; a malformed list is dropped', () => {
   const listeners = [], parent = {}, seen = [];
   createBridge({ post: () => {}, listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project]), onContext: p => seen.push(['context', p]) });
@@ -108,7 +122,7 @@ test('bridge v2: a host that also sends projects (the projects the viewer can se
   const init = { v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: {}, viewer: { kind: 'operator' }, project };
   deliver({ ...init, projects: project });
   deliver({ ...init, projects: [null] });
-  deliver({ ...init, projects: [{ ...project, extra: 1 }] });
+  deliver({ ...init, projects: [{ id: 'acme', name: 'Acme' }] });
   deliver({ ...init, projects: Array.from({ length: 65 }, () => project) });
   deliver({ ...init, projects: [project, { id: 'beta', name: 'Beta', teams: [] }] });
   deliver({ v: 2, type: 'context', project: null, projects: 'x' });

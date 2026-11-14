@@ -118,13 +118,27 @@ test('the standalone shell (project null, no list) shows every product', async (
   assert.deepEqual(g.lastView(), { page: 'company', products: [ACME] });
 });
 
-test('messages that are not bridge v2 are dropped: v1, an unknown key, a malformed projects list', async () => {
+test('a later host: keys the page does not know are ignored, never a reason to wait for init', async () => {
+  // Nest 0.18.0's init: `level`, and from level 2 `visible` and `cached`.
+  const f = await frame();
+  f.send({ ...init({ project: ACME, projects: [ACME, { ...BETA, extra: 1 }] }), level: 1, visible: true, cached: [] });
+  await f.settle();
+  assert.deepEqual(f.lastView(), { page: 'company', product: 'acme', products: [ACME, BETA] }, 'only id, name and teams go to the tool');
+  assert.doesNotMatch(text(f.root), /Đang tải/);
+  f.send({ v: 2, type: 'context', project: BETA, level: 1 });
+  await f.settle();
+  assert.equal(f.lastView().product, 'beta');
+  f.send({ v: 2, type: 'theme', theme: 'dark', tokens: { '--surface': 'black' }, level: 1 });
+});
+
+test('messages that are not bridge v2 are dropped: v1, a missing field, a malformed projects list', async () => {
   for (const bad of [
     { ...init({ project: ACME }), v: 1 },
-    { ...init({ project: ACME }), products: [ACME] },
+    init({}),
+    { ...init({ project: ACME }), theme: 'sepia' },
+    init({ project: { id: 'acme', name: 'Acme' } }),
     init({ project: ACME, projects: ACME }),
     init({ project: ACME, projects: [null] }),
-    init({ project: ACME, projects: [{ ...BETA, extra: 1 }] }),
     init({ project: ACME, projects: Array.from({ length: 65 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, teams: [] })) }),
   ]) {
     const f = await frame();

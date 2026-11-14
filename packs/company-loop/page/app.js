@@ -19,16 +19,18 @@ const S = { edit: null, draft: null, data: null, error: '', busy: false, notice:
 const embedded = window.parent !== window;
 
 const str = (v, max) => typeof v === 'string' && v.length <= max;
-const only = (m, keys, optional = []) => Object.keys(m).every(k => keys.includes(k) || optional.includes(k)) && keys.every(k => k in m);
-const isProject = p => p === null || (!!p && typeof p === 'object' && only(p, ['id', 'name', 'teams']) && str(p.id, 64) && p.id !== '' && str(p.name, 128) &&
+// A host message may carry keys this page does not know (Nest 0.18.0 added `level` to `init`): the page
+// checks the fields it reads and ignores the rest, so a later host never leaves it waiting for `init`.
+const has = (m, keys) => keys.every(k => k in m);
+const isProject = p => p === null || (!!p && typeof p === 'object' && str(p.id, 64) && p.id !== '' && str(p.name, 128) &&
   Array.isArray(p.teams) && p.teams.length <= 64 && p.teams.every(t => str(t, 64)));
 // `projects` is optional: an older host and the standalone shell send none.
 const isProjects = l => l === undefined || (Array.isArray(l) && l.length <= 64 && l.every(p => p !== null && isProject(p)));
 function parse(m) {
   if (!m || typeof m !== 'object' || m.v !== 2) return null;
-  if (m.type === 'init') return only(m, ['v', 'type', 'theme', 'locale', 'tokens', 'viewer', 'project'], ['projects']) && ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) && isProject(m.project) && isProjects(m.projects) ? m : null;
-  if (m.type === 'theme') return only(m, ['v', 'type', 'theme', 'tokens']) && ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) ? m : null;
-  if (m.type === 'context') return only(m, ['v', 'type', 'project'], ['projects']) && isProject(m.project) && isProjects(m.projects) ? m : null;
+  if (m.type === 'init') return has(m, ['locale', 'viewer', 'project']) && ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) && isProject(m.project) && isProjects(m.projects) ? m : null;
+  if (m.type === 'theme') return ['light', 'dark'].includes(m.theme) && isTokens(m.tokens) ? m : null;
+  if (m.type === 'context') return has(m, ['project']) && isProject(m.project) && isProjects(m.projects) ? m : null;
   if (m.type === 'result' && typeof m.id === 'string' && BRIDGE_ID.test(m.id)) return m;
   return null;
 }
