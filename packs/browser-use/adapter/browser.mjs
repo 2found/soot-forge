@@ -6,6 +6,7 @@ import { readFile, writeFile, rm, access, lstat, realpath, open, mkdir } from 'n
 import { join, resolve, sep, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { parseProxies, proxyPlan, launchEnv, readLaunched, writeLaunched, mapFailure, scrub } from './proxy.mjs';
 
 // Profiles, daemon names and session files live in the Pack's state directory,
 // which the host keeps across configuration revisions; the working directory
@@ -42,11 +43,24 @@ export function profileLink(packRoot, conversation) { return join(packRoot,'.bro
 export async function linkedProfile(packRoot, conversation) {
   try { const v=(await readFile(profileLink(packRoot,conversation),'utf8')).trim(); return PROFILE_ID.test(v)?v:''; } catch { return ''; }
 }
-/** The profile this call works in: the one it asks for, else the one its conversation is linked to; refused unless granted now. */
-export function chooseProfile(input, linked, granted = grantedProfiles()) {
+/** The profile the host bound this conversation to (SOOT_BROWSER_PROFILE), '' for none. A malformed value refuses rather than falls back. */
+export function boundProfile(value = process.env.SOOT_BROWSER_PROFILE) {
+  const v = String(value ?? '').trim();
+  if (!v) return '';
+  if (!PROFILE_ID.test(v)) throw Object.assign(new Error('browser_profile_bound: the host bound this task to an invalid browser profile id; nothing ran'), {decided:true});
+  return v;
+}
+/** How the profile was chosen: the host's binding, else the call's own ask, else the conversation's link. */
+export function profileSource(input, linked, bound = '') { return bound ? 'bound' : input?.profile ? 'asked' : linked ? 'linked' : ''; }
+/**
+ * The profile this call works in: bound (host), else asked (input.profile), else linked. A task bound to a
+ * profile cannot ask for another (the host refuses first; this is the second check). Refused unless granted now.
+ */
+export function chooseProfile(input, linked, granted = grantedProfiles(), bound = '') {
   const asked = input?.profile;
   if (asked !== undefined && (typeof asked !== 'string' || !PROFILE_ID.test(asked))) throw new Error('Invalid browser profile');
-  const name = asked || linked || '';
+  if (bound && asked && asked !== bound) throw Object.assign(new Error(`browser_profile_bound: this task works in browser profile "${bound}" and cannot use "${asked}"; nothing ran. Omit profile, or ask a person to change the task's profile`), {decided:true});
+  const name = bound || asked || linked || '';
   if (name && !granted.has(name)) throw Object.assign(new Error(`browser_profile_not_granted: this Soot may not use browser profile "${name}"; nothing ran. Work without a profile, or ask a person to grant it in Nest › Cài đặt › Trình duyệt`), {decided:true});
   return name;
 }
@@ -164,9 +178,11 @@ export async function main() {
   // Every call re-checks the grant, a viewer and a person's input included:
   // a revoked profile stops at the next call.
   const conversation=call.event.subject, link=profileLink(root,conversation);
-  const named=chooseProfile(readonly?{}:input, await linkedProfile(root,conversation));
+  const bound=boundProfile(), linked=await linkedProfile(root,conversation);
+  const named=chooseProfile(readonly?{}:input, linked, grantedProfiles(), bound), chosen=profileSource(readonly?{}:input, linked, bound);
   const ident=identity(call,root,persistentSoots(),named);
-  if(!readonly&&input.profile&&input.action!=='close'){await mkdir(join(root,'.browser','named-links'),{recursive:true,mode:0o700});await writeFile(link,named,{mode:0o600});}
+  // A bound conversation is linked on its first call and `close` never unbinds it: the host binds every call.
+  if(!readonly&&named&&(bound||input.profile)&&(bound||input.action!=='close')&&linked!==named){await mkdir(join(root,'.browser','named-links'),{recursive:true,mode:0o700});await writeFile(link,named,{mode:0o600});}
   const sessionDir=ident.state;
   // A viewer never takes the control lock: it must connect while an agent is
   // navigating/waiting, and it must never launch or resurrect a dead session.
@@ -233,7 +249,7 @@ export async function main() {
       running=(listedResult.data?.sessions||[]).some(s=>(typeof s==='string'?s:s.name||s.session)===ident.session);
       if (!running) {
         await writeFile(closedFile,'closed',{mode:0o600});
-        if(ident.named)await rm(link,{force:true});
+        if(ident.named&&!bound)await rm(link,{force:true});
         process.stdout.write(JSON.stringify({session:ident.id,result:{closed:true},resource:{state:'closed'}}));
         return;
       }
@@ -242,14 +258,20 @@ export async function main() {
     // launches or downloads a browser. No upstream default session is used.
     // Library banners must not corrupt the executable JSON contract.
     console.log=console.info=console.warn=console.error=()=>{};
+    // A named profile is launched through its proxy or not at all (contract §6): decided before anything starts.
+    const plan=ident.named&&input.action!=='close'?proxyPlan({id:ident.named,chosen,proxies:parseProxies(),launched:await readLaunched(sessionDir)}):{entry:null,relaunch:false};
+    const entry=plan.entry; secretEntry=entry;
     const launch=await launchSettings(sessionDir);
     const binary=launch.binary;
     const seed=10000+parseInt(createHash('sha256').update(ident.session).digest('hex').slice(0,8),16)%90000;
-    const env={...process.env, AGENT_BROWSER_SESSION:ident.session, AGENT_BROWSER_EXECUTABLE_PATH:binary,
-      AGENT_BROWSER_ARGS:[...launch.args.map(a=>a.startsWith('--fingerprint=')?`--fingerprint=${seed}`:a),...DENSITY_ARGS].join(','),
+    // The proxy reaches the daemon only through this environment, and only this profile's own; every other
+    // session's environment has no proxy variable at all (not even the host's SOOT_BROWSER_PROXIES).
+    const {env}=launchEnv({...process.env, AGENT_BROWSER_SESSION:ident.session, AGENT_BROWSER_EXECUTABLE_PATH:binary,
       ...STREAM_ENV,
-      AGENT_BROWSER_PROFILE:ident.profile, AGENT_BROWSER_HEADED:'0', AGENT_BROWSER_IDLE_TIMEOUT_MS:String(idleTimeoutMs())};
-    const run=async args=> {
+      AGENT_BROWSER_PROFILE:ident.profile, AGENT_BROWSER_HEADED:'0', AGENT_BROWSER_IDLE_TIMEOUT_MS:String(idleTimeoutMs())},
+      {entry,args:[...launch.args.map(a=>a.startsWith('--fingerprint=')?`--fingerprint=${seed}`:a),...DENSITY_ARGS],argsKey:'AGENT_BROWSER_ARGS'});
+    const run=async args=> {try{return await run0(args);}catch(e){throw mapFailure(e,entry);}};
+    const run0=async args=> {
       let stdout;
       try { ({stdout}=await agent(['--session',ident.session,'--json',...args],{env,timeout:60000,maxBuffer:2*1024*1024})); }
       catch(error) {
@@ -266,6 +288,12 @@ export async function main() {
     const tab=()=>{if(typeof input.tab!=='string'||!/^t[0-9]+$/.test(input.tab))throw new Error('Invalid tab');return input.tab;};
     // Another process holding the profile (a daemon a moved runtime left
     // behind) would make Chromium die with an unrelated exit code: say so first.
+    let relaunched=false;
+    if(plan.relaunch&&input.action!=='close') {
+      // The proxy or its login changed: end the profile's browser (the sign-in stays on disk) and start it again.
+      if(sessionNames(JSON.parse((await agent(['--session',ident.session,'--json','session','list'],{timeout:10000,maxBuffer:131072})).stdout)).includes(ident.session)){await run(['close']);relaunched=true;}
+    }
+    if(ident.named&&input.action!=='close'&&(plan.relaunch||!(await readLaunched(sessionDir)))) await writeLaunched(sessionDir,entry);
     if(input.action!=='close') await assertProfileFree({profile:ident.profile,session:ident.session,label:`the browser profile of ${ident.id}`},
       {listSessions:async()=>{const {stdout}=await agent(['--session',ident.session,'--json','session','list'],{timeout:10000,maxBuffer:131072});const r=JSON.parse(stdout);if(!r.success)throw new Error('session list failed');return sessionNames(r);}});
     if(input.action!=='close') await rm(closedFile,{force:true});
@@ -313,10 +341,11 @@ export async function main() {
         const up=await uploadFile(input);
         result={...(await run(['upload',up.selector,up.file])),uploaded:{path:input.path,bytes:up.bytes}};break;
       }
-      case 'close':result=running?await run(['close']):{closed:true};await writeFile(closedFile,'closed',{mode:0o600});if(ident.named)await rm(link,{force:true});break;
+      case 'close':result=running?await run(['close']):{closed:true};await writeFile(closedFile,'closed',{mode:0o600});if(ident.named&&!bound)await rm(link,{force:true});break;
       default:throw new Error('Unknown browser action');
     }
-    process.stdout.write(JSON.stringify({session:ident.id,...(ident.named?{profile:ident.named}:{}),result,resource:{state:input.action==='close'?'closed':'active'}}));
+    process.stdout.write(JSON.stringify({session:ident.id,...(ident.named?{profile:ident.named}:{}),...(relaunched?{relaunched:true}:{}),result,resource:{state:input.action==='close'?'closed':'active'}}));
   } finally {await unlock();}
 }
-export function run() { main().catch(e=>{process.stderr.write(e.message+'\n');process.exitCode=e.uncertain?2:1;}); }
+let secretEntry=null;
+export function run() { main().catch(e=>{process.stderr.write(scrub(e.message,secretEntry)+'\n');process.exitCode=e.uncertain?2:1;}); }

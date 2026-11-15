@@ -31,7 +31,7 @@
   "tools": [
     {
       "name": "control",
-      "description": "Control the browser with agent-browser and CloakBrowser. Read browser-use skill first. The host supplies the session: one per conversation, or one kept for the Soot when the host lists it in SOOT_BROWSER_PERSISTENT_SOOTS; never choose a session or a path. profile works in a named sign-in a person granted this Soot (Nest › Cài đặt › Trình duyệt); the conversation then stays in it until close. upload sends one workspace file to a page's file input.",
+      "description": "Control the browser with agent-browser and CloakBrowser. Read browser-use skill first. The host supplies the session: one per conversation, or one kept for the Soot when the host lists it in SOOT_BROWSER_PERSISTENT_SOOTS; never choose a session or a path. profile works in a named sign-in a person granted this Soot (Nest › Cài đặt › Trình duyệt); the conversation then stays in it until close. A task bound to a profile always works in that one (profile is then optional and must match), close included, and a profile with a proxy only ever opens through it. upload sends one workspace file to a page's file input.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -152,7 +152,7 @@
     },
     {
       "name": "view",
-      "description": "Inspect conversation browser availability without launching it; profiles lists the named browser profiles the host granted this Soot. Nest subscribes to its live screencast.",
+      "description": "Inspect conversation browser availability without launching it; profiles lists the named browser profiles the host granted this Soot; in a bound task it shows that profile's browser. Nest subscribes to its live screencast.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -207,7 +207,9 @@
       "PATH",
       "HOME",
       "SOOT_BROWSER_PERSISTENT_SOOTS",
-      "SOOT_BROWSER_PROFILES"
+      "SOOT_BROWSER_PROFILES",
+      "SOOT_BROWSER_PROFILE",
+      "SOOT_BROWSER_PROXIES"
     ],
     "credentials": {
       "FILE_ROOT": {

@@ -73,6 +73,36 @@ stops the call with `browser_profile_in_use`, which names the pid and the exact
 Never use global close-all. Keep `.browser/` private and out of backups/archives
 shared with others: profiles contain website credentials.
 
+### Named profiles, task binding and proxies
+
+A person grants named sign-in profiles in Nest › Cài đặt › Trình duyệt; the pack
+declares `SOOT_BROWSER_PROFILES`, `SOOT_BROWSER_PROFILE` and
+`SOOT_BROWSER_PROXIES` in `needs.env` (one grant covers the three; contract
+`browser-profiles` v2). Each call works in one profile, chosen in this order:
+the **bound** one (`SOOT_BROWSER_PROFILE`, set by the host for a task bound to
+an account), else the one **asked** (`profile` input), else the one the
+conversation is **linked** to. Asking for a profile other than the bound one is
+refused as `browser_profile_bound`; the chosen one must be in the granted set
+(`browser_profile_not_granted`, re-checked every call). A bound conversation is
+linked on its first call and `close` does not unbind it: the next call reopens
+the same profile, never the conversation's own browser.
+
+A profile with a proxy is opened only through it. The host puts the proxy in
+`SOOT_BROWSER_PROXIES` (JSON, `{"<id>": {"server", "username", "password"}}`);
+the adapter hands it to agent-browser through `AGENT_BROWSER_PROXY`,
+`AGENT_BROWSER_PROXY_USERNAME` and `AGENT_BROWSER_PROXY_PASSWORD` in that
+profile's own browser environment (never an argument, and no other session sees
+a proxy variable), and adds `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`.
+`http://`, `https://` and `socks5://` servers work; SOCKS5 with a login does not
+(Chromium cannot sign in to one) and is refused. The salted hash of what the
+browser launched with is kept in `.browser/named-sessions/<id>/proxy.json`
+(no credential in it): a changed proxy or login closes that browser and starts
+it again before the call (`relaunched: true`; tabs are lost, the sign-in stays),
+and a profile last launched through a proxy is never opened direct, so a linked
+call whose entry is missing is refused as `browser_proxy_unsupported`. A proxy
+that does not answer reports `browser_proxy_unreachable: <host:port>`; no output
+or error carries the username or password.
+
 Desktop subscribes to agent-browser's live WebSocket screencast through Soot's
 authenticated stream endpoint. It shows navigation, typing, popups and tab changes
 as they happen. Users can open tabs and complete OAuth directly in the sidebar.
