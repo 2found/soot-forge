@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.18.0 — 2026-11-15
+
+Baseline: v0.17.0. Pairs with Soot 0.20.0, whose browser manifest pins soot-browser 0.2.5 (contract `browser-profiles` v2); a runtime pinning an older soot-browser does not trust the pack with a binding or a proxy and refuses those calls. No storage changes.
+
+- **browser-use: a task bound to a profile, and a proxy per profile.** The pack declares `SOOT_BROWSER_PROFILE` and `SOOT_BROWSER_PROXIES` beside `SOOT_BROWSER_PROFILES`. A call works in the bound profile, else the one asked, else the linked one; asking for another than the bound one is refused (`browser_profile_bound`), a bound conversation is linked on its first call and `close` does not unbind it. A profile with a proxy launches only through it (env `AGENT_BROWSER_PROXY*`, never argv, plus `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`); a changed proxy relaunches that browser (`relaunched: true`); a profile last opened through a proxy is never opened direct (`browser_proxy_unsupported`); a dead proxy reports `browser_proxy_unreachable: <host>`; SOCKS5 with a login is refused. Needs Soot with contract `browser-profiles` v2. Ships soot-browser 0.2.5.
+
 ## 0.17.0 — 2026-11-15
 
 Baseline: v0.16.0. Pairs with Soot 0.20.0 or later (work mail for every Soot, the `team` and `company` tools, a chain that answers from its end); on an older runtime `nest-lead` falls back to `create` + `start`. No storage changes.
