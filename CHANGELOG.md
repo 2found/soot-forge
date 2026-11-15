@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.19.0 — 2026-11-15
+
+Baseline: v0.18.0. Pairs with Soot 0.20.0 or later (work mail, `task` `repeat` states, `manage` `usage.read` and `updates.status`). No storage changes.
+
+- **nest-lead: the Lead checks whether a team works, and builds work that repeats by itself (skill `nest-team-check`).** Learned from auditing 2found's live teams and from an end-to-end run of the Lohi catalog loop. A check reads the work, not the plan, in a fixed order: stuck tasks, recurring tasks (`paused` on budget means dead since that day, a frequent text repeat wakes a model every fire, `draft` never started), `usage.read` against `daily_tokens`, the work's own tables counted by day, and `updates.status` for a host-local pack older than its skills; then it replays the first step to find the break, and answers one line per team. Empty is a finding, and a check never ends on `report_blocker`. It lists what usually breaks with its fix (an undeclared contract field refused without a sound, a card whose options carry no tool, a card slot a model spent, `max_run_tokens` below the skill plus its tool results, a Đầu mối with no named owner per tool family, a request with no end). A loop is designed and shown before anything is created: one queue for every trigger (chat, an app, an admin, a schedule), tool-first steps, deterministic unattended steps, the far host pulls, the Soot that judges mails the one that spends, ambiguity stops the step, every step leaves a record, money and public posts wait for the person. Test each trigger and one failing path, run model steps three times, test the config as it ships. A paused step is resumed only after its cause is fixed; raising a budget stays `manage_gated`. Evals C1–C4 in `packs/nest-lead/evals/nest-lead/team-check.eval.json`.
+
 ## 0.18.0 — 2026-11-15
 
 Baseline: v0.17.0. Pairs with Soot 0.20.0, whose browser manifest pins soot-browser 0.2.5 (contract `browser-profiles` v2); a runtime pinning an older soot-browser does not trust the pack with a binding or a proxy and refuses those calls. No storage changes.

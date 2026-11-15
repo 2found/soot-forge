@@ -41,6 +41,11 @@
       "name": "nest-company",
       "description": "Set up a whole company for the person from a template (bán hàng online, nội dung, SaaS, vòng công ty without a build stage): ask at most two questions, propose products, teams, schedules and read grants in one chat message, and only after consent create them with manage (products, schedules, read grants) and manage_gated (each team, waiting in Cần bạn). Load it when asked to dựng/lập a company or business.",
       "file": "skills/nest-company.md"
+    },
+    {
+      "name": "nest-team-check",
+      "description": "Check whether a team works and build work that repeats by itself. Load it when asked đội có chạy tốt không, rà soát đội, vì sao việc không chạy, or for a loop (tự động, mỗi ngày, cứ có yêu cầu là làm), and after a team, pack or schedule change: read stuck tasks, recurring tasks (paused, draft, waking a model too often), usage.read, the work's own tables and updates.status before saying a team works; design one queue for every trigger, tool-first steps, pull across hosts, mail from the Soot that judges to the one that spends; test each trigger and one failing path; resume a paused step only after its cause is fixed; raising a budget is manage_gated.",
+      "file": "skills/nest-team-check.md"
     }
   ],
   "tools": [
