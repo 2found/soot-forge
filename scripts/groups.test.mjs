@@ -105,7 +105,8 @@ test('company team groups: one group per team, roles by job, no private content 
   assert.deepEqual(g.support.members.map(m => m.id), ['desk', 'answerer'], 'a Soot cannot be its own feedback desk, and a public chat gets no pack tools');
   assert.deepEqual(g.operations.members.map(m => m.id), ['operator', 'curator']);
   assert.deepEqual(g.finance.members.map(m => m.id), ['controller']);
-  assert.deepEqual(g.finance.members[0].packs, ['company-loop:tools=signals', 'marketing:read', 'soot-nest'], 'the controller is read-only: one read tool, a read-only pack and the Nest skills');
+  assert.deepEqual(g.finance.members[0].packs, ['company-loop:tools=signals', 'marketing:read', 'soot-nest', 'team-rhythm'], 'the controller is read-only: one read tool, a read-only pack and skill-only packs (Nest, the Đầu mối\'s mail and rhythm)');
+  assert.deepEqual(JSON.parse(readFileSync(new URL('../packs/team-rhythm/pack.json', import.meta.url), 'utf8')).tools, [], 'team-rhythm stays skills only, so the read-only controller may select it');
   assert.equal(packTool('company-loop', 'signals').run.mode, 'read');
   assert.match(g.finance.members[0].mission, /never change a price|never change a price, a budget/i);
   const writer = g.growth.members.find(m => m.id === 'writer'), editor = g.growth.members.find(m => m.id === 'editor');

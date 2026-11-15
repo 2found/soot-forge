@@ -105,6 +105,33 @@
       ]
     },
     {
+      "id": "team-work-is-mail",
+      "tags": [
+        "w6",
+        "needs-runtime"
+      ],
+      "description": "W6: a team's work goes to the team as mail (task op send), with the team's address read from a tool; the Lead does not do it itself and claims no result in dry run.",
+      "turns": [
+        {
+          "send": "Nhờ nhóm ban-hang tổng hợp đơn hàng tuần này theo sản phẩm, gửi tôi trước thứ Sáu",
+          "expect": {
+            "called": [
+              "task"
+            ],
+            "not_called": [
+              "spawn_subagent"
+            ],
+            "max_tool_calls": 10,
+            "reply_excludes": [
+              "đã xong",
+              "đã hoàn thành",
+              "đã tổng hợp"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": "count-from-the-table",
       "tags": [
         "w5",

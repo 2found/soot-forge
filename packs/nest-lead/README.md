@@ -4,7 +4,8 @@ The Lead's pack for Nest. It gives the Lead, the person's own assistant (in
 no team), two tools, `manage` and
 `manage_gated`, that run `soot manage` to change the host's Soots, schedules,
 teams, approvals, data access and model tiers, and three skills: `nest-lead`
-(how the Lead works with the person and hands teams their work), `nest-manage` (how to
+(how the Lead works with the person and sends teams their work as mail,
+`task` op `send`), `nest-manage` (how to
 read, change, report and undo) and `nest-company` (company templates as data:
 bán hàng online, nội dung, SaaS, vòng công ty without a build stage, proposed in
 one message and created after consent through the same actions).
@@ -34,6 +35,11 @@ commitments, Friday check-in, cycle review) is the Đầu mối's, in the
 one has neither tool and the Lead keeps to schedules and drafts.
 
 Needs a Soot runtime with `soot manage`; release the runtime before this pack.
+Sending a team its work uses work mail (`task` op `send`) and reads the
+addresses from the `company` tool when the deployment has a company (2agent
+234e7c31 and later); on a runtime without op `send` the skill falls back to
+`create` and `start`. The Đầu mối's side of the same mail is
+`coordinator-mail` in [team-rhythm](../team-rhythm/README.md).
 Where a tool call fails, the `nest-lead` skill falls back to draft links.
 The tool schema lists the actions the runtime accepts (`LeadActions` in 2agent
 `internal/management/lead.go`); change both together.
