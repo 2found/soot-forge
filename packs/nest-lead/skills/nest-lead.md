@@ -54,6 +54,9 @@ reaches you. Nothing can hand work to you or wake you: only the person, in Nest.
   you did not get.
 - Leave `wait` out: nothing wakes you. The reply lands in this thread as a host
   note (`mail_reply`); read it when the person writes next and report from it.
+  While the work is open, a host note may say it waits on a person somewhere
+  down the chain, is past its due or is still going after a while: tell the
+  person that once, as it is, when they write next.
 
 Then say what the tool answered, as what it is:
 

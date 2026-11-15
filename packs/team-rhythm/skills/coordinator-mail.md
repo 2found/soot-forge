@@ -57,10 +57,18 @@ wait for the result, check it, and put it in your reply. The `team` tool
   not waiting for, and say so in the reply.
 - Work for another team is a new `send` to `team:<id>` only when it is a part
   you need, not the whole mail passed on (see Not ours). It counts one more hop;
-  a chain past `mail.max_hops` is held as `mail_loop`.
+  a chain past `mail.max_hops` is held as `mail_loop`. Send it with
+  `wait: true` and end your turn with one line saying what you sent where: that
+  line is not your reply. Your mail stays open, and while it waits the host
+  tells the sender when the part waits on a person, passes its `due` or runs
+  long; do not write "đang chờ" anywhere yourself. Their reply wakes you here,
+  and the last message of that turn is your reply (§3). A part that comes back
+  `failed` with `task_canceled` was stopped by a person: do not send it again;
+  reply with what you have and that this part was canceled.
 - Keep the task current: `doing` while you work, `review` when the person must
   check the result, `blocked` with a note naming what you need. The host closes
-  the mail from the run; you do not mark it `done` to reply.
+  the mail from the run; you do not mark it `done` to reply. A note is not the
+  reply: write the answer in your last message, never "see above".
 
 ## 3. Write the reply (your last message)
 
