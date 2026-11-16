@@ -267,7 +267,7 @@ export async function scoreboard_sync(input, deps) {
   const { store, env } = deps;
   const all = scoreboardSources(env).sources;
   const { keys } = scoreboardKeys(env);
-  // One product (input, else the run's SOOT_PRODUCT): its mapped source, and the single SCOREBOARD_URL only when it is that
+  // One product (input, else the run's SOOT_PROJECT): its mapped source, and the single SCOREBOARD_URL only when it is that
   // product's (the host's, or not known yet and the product has no source of its own). No product: every source, as before.
   const want = scopeProduct(input, env);
   const host = want ? await hostProduct(store, null) : null;

@@ -9,27 +9,336 @@
         "null"
       ]
     },
-    "api_version": {
+    "channel": {
+      "additionalProperties": false,
+      "properties": {
+        "platforms": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "request_prefix": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ui": {
+                "type": "object"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
       "type": [
-        "string",
+        "object",
         "null"
       ]
     },
     "description": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "id": {
-      "type": [
-        "string",
-        "null"
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "en": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "vi": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "vi"
+          ],
+          "type": "object"
+        }
       ]
     },
     "interface": {
       "additionalProperties": false,
       "properties": {
+        "pieces": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "access": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "bundle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "data": {
+                "additionalProperties": false,
+                "properties": {
+                  "action_tool": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "actions": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "tool": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "ask": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "queries": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "source": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "tool": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "view_tool": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "icon": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kit": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "label": {
+                "oneOf": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "en": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "vi": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "vi"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "order": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "provides": {
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "slot": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tab": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "label": {
+                    "oneOf": [
+                      {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "en": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "vi": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "vi"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "renderers": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "bundle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "subject": {
+          "additionalProperties": false,
+          "properties": {
+            "view_tool": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "tool_area": {
           "additionalProperties": false,
           "properties": {
@@ -54,6 +363,33 @@
             "aspect_width": {
               "type": [
                 "integer",
+                "null"
+              ]
+            },
+            "capabilities": {
+              "additionalProperties": false,
+              "properties": {
+                "input": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "pacing": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "stream": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
                 "null"
               ]
             },
@@ -116,6 +452,159 @@
             "object",
             "null"
           ]
+        },
+        "tool_areas": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "access": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "action_tool": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "aspect_height": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "aspect_width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "additionalProperties": false,
+                "properties": {
+                  "input": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pacing": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "stream": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "max_width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "min_width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "resizable": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "stream": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "view_tool": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "width": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "keywords": {
+      "additionalProperties": false,
+      "properties": {
+        "en": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "vi": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "type": [
@@ -124,9 +613,29 @@
       ]
     },
     "name": {
-      "type": [
-        "string",
-        "null"
+      "description": "What Nest calls the pack: a plain string or {vi, en}, at most 48 characters. The pack id is its folder name; its skills are skills/\u003cname\u003e/SKILL.md (Agent Skills).",
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "en": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "vi": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "vi"
+          ],
+          "type": "object"
+        }
       ]
     },
     "needs": {
@@ -137,14 +646,47 @@
           "additionalProperties": {
             "additionalProperties": false,
             "properties": {
+              "check": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "description": {
-                "maxLength": 240,
+                "maxLength": 500,
                 "type": "string"
               },
               "from": {
                 "description": "Where the value comes from: operator (default, entered per Soot in Nest), workspace (the Soot's workspace folder), data_pool (the shared pool connection), env:VAR (a host environment variable).",
                 "pattern": "^(operator|workspace|data_pool|env:[A-Za-z_][A-Za-z0-9_]*)$",
                 "type": "string"
+              },
+              "oauth": {
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "scopes": {
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "optional": {
                 "type": [
@@ -169,12 +711,41 @@
           ]
         },
         "env": {
+          "description": "Host environment variables the pack's tools inherit once the host grants them, such as TZ.",
+          "items": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "hosts": {
           "items": {
             "type": [
               "string",
               "null"
             ]
           },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "runtime": {
+          "description": "Runtime API scopes the pack's tools call back through SOOT_RUNTIME_URL and SOOT_RUNTIME_TOKEN, such as goals.read or goals.checkin. Nothing is issued until the host grants them.",
+          "items": {
+            "enum": [
+              "goals.read",
+              "goals.checkin",
+              "data.read",
+              "data.insert"
+            ],
+            "type": "string"
+          },
+          "maxItems": 16,
           "type": [
             "array",
             "null"
@@ -186,42 +757,136 @@
         "null"
       ]
     },
-    "skills": {
-      "description": "Skill files every Soot selecting this pack reads.",
+    "outcomes": {
       "items": {
         "additionalProperties": false,
         "properties": {
-          "description": {
-            "description": "Explain when the agent should use this skill. Omitted: read from the file's YAML frontmatter description (Agent Skills SKILL.md); a pack skill without either gets a generic one. A file named SKILL.md takes its folder name.",
+          "id": {
             "type": [
               "string",
               "null"
             ]
           },
-          "file": {
-            "minLength": 1,
-            "type": "string"
+          "label": {
+            "oneOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "en": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "vi": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vi"
+                ],
+                "type": "object"
+              }
+            ]
           },
-          "name": {
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "void_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "void_window": {
             "type": [
               "string",
               "null"
             ]
           }
         },
-        "required": [
-          "file"
-        ],
         "type": [
           "object",
           "null"
         ]
       },
-      "maxItems": 128,
       "type": [
         "array",
         "null"
       ]
+    },
+    "programs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "check_op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "install_op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "oneOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "en": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "vi": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vi"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "size_mb": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "storage": {
+      "type": "object"
     },
     "tools": {
       "description": "Tools the pack provides. A Soot selecting \"\u003cpack\u003e:read\" gets only those whose mode is read.",
@@ -234,9 +899,30 @@
               "null"
             ]
           },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "name": {
             "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
             "type": "string"
+          },
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "pick": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "parameters": {
             "additionalProperties": {},
@@ -299,6 +985,54 @@
                   "null"
                 ]
               },
+              "http": {
+                "additionalProperties": false,
+                "properties": {
+                  "body": {
+                    "type": "object"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "method": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "timeout": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "max_input_bytes": {
                 "description": "Raise the 16 KiB model-input limit (bytes of JSON input) for a tool whose parameters legitimately carry more text, such as a document draft. Up to 128 KiB; keep blobs out of tool input.",
                 "maximum": 131072,
@@ -340,6 +1074,12 @@
               "program": {
                 "minLength": 1,
                 "type": "string"
+              },
+              "rerun": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "resource": {
                 "type": [

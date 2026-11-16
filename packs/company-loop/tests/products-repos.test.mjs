@@ -34,11 +34,11 @@ test('projectOf: a PRODUCT_REPOS line wins for its product (comma or newline), P
 
 test('buildsHere: PRODUCT_REPO alone keeps the old rule (a product run builds only itself); a PRODUCT_REPOS line names its product', () => {
   assert.equal(buildsHere({ PRODUCT_REPO: '/p' }, 'lohi'), true);
-  assert.equal(buildsHere({ PRODUCT_REPO: '/p', SOOT_PRODUCT: '2novel' }, 'lohi'), false);
-  assert.equal(buildsHere({ PRODUCT_REPO: '/p', SOOT_PRODUCT: 'lohi' }, 'lohi'), true);
+  assert.equal(buildsHere({ PRODUCT_REPO: '/p', SOOT_PROJECT: '2novel' }, 'lohi'), false);
+  assert.equal(buildsHere({ PRODUCT_REPO: '/p', SOOT_PROJECT: 'lohi' }, 'lohi'), true);
   assert.equal(buildsHere({ PRODUCT_REPOS: 'lohi=/p' }, 'lohi'), true);
   assert.equal(buildsHere({ PRODUCT_REPOS: 'lohi=/p' }, '2novel'), false, 'a line for another product is not this one\'s repo');
-  assert.equal(buildsHere({ PRODUCT_REPOS: 'lohi=/p', SOOT_PRODUCT: '2novel' }, 'lohi'), true);
+  assert.equal(buildsHere({ PRODUCT_REPOS: 'lohi=/p', SOOT_PROJECT: '2novel' }, 'lohi'), true);
   assert.equal(buildsHere({}, 'lohi'), false);
 });
 

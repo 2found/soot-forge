@@ -1,8 +1,5 @@
 {
-  "api_version": "soot/v1",
-  "id": "data-pool-console",
-  "name": "Data pool console",
-  "label": {
+  "name": {
     "vi": "Kho tài liệu",
     "en": "Library"
   },

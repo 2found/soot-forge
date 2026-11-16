@@ -41,7 +41,7 @@ test('the declaration matches soot-pages v2: data.tab piece, operator, read view
   assert.equal(tool(p.data.view_tool).run.mode, 'read');
   assert.equal(tool(p.data.view_tool).run.stdin, 'context');
   assert.equal(tool(p.data.action_tool).run.stdin, 'context');
-  assert.deepEqual(pack.label, { vi: 'Kho tài liệu', en: 'Library' });
+  assert.deepEqual(pack.name, { vi: 'Kho tài liệu', en: 'Library' });
 });
 
 test('the bundle makes no network call and has no inline script or style (CSP default-src self, connect-src none)', async () => {

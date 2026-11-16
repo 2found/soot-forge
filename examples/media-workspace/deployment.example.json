@@ -1,7 +1,9 @@
 {
-  "listen": "127.0.0.1:7789",
+  "server": {
+    "listen": "127.0.0.1:7789",
+    "data_dir": "data"
+  },
   "packs_dir": "packs",
-  "data_dir": "data",
   "default_soot": "office",
   "soots": [
     "soots/office.json",
@@ -11,47 +13,49 @@
     "soots/video-editor.json",
     "soots/image-gen.json"
   ],
-  "pack_grants": {
-    "office": {
-      "credentials": {
-        "FILE_ROOT": "workspace",
-        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
-        "OFFICE_BINDING": "env:SOOT_OFFICE_BINDING"
-      }
-    },
-    "ocr": {
-      "credentials": {
-        "FILE_ROOT": "workspace",
-        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
-        "OCR_BINDING": "env:SOOT_OCR_BINDING"
-      }
-    },
-    "tts": {
-      "credentials": {
-        "FILE_ROOT": "workspace",
-        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
-        "TTS_BINDING": "env:SOOT_TTS_BINDING"
-      }
-    },
-    "google-workspace": {
-      "credentials": {
-        "FILE_ROOT": "workspace",
-        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON"
-      }
-    },
-    "video-editor": {
-      "credentials": {
-        "FILE_ROOT": "workspace",
-        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
-        "VIDEO_BINDING": "env:SOOT_VIDEO_BINDING",
-        "HYPERFRAMES_BINDING": "env:SOOT_HYPERFRAMES_BINDING"
-      }
-    },
-    "image-gen": {
-      "credentials": {
-        "FILE_ROOT": "workspace",
-        "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
-        "IMAGE_GEN_BINDING": "env:SOOT_IMAGE_GEN_BINDING"
+  "grants": {
+    "packs": {
+      "office": {
+        "credentials": {
+          "FILE_ROOT": "workspace",
+          "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+          "OFFICE_BINDING": "env:SOOT_OFFICE_BINDING"
+        }
+      },
+      "ocr": {
+        "credentials": {
+          "FILE_ROOT": "workspace",
+          "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+          "OCR_BINDING": "env:SOOT_OCR_BINDING"
+        }
+      },
+      "tts": {
+        "credentials": {
+          "FILE_ROOT": "workspace",
+          "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+          "TTS_BINDING": "env:SOOT_TTS_BINDING"
+        }
+      },
+      "google-workspace": {
+        "credentials": {
+          "FILE_ROOT": "workspace",
+          "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON"
+        }
+      },
+      "video-editor": {
+        "credentials": {
+          "FILE_ROOT": "workspace",
+          "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+          "VIDEO_BINDING": "env:SOOT_VIDEO_BINDING",
+          "HYPERFRAMES_BINDING": "env:SOOT_HYPERFRAMES_BINDING"
+        }
+      },
+      "image-gen": {
+        "credentials": {
+          "FILE_ROOT": "workspace",
+          "PYTHON_EXECUTABLE": "env:SOOT_MEDIA_PYTHON",
+          "IMAGE_GEN_BINDING": "env:SOOT_IMAGE_GEN_BINDING"
+        }
       }
     }
   },

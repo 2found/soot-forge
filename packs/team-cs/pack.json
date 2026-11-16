@@ -1,7 +1,5 @@
 {
-  "api_version": "soot/v1",
-  "id": "team-cs",
-  "label": {
+  "name": {
     "vi": "Đội chăm sóc khách hàng",
     "en": "Customer care team"
   },
@@ -10,31 +8,19 @@
     "en": "A starter for a customer care team: triage and escalation Soots that hand off to members, with generic skills tied to no product."
   },
   "keywords": {
-    "vi": ["cskh", "chăm sóc khách hàng", "hỗ trợ", "chuyển cho người"],
-    "en": ["customer care", "support", "helpdesk", "handoff"]
+    "vi": [
+      "cskh",
+      "chăm sóc khách hàng",
+      "hỗ trợ",
+      "chuyển cho người"
+    ],
+    "en": [
+      "customer care",
+      "support",
+      "helpdesk",
+      "handoff"
+    ]
   },
-  "skills": [
-    {
-      "name": "cs-triage",
-      "file": "skills/cs-triage.md",
-      "description": "Sort each customer message: check price, plan and account facts with the product tool, answer how-to questions from the collection, ask one question, hand off, or decline."
-    },
-    {
-      "name": "handoff-policy",
-      "file": "skills/handoff-policy.md",
-      "description": "When and how to hand a case to a team member with report_blocker, what to tell the customer, and how to resume after a member replies."
-    },
-    {
-      "name": "tone",
-      "file": "skills/tone.md",
-      "description": "How a customer care Soot sounds: short, warm, plain, in the customer's language, never promising what it cannot show."
-    },
-    {
-      "name": "person-memory",
-      "file": "skills/person-memory.md",
-      "description": "What to remember about a returning person, what never to keep, and how to recall and forget it."
-    }
-  ],
   "tools": [],
   "outcomes": [
     {

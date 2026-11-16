@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "website",
-  "label": {
+  "name": {
     "vi": "Trang web",
     "en": "Website"
+  },
+  "description": {
+    "vi": "Phát hành và duy trì khu vực marketing của website Soot.",
+    "en": "Own and publish the bounded marketing region of the Soot website."
   },
   "keywords": {
     "vi": [
@@ -19,27 +21,6 @@
       "pages"
     ]
   },
-  "description": {
-    "vi": "Phát hành và duy trì khu vực marketing của website Soot.",
-    "en": "Own and publish the bounded marketing region of the Soot website."
-  },
-  "skills": [
-    {
-      "name": "website-marketing",
-      "description": "Own and publish the bounded marketing region on trysoot.com.",
-      "file": "skills/marketing.md"
-    },
-    {
-      "name": "website-care",
-      "description": "Develop and maintain the Soot website using already-granted repository tools.",
-      "file": "skills/care.md"
-    },
-    {
-      "name": "website-cms",
-      "description": "Author and archive honest CMS blog posts with revision and replay discipline.",
-      "file": "skills/cms.md"
-    }
-  ],
   "tools": [
     {
       "name": "publish",

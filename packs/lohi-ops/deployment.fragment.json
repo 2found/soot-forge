@@ -1,21 +1,31 @@
 {
   "_comment": "Two runtimes (TEAMS.md): `server` = soot.lohi2.com, merged into /etc/soot-lohi/flock.json; `mac` = ~/.soot/nest/deployment.json. No credential values here: PRODUCT_ADMIN_KEY, GSC_GOOGLE, ASC_API_KEY are entered in Nest. Operations split by Lohi key role (2026-11-12): curator, Moderator, Catalog Exec each hold their own PRODUCT_AGENT_KEY@lohi. Needs a soot with the data.read / data.insert runtime scopes. Approval policy (generic): refresh of a published novel, translate of at most 10 chapters, and one-chapter fix / TTS inside the api's daily caps run without a person; onboard of a new novel (one daily card), takedown or overwrite, and money or accounts always wait for one. Request → release (bs-kh1atl85): a request that reached the api's auto-onboard score and holds a day's slot onboards without the daily card (approved_by policy:auto_onboard); its first batch passes the quality gate before the platform-paid pro audio (api daily cap) and release.",
   "server": {
-    "pack_grants": {
-      "lohi-ops": {
-        "env": [
-          "PRODUCT_API_URL",
-          "APPSTORE_APP_ID",
-          "APPSTORE_COUNTRY",
-          "GSC_SITE",
-          "SITE_URL",
-          "PATH",
-          "HOME"
-        ],
-        "runtime": [
-          "data.read",
-          "data.insert"
-        ]
+    "grants": {
+      "packs": {
+        "lohi-ops": {
+          "env": [
+            "PRODUCT_API_URL",
+            "APPSTORE_APP_ID",
+            "APPSTORE_COUNTRY",
+            "GSC_SITE",
+            "SITE_URL",
+            "PATH",
+            "HOME"
+          ],
+          "runtime": [
+            "data.read",
+            "data.insert"
+          ]
+        }
+      },
+      "approvals": {
+        "lohi-ops_appstore_post": "operator",
+        "lohi-ops_comments_resolve": "operator",
+        "lohi-ops_request_reject": "operator",
+        "lohi-ops_violation_resolve": "operator",
+        "lohi-ops_catalog_job_request": "operator",
+        "lohi-ops_catalog_jobs_decide": "operator"
       }
     },
     "soot_packs": {
@@ -28,14 +38,6 @@
       "s-98ffbd86-5b84-4cc4-989c-7905006042dd": [
         "lohi-ops:tools=translate_start,translate_step,request_finish,fixes_pull,fix_execute,fix_ack,fix_recheck,chapter_retranslate,chapter_tts,quality_sample,quality_verdict,release_step,fixes_run,fix_context,fix_resolve"
       ]
-    },
-    "approvals": {
-      "lohi-ops_appstore_post": "operator",
-      "lohi-ops_comments_resolve": "operator",
-      "lohi-ops_request_reject": "operator",
-      "lohi-ops_violation_resolve": "operator",
-      "lohi-ops_catalog_job_request": "operator",
-      "lohi-ops_catalog_jobs_decide": "operator"
     },
     "schedules": [
       {
@@ -409,20 +411,22 @@
     }
   },
   "mac": {
-    "pack_grants": {
-      "lohi-ops": {
-        "env": [
-          "PRODUCT_API_URL",
-          "CLI_CATALOG_DB",
-          "CLI_DIR",
-          "SOOT_BIN",
-          "PATH",
-          "HOME"
-        ],
-        "runtime": [
-          "data.read",
-          "data.insert"
-        ]
+    "grants": {
+      "packs": {
+        "lohi-ops": {
+          "env": [
+            "PRODUCT_API_URL",
+            "CLI_CATALOG_DB",
+            "CLI_DIR",
+            "SOOT_BIN",
+            "PATH",
+            "HOME"
+          ],
+          "runtime": [
+            "data.read",
+            "data.insert"
+          ]
+        }
       }
     },
     "soot_packs": {

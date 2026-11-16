@@ -1,19 +1,75 @@
 {
-  "listen": "127.0.0.1:7790",
+  "server": {
+    "listen": "127.0.0.1:7790",
+    "data_dir": "data"
+  },
   "packs_dir": "packs",
-  "data_dir": "data",
-  "product": "Lohi",
+  "project": "Lohi",
   "default_soot": "lohi-editor",
   "soots": [
-    "soots/lohi-writer.json",
-    "soots/lohi-editor.json",
-    "soots/lohi-analyst.json",
-    "soots/lohi-finance.json",
-    "soots/lohi-radar.json",
-    "soots/lohi-video.json"
+    "soots/lohi-writer/soot.json",
+    "soots/lohi-editor/soot.json",
+    "soots/lohi-analyst/soot.json",
+    "soots/lohi-finance/soot.json",
+    "soots/lohi-radar/soot.json",
+    "soots/lohi-video/soot.json"
   ],
-  "approvals": {
-    "marketing_claim": "auto"
+  "grants": {
+    "approvals": {
+      "marketing_claim": "auto"
+    },
+    "packs": {
+      "lohi-blog": {
+        "env": [
+          "LOHI_BLOG_TARGET",
+          "LOHI_REPO",
+          "LOHI_BLOG_REMOTE",
+          "LOHI_CONNECTION",
+          "PATH",
+          "HOME",
+          "SSH_AUTH_SOCK",
+          "LOHI_BLOG_URL",
+          "LOHI_API_URL"
+        ]
+      },
+      "browser-use": {
+        "env": [
+          "PATH",
+          "HOME",
+          "SOOT_BROWSER_PERSISTENT_SOOTS"
+        ],
+        "credentials": {
+          "FILE_ROOT": "workspace"
+        }
+      },
+      "marketing": {
+        "env": [
+          "PRODUCT_API_URL",
+          "YT_DLP_BIN",
+          "PATH",
+          "HOME"
+        ],
+        "credentials": {
+          "FILE_ROOT": "workspace"
+        }
+      },
+      "company-loop": {
+        "env": [
+          "SCOREBOARD_URL",
+          "PRODUCT_REPO",
+          "BBS_BIN",
+          "BBS_TEAM_AGENT",
+          "CS_RUNTIME_URL",
+          "SUPPORT_QUEUE_URL",
+          "RELEASE_TAGS",
+          "BABYSIT_HOME",
+          "LOOP_SOOT_BIN",
+          "LOOP_SOOT_CONFIG",
+          "PATH",
+          "HOME"
+        ]
+      }
+    }
   },
   "tool_hosts": {
     "lohi-video": {
@@ -27,58 +83,6 @@
     },
     "lohi-finance": {
       "workspace": "workspace"
-    }
-  },
-  "pack_grants": {
-    "lohi-blog": {
-      "env": [
-        "LOHI_BLOG_TARGET",
-        "LOHI_REPO",
-        "LOHI_BLOG_REMOTE",
-        "LOHI_CONNECTION",
-        "PATH",
-        "HOME",
-        "SSH_AUTH_SOCK",
-        "LOHI_BLOG_URL",
-        "LOHI_API_URL"
-      ]
-    },
-    "browser-use": {
-      "env": [
-        "PATH",
-        "HOME",
-        "SOOT_BROWSER_PERSISTENT_SOOTS"
-      ],
-      "credentials": {
-        "FILE_ROOT": "workspace"
-      }
-    },
-    "marketing": {
-      "env": [
-        "PRODUCT_API_URL",
-        "YT_DLP_BIN",
-        "PATH",
-        "HOME"
-      ],
-      "credentials": {
-        "FILE_ROOT": "workspace"
-      }
-    },
-    "company-loop": {
-      "env": [
-        "SCOREBOARD_URL",
-        "PRODUCT_REPO",
-        "BBS_BIN",
-        "BBS_TEAM_AGENT",
-        "CS_RUNTIME_URL",
-        "SUPPORT_QUEUE_URL",
-        "RELEASE_TAGS",
-        "BABYSIT_HOME",
-        "LOOP_SOOT_BIN",
-        "LOOP_SOOT_CONFIG",
-        "PATH",
-        "HOME"
-      ]
     }
   },
   "schedules": [
@@ -250,7 +254,7 @@
         "pack": "marketing",
         "name": "channels_setup",
         "input": {
-          "product": "Lohi",
+          "project": "Lohi",
           "writer": "lohi-writer",
           "channels": [
             {

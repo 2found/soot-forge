@@ -1,29 +1,31 @@
 {
-  "api_version": "soot/v1",
-  "id": "team-rhythm",
-  "label": {
+  "name": {
     "vi": "Nhịp làm việc của đội",
     "en": "Team rhythm"
-  },
-  "keywords": {
-    "vi": ["đầu mối", "mục tiêu", "cam kết tuần", "check-in", "chu kỳ", "thư việc", "nhận việc"],
-    "en": ["coordinator", "goals", "weekly commitments", "check-in", "cycle review", "work mail", "incoming work"]
   },
   "description": {
     "vi": "Cách Đầu mối làm việc của đội: nhận thư việc từ người, Lead và đội khác rồi trả lời cho đúng; biến mục tiêu thành việc mỗi tuần (cam kết đầu tuần, check-in cuối tuần, nhìn lại cuối chu kỳ). Không gắn với công ty hay sản phẩm nào.",
     "en": "How a team's Đầu mối runs the team: take work mail from the person, the Lead and other teams and reply well; turn the team's goals into tasks each week (Monday commitments, a Friday check-in, a cycle review). Tied to no company or product."
   },
-  "skills": [
-    {
-      "name": "coordinator-rhythm",
-      "description": "Load it when a recurring cadence task reaches you as the team's Đầu mối (the weekly commitments, the weekly check-in, the cycle review), or when a goal of your team changes: read the team's goals, last check-in, open tasks and signals, then commit at most a few tasks each linked to a goal, cancel or park tasks that serve no active goal, check in with a value, a confidence and one sentence, score the cycle, and propose next cycle's team goals as drafts.",
-      "file": "skills/coordinator-rhythm.md"
-    },
-    {
-      "name": "coordinator-mail",
-      "description": "Load it when work mail reaches you (a task the host started on you, often framed \"Work sent to you by team …\"): triage it (take it, decline with the right team:<id> from company op teams, fold it into an open task, reply Thiếu with what only the sender has, or hand it to the person through an approval or report_blocker), hand a member's part out inside this run with spawn_subagent rather than a mail you would end your turn on, and write your last message as the reply: an outcome word first (Xong, Xong một phần, Thiếu, Không nhận, Không làm được), the answer itself, where the rest is, what is left.",
-      "file": "skills/coordinator-mail.md"
-    }
-  ],
+  "keywords": {
+    "vi": [
+      "đầu mối",
+      "mục tiêu",
+      "cam kết tuần",
+      "check-in",
+      "chu kỳ",
+      "thư việc",
+      "nhận việc"
+    ],
+    "en": [
+      "coordinator",
+      "goals",
+      "weekly commitments",
+      "check-in",
+      "cycle review",
+      "work mail",
+      "incoming work"
+    ]
+  },
   "tools": []
 }

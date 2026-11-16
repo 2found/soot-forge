@@ -1,0 +1,29 @@
+---
+name: cloudflare_d1
+description: "Create a D1 database and run bounded SQL; results come back as JSON rows."
+---
+# Cloudflare D1 (`d1_create`, `d1_exec`, `d1_list`)
+
+Serverless SQLite for mini-apps: create a database, run schema/CRUD
+statements, get rows back as JSON.
+
+## Operations
+
+- `d1_create {name}` — creates a database, returns
+  `receipt.remoteIds.database` (uuid). Remember the uuid.
+- `d1_exec {database, sql, params?}` — one statement, <=8 KiB, against the
+  uuid or name. DDL, INSERT, UPDATE, SELECT all flow through here; results
+  come back as `results[].results` JSON rows. Use `params` for values —
+  never string-interpolate user content into `sql`.
+- `d1_list {page?, limit?}` — returns `{uuid, name}` pairs, default page 1,
+  limit 100 (maximum 100). Follow `pagination.next_page` until 0; do not label
+  a single page as the whole account.
+
+## Rules
+
+- Exactly one statement per call — the runner rejects `sql` containing a
+  second `;`. Batch schema setup as sequential `d1_exec` calls.
+- `database` accepts a name — the runner resolves it to a uuid per call;
+  prefer the uuid on repeat calls.
+- There are no user-facing credentials: the bound API token owns every row.
+  Never build multi-tenant isolation on this pack alone.

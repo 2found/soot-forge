@@ -76,7 +76,7 @@ license does not replace it. See [verification](docs/office-ocr-image-gen.md).
 
 ## Writing: Vietnamese humanizer
 
-`packs/writing/skills/humanize-vi.md` (skill `writing_humanize_vi`) is the
+`packs/writing/skills/writing_humanize_vi/SKILL.md` (skill `writing_humanize_vi`) is the
 Vietnamese edition of [blader/humanizer](https://github.com/blader/humanizer)
 4.0.0, adapted in 2found's 2build (`.claude/skills/humanizer-vi`). The upstream
 is MIT; its license text ships beside the skill as

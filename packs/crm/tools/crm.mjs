@@ -20,7 +20,7 @@ export async function run(name, ctx, { env = process.env, store, now = Date.now(
   if (ctx?.hook && ctx.hook !== 'tool.call') throw new CrmError('invalid_request', `Unsupported hook ${ctx.hook}.`);
   return tool(ctx?.input ?? {}, {
     store: store ?? storage(env, fetchImpl), now,
-    product: ctx?.product || env.SOOT_PRODUCT || null,
+    product: ctx?.project || env.SOOT_PROJECT || null,
     principal: ctx?.principal ?? null,
     soot: ctx?.soot ?? null,
     readOnly: ctx?.read_only === true,

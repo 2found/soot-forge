@@ -28,7 +28,7 @@ Pack luôn được chọn nguyên; `"research:read"` cũng gồm cả hai tools
 
 ## Skill
 
-`skills/web.md` hướng dẫn agent: truy vấn → mở nguồn → đối chiếu → trả lời
+`skills/research_web/SKILL.md` hướng dẫn agent: truy vấn → mở nguồn → đối chiếu → trả lời
 theo khung **Sources / Claims / Gaps** (DTO `Evidence` trong
 [blueprint](../../CONTRIBUTING.md)). Claim không có nguồn không
 xuất hiện trong câu trả lời; mâu thuẫn được ghi nhận thay vì phán đoán.

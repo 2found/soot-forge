@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { TOOLS } from '../tools/ops.mjs';
+import { readSkills } from '../../../scripts/catalog.mjs';
+import { fileURLToPath } from 'node:url';
 
 const dir = new URL('../', import.meta.url);
 const read = f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'));
 const pack = read('pack.json'), frag = read('deployment.fragment.json');
+const skills = await readSkills(fileURLToPath(dir));
 const names = pack.tools.map(t => t.name);
 
 test('every manifest tool has an implementation, and the other way round', () => {
@@ -14,7 +17,8 @@ test('every manifest tool has an implementation, and the other way round', () =>
 });
 
 test('skills exist; writes that reach readers or a rights holder wait for an operator', () => {
-  for (const s of pack.skills) assert.ok(existsSync(new URL(s.file, dir)), s.file);
+  assert.ok(skills.length > 0);
+  for (const s of skills) assert.ok(existsSync(new URL(s.file, dir)), s.file);
   const approval = Object.fromEntries(pack.tools.filter(t => t.run.approval).map(t => [t.name, t.run.approval]));
   for (const n of ['request_reject', 'violation_resolve', 'catalog_job_request', 'catalog_jobs_decide']) assert.equal(approval[n], 'operator', n);
 });
@@ -55,7 +59,7 @@ test('deployment fragment: names exist, crawl_watch and job runners are builder-
     assert.ok(builder.includes(n));
   }
   for (const s of [...frag.server.schedules, ...frag.mac.schedules]) assert.ok(names.includes(s.tool.name), s.id);
-  for (const a of Object.keys(frag.server.approvals)) assert.ok(names.includes(a.replace('lohi-ops_', '')), a);
+  for (const a of Object.keys(frag.server.grants.approvals)) assert.ok(names.includes(a.replace('lohi-ops_', '')), a);
   assert.ok(!/(sk-|lohi_ak_|-----BEGIN|Bearer )/.test(JSON.stringify(frag)));
   assert.ok(frag.mac.schedules.some(s => s.tool.name === 'crawl_watch'));
 });
@@ -74,7 +78,7 @@ test('the request loop: tables, curator-only tools, and the translate / fix tool
     assert.ok(exec.includes(n), n);
     assert.ok(!builder.includes(n), `${n} must not reach the builder`);
   }
-  assert.equal(frag.server.approvals['lohi-ops_catalog_jobs_decide'], 'operator');
+  assert.equal(frag.server.grants.approvals['lohi-ops_catalog_jobs_decide'], 'operator');
   const ids = frag.server.schedules.map(s => s.id);
   for (const id of ['ops-onboard-card', 'ops-translate-step', 'ops-fixes', 'ops-fix-recheck', 'ops-requests-chapters']) assert.ok(ids.includes(id), id);
 });

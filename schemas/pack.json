@@ -9,12 +9,6 @@
         "null"
       ]
     },
-    "api_version": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "channel": {
       "additionalProperties": false,
       "properties": {
@@ -85,12 +79,6 @@
         }
       ]
     },
-    "id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "interface": {
       "additionalProperties": false,
       "properties": {
@@ -116,6 +104,60 @@
                   "action_tool": {
                     "type": [
                       "string",
+                      "null"
+                    ]
+                  },
+                  "actions": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "tool": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "ask": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "queries": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "source": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "tool": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "type": [
+                      "object",
                       "null"
                     ]
                   },
@@ -570,7 +612,8 @@
         "null"
       ]
     },
-    "label": {
+    "name": {
+      "description": "What Nest calls the pack: a plain string or {vi, en}, at most 48 characters. The pack id is its folder name; its skills are skills/\u003cname\u003e/SKILL.md (Agent Skills).",
       "oneOf": [
         {
           "minLength": 1,
@@ -595,12 +638,6 @@
         }
       ]
     },
-    "name": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "needs": {
       "additionalProperties": false,
       "description": "What the pack's tools need from the host: credentials they reference as {{cred:NAME}} and env variables they inherit. Installing shows these; nothing reaches the tools until the operator enters or the host grants them.",
@@ -609,6 +646,12 @@
           "additionalProperties": {
             "additionalProperties": false,
             "properties": {
+              "check": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "description": {
                 "maxLength": 500,
                 "type": "string"
@@ -674,6 +717,18 @@
             "type": "string"
           },
           "maxItems": 32,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "hosts": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "type": [
             "array",
             "null"
@@ -830,43 +885,6 @@
         "null"
       ]
     },
-    "skills": {
-      "description": "Skill files every Soot selecting this pack reads.",
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "description": {
-            "description": "Explain when the agent should use this skill. Omitted: read from the file's YAML frontmatter description (Agent Skills SKILL.md); a pack skill without either gets a generic one. A file named SKILL.md takes its folder name.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "file": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "file"
-        ],
-        "type": [
-          "object",
-          "null"
-        ]
-      },
-      "maxItems": 128,
-      "type": [
-        "array",
-        "null"
-      ]
-    },
     "storage": {
       "type": "object"
     },
@@ -890,6 +908,21 @@
           "name": {
             "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
             "type": "string"
+          },
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "pick": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "parameters": {
             "additionalProperties": {},
@@ -949,6 +982,48 @@
                 },
                 "type": [
                   "array",
+                  "null"
+                ]
+              },
+              "http": {
+                "additionalProperties": false,
+                "properties": {
+                  "body": {
+                    "type": "object"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "method": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "timeout": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
                   "null"
                 ]
               },

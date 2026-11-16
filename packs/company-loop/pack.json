@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "company-loop",
-  "label": {
+  "name": {
     "vi": "Công ty",
     "en": "Company loop"
+  },
+  "description": {
+    "vi": "Vòng lặp công ty cho một sản phẩm: đọc bảng số, lập bản tin cơ hội mỗi tuần, nội dung tự chạy, sản phẩm chờ bạn bấm Go rồi một phiên bbs:autopilot dựng trong kho mã; nó hỏi bạn ở trang Công ty, để thay đổi chưa commit, còn commit và phát hành là việc của bạn.",
+    "en": "A product-agnostic company loop: reads the scoreboard, makes a weekly digest of opportunities, sends content to marketing by itself, builds a founder-approved product change with bbs:autopilot (it asks on the Công ty page; the founder commits and ships) and measures what it did."
   },
   "keywords": {
     "vi": [
@@ -21,10 +23,990 @@
       "loop"
     ]
   },
-  "description": {
-    "vi": "Vòng lặp công ty cho một sản phẩm: đọc bảng số, lập bản tin cơ hội mỗi tuần, nội dung tự chạy, sản phẩm chờ bạn bấm Go rồi một phiên bbs:autopilot dựng trong kho mã; nó hỏi bạn ở trang Công ty, để thay đổi chưa commit, còn commit và phát hành là việc của bạn.",
-    "en": "A product-agnostic company loop: reads the scoreboard, makes a weekly digest of opportunities, sends content to marketing by itself, builds a founder-approved product change with bbs:autopilot (it asks on the Công ty page; the founder commits and ships) and measures what it did."
-  },
+  "tools": [
+    {
+      "name": "scoreboard_sync",
+      "title": "Đọc bảng số sản phẩm",
+      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.readers_waiting, else support.by_state.waiting_human) it answers one Cần bạn card request (raise) per count bucket (5, 10, 20, 50) with a link to SUPPORT_QUEUE_URL, kept current, and settles it once fewer than 5 wait. The runtime files the card; no model wakes. Answers {done: true}, or with for_digest the sync result for the digest chain. With product (input, else SOOT_PROJECT) it reads only that product's source: its SCOREBOARD_URLS entry with its own key, or the single SCOREBOARD_URL when that is its board.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "for_digest": {
+            "type": "boolean"
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "scoreboard_sync"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "SCOREBOARD_KEYS": "{{cred:SCOREBOARD_KEYS}}"
+        }
+      }
+    },
+    {
+      "name": "signals",
+      "title": "Gói tín hiệu cho bản tin",
+      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps, opportunities and decisions with actual_delta, last launches. Reader feedback comes from the team contract item cs.voc, which the digest reads with the data tool first and reports with voc: true; only when voc is unavailable (voc false or omitted) the packet falls back to the legacy feedback desk scrape (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, needs CS_RUNTIME_TOKEN). Wakes the Lead in a chain. The packet also carries parts [{p, st ok|hong|chua_do, m metric, pct, own team id or null}] (a hong or unowned part is evidence), moats (count of Go decisions by moat) and awareness (content topics by level over 8 weeks). Optional product narrows everything to one product.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "voc": {
+            "type": "boolean",
+            "description": "true when cs.voc answered with rows (the digest has the feedback already); false or omitted when it was refused, empty-because-unreachable or not granted: the legacy desk scrape runs instead."
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id: build the packet from that product board and narrow opportunities, decisions, handoffs and topics to it. Omitted: as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "signals"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "45s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "CS_RUNTIME_TOKEN": "{{cred:CS_RUNTIME_TOKEN}}"
+        }
+      }
+    },
+    {
+      "name": "digest_save",
+      "title": "Lưu cơ hội của bản tin",
+      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed; the Cần bạn card for it is kept by opportunities_card, not here. Every item carries part (value|marketing|sales|delivery|finance); content needs awareness (unaware|problem|choosing), product needs pain (10-200 chars: who suffers from what); moat (scale|network|counter|switching|brand|cornered|process|none) is optional. The error names the missing field. product is the digest's product (or SOOT_PROJECT): items may omit theirs; one of another product is refused.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "opportunities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 140
+                },
+                "product": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{1,31}$"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "content",
+                    "product"
+                  ]
+                },
+                "query": {
+                  "type": "string",
+                  "maxLength": 120,
+                  "description": "content: a Vietnamese search phrase of 2+ words the audience types."
+                },
+                "summary": {
+                  "type": "string",
+                  "maxLength": 600,
+                  "description": "product: what to build and why, 20+ chars."
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                },
+                "signal_count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "est_effort": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "description": "S, M, L or XL."
+                },
+                "est_value": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "description": "low, medium or high."
+                },
+                "confidence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "target_outcome": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{1,47}$",
+                  "description": "A scoreboard metric key (signups, revenue_vnd, support_threads_new...) or a declared outcome id."
+                },
+                "expected_delta": {
+                  "type": "number",
+                  "description": "Expected change of the target over one 7-day window; negative to reduce. Not 0."
+                },
+                "check_after_days": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 180
+                },
+                "part": {
+                  "type": "string",
+                  "enum": [
+                    "value",
+                    "marketing",
+                    "sales",
+                    "delivery",
+                    "finance"
+                  ],
+                  "description": "The business part this change fixes or grows: value, marketing, sales, delivery or finance. Required."
+                },
+                "awareness": {
+                  "type": "string",
+                  "enum": [
+                    "unaware",
+                    "problem",
+                    "choosing"
+                  ],
+                  "description": "Reader awareness the post speaks to: unaware (nấc 1, does not know the problem), problem (nấc 2, knows it, not how to solve) or choosing (nấc 3, picking whom to buy from). Required for content."
+                },
+                "moat": {
+                  "type": "string",
+                  "enum": [
+                    "scale",
+                    "network",
+                    "counter",
+                    "switching",
+                    "brand",
+                    "cornered",
+                    "process",
+                    "none"
+                  ],
+                  "description": "The moat this change builds (switching = the good kind: life easier, not lock-in). Optional; absent or none is honest."
+                },
+                "pain": {
+                  "type": "string",
+                  "minLength": 10,
+                  "maxLength": 200,
+                  "description": "Who suffers from what, from customer evidence. Required for product; optional for content."
+                },
+                "goal": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
+                  "description": "Optional. The id of the company goal this bet is meant to push (as the goal tool lists it). The loop only carries the id; it never reads goals."
+                }
+              },
+              "required": [
+                "title",
+                "kind",
+                "evidence_refs",
+                "signal_count",
+                "est_effort",
+                "est_value",
+                "confidence",
+                "target_outcome",
+                "expected_delta",
+                "check_after_days",
+                "part"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 5
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "The product of the whole digest (input, else SOOT_PROJECT): an item may leave its own product out, and an item of another product is refused."
+          }
+        },
+        "required": [
+          "opportunities"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "digest_save"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "decide",
+      "title": "Quyết định một cơ hội",
+      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go on a runtime with a build stage (the product's project: its PRODUCT_REPOS entry, else PRODUCT_REPO) writes REQ-<id>.md beside the tickets, opens a bbs ticket from it and starts one bbs:autopilot --auto session on that ticket in the product checkout (it edits the checkout and leaves the change uncommitted; never commit, land or release); a checkout that already holds an unshipped build makes the Go queued; without bbs or Orca the handoff is draft_ready with the reason. On a runtime with no project for the product (the server) nothing is written or started: the handoff is approved and carries the requirement, product and target outcome for builds_pull on the runtime that has the repo. With build person the Go is recorded as a task for a person and no build runtime pulls it. Needs the operator approval; the Công ty page does the same on the founder tap. With product (input, else SOOT_PROJECT) an opportunity of another product is refused.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^OP-[0-9A-F]{8}$"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "go",
+              "later",
+              "drop"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          },
+          "build": {
+            "type": "string",
+            "enum": [
+              "person"
+            ],
+            "description": "person: a product Go that is not built by Soot but recorded as a task for a person (the founder's Go: giao người làm)."
+          }
+        },
+        "required": [
+          "id",
+          "decision"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "decide"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
+        "max_output_bytes": 65536,
+        "approval": "operator"
+      }
+    },
+    {
+      "name": "topic_next",
+      "title": "Chủ đề marketing kế tiếp",
+      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked handed (given to marketing, not yet written), or {}. With chain: true only {query}, at most one a day, to merge into marketing plan. Carries awareness (unaware|problem|choosing) when the topic has one, also in chain mode. With product it hands out only that product's topics.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "chain": {
+            "type": "boolean"
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "topic_next"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "topic_sync",
+      "title": "Đối chiếu chủ đề với bài đã viết",
+      "description": "Chain step after marketing plan (input_from previous): a handed topic whose keyword now has a post becomes written with the post id; one whose 48 h hold ended with no post returns to the queue. Passes marketing's output through unchanged.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": true
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "topic_sync"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "team_watch",
+      "title": "Theo dõi phiên dựng",
+      "description": "Read each open build's ticket with no model (bbs ticket get status, bbs ticket get approval). A pending approval record is the session's question: state asking and one raise (Cần bạn card) the runtime files; the Công ty page answers it. Ticket in_review is delivered (built, reviewed, QA'd, left uncommitted): one card to commit and ship. blocked or cancelled is a session that stopped: one card. Shipped (the founder's Đã phát hành on the page, or a ticket closed as done) returns outcomes requirement_shipped to record and queues one launch topic. A queued handoff starts once its checkout is free; a draft_ready one is reminded once after 2 hours. Nothing changed answers {done: true}. With product it watches only that product's handoffs and builds. Builds (rows of builds_pull) are reported to the insight team as handoff_events, and what the founder decided on the insight team's page is read back from its handoffs row (soot data query): an answer is written to the ticket here (bbs ticket approval resolve), Đã phát hành closes the build, a build given to a person is no longer read. Handoffs opened for bbs:team (they carry team_id) are no longer read.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "team_watch"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "120s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "review",
+      "title": "Chấm kết quả quyết định",
+      "description": "For go decisions past check_after_days fill actual_delta from the scoreboard (the target_outcome key is the metric) and return the hit rate: a hit is actual at least half of expected. With product it reviews and scores only that product's decisions.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "review"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "opportunities_card",
+      "title": "Thẻ cơ hội chờ bạn chọn",
+      "description": "Tool-only, no model. Keep the one Cần bạn card for the product opportunities still proposed: raise answers it for the runtime to file (id = the waiting set, count current, link nest://page/company); settle answers it once none is proposed. Đã xem only acknowledges. With product the card is that product's own (group company:proposals:<product>).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "opportunities_card"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "health_sync",
+      "title": "Sức khoẻ vòng lặp",
+      "description": "Read-only. Keep the loop-health view: per stage (insight, build, marketing, CS) the last run, tokens spent in 7 days and the starving inputs, plus the founder's effort. Takes marketing_inputs_health as its input (input_from previous); asks the workspace's soot CLI (LOOP_SOOT_CONFIG) for runs. No model.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "inputs": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "maxLength": 24
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "starving": {
+                  "type": "boolean"
+                },
+                "detail": {
+                  "type": "string",
+                  "maxLength": 400
+                },
+                "rows": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "posts": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "daily_report": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "stages": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "maxLength": 24
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "schedules": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "maxItems": 40
+                },
+                "prefixes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "maxItems": 10
+                },
+                "external": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "health_sync"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "goals_checkin",
+      "title": "Ghi số vào mục tiêu",
+      "description": "Gives every active goal whose metric.ref names a scoreboard number its reading, with no per-product code: a ref is <product>:<key> (2novel:activated_new) or company-loop:<key> (the goal's own product, else the host's). The number is that product's newest stored period, from its HTTP scoreboard (SCOREBOARD_URLS) or from metrics_record. Reads goals and checks in through the soot CLI with the per-call runtime token the host grants (needs.runtime; never the operator token), once per goal and period, with a plain note; guardrail refs are reported, not recorded; a breached guardrail raises one card per period and wakes the Đầu mối once, and the card settles when the number is back inside its limit. Chain it after scoreboard_sync. dry_run reads and reports without checking in. No model unless a check-in fails or a guardrail is first breached in a period: then it answers notify true and no done, so a schedule with wake_when.notify wakes its Soot. With product it checks in only that product's goals.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "dry_run": {
+            "type": "boolean"
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "goals_checkin"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "page_view",
+      "title": "Xem trang Công ty",
+      "description": "Công ty page model: the one next step, Cần bạn, the scorecard (north star and tiles with deltas and targets), handoffs, decision log with hit rate, loop health. Narrowed to one product when product is given, saying what it leaves out",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "string",
+            "enum": [
+              "company"
+            ]
+          },
+          "product": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The product to show (Nest's chosen project or the page's own switch); absent for every product."
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The server's own product label, when the caller knows it (the page does not send it)."
+          },
+          "products": {
+            "type": "array",
+            "maxItems": 64,
+            "description": "Nest's projects as products, with their team ids (bridge v2 projects; only the chosen project when the host sends no list).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                "teams": {
+                  "type": "array",
+                  "maxItems": 64,
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "page_view"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 1048576
+      }
+    },
+    {
+      "name": "page_action",
+      "title": "Đổi trang Công ty",
+      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval; build person records it as a task for a person instead of building), retry_handoff (also a session that stopped: it continues the same ticket), to_person (a build that is not running, i.e. draft_ready, no_repo, queued, approved (waiting for a build runtime) or blocked, becomes a task for a person; a task goes back to Soot with retry_handoff), answer (the founder's verdict on the session's question: action approve, redirect with a note, or drop; written to the ticket's approval record, here or by the workshop that runs the build), shipped (the founder committed and released the build: the outcome is measured from now), task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field. retry_handoff also takes an approved handoff.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "go",
+              "later",
+              "drop",
+              "retry_handoff",
+              "link_ticket",
+              "sync",
+              "task_done",
+              "to_person",
+              "part_set",
+              "answer",
+              "shipped"
+            ]
+          },
+          "build": {
+            "type": "string",
+            "enum": [
+              "person"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^OP-[0-9A-F]{8}$"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "ticket": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "part": {
+            "type": "string",
+            "enum": [
+              "value",
+              "marketing",
+              "sales",
+              "delivery",
+              "finance"
+            ]
+          },
+          "team": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "team_name": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "metric": {
+            "type": "string",
+            "maxLength": 48
+          },
+          "good": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              ""
+            ]
+          },
+          "promise": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "redirect",
+              "drop"
+            ],
+            "description": "answer only: the verdict. redirect needs a note."
+          }
+        },
+        "required": [
+          "op",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "page_action"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "SCOREBOARD_KEYS": "{{cred:SCOREBOARD_KEYS}}"
+        }
+      }
+    },
+    {
+      "name": "metrics_record",
+      "title": "Ghi số liệu",
+      "description": "Record a product's numbers for one period in this pack's own metrics table, for a company with no scoreboard address: a Soot that reads the numbers elsewhere (a sheet, a payment dashboard, a data table) writes them here, and the Công ty page shows them with their own labels, units and targets. One row per product, period and metric; writing again replaces it. Aggregate numbers only, never a person. Answers {ok, saved, period}. product defaults to the run's SOOT_PROJECT.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "The product id the numbers belong to."
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false,
+            "description": "The days the numbers cover (at most 31); absent is the last 7 full days."
+          },
+          "metrics": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,47}$"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "previous": {
+                  "type": "number",
+                  "description": "The same number for the period before; absent: the page uses the previous period recorded here."
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "unit": {
+                  "type": "string",
+                  "maxLength": 12,
+                  "description": "vnd, usd, percent, count, or a short suffix."
+                },
+                "good": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "down"
+                  ]
+                },
+                "target": {
+                  "type": "number"
+                },
+                "north_star": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Where the numbers were read, in a few words."
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "metrics_record"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "parts_set",
+      "title": "Giao 5 bộ phận",
+      "description": "Set who owns each of the 5 parts of a product business and which scoreboard metric watches it: parts [{part value|marketing|sales|delivery|finance, team (team id), team_name, metric (scoreboard key), good up|down, promise (<=120 chars, the short public promise for delivery or brand)}], 1-5 per call, all or none, upserted by product and part. A missing field keeps its value; an empty string clears it. Defaults when a part has no row are only used if that metric is on the board. product defaults to the run's SOOT_PROJECT.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "parts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "properties": {
+                "part": {
+                  "type": "string",
+                  "enum": [
+                    "value",
+                    "marketing",
+                    "sales",
+                    "delivery",
+                    "finance"
+                  ]
+                },
+                "team": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "team_name": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "metric": {
+                  "type": "string",
+                  "maxLength": 48
+                },
+                "good": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "down",
+                    ""
+                  ]
+                },
+                "promise": {
+                  "type": "string",
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "part"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "parts"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "parts_set"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "builds_pull",
+      "title": "Nhận yêu cầu đã duyệt để dựng",
+      "description": "Tool-only, no model, no approval of its own (the founder's Go on the server is the approval). On the runtime that has a project for the product (PRODUCT_REPOS, else PRODUCT_REPO) and bbs: reads the approved and queued handoffs of the insight team (soot data query --team INSIGHT_TEAM --item handoffs, filter state, and product when given), skips those already in the local builds table (one the founder sent back with Chạy lại or Để Soot dựng is started again on its ticket), writes the requirement beside the tickets, opens the ticket and starts its bbs:autopilot session exactly as a local Go does (one build at a time per checkout: the rest are queued), records a builds row and inserts a started or queued event into the insight team's handoff_events queue. A repo that cannot be written is the only loud answer. Quiet skipped without PRODUCT_REPO, a runtime token (needs.runtime data.read, data.insert) or the soot CLI. Chain team_watch after it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "builds_pull"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "120s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "handoff_events_apply",
+      "title": "Gộp tiến độ dựng vào bàn giao",
+      "description": "Tool-only, no model. Folds the insert-only handoff_events queue (handoff, state started|queued|progress|asking|stopped|handover|shipped|dropped, ticket, asked, url, note, at) into handoffs in order, each event once; a handoff that is released, dropped or with a person is not moved, and a question is not asked again while its answer is on the way. For the builds the workshop runs it also raises the founder's cards (a question, a build to commit and ship, a session that stopped) and settles them when the handoff moves on, and closes a handoff the founder marked Đã phát hành. A shipped handoff records requirement_shipped and queues the launch topic once. Answers {done: true} when nothing changed.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "description": "A product id. Omitted: the run's own project (SOOT_PROJECT), else every product as before."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/loop.mjs",
+          "handoff_events_apply"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "60s",
+        "max_output_bytes": 65536
+      }
+    }
+  ],
   "needs": {
     "runtime": [
       "goals.read",
@@ -71,31 +1053,25 @@
       }
     }
   },
-  "skills": [
-    {
-      "name": "company-digest",
-      "description": "Weekly: rank at most five opportunities from the signals packet, customer evidence first, tag each with part (and awareness, moat, pain), save them with digest_save, end in one line (the Cần bạn card is kept by opportunities_card, not by you).",
-      "file": "skills/digest.md"
-    }
-  ],
-  "outcomes": [
-    {
-      "id": "opportunity_found",
-      "label": {
-        "vi": "Cơ hội mới",
-        "en": "Opportunity found"
-      },
-      "unit": "opportunity"
-    },
-    {
-      "id": "requirement_shipped",
-      "label": {
-        "vi": "Yêu cầu đã phát hành",
-        "en": "Requirement shipped"
-      },
-      "unit": "requirement"
-    }
-  ],
+  "interface": {
+    "pieces": [
+      {
+        "id": "company",
+        "slot": "rail",
+        "label": {
+          "vi": "Công ty",
+          "en": "Company"
+        },
+        "icon": "building-2",
+        "access": "operator",
+        "data": {
+          "view_tool": "page_view",
+          "action_tool": "page_action"
+        },
+        "bundle": "page/"
+      }
+    ]
+  },
   "storage": {
     "version": 8,
     "tables": [
@@ -729,1007 +1705,22 @@
       }
     ]
   },
-  "interface": {
-    "pieces": [
-      {
-        "id": "company",
-        "slot": "rail",
-        "label": {
-          "vi": "Công ty",
-          "en": "Company"
-        },
-        "icon": "building-2",
-        "access": "operator",
-        "data": {
-          "view_tool": "page_view",
-          "action_tool": "page_action"
-        },
-        "bundle": "page/"
-      }
-    ]
-  },
-  "tools": [
+  "outcomes": [
     {
-      "name": "scoreboard_sync",
-      "title": "Đọc bảng số sản phẩm",
-      "description": "Read the product scoreboard (SCOREBOARD_URL, contract version 1) for the last 7 full days, keep one row per period and append each finished week once to the 2build company baseline (bbs company scoreboard record). Without PRODUCT_ADMIN_KEY or SCOREBOARD_URL it answers a quiet skipped. A refused key is one plain line naming the role agent_mod. When 5 or more readers wait for a person (support.readers_waiting, else support.by_state.waiting_human) it answers one Cần bạn card request (raise) per count bucket (5, 10, 20, 50) with a link to SUPPORT_QUEUE_URL, kept current, and settles it once fewer than 5 wait. The runtime files the card; no model wakes. Answers {done: true}, or with for_digest the sync result for the digest chain. With product (input, else SOOT_PRODUCT) it reads only that product's source: its SCOREBOARD_URLS entry with its own key, or the single SCOREBOARD_URL when that is its board.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "for_digest": {
-            "type": "boolean"
-          },
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
+      "id": "opportunity_found",
+      "label": {
+        "vi": "Cơ hội mới",
+        "en": "Opportunity found"
       },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "scoreboard_sync"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 65536,
-        "secret_env": {
-          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
-          "SCOREBOARD_KEYS": "{{cred:SCOREBOARD_KEYS}}"
-        }
-      }
+      "unit": "opportunity"
     },
     {
-      "name": "signals",
-      "title": "Gói tín hiệu cho bản tin",
-      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps, opportunities and decisions with actual_delta, last launches. Reader feedback comes from the team contract item cs.voc, which the digest reads with the data tool first and reports with voc: true; only when voc is unavailable (voc false or omitted) the packet falls back to the legacy feedback desk scrape (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, needs CS_RUNTIME_TOKEN). Wakes the Lead in a chain. The packet also carries parts [{p, st ok|hong|chua_do, m metric, pct, own team id or null}] (a hong or unowned part is evidence), moats (count of Go decisions by moat) and awareness (content topics by level over 8 weeks). Optional product narrows everything to one product.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "voc": {
-            "type": "boolean",
-            "description": "true when cs.voc answered with rows (the digest has the feedback already); false or omitted when it was refused, empty-because-unreachable or not granted: the legacy desk scrape runs instead."
-          },
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id: build the packet from that product board and narrow opportunities, decisions, handoffs and topics to it. Omitted: as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
+      "id": "requirement_shipped",
+      "label": {
+        "vi": "Yêu cầu đã phát hành",
+        "en": "Requirement shipped"
       },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "signals"
-        ],
-        "stdin": "context",
-        "mode": "read",
-        "timeout": "45s",
-        "max_output_bytes": 65536,
-        "secret_env": {
-          "CS_RUNTIME_TOKEN": "{{cred:CS_RUNTIME_TOKEN}}"
-        }
-      }
-    },
-    {
-      "name": "digest_save",
-      "title": "Lưu cơ hội của bản tin",
-      "description": "Save 1-5 ranked opportunities (all or none): title, product, kind content|product, evidence_refs, signal_count, est_effort, est_value, confidence, target_outcome, expected_delta, check_after_days; content needs a Vietnamese query, product a summary. An item without target_outcome is refused. Content goes straight to a marketing topic (auto-go, logged by soot); product waits as proposed; the Cần bạn card for it is kept by opportunities_card, not here. Every item carries part (value|marketing|sales|delivery|finance); content needs awareness (unaware|problem|choosing), product needs pain (10-200 chars: who suffers from what); moat (scale|network|counter|switching|brand|cornered|process|none) is optional. The error names the missing field. product is the digest's product (or SOOT_PRODUCT): items may omit theirs; one of another product is refused.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "opportunities": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "title": {
-                  "type": "string",
-                  "minLength": 3,
-                  "maxLength": 140
-                },
-                "product": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9][a-z0-9-]{1,31}$"
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "content",
-                    "product"
-                  ]
-                },
-                "query": {
-                  "type": "string",
-                  "maxLength": 120,
-                  "description": "content: a Vietnamese search phrase of 2+ words the audience types."
-                },
-                "summary": {
-                  "type": "string",
-                  "maxLength": 600,
-                  "description": "product: what to build and why, 20+ chars."
-                },
-                "evidence_refs": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "maxLength": 200
-                  },
-                  "minItems": 1,
-                  "maxItems": 8
-                },
-                "signal_count": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "est_effort": {
-                  "type": "string",
-                  "maxLength": 40,
-                  "description": "S, M, L or XL."
-                },
-                "est_value": {
-                  "type": "string",
-                  "maxLength": 40,
-                  "description": "low, medium or high."
-                },
-                "confidence": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1
-                },
-                "target_outcome": {
-                  "type": "string",
-                  "pattern": "^[a-z][a-z0-9_]{1,47}$",
-                  "description": "A scoreboard metric key (signups, revenue_vnd, support_threads_new...) or a declared outcome id."
-                },
-                "expected_delta": {
-                  "type": "number",
-                  "description": "Expected change of the target over one 7-day window; negative to reduce. Not 0."
-                },
-                "check_after_days": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 180
-                },
-                "part": {
-                  "type": "string",
-                  "enum": [
-                    "value",
-                    "marketing",
-                    "sales",
-                    "delivery",
-                    "finance"
-                  ],
-                  "description": "The business part this change fixes or grows: value, marketing, sales, delivery or finance. Required."
-                },
-                "awareness": {
-                  "type": "string",
-                  "enum": [
-                    "unaware",
-                    "problem",
-                    "choosing"
-                  ],
-                  "description": "Reader awareness the post speaks to: unaware (nấc 1, does not know the problem), problem (nấc 2, knows it, not how to solve) or choosing (nấc 3, picking whom to buy from). Required for content."
-                },
-                "moat": {
-                  "type": "string",
-                  "enum": [
-                    "scale",
-                    "network",
-                    "counter",
-                    "switching",
-                    "brand",
-                    "cornered",
-                    "process",
-                    "none"
-                  ],
-                  "description": "The moat this change builds (switching = the good kind: life easier, not lock-in). Optional; absent or none is honest."
-                },
-                "pain": {
-                  "type": "string",
-                  "minLength": 10,
-                  "maxLength": 200,
-                  "description": "Who suffers from what, from customer evidence. Required for product; optional for content."
-                },
-                "goal": {
-                  "type": "string",
-                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$",
-                  "description": "Optional. The id of the company goal this bet is meant to push (as the goal tool lists it). The loop only carries the id; it never reads goals."
-                }
-              },
-              "required": [
-                "title",
-                "kind",
-                "evidence_refs",
-                "signal_count",
-                "est_effort",
-                "est_value",
-                "confidence",
-                "target_outcome",
-                "expected_delta",
-                "check_after_days",
-                "part"
-              ],
-              "additionalProperties": false
-            },
-            "minItems": 1,
-            "maxItems": 5
-          },
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "The product of the whole digest (input, else SOOT_PRODUCT): an item may leave its own product out, and an item of another product is refused."
-          }
-        },
-        "required": [
-          "opportunities"
-        ],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "digest_save"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "30s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "decide",
-      "title": "Quyết định một cơ hội",
-      "description": "Go, later or drop an opportunity and log it with the scoreboard value as baseline. A product Go on a runtime with a build stage (the product's project: its PRODUCT_REPOS entry, else PRODUCT_REPO) writes REQ-<id>.md beside the tickets, opens a bbs ticket from it and starts one bbs:autopilot --auto session on that ticket in the product checkout (it edits the checkout and leaves the change uncommitted; never commit, land or release); a checkout that already holds an unshipped build makes the Go queued; without bbs or Orca the handoff is draft_ready with the reason. On a runtime with no project for the product (the server) nothing is written or started: the handoff is approved and carries the requirement, product and target outcome for builds_pull on the runtime that has the repo. With build person the Go is recorded as a task for a person and no build runtime pulls it. Needs the operator approval; the Công ty page does the same on the founder tap. With product (input, else SOOT_PRODUCT) an opportunity of another product is refused.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^OP-[0-9A-F]{8}$"
-          },
-          "decision": {
-            "type": "string",
-            "enum": [
-              "go",
-              "later",
-              "drop"
-            ]
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 300
-          },
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          },
-          "build": {
-            "type": "string",
-            "enum": [
-              "person"
-            ],
-            "description": "person: a product Go that is not built by Soot but recorded as a task for a person (the founder's Go: giao người làm)."
-          }
-        },
-        "required": [
-          "id",
-          "decision"
-        ],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "decide"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "90s",
-        "max_output_bytes": 65536,
-        "approval": "operator"
-      }
-    },
-    {
-      "name": "topic_next",
-      "title": "Chủ đề marketing kế tiếp",
-      "description": "The oldest queued marketing topic {query, reason, opportunity_ref}, marked handed (given to marketing, not yet written), or {}. With chain: true only {query}, at most one a day, to merge into marketing plan. Carries awareness (unaware|problem|choosing) when the topic has one, also in chain mode. With product it hands out only that product's topics.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "chain": {
-            "type": "boolean"
-          },
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "topic_next"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "30s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "topic_sync",
-      "title": "Đối chiếu chủ đề với bài đã viết",
-      "description": "Chain step after marketing plan (input_from previous): a handed topic whose keyword now has a post becomes written with the post id; one whose 48 h hold ended with no post returns to the queue. Passes marketing's output through unchanged.",
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "required": [],
-        "additionalProperties": true
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "topic_sync"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "30s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "team_watch",
-      "title": "Theo dõi phiên dựng",
-      "description": "Read each open build's ticket with no model (bbs ticket get status, bbs ticket get approval). A pending approval record is the session's question: state asking and one raise (Cần bạn card) the runtime files; the Công ty page answers it. Ticket in_review is delivered (built, reviewed, QA'd, left uncommitted): one card to commit and ship. blocked or cancelled is a session that stopped: one card. Shipped (the founder's Đã phát hành on the page, or a ticket closed as done) returns outcomes requirement_shipped to record and queues one launch topic. A queued handoff starts once its checkout is free; a draft_ready one is reminded once after 2 hours. Nothing changed answers {done: true}. With product it watches only that product's handoffs and builds. Builds (rows of builds_pull) are reported to the insight team as handoff_events, and what the founder decided on the insight team's page is read back from its handoffs row (soot data query): an answer is written to the ticket here (bbs ticket approval resolve), Đã phát hành closes the build, a build given to a person is no longer read. Handoffs opened for bbs:team (they carry team_id) are no longer read.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "team_watch"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "120s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "review",
-      "title": "Chấm kết quả quyết định",
-      "description": "For go decisions past check_after_days fill actual_delta from the scoreboard (the target_outcome key is the metric) and return the hit rate: a hit is actual at least half of expected. With product it reviews and scores only that product's decisions.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "review"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "30s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "opportunities_card",
-      "title": "Thẻ cơ hội chờ bạn chọn",
-      "description": "Tool-only, no model. Keep the one Cần bạn card for the product opportunities still proposed: raise answers it for the runtime to file (id = the waiting set, count current, link nest://page/company); settle answers it once none is proposed. Đã xem only acknowledges. With product the card is that product's own (group company:proposals:<product>).",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "opportunities_card"
-        ],
-        "stdin": "context",
-        "mode": "read",
-        "timeout": "30s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "health_sync",
-      "title": "Sức khoẻ vòng lặp",
-      "description": "Read-only. Keep the loop-health view: per stage (insight, build, marketing, CS) the last run, tokens spent in 7 days and the starving inputs, plus the founder's effort. Takes marketing_inputs_health as its input (input_from previous); asks the workspace's soot CLI (LOOP_SOOT_CONFIG) for runs. No model.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "inputs": {
-            "type": "array",
-            "maxItems": 20,
-            "items": {
-              "type": "object",
-              "properties": {
-                "key": {
-                  "type": "string",
-                  "maxLength": 24
-                },
-                "label": {
-                  "type": "string",
-                  "maxLength": 60
-                },
-                "starving": {
-                  "type": "boolean"
-                },
-                "detail": {
-                  "type": "string",
-                  "maxLength": 400
-                },
-                "rows": {
-                  "type": "integer"
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "posts": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "daily_report": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "stages": {
-            "type": "array",
-            "maxItems": 8,
-            "items": {
-              "type": "object",
-              "properties": {
-                "key": {
-                  "type": "string",
-                  "maxLength": 24
-                },
-                "label": {
-                  "type": "string",
-                  "maxLength": 60
-                },
-                "schedules": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "maxLength": 64
-                  },
-                  "maxItems": 40
-                },
-                "prefixes": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "maxLength": 32
-                  },
-                  "maxItems": 10
-                },
-                "external": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "key"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "health_sync"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "90s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "goals_checkin",
-      "title": "Ghi số vào mục tiêu",
-      "description": "Gives every active goal whose metric.ref names a scoreboard number its reading, with no per-product code: a ref is <product>:<key> (2novel:activated_new) or company-loop:<key> (the goal's own product, else the host's). The number is that product's newest stored period, from its HTTP scoreboard (SCOREBOARD_URLS) or from metrics_record. Reads goals and checks in through the soot CLI with the per-call runtime token the host grants (needs.runtime; never the operator token), once per goal and period, with a plain note; guardrail refs are reported, not recorded; a breached guardrail raises one card per period and wakes the Đầu mối once, and the card settles when the number is back inside its limit. Chain it after scoreboard_sync. dry_run reads and reports without checking in. No model unless a check-in fails or a guardrail is first breached in a period: then it answers notify true and no done, so a schedule with wake_when.notify wakes its Soot. With product it checks in only that product's goals.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "dry_run": {
-            "type": "boolean"
-          },
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "goals_checkin"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "page_view",
-      "title": "Xem trang Công ty",
-      "description": "Công ty page model: the one next step, Cần bạn, the scorecard (north star and tiles with deltas and targets), handoffs, decision log with hit rate, loop health. Narrowed to one product when product is given, saying what it leaves out",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "page": {
-            "type": "string",
-            "enum": [
-              "company"
-            ]
-          },
-          "product": {
-            "type": "string",
-            "maxLength": 64,
-            "description": "The product to show (Nest's chosen project or the page's own switch); absent for every product."
-          },
-          "host": {
-            "type": "string",
-            "maxLength": 64,
-            "description": "The server's own product label, when the caller knows it (the page does not send it)."
-          },
-          "products": {
-            "type": "array",
-            "maxItems": 64,
-            "description": "Nest's projects as products, with their team ids (bridge v2 projects; only the chosen project when the host sends no list).",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "maxLength": 64
-                },
-                "name": {
-                  "type": "string",
-                  "maxLength": 128
-                },
-                "teams": {
-                  "type": "array",
-                  "maxItems": 64,
-                  "items": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                }
-              },
-              "required": [
-                "id"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "page_view"
-        ],
-        "stdin": "context",
-        "mode": "read",
-        "timeout": "20s",
-        "max_output_bytes": 1048576
-      }
-    },
-    {
-      "name": "page_action",
-      "title": "Đổi trang Công ty",
-      "description": "Công ty page action: go, later or drop an opportunity (a product Go is the founder approval; build person records it as a task for a person instead of building), retry_handoff (also a session that stopped: it continues the same ticket), to_person (a build that is not running, i.e. draft_ready, no_repo, queued, approved (waiting for a build runtime) or blocked, becomes a task for a person; a task goes back to Soot with retry_handoff), answer (the founder's verdict on the session's question: action approve, redirect with a note, or drop; written to the ticket's approval record, here or by the workshop that runs the build), shipped (the founder committed and released the build: the outcome is measured from now), task_done (a task recorded without a build stage is done: its outcome is measured from now), link_ticket (hidden manual override of the ticket id) or sync. host labels rows written before products with the server's product. Needs a request_id. part_set (founder only) sets the owner team, watching metric and promise of one part of a product; an empty string clears a field. retry_handoff also takes an approved handoff.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "op": {
-            "type": "string",
-            "enum": [
-              "go",
-              "later",
-              "drop",
-              "retry_handoff",
-              "link_ticket",
-              "sync",
-              "task_done",
-              "to_person",
-              "part_set",
-              "answer",
-              "shipped"
-            ]
-          },
-          "build": {
-            "type": "string",
-            "enum": [
-              "person"
-            ]
-          },
-          "request_id": {
-            "type": "string",
-            "maxLength": 64
-          },
-          "id": {
-            "type": "string",
-            "pattern": "^OP-[0-9A-F]{8}$"
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 300
-          },
-          "ticket": {
-            "type": "string",
-            "maxLength": 64
-          },
-          "host": {
-            "type": "string",
-            "maxLength": 64
-          },
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-          },
-          "part": {
-            "type": "string",
-            "enum": [
-              "value",
-              "marketing",
-              "sales",
-              "delivery",
-              "finance"
-            ]
-          },
-          "team": {
-            "type": "string",
-            "maxLength": 64
-          },
-          "team_name": {
-            "type": "string",
-            "maxLength": 60
-          },
-          "metric": {
-            "type": "string",
-            "maxLength": 48
-          },
-          "good": {
-            "type": "string",
-            "enum": [
-              "up",
-              "down",
-              ""
-            ]
-          },
-          "promise": {
-            "type": "string",
-            "maxLength": 120
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "approve",
-              "redirect",
-              "drop"
-            ],
-            "description": "answer only: the verdict. redirect needs a note."
-          }
-        },
-        "required": [
-          "op",
-          "request_id"
-        ],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "page_action"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "90s",
-        "max_output_bytes": 65536,
-        "secret_env": {
-          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
-          "SCOREBOARD_KEYS": "{{cred:SCOREBOARD_KEYS}}"
-        }
-      }
-    },
-    {
-      "name": "metrics_record",
-      "title": "Ghi số liệu",
-      "description": "Record a product's numbers for one period in this pack's own metrics table, for a company with no scoreboard address: a Soot that reads the numbers elsewhere (a sheet, a payment dashboard, a data table) writes them here, and the Công ty page shows them with their own labels, units and targets. One row per product, period and metric; writing again replaces it. Aggregate numbers only, never a person. Answers {ok, saved, period}. product defaults to the run's SOOT_PRODUCT.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "The product id the numbers belong to."
-          },
-          "period": {
-            "type": "object",
-            "properties": {
-              "from": {
-                "type": "string",
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-              },
-              "to": {
-                "type": "string",
-                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-              }
-            },
-            "required": [
-              "from",
-              "to"
-            ],
-            "additionalProperties": false,
-            "description": "The days the numbers cover (at most 31); absent is the last 7 full days."
-          },
-          "metrics": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 30,
-            "items": {
-              "type": "object",
-              "properties": {
-                "key": {
-                  "type": "string",
-                  "pattern": "^[a-z][a-z0-9_]{0,47}$"
-                },
-                "value": {
-                  "type": "number"
-                },
-                "previous": {
-                  "type": "number",
-                  "description": "The same number for the period before; absent: the page uses the previous period recorded here."
-                },
-                "label": {
-                  "type": "string",
-                  "maxLength": 40
-                },
-                "unit": {
-                  "type": "string",
-                  "maxLength": 12,
-                  "description": "vnd, usd, percent, count, or a short suffix."
-                },
-                "good": {
-                  "type": "string",
-                  "enum": [
-                    "up",
-                    "down"
-                  ]
-                },
-                "target": {
-                  "type": "number"
-                },
-                "north_star": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "key",
-                "value"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "source": {
-            "type": "string",
-            "maxLength": 60,
-            "description": "Where the numbers were read, in a few words."
-          }
-        },
-        "required": [
-          "metrics"
-        ],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "metrics_record"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "30s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "parts_set",
-      "title": "Giao 5 bộ phận",
-      "description": "Set who owns each of the 5 parts of a product business and which scoreboard metric watches it: parts [{part value|marketing|sales|delivery|finance, team (team id), team_name, metric (scoreboard key), good up|down, promise (<=120 chars, the short public promise for delivery or brand)}], 1-5 per call, all or none, upserted by product and part. A missing field keeps its value; an empty string clears it. Defaults when a part has no row are only used if that metric is on the board. product defaults to the run's SOOT_PRODUCT.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-          },
-          "parts": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 5,
-            "items": {
-              "type": "object",
-              "properties": {
-                "part": {
-                  "type": "string",
-                  "enum": [
-                    "value",
-                    "marketing",
-                    "sales",
-                    "delivery",
-                    "finance"
-                  ]
-                },
-                "team": {
-                  "type": "string",
-                  "maxLength": 64
-                },
-                "team_name": {
-                  "type": "string",
-                  "maxLength": 60
-                },
-                "metric": {
-                  "type": "string",
-                  "maxLength": 48
-                },
-                "good": {
-                  "type": "string",
-                  "enum": [
-                    "up",
-                    "down",
-                    ""
-                  ]
-                },
-                "promise": {
-                  "type": "string",
-                  "maxLength": 120
-                }
-              },
-              "required": [
-                "part"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "parts"
-        ],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "parts_set"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "30s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "builds_pull",
-      "title": "Nhận yêu cầu đã duyệt để dựng",
-      "description": "Tool-only, no model, no approval of its own (the founder's Go on the server is the approval). On the runtime that has a project for the product (PRODUCT_REPOS, else PRODUCT_REPO) and bbs: reads the approved and queued handoffs of the insight team (soot data query --team INSIGHT_TEAM --item handoffs, filter state, and product when given), skips those already in the local builds table (one the founder sent back with Chạy lại or Để Soot dựng is started again on its ticket), writes the requirement beside the tickets, opens the ticket and starts its bbs:autopilot session exactly as a local Go does (one build at a time per checkout: the rest are queued), records a builds row and inserts a started or queued event into the insight team's handoff_events queue. A repo that cannot be written is the only loud answer. Quiet skipped without PRODUCT_REPO, a runtime token (needs.runtime data.read, data.insert) or the soot CLI. Chain team_watch after it.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "builds_pull"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "120s",
-        "max_output_bytes": 65536
-      }
-    },
-    {
-      "name": "handoff_events_apply",
-      "title": "Gộp tiến độ dựng vào bàn giao",
-      "description": "Tool-only, no model. Folds the insert-only handoff_events queue (handoff, state started|queued|progress|asking|stopped|handover|shipped|dropped, ticket, asked, url, note, at) into handoffs in order, each event once; a handoff that is released, dropped or with a person is not moved, and a question is not asked again while its answer is on the way. For the builds the workshop runs it also raises the founder's cards (a question, a build to commit and ship, a session that stopped) and settles them when the handoff moves on, and closes a handoff the founder marked Đã phát hành. A shipped handoff records requirement_shipped and queues the launch topic once. Answers {done: true} when nothing changed.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "product": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-            "description": "A product id. Omitted: the run's own product (SOOT_PRODUCT), else every product as before."
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      },
-      "run": {
-        "program": "node",
-        "args": [
-          "tools/loop.mjs",
-          "handoff_events_apply"
-        ],
-        "stdin": "context",
-        "mode": "write",
-        "timeout": "60s",
-        "max_output_bytes": 65536
-      }
+      "unit": "requirement"
     }
   ]
 }

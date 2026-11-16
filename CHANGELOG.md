@@ -3,6 +3,13 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.20.0 — 2026-11-17
+
+Baseline: v0.19.0. Pairs with the Soot release that adds `ontology.*`, `flow.*` and workspace `improve.*` to `manage` (docs/plans/team-flows.md D6) and the product to project rename (`company.project.save`, `group.projects`). On an older runtime those actions are refused as unknown. No storage changes.
+
+- **nest-lead: `nest-team-check` becomes `nest-workspace-lifecycle`.** The skill is now the life of a whole workspace, in order of judgement: lean teams (name, description, members, entries, limits; how a team works lives in team memory, missions and adapter, never in a workflow inside the team), then the ontology (entities from the packs' tables without retyping fields, relations naming which team may read, request, update or decide which entity, processes as moves of one entity each owned by a team with `within`, `deadline` and `gates`, always with an end path such as `declined` or `no_source`), then flows per process (the happy path, at least one broken path, every trigger source), run, diagnose by tier, improve, and report plainly. The old advice that still fits stays (one queue for every trigger, tool-first schedules). Money stays the person's: a bigger `daily_tokens` or team/host budget, an improve budget above 500000 weighted tokens, a pricier model, a paid tool, and removing a gate go through `manage_gated`; the Lead never removes a gate. Evals: `workspace-lifecycle.eval.json` (C1–C4 kept, L1–L4 new: two lean teams, an ontology with an end path and its gate, a budget above the limit, a broken-path flow).
+- **nest-lead: product becomes project.** `pack.json`, `nest-manage` and `nest-company` say project / dự án: `company.project.save` (`company_project`), `group.projects` (`group_projects`). The tools' schema also accepts `scope`, `improve_budget`, `ontology`, `flow`, `flow_run` and `draft`, and lists the `ontology.*`, `flow.*` and `improve.*` actions.
+
 ## 0.19.0 — 2026-11-15
 
 Baseline: v0.18.0. Pairs with Soot 0.20.0 or later (work mail, `task` `repeat` states, `manage` `usage.read` and `updates.status`). No storage changes.
@@ -96,11 +103,11 @@ Baseline: v0.14.0. Pairs with Soot 0.16.2+ (an older Soot ignores the new files)
 
 ## 0.14.0 — 2026-11-11
 
-Baseline: v0.13.0. Pairs with Soot 0.16.0+ (`data.read` and `data.insert` runtime scopes, the `SOOT_PRODUCT` run product). **Storage of `company-loop` goes 6 → 7** (only adds tables and columns).
+Baseline: v0.13.0. Pairs with Soot 0.16.0+ (`data.read` and `data.insert` runtime scopes, the `SOOT_PROJECT` run project). **Storage of `company-loop` goes 6 → 7** (only adds tables and columns).
 
-- **company-loop: several products, two runtimes.** Every product-bound tool (`scoreboard_sync`, `review`, `opportunities_card`, `team_watch`, `goals_checkin`, `decide`, `topic_next`, `digest_save`, `signals`, `metrics_record`, `parts_set`, `page_view`) takes an optional `product`, defaulting to `SOOT_PRODUCT`, and works on that product's rows only; with neither it behaves as before. `digest_save` refuses an item of another product; `scoreboard_sync` reads the source mapped to the product.
+- **company-loop: several products, two runtimes.** Every product-bound tool (`scoreboard_sync`, `review`, `opportunities_card`, `team_watch`, `goals_checkin`, `decide`, `topic_next`, `digest_save`, `signals`, `metrics_record`, `parts_set`, `page_view`) takes an optional `product`, defaulting to `SOOT_PROJECT`, and works on that product's rows only; with neither it behaves as before. `digest_save` refuses an item of another product; `scoreboard_sync` reads the source mapped to the product.
 - **company-loop: the Go splits across runtimes.** A runtime with no `PRODUCT_REPO`/`bbs` records the founder's Go as a `handoffs` row in state `approved` with the requirement, product and target outcome (no repo write, no spawn). New tool-only `builds_pull` (runtime with the repo) reads the approved rows with `soot data query`, writes the requirement, starts `bbs team spawn`, records a local `builds` row and inserts a `started` event; `team_watch` inserts `progress`, `handover`, `shipped` and `failed`; `handoff_events_apply` folds the events into `handoffs` (a `shipped` event records `requirement_shipped` and queues the launch topic once). One runtime holding both halves keeps today's direct path. New tables `handoff_events` and `builds`; `handoffs` gains `requirement`, `target_outcome`, `expected_delta`, `url`. New `needs.env` `INSIGHT_TEAM`; `needs.runtime` adds `data.read`, `data.insert`.
-- **lohi-cs: product gate.** Its tools refuse with `not_lohi_conversation` before any network call when `SOOT_PRODUCT` or the ToolCall product is not `LOHI_PRODUCT` (default `lohi`), or when `LOHI_BINDINGS` is set and the event binding is not in it; `report-content` also needs a principal. New `needs.env` `LOHI_PRODUCT`, `LOHI_BINDINGS`.
+- **lohi-cs: product gate.** Its tools refuse with `not_lohi_conversation` before any network call when `SOOT_PROJECT` or the ToolCall project is not `LOHI_PRODUCT` (default `lohi`), or when `LOHI_BINDINGS` is set and the event binding is not in it; `report-content` also needs a principal. New `needs.env` `LOHI_PRODUCT`, `LOHI_BINDINGS`.
 - **Lean standard teams.** `support` keeps the Answerer and the Feedback desk (the runtime refuses a Soot as its own feedback desk, and a public chat gets no pack tools); `insight` is the analyst alone, with a per-product digest and a weekly read-only money review (schedule `money`); `growth` is editor + writer, the writer carries the radar and `research` and the `radar` schedule moved here (Growth provides `signals`); `operations` is operator + curator (catalogs, content quality, community moderation); `finance` stays installable and is marked optional. New template `workshop` (builder, poster) for a computer with a browser and a coding agent: `company-team` replaces its `build` team with it (contracts `build-request` read, `handoff-events` write).
 
 ## 0.13.0 — 2026-11-11
@@ -204,7 +211,7 @@ Baseline: v0.11.23 (0221bef). Pairs with Soot 0.13.28 (one Lead outside every te
 
 ### Added
 
-- **The lead sets up a company from a template.** New `nest-lead` skill `nest-company`: four templates as data — Bán hàng online, Nội dung, SaaS and Vòng công ty (company-loop without the build stage). The lead asks at most two questions, proposes products, teams, schedules and read grants in one message, and after consent runs only existing settings actions: `company.product.save`, `group.create` through `manage_gated` (each team waits in Cần bạn), then `group.products`, `schedule.save` and `access.grant` (write grants stay gated). It never sets or raises a budget, and never joins a team or puts a schedule on itself. Evals `company.eval.json` (C1, C2).
+- **The lead sets up a company from a template.** New `nest-lead` skill `nest-company`: four templates as data — Bán hàng online, Nội dung, SaaS and Vòng công ty (company-loop without the build stage). The lead asks at most two questions, proposes products, teams, schedules and read grants in one message, and after consent runs only existing settings actions: `company.project.save`, `group.create` through `manage_gated` (each team waits in Cần bạn), then `group.projects`, `schedule.save` and `access.grant` (write grants stay gated). It never sets or raises a budget, and never joins a team or puts a schedule on itself. Evals `company.eval.json` (C1, C2).
 - `manage` / `manage_gated` `schedule` documents `cron` (`0 9 * * 1-5` = Thứ 2–6 lúc 09:00) beside `every`/`at`.
 
 ### Fixed
@@ -219,7 +226,7 @@ Baseline: v0.11.22 (97815a6). Pairs with Soot 0.13.27. Browser tools 0.2.3 (`soo
 ### Added
 
 - **Named browser profiles.** `browser-use_control` takes an optional `profile`: a named sign-in a person granted the Soot or its team in Nest › Cài đặt › Trình duyệt. The pack declares `SOOT_BROWSER_PROFILES` in `needs.env`; the host sets it on every call to the ids the calling Soot may open and refuses an ungranted `profile` before the tool runs, and the adapter re-checks it on every call (its live view and a person's input included), so a revoke stops at the next call. A conversation that asks for a profile stays in it until `close`; one profile is one browser shared by the conversations using it. `browser-use_view` lists the granted ids in `profiles`. A host that predates profiles sets nothing, and a profile call is refused while every other call works as before. `marketing` `browser-post` posts in the profile named for the account when one is granted.
-- **Kamaji creates products.** `nest-lead` `manage` takes `company.product.save` (`company_product: {id, name}`) and `group.products` (`group_products: {group, products}`), so a fresh Nest can be asked to make a product and point a team at it. Deleting a product stays the person's.
+- **Kamaji creates products.** `nest-lead` `manage` takes `company.project.save` (`company_project: {id, name}`) and `group.projects` (`group_projects: {group, projects}`), so a fresh Nest can be asked to make a project and point a team at it. Deleting a product stays the person's.
 
 ### Changed
 

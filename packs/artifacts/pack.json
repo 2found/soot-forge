@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "artifacts",
-  "label": {
+  "name": {
     "vi": "Kho tệp và media",
     "en": "Artifacts"
+  },
+  "description": {
+    "vi": "Lưu tệp và media theo mã nội dung để các gói khác dùng lại và xuất ra khi cần.",
+    "en": "Content-addressed file and media store other packs reuse and export from."
   },
   "keywords": {
     "vi": [
@@ -19,32 +21,6 @@
       "attachments"
     ]
   },
-  "description": {
-    "vi": "Lưu tệp và media theo mã nội dung để các gói khác dùng lại và xuất ra khi cần.",
-    "en": "Content-addressed file and media store other packs reuse and export from."
-  },
-  "skills": [
-    {
-      "name": "artifacts_read",
-      "file": "skills/read.md",
-      "description": "Read artifact metadata and inline content or host path by ref"
-    },
-    {
-      "name": "artifacts_create",
-      "file": "skills/create.md",
-      "description": "Store new content into the content-addressed artifact store"
-    },
-    {
-      "name": "artifacts_export",
-      "file": "skills/export.md",
-      "description": "Export an artifact to an operator-bound export directory with TTL"
-    },
-    {
-      "name": "artifacts_remove",
-      "file": "skills/remove.md",
-      "description": "Delete an artifact and/or a shared export URL from the bound store."
-    }
-  ],
   "tools": [
     {
       "name": "read",

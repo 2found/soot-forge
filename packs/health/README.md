@@ -14,7 +14,7 @@ event.
   endpoint của runtime, `http://127.0.0.1:7788/healthz`).
 - **Nhiều địa chỉ:** đặt biến môi trường `HEALTH_TARGETS` cho service của
   runtime và cấp nó cho pack (`soot grant health`, hoặc
-  `"pack_grants": {"health": {"env": ["HEALTH_TARGETS"]}}`). Giá trị là các cặp
+  `"grants": {"packs": {"health": {"env": ["HEALTH_TARGETS"]}}}`). Giá trị là các cặp
   `name=url`, cách nhau bằng dấu cách hoặc dấu phẩy, tối đa 16 cặp:
 
   ```sh

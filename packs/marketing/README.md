@@ -104,7 +104,7 @@ draft_save → check (guard + editor verdict) → schedule → due (tool-only sc
 - **The claim** (`marketing_claim`, `approval: operator` by default) is signed
   with `MARKETING_CLAIM_KEY` (HMAC-SHA256 over canonical JSON, 10 minutes) and
   carries the content hash; publishers refuse anything else. A host that wants
-  autonomous publishing sets `approvals: {"marketing_claim": "auto"}`; the
+  autonomous publishing sets `grants.approvals: {"marketing_claim": "auto"}`; the
   guard still runs.
 - **Once only.** The intent row is written before the claim is returned; a
   claim re-issued after a crash says `verify_first` and the publisher looks

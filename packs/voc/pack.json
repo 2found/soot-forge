@@ -1,10 +1,12 @@
 {
-  "api_version": "soot/v1",
+  "name": {
+    "en": "Voice of the customer",
+    "vi": "Tiếng nói khách hàng"
+  },
   "description": {
     "en": "Aggregate, non-personal notes of what customers ask, report or want, one row per note, for every product; the table the support team's contract serves the company.",
     "vi": "Ghi nhận không danh tính điều khách hỏi, báo hoặc muốn của mọi sản phẩm, mỗi dòng một ý; bảng mà hợp đồng của đội hỗ trợ chia sẻ cho công ty."
   },
-  "id": "voc",
   "keywords": {
     "en": [
       "feedback",
@@ -16,12 +18,50 @@
       "khách hàng"
     ]
   },
-  "label": {
-    "en": "Voice of the customer",
-    "vi": "Tiếng nói khách hàng"
-  },
-  "name": "Voice of the customer",
-  "skills": [],
+  "tools": [
+    {
+      "description": "File ONE row of customer feedback in the voice-of-customer table: the product it is about, its kind and a one-line summary of the THEME in your own words. The row is shared with the company, so it must carry no customer identity: no name, email, phone, handle, user or conversation id, and no quoted message. Call it once per note.",
+      "name": "voc_record",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "feedback",
+              "bug",
+              "feature_request",
+              "question",
+              "lead",
+              "complaint"
+            ],
+            "type": "string"
+          },
+          "product": {
+            "description": "Product id (lohi, 2novel, 2found, trysoot) or chung when it is about no single product. Defaults to the run's project.",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "type": "string"
+          },
+          "summary": {
+            "description": "The theme in one line, without any personal detail.",
+            "maxLength": 300,
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "max_output_bytes": 4096,
+        "mode": "write",
+        "program": "bin/voc-record",
+        "stdin": "context",
+        "timeout": "15s"
+      }
+    }
+  ],
   "storage": {
     "tables": [
       {
@@ -56,49 +96,5 @@
       }
     ],
     "version": 1
-  },
-  "tools": [
-    {
-      "description": "File ONE row of customer feedback in the voice-of-customer table: the product it is about, its kind and a one-line summary of the THEME in your own words. The row is shared with the company, so it must carry no customer identity: no name, email, phone, handle, user or conversation id, and no quoted message. Call it once per note.",
-      "name": "voc_record",
-      "parameters": {
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "enum": [
-              "feedback",
-              "bug",
-              "feature_request",
-              "question",
-              "lead",
-              "complaint"
-            ],
-            "type": "string"
-          },
-          "product": {
-            "description": "Product id (lohi, 2novel, 2found, trysoot) or chung when it is about no single product. Defaults to the run's product.",
-            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-            "type": "string"
-          },
-          "summary": {
-            "description": "The theme in one line, without any personal detail.",
-            "maxLength": 300,
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "summary"
-        ],
-        "type": "object"
-      },
-      "run": {
-        "max_output_bytes": 4096,
-        "mode": "write",
-        "program": "bin/voc-record",
-        "stdin": "context",
-        "timeout": "15s"
-      }
-    }
-  ]
+  }
 }

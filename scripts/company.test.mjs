@@ -222,7 +222,7 @@ test('Lohi end to end: setup.mjs builds the recipe, `soot company adopt` moves i
 test('the template carries company.goals: a valid block, three cadence tasks with unique ids, and it compiles into the company block', async () => {
   const g = template.goals;
   assert.equal(g.cycle_weeks, 6);
-  assert.ok(g.max_per_product >= 1 && g.max_per_team >= 1 && g.ops_warn_ratio > 0 && g.ops_warn_ratio < 1);
+  assert.ok(g.max_per_project >= 1 && g.max_per_team >= 1 && g.ops_warn_ratio > 0 && g.ops_warn_ratio < 1);
   assert.ok(['person', 'lead'].includes(g.approve_team_goals) && ['person', 'lead_within_budget'].includes(g.approve_waking_repeats));
   assert.deepEqual(g.cadence.map(c => c.id), ['weekly-commit', 'weekly-checkin', 'cycle-review']);
   assert.equal(new Set(g.cadence.map(c => c.id)).size, g.cadence.length, 'cadence ids are unique');

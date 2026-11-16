@@ -1,25 +1,6 @@
 {
-  "api_version": "soot/v1",
-  "id": "writing",
   "name": "Viết nội dung",
   "description": "Soạn và chỉnh sửa nội dung theo nhiệm vụ của bạn.",
-  "skills": [
-    {
-      "name": "writing_article",
-      "file": "skills/article.md",
-      "description": "Draft long-form articles with cited sources and a verifiable structure."
-    },
-    {
-      "name": "writing_copy",
-      "file": "skills/copy.md",
-      "description": "Write short marketing or product copy variants with a testable angle."
-    },
-    {
-      "name": "writing_export",
-      "file": "skills/export.md",
-      "description": "Export a finished draft artifact or bounded text to a sanitized MD or HTML artifact."
-    }
-  ],
   "tools": [
     {
       "name": "export",

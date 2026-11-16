@@ -25,10 +25,11 @@ const portProbe=createServer();await new Promise(r=>portProbe.listen(0,'127.0.0.
 const invoke=(program,args,extra={})=>exec(program,args,{cwd:output,env,timeout:420000,maxBuffer:4*1024*1024,...extra});
 const post=async(path,body)=>{const response=await fetch(api+path,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw Error(`${response.status}: ${JSON.stringify(data)}`);return data;};
 try {
- await writeFile(join(output,'SOUL.md'),'Use real tools on the authorized local fixture. Never invent success.\n');
- await writeFile(join(output,'MISSION.md'),'Verify the conversation browser. No external writes or messages.\n');
- await writeFile(join(output,'review.json'),JSON.stringify({id:'review',soul:'SOUL.md',mission:'MISSION.md',packs:['browser-use'],model:{provider:options.provider,name:options.model,fallbacks:[]}}));
- await writeFile(config,JSON.stringify({listen:`127.0.0.1:${port}`,token_env:'FORGE_BROWSER_TOKEN',packs_dir:'packs',data_dir:'data',default_soot:'review',soots:['review.json'],pack_grants:{'browser-use':{env:['PATH','HOME']}},execution:{max_turns:16,max_tool_calls:24,tool_timeout:'90s',subagents:0,advisor:false,memory_consolidation:false,todo_nudges:0}}));
+ await mkdir(join(output,'soots','review'),{recursive:true});
+ await writeFile(join(output,'soots','review','SOUL.md'),'Use real tools on the authorized local fixture. Never invent success.\n');
+ await writeFile(join(output,'soots','review','MISSION.md'),'Verify the conversation browser. No external writes or messages.\n');
+ await writeFile(join(output,'soots','review','soot.json'),JSON.stringify({packs:['browser-use'],model:{provider:options.provider,name:options.model,fallbacks:[]},chat:{}}));
+ await writeFile(config,JSON.stringify({server:{listen:`127.0.0.1:${port}`,token_env:'FORGE_BROWSER_TOKEN',data_dir:'data'},packs_dir:'packs',default_soot:'review',soots:['soots/review/soot.json'],grants:{packs:{'browser-use':{env:['PATH','HOME']}}},execution:{max_turns:16,max_tool_calls:24,tool_timeout:'90s',subagents:0,advisor:false,memory_consolidation:false,todo_nudges:0}}));
  const catalog=await readCatalog(root),source=await materialize(catalog.packs.find(p=>p.id==='browser-use'),root,join(output,'materialized'));
  const archive=join(output,'browser-use.tar.gz');await archivePack(source,archive,'browser-use');
  await writeFile(join(output,'install.json'),(await invoke(binary,['add',archive,'--config',config,'--json'])).stdout);

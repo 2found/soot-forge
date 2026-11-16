@@ -47,7 +47,7 @@ duration and oversized picture dimensions before decoding.
 Operation IDs: `video-editor_probe`, `video-editor_validate`, `video-editor_render`, `video-editor_contact_sheet`, `video-editor_hyperframes`.
 
 Credentials are declared in `pack.json` `needs`: `FILE_ROOT` comes from the workspace, `PYTHON_EXECUTABLE` from env `SOOT_MEDIA_PYTHON`, `VIDEO_BINDING` from env `SOOT_VIDEO_BINDING`.
-The host grants the non-operator sources in `pack_grants`, e.g. `"pack_grants": {"video-editor": {"credentials": {"FILE_ROOT": "workspace"}}}` (or `soot grant video-editor`).
+The host grants the non-operator sources in `grants.packs`, e.g. `"grants": {"packs": {"video-editor": {"credentials": {"FILE_ROOT": "workspace"}}}}` (or `soot grant video-editor`).
 A complete consumer example is in the repository
 [`examples/media-workspace`](../../examples/media-workspace/); it is not inside the pack.
 Use placeholder files only in Git. Credentials and endpoint URLs are never model inputs.

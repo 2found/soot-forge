@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "toolbox",
-  "label": {
+  "name": {
     "vi": "Bộ công cụ",
     "en": "Toolbox"
+  },
+  "description": {
+    "vi": "Công cụ dùng chung cho không gian làm việc và tìm kiếm.",
+    "en": "Reusable workspace and research tools."
   },
   "keywords": {
     "vi": [
@@ -18,10 +20,6 @@
       "search",
       "http"
     ]
-  },
-  "description": {
-    "vi": "Công cụ dùng chung cho không gian làm việc và tìm kiếm.",
-    "en": "Reusable workspace and research tools."
   },
   "tools": [
     {

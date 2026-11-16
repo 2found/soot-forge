@@ -159,7 +159,7 @@ def main():
                 # No direct database credential or local policy binding reaches Soot.
                 del env["QA_DATA_POOL"]
                 cases.append("Operator config renderer created private per-Soot credentials without installing infrastructure")
-            deployment = {"listen": soot_addr, "data_dir": "runtime-data", "packs_dir": "packs", "model": {"provider": "demo"},
+            deployment = {"server": {"listen": soot_addr, "data_dir": "runtime-data"}, "packs_dir": "packs", "ai": {"model": {"provider": "demo"}},
                           "soots": ["soots/" + s + ".json" for s in binding["soots"]]}
             (root / "soots").mkdir()
             for s in binding["soots"]:

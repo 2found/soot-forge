@@ -9,7 +9,7 @@ no tools, skills or grants, and installing or selecting it starts nothing.
 `channel.platforms`, with the setup `ui` (guide, bot token field, error copy)
 Nest renders in Cài đặt → Kênh chat; Nest has no platform names of its own.
 
-What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/domain/SKILL.md); this pack is kept separate from it on purpose: it is an adapter binary, not knowledge.
+What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/soot-domain/SKILL.md); this pack is kept separate from it on purpose: it is an adapter binary, not knowledge.
 
 The **deployment** starts it. A host binding in the deployment's `channels`
 map (Nest: Cài đặt → Kênh chat) makes the Soot runtime supervise one

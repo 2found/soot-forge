@@ -75,7 +75,7 @@ function verdictOf(d, opp, handoff, topic) {
 export async function page_view(input, { store, env, now, soot }) {
   const ctx = contextProducts(input.products);
   const host = await hostProduct(store, input.host);
-  const want = productId(input.product) ?? productId(env?.SOOT_PRODUCT);
+  const want = productId(input.product) ?? productId(env?.SOOT_PROJECT);
   const [opps, rawHandoffs, rawDecisions, rawTopics, health, known] = await Promise.all([
     store.query('opportunities', [], { order: 'updated_at', limit: 200 }),
     store.query('handoffs', [], { order: 'updated_at', limit: 100 }),

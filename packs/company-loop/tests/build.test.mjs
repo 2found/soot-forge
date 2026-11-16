@@ -110,10 +110,10 @@ test('server: a product Go records an approved handoff with requirement, product
   assert.equal(s.w.rows('decisions').filter(d => d.decision === 'go').length, 1);
 });
 
-test('a run of another product (SOOT_PRODUCT) cannot file or decide this product\'s work, and its repo is never used for it', async () => {
+test('a run of another product (SOOT_PROJECT) cannot file or decide this product\'s work, and its repo is never used for it', async () => {
   const b = fakeBbs(), repo = scratchRepo();
   const s = await server({ PRODUCT_REPO: repo, BBS_BIN: b.bin });
-  s.w.env.SOOT_PRODUCT = '2novel';
+  s.w.env.SOOT_PROJECT = '2novel';
   await assert.rejects(s.w.call('digest_save', { opportunities: [{ ...ITEM.product, title: 'Một cơ hội khác của lohi' }] }), /không phải 2novel/);
   await assert.rejects(s.w.call('decide', { id: s.ref, decision: 'go' }), /thuộc sản phẩm lohi, không phải 2novel/);
   assert.equal(b.calls().length, 0);
@@ -167,7 +167,7 @@ test('builds_pull: starts the approved handoff like a local Go, keeps a builds r
 test('builds_pull: INSIGHT_TEAM and the product filter reach the query; another product\'s row is never built here', async () => {
   const s = await server();
   const row = await approvedRow(s);
-  const m = mac({ SOOT_PRODUCT: '2novel', INSIGHT_TEAM: 'insights' });
+  const m = mac({ SOOT_PROJECT: '2novel', INSIGHT_TEAM: 'insights' });
   m.cli.rows([row, { ...row, opportunity: 'OP-0000BEEF', product: '2novel' }]);
   const out = await m.w.call('builds_pull');
   const q = m.cli.calls().find(c => c.argv[1] === 'query');

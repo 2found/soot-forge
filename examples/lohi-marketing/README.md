@@ -62,7 +62,7 @@ Vòng lặp says "chưa có số TikTok" and nothing fails. Tests use a stub bin
 
 **Slot for `lohi-ops`.** If `examples/lohi-marketing/packs/lohi-ops/` exists when
 `setup.mjs` runs, it is copied like `lohi-blog` (without tests) and its optional
-`deployment.fragment.json` is merged: `pack_grants`, `soot_packs` (`{"lohi-editor": ["lohi-ops:tools=..."]}`
+`deployment.fragment.json` is merged: `grants` (`packs`, `approvals`), `soot_packs` (`{"lohi-editor": ["lohi-ops:tools=..."]}`
 replacing that pack's ref on the Soot), `schedules` (an existing id is kept unless it is listed in
 `replace_schedules`). Absent, nothing changes.
 
@@ -82,9 +82,9 @@ on request  Video: marketing-video ─▶ mvf (2build) ─▶ marketing_video_im
 | file | what it is |
 | --- | --- |
 | `setup.mjs` | builds the workspace from this recipe and generates the claim key |
-| `deployment.example.json` | product `Lohi`, the Soots, the shared Editor/Video workspace, pack grants, the seven schedules, `approvals: {"marketing_claim": "auto"}` |
-| `soots/lohi-*.json` | Ops, Writer, Analyst, Radar and Video, each with a small daily token budget |
-| `soots/*.md` | the Lohi brief (`SOUL.md`) and each role's mission |
+| `deployment.example.json` | product `Lohi`, the Soots, the shared Editor/Video workspace, pack grants, the seven schedules, `grants.approvals: {"marketing_claim": "auto"}` |
+| `soots/lohi-*/` | Ops, Writer, Analyst, Radar and Video: each a `soot.json` (small daily token budget) and its `MISSION.md` |
+| `soots/SOUL.md` | the Lohi brief; setup copies it into every Soot folder |
 | `packs/company-loop` (Forge) | scoreboard, watch and review to Ops, digest and health to the Analyst (never `decide`), `topic_next` to the Writer; six schedules `company-scoreboard`, `company-digest`, `company-watch`, `company-cards`, `company-review`, `company-health` |
 | `packs/lohi-blog/` | the Lohi-only blog publisher, a local pack: it is not in the Forge catalog |
 

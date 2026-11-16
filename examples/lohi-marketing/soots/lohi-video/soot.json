@@ -1,0 +1,13 @@
+{
+  "name": "Video",
+  "model": "flash",
+  "packs": [
+    "marketing",
+    "2build",
+    "toolbox"
+  ],
+  "execution": {
+    "max_run_tokens": 80000,
+    "daily_tokens": 150000
+  }
+}

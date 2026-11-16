@@ -71,7 +71,7 @@ export async function pushEvents(deps, rows, rt = runtimeOf(deps.env, 'events_un
 
 /**
  * builds_pull (the runtime with the repo): approved handoffs of the insight team that no local build covers yet, and the
- * ones waiting here for their checkout (`queued`). One product (input, else SOOT_PRODUCT; its PRODUCT_REPO comes from the
+ * ones waiting here for their checkout (`queued`). One product (input, else SOOT_PROJECT; its PRODUCT_REPO comes from the
  * product's env overlay) or every one when none is named. A build is started again only when the founder sent it back:
  * "Chạy lại" on one that stopped, "Để Soot dựng" on one given to a person; it continues the same ticket. A build that could
  * not start and left no command to run by hand (`draft_ready`: no bbs, no ticket, an agent bbs refused) is tried on every pull.

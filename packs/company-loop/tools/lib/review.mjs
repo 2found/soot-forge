@@ -32,7 +32,7 @@ function postSignal(topic, d) {
 export async function review(input, deps) {
   const { store, now } = deps;
   const host = productId(await getState(store, 'host_product'));
-  // One product (input, else the run's SOOT_PRODUCT) reviews only its own decisions; none reviews every product, as before.
+  // One product (input, else the run's SOOT_PROJECT) reviews only its own decisions; none reviews every product, as before.
   const want = scopeProduct(input, deps.env);
   const open = (await store.query('decisions', [eq('decision', 'go'), isNull('actual_delta')], { order: 'at', desc: false, limit: 200 }))
     .filter(d => !d.reviewed_at && (!want || (productId(d.product) ?? host) === want));

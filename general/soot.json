@@ -1,8 +1,5 @@
 {
   "$schema": "../../schemas/soot.schema.json",
-  "id": "general",
-  "soul": "SOUL.md",
-  "mission": "mission.md",
   "packs": [
     "common"
   ]

@@ -185,7 +185,7 @@ every row except `agent_catalog_exec`'s spend tools.
 - Env: `PRODUCT_API_URL` (https://api.lohi2.com), `CLI_CATALOG_DB` (builder: absolute path to
   `cli/data/catalog.db`; Node >= 22.5), `CLI_DIR` (builder: absolute path to the `cli/` checkout), `SOOT_BIN`
   (optional), `APPSTORE_APP_ID` (default 6795186131), `APPSTORE_COUNTRY` (default vn), `GSC_SITE`, `SITE_URL`.
-- Runtime scopes (`needs.runtime`): `data.read`, `data.insert`; the host grants them in `pack_grants`.
+- Runtime scopes (`needs.runtime`): `data.read`, `data.insert`; the host grants them in `grants.packs`.
   Without the grant the job tools answer a quiet `skipped` (`no_runtime`).
 - Credentials, all optional (a missing one is a quiet `skipped` on schedules and raises ONE Cần bạn item
   naming the key): `PRODUCT_AGENT_KEY` (the Soot's own Lohi agent key, one role, sent only to `PRODUCT_API_URL` over https;

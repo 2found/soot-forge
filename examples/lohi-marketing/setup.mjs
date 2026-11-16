@@ -19,7 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDevOnly } from '../../scripts/archive.mjs';
 
@@ -108,8 +108,7 @@ export function installLocalPack(out, id, host, from = join(here, 'packs', id)) 
   const file = join(from, 'deployment.fragment.json');
   if (!existsSync(file)) return { installed: true };
   const frag = JSON.parse(readFileSync(file, 'utf8'));
-  host.pack_grants = { ...host.pack_grants, ...(frag.pack_grants ?? {}) };
-  host.approvals = { ...host.approvals, ...(frag.approvals ?? {}) };
+  host.grants = { ...host.grants, packs: { ...host.grants?.packs, ...(frag.grants?.packs ?? {}) }, approvals: { ...host.grants?.approvals, ...(frag.grants?.approvals ?? {}) } };
   const have = new Set(host.schedules.map(x => x.id));
   host.schedules = [...host.schedules.filter(x => !(frag.replace_schedules ?? []).includes(x.id)), ...(frag.schedules ?? []).filter(x => !have.has(x.id) || (frag.replace_schedules ?? []).includes(x.id))];
   return { installed: true, soot_packs: frag.soot_packs };
@@ -125,7 +124,7 @@ export function build(dir, { port = 7790, video, blog = 'cms', blogRemote, produ
   if (video && !has2build) throw new Error('Video Soot cần pack 2build: chạy `soot add 2found/soot-forge/packs/2build` trong workspace rồi chạy lại setup (hoặc bỏ --video).');
   video ??= has2build;
   const host = JSON.parse(readFileSync(join(here, 'deployment.example.json'), 'utf8'));
-  host.listen = `127.0.0.1:${port}`;
+  host.server = { ...host.server, listen: `127.0.0.1:${port}` };
   if (!video) {
     host.soots = host.soots.filter(f => !f.includes('lohi-video'));
     delete host.tool_hosts?.['lohi-video'];
@@ -141,27 +140,33 @@ export function build(dir, { port = 7790, video, blog = 'cms', blogRemote, produ
   rmSync(join(out, 'packs', 'lohi-blog'), { recursive: true, force: true });
   cpSync(join(here, 'packs', 'lohi-blog'), join(out, 'packs', 'lohi-blog'), { recursive: true, filter: s => !/[\\/]tests([\\/]|$)/.test(s) });
   // The slot for the Ops publisher pack (`lohi-ops`, built apart): when the recipe ships packs/lohi-ops it is copied like lohi-blog
-  // and its optional deployment.fragment.json ({pack_grants, soot_packs: {<soot>: [refs]}, schedules}) is merged in. Absent: nothing changes.
+  // and its optional deployment.fragment.json ({grants: {packs, approvals}, soot_packs: {<soot>: [refs]}, schedules}) is merged in. Absent: nothing changes.
   const ops = installLocalPack(out, 'lohi-ops', host);
-  for (const f of host.soots) cpSync(join(here, f), join(out, f));
-  // A local pack may bring its own Soots (packs/<id>/soots/*.json + mission files): they join the workspace's soots/.
+  // Each Soot is a folder (soots/<id>/soot.json + MISSION.md); the shared Lohi brief soots/SOUL.md goes into each one.
+  const soul = join(here, 'soots', 'SOUL.md');
+  const addSoot = (from, id) => {
+    cpSync(from, join(out, 'soots', id), { recursive: true });
+    cpSync(soul, join(out, 'soots', id, 'SOUL.md'));
+  };
+  for (const f of host.soots) addSoot(join(here, dirname(f)), basename(dirname(f)));
+  // A local pack may bring its own Soots (packs/<id>/soots/<soot>/): they join the workspace's soots/.
   const packSoots = join(out, 'packs', 'lohi-ops', 'soots');
   if (ops.installed && existsSync(packSoots)) {
-    for (const f of readdirSync(packSoots)) {
-      cpSync(join(packSoots, f), join(out, 'soots', f));
-      if (f.endsWith('.json') && !host.soots.includes(`soots/${f}`)) host.soots.push(`soots/${f}`);
+    for (const id of readdirSync(packSoots)) {
+      if (!existsSync(join(packSoots, id, 'soot.json'))) continue;
+      addSoot(join(packSoots, id), id);
+      if (!host.soots.includes(`soots/${id}/soot.json`)) host.soots.push(`soots/${id}/soot.json`);
     }
     rmSync(packSoots, { recursive: true, force: true });
   }
   if (ops.soot_packs) for (const [id, refs] of Object.entries(ops.soot_packs)) {
-    const file = join(out, 'soots', `${id}.json`);
+    const file = join(out, 'soots', id, 'soot.json');
     const soot = JSON.parse(readFileSync(file, 'utf8'));
     soot.packs = [...soot.packs.filter(r => !refs.some(x => x.split(':')[0] === r.split(':')[0])), ...refs];
     writeFileSync(file, JSON.stringify(soot, null, 2) + '\n');
   }
-  for (const f of ['SOUL.md', 'writer.md', 'editor.md', 'analyst.md', 'radar.md', 'finance.md', ...(video ? ['video.md'] : [])]) cpSync(join(here, 'soots', f), join(out, 'soots', f));
   writeFileSync(join(out, 'deployment.json'), JSON.stringify(host, null, 2) + '\n');
-  const key = claimKeyFile('lohi-editor', { home, credentialsDir: host.credentials_dir });
+  const key = claimKeyFile('lohi-editor', { home, credentialsDir: host.ai?.credentials_dir });
   if (ops.installed) packs.push('lohi-ops');
   return { out, packs, video, blog, env, hostEnv, connection: Boolean(connection), keyMade: ensureClaimKey(key), key };
 }

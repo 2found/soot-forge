@@ -1,10 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "nest-lead",
-  "name": "Nest lead",
-  "label": {
+  "name": {
     "vi": "Quản lý Nest",
     "en": "Nest lead"
+  },
+  "description": {
+    "vi": "Quyền của Lead, trợ lý của bạn: đổi Soot, lịch, đội, phê duyệt, quyền dữ liệu và mức mô hình của Nest.",
+    "en": "The Lead's authority: change this Nest's Soots, schedules, teams, approvals, data access and model tiers, with person approval for what is not the Lead's to decide alone."
   },
   "keywords": {
     "vi": [
@@ -22,37 +23,11 @@
       "soot"
     ]
   },
-  "description": {
-    "vi": "Quyền của Lead, trợ lý của bạn: đổi Soot, lịch, đội, phê duyệt, quyền dữ liệu và mức mô hình của Nest.",
-    "en": "The Lead's authority: change this Nest's Soots, schedules, teams, approvals, data access and model tiers, with person approval for what is not the Lead's to decide alone."
-  },
-  "skills": [
-    {
-      "name": "nest-lead",
-      "description": "Act as the Lead, the person's own assistant in Nest, who belongs to no team. Load it first for a message that starts nest:first-run (greet in one short message, call no tool, read nothing) or nest:morning-brief (write the brief). Otherwise send a team's work to that team as mail (task op send to team:<id>, the address from company op teams, with goal, inputs, due and what the reply must hold; its Đầu mối takes it and the reply comes back to this thread as a note), keep shared tables, memory and files at the right level (workspace, team, Soot), report once at the end, build a team from a template (one approval, asking for its Đầu mối when the template has none) and change a team's Đầu mối, and make or propose new Soots, teams and schedules, changes to a Soot, a job taught to a Soot and approval changes (as draft links the person saves when they want to see them first), walk the person through connecting Telegram or Discord (load it before answering: the steps, then the Kênh chat link; no read), and steer the company through goals: draft direction and cycle goals from the person's words as proposals with a baseline read from the scoreboard, handle a changed or dropped goal (cancel its tasks, ask the Đầu mối to re-propose, propose a structure change for the person), and make repeating jobs as recurring tasks.",
-      "file": "skills/nest-lead.md"
-    },
-    {
-      "name": "nest-manage",
-      "description": "Change this Nest's settings yourself as the Lead: Soots, schedules, teams (built from a template in one approval), products (create, rename, which a team serves), approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, access grants and chat channel pairings; report once with a link and Hoàn tác.",
-      "file": "skills/nest-manage.md"
-    },
-    {
-      "name": "nest-company",
-      "description": "Set up a whole company for the person from a template (bán hàng online, nội dung, SaaS, vòng công ty without a build stage): ask at most two questions, propose products, teams, schedules and read grants in one chat message, and only after consent create them with manage (products, schedules, read grants) and manage_gated (each team, waiting in Cần bạn). Load it when asked to dựng/lập a company or business.",
-      "file": "skills/nest-company.md"
-    },
-    {
-      "name": "nest-team-check",
-      "description": "Check whether a team works and build work that repeats by itself. Load it when asked đội có chạy tốt không, rà soát đội, vì sao việc không chạy, or for a loop (tự động, mỗi ngày, cứ có yêu cầu là làm), and after a team, pack or schedule change: read stuck tasks, recurring tasks (paused, draft, waking a model too often), usage.read, the work's own tables and updates.status before saying a team works; design one queue for every trigger, tool-first steps, pull across hosts, mail from the Soot that judges to the one that spends; test each trigger and one failing path; resume a paused step only after its cause is fixed; raising a budget is manage_gated.",
-      "file": "skills/nest-team-check.md"
-    }
-  ],
   "tools": [
     {
       "name": "manage",
       "title": "Đổi cài đặt Nest",
-      "description": "Read and change this Nest's settings as the Lead, the person's assistant: Soots, schedules, teams, products (create, rename, which a team serves), tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
+      "description": "Read and change this Nest's settings as the Lead, the person's assistant: Soots, schedules, teams, projects (create, rename, which a team serves), the workspace ontology, flows (tests of a process) and workspace improvement, tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -81,8 +56,8 @@
               "client.disable",
               "client.key.rotate",
               "client.delete",
-              "company.product.save",
-              "group.products",
+              "company.project.save",
+              "group.projects",
               "soot.improve",
               "updates.status",
               "updates.apply",
@@ -93,9 +68,22 @@
               "access.revoke",
               "channel.status",
               "channel.unpair",
+              "ontology.read",
+              "ontology.save",
+              "flow.list",
+              "flow.save",
+              "flow.delete",
+              "flow.run",
+              "flow.result",
+              "improve.run",
+              "improve.status",
+              "improve.apply",
+              "improve.revert",
+              "improve.history",
+              "improve.drafts.accept",
               "undo"
             ],
-            "description": "read (the default) lists Soots, schedules, teams, gated tools and model tiers with the revision to pass back; id reads one Soot with its Markdown. updates.status, usage.read, channel.status and templates.list only read. undo reverses an earlier change named by undo."
+            "description": "read (the default) lists Soots, schedules, teams, gated tools and model tiers with the revision to pass back; id reads one Soot with its Markdown. updates.status, usage.read, channel.status and templates.list only read. undo reverses an earlier change named by undo. ontology.read and flow.list, flow.result, improve.status, improve.history only read. improve.* with scope \"workspace\" acts on the whole workspace; without scope it acts on the Soot in id."
           },
           "request_id": {
             "type": "string",
@@ -108,7 +96,7 @@
           },
           "id": {
             "type": "string",
-            "description": "The Soot, schedule, team, tool, tier or website client the change is about. Empty with soot.save creates a Soot."
+            "description": "The Soot, schedule, team, tool, tier or website client the change is about; for flow.save and flow.delete \"<process>/<name>\"; for flow.result a run id or \"latest\"; for improve.revert (scope workspace) the receipt id. Empty with soot.save creates a Soot."
           },
           "changes": {
             "type": "object",
@@ -294,9 +282,9 @@
             "type": "string",
             "description": "With action undo: the request_id of the change to reverse."
           },
-          "company_product": {
+          "company_project": {
             "type": "object",
-            "description": "company.product.save: {id, name}. A new id (lowercase, -) creates the product; an existing id renames it. Deleting a product is the person's, in Nest.",
+            "description": "company.project.save: {id, name}. A new id (lowercase, -) creates the project; an existing id renames it. Deleting a project is the person's, in Nest.",
             "properties": {
               "id": {
                 "type": "string",
@@ -312,14 +300,14 @@
             ],
             "additionalProperties": false
           },
-          "group_products": {
+          "group_projects": {
             "type": "object",
-            "description": "group.products: {group, products}. The product ids a team serves; an empty list means all products.",
+            "description": "group.projects: {group, projects}. The project ids a team serves; an empty list means all projects.",
             "properties": {
               "group": {
                 "type": "string"
               },
-              "products": {
+              "projects": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -329,9 +317,59 @@
             },
             "required": [
               "group",
-              "products"
+              "projects"
             ],
             "additionalProperties": false
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "workspace"
+            ],
+            "description": "improve.*: \"workspace\" improves the whole workspace (ontology, teams, budgets) from its flows; omit for one Soot named by id."
+          },
+          "improve_budget": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "improve.run, scope workspace: weighted-token budget; leave it out for the default. Above 500000 is the person's: send to manage_gated."
+          },
+          "ontology": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "ontology.save: the whole ontology/v1 document ({version, about?, terms?, teams?, entities, relations, processes}). Removing a gates entry is held for the person."
+          },
+          "flow": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "flow.save: a flow document {process?, world?, cases[]}; id is \"<process>/<name>\"."
+          },
+          "flow_run": {
+            "type": "object",
+            "properties": {
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "process": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "string"
+              },
+              "attempts": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false,
+            "description": "flow.run: pick flows by ids, a process or a tag; attempts is how many fresh worlds each runs in. Returns a run id for flow.result."
+          },
+          "draft": {
+            "type": "string",
+            "description": "improve.drafts.accept: the draft id for Soot id; only drafts whose source is flow:<id>."
           }
         },
         "additionalProperties": false
@@ -381,8 +419,8 @@
               "client.disable",
               "client.key.rotate",
               "client.delete",
-              "company.product.save",
-              "group.products",
+              "company.project.save",
+              "group.projects",
               "soot.improve",
               "updates.status",
               "updates.apply",
@@ -393,9 +431,22 @@
               "access.revoke",
               "channel.status",
               "channel.unpair",
+              "ontology.read",
+              "ontology.save",
+              "flow.list",
+              "flow.save",
+              "flow.delete",
+              "flow.run",
+              "flow.result",
+              "improve.run",
+              "improve.status",
+              "improve.apply",
+              "improve.revert",
+              "improve.history",
+              "improve.drafts.accept",
               "undo"
             ],
-            "description": "read (the default) lists Soots, schedules, teams, gated tools and model tiers with the revision to pass back; id reads one Soot with its Markdown. updates.status, usage.read, channel.status and templates.list only read. undo reverses an earlier change named by undo."
+            "description": "read (the default) lists Soots, schedules, teams, gated tools and model tiers with the revision to pass back; id reads one Soot with its Markdown. updates.status, usage.read, channel.status and templates.list only read. undo reverses an earlier change named by undo. ontology.read and flow.list, flow.result, improve.status, improve.history only read. improve.* with scope \"workspace\" acts on the whole workspace; without scope it acts on the Soot in id."
           },
           "request_id": {
             "type": "string",
@@ -408,7 +459,7 @@
           },
           "id": {
             "type": "string",
-            "description": "The Soot, schedule, team, tool, tier or website client the change is about. Empty with soot.save creates a Soot."
+            "description": "The Soot, schedule, team, tool, tier or website client the change is about; for flow.save and flow.delete \"<process>/<name>\"; for flow.result a run id or \"latest\"; for improve.revert (scope workspace) the receipt id. Empty with soot.save creates a Soot."
           },
           "changes": {
             "type": "object",
@@ -594,9 +645,9 @@
             "type": "string",
             "description": "With action undo: the request_id of the change to reverse."
           },
-          "company_product": {
+          "company_project": {
             "type": "object",
-            "description": "company.product.save: {id, name}. A new id (lowercase, -) creates the product; an existing id renames it. Deleting a product is the person's, in Nest.",
+            "description": "company.project.save: {id, name}. A new id (lowercase, -) creates the project; an existing id renames it. Deleting a project is the person's, in Nest.",
             "properties": {
               "id": {
                 "type": "string",
@@ -612,14 +663,14 @@
             ],
             "additionalProperties": false
           },
-          "group_products": {
+          "group_projects": {
             "type": "object",
-            "description": "group.products: {group, products}. The product ids a team serves; an empty list means all products.",
+            "description": "group.projects: {group, projects}. The project ids a team serves; an empty list means all projects.",
             "properties": {
               "group": {
                 "type": "string"
               },
-              "products": {
+              "projects": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -629,9 +680,59 @@
             },
             "required": [
               "group",
-              "products"
+              "projects"
             ],
             "additionalProperties": false
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "workspace"
+            ],
+            "description": "improve.*: \"workspace\" improves the whole workspace (ontology, teams, budgets) from its flows; omit for one Soot named by id."
+          },
+          "improve_budget": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "improve.run, scope workspace: weighted-token budget; leave it out for the default. Above 500000 is the person's: send to manage_gated."
+          },
+          "ontology": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "ontology.save: the whole ontology/v1 document ({version, about?, terms?, teams?, entities, relations, processes}). Removing a gates entry is held for the person."
+          },
+          "flow": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "flow.save: a flow document {process?, world?, cases[]}; id is \"<process>/<name>\"."
+          },
+          "flow_run": {
+            "type": "object",
+            "properties": {
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "process": {
+                "type": "string"
+              },
+              "tag": {
+                "type": "string"
+              },
+              "attempts": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false,
+            "description": "flow.run: pick flows by ids, a process or a tag; attempts is how many fresh worlds each runs in. Returns a run id for flow.result."
+          },
+          "draft": {
+            "type": "string",
+            "description": "improve.drafts.accept: the draft id for Soot id; only drafts whose source is flow:<id>."
           }
         },
         "additionalProperties": false

@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "health",
-  "label": {
+  "name": {
     "vi": "Kiểm tra dịch vụ",
     "en": "Health checks"
+  },
+  "description": {
+    "vi": "Kiểm tra các dịch vụ đã sẵn sàng chưa qua địa chỉ HTTP do operator cấu hình.",
+    "en": "Inspect readiness of operator-configured HTTP endpoints."
   },
   "keywords": {
     "vi": [
@@ -19,16 +21,6 @@
       "probe"
     ]
   },
-  "description": {
-    "vi": "Kiểm tra các dịch vụ đã sẵn sàng chưa qua địa chỉ HTTP do operator cấu hình.",
-    "en": "Inspect readiness of operator-configured HTTP endpoints."
-  },
-  "skills": [
-    {
-      "file": "skill.md",
-      "description": "Inspect readiness of the configured HTTP endpoints"
-    }
-  ],
   "tools": [
     {
       "name": "probe",

@@ -41,10 +41,12 @@ for a password and never solves a captcha.
 ```json
 {
   "soot_packs": { "poster": ["social-poster"] },
-  "pack_grants": {
-    "browser-use": {
-      "credentials": { "FILE_ROOT": "workspace" },
-      "env": ["PATH", "HOME", "SOOT_BROWSER_PERSISTENT_SOOTS", "SOOT_BROWSER_PROFILES"]
+  "grants": {
+    "packs": {
+      "browser-use": {
+        "credentials": { "FILE_ROOT": "workspace" },
+        "env": ["PATH", "HOME", "SOOT_BROWSER_PERSISTENT_SOOTS", "SOOT_BROWSER_PROFILES"]
+      }
     }
   }
 }
@@ -53,7 +55,7 @@ for a password and never solves a captcha.
 `social-poster` itself needs no env grant; its only dependency is the credential
 below. `SOOT_BROWSER_PROFILES` is filled from the profile grants Nest records;
 grant `x-lohi2com`, `facebook-lohi2com` and the 2found X profile to `poster`.
-The Soot also needs the host pack `browser-use` (`host_packs: ["browser-use"]`).
+The Soot also lists the host pack `browser-use` in `packs`; a Soot deployed from a repository gets it once the host allows it (`grants.sources`).
 
 ### Credential
 

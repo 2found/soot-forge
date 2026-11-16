@@ -1,11 +1,13 @@
 {
   "$schema": "../../schemas/pack.schema.json",
-  "api_version": "soot/v1",
+  "name": {
+    "en": "2found brand",
+    "vi": "Thương hiệu 2found"
+  },
   "description": {
     "en": "The 2found brand skill for the marketing team.",
     "vi": "Kỹ năng thương hiệu 2found cho đội marketing."
   },
-  "id": "2found-brand",
   "keywords": {
     "en": [
       "2found",
@@ -17,16 +19,5 @@
       "thương hiệu"
     ]
   },
-  "label": {
-    "en": "2found brand",
-    "vi": "Thương hiệu 2found"
-  },
-  "skills": [
-    {
-      "description": "Read FIRST for any marketing work on 2found: scope and hub site, audience and languages, voice, what may be claimed, signal sources, cadence caps and channels. Role craft is in the marketing-* skills.",
-      "file": "skills/2found-brand/SKILL.md",
-      "name": "2found-brand"
-    }
-  ],
   "tools": []
 }

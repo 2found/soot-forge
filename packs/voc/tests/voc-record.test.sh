@@ -8,12 +8,12 @@ cat > "$tmp/bin/curl" <<'C'
 cat > "$CAPTURE"; printf '{"id":"r1"}'
 C
 chmod +x "$tmp/bin/curl"
-run() { CAPTURE="$tmp/row.json" PATH="$tmp/bin:$PATH" SOOT_STORAGE_URL=http://x SOOT_STORAGE_TOKEN=t SOOT_PRODUCT="${SP:-}" "$here/bin/voc-record"; }
+run() { CAPTURE="$tmp/row.json" PATH="$tmp/bin:$PATH" SOOT_STORAGE_URL=http://x SOOT_STORAGE_TOKEN=t SOOT_PROJECT="${SP:-}" "$here/bin/voc-record"; }
 call() { printf '{"api_version":"soot/v1","hook":"tool.call","input":%s}' "$1"; }
 # 1. explicit product, PII scrubbed
 call '{"product":"2novel","kind":"bug","summary":"Lỗi xuất bản, mail a@b.com gọi 0912 345 678"}' | run >/dev/null
 jq -e '.row.product=="2novel" and (.row.summary|test("@|0912")|not)' "$tmp/row.json" >/dev/null || { echo "FAIL 1"; exit 1; }
-# 2. product from SOOT_PRODUCT
+# 2. product from SOOT_PROJECT
 call '{"kind":"question","summary":"Hỏi giá gói"}' | SP=lohi run >/dev/null
 jq -e '.row.product=="lohi"' "$tmp/row.json" >/dev/null || { echo "FAIL 2"; exit 1; }
 # 3. no product anywhere -> chung

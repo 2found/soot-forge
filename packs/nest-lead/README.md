@@ -3,16 +3,17 @@
 The Lead's pack for Nest. It gives the Lead, the person's own assistant (in
 no team), two tools, `manage` and
 `manage_gated`, that run `soot manage` to change the host's Soots, schedules,
-teams, approvals, data access and model tiers, and four skills: `nest-lead`
+teams, projects, approvals, data access, model tiers, the workspace ontology and flows, and four skills: `nest-lead`
 (how the Lead works with the person and sends teams their work as mail,
 `task` op `send`), `nest-manage` (how to
 read, change, report and undo) and `nest-company` (company templates as data:
 bán hàng online, nội dung, SaaS, vòng công ty without a build stage, proposed in
 one message and created after consent through the same actions) and
-`nest-team-check` (check whether a team works from its stuck tasks, recurring
-tasks, usage and the work's own tables, and design work that repeats by
-itself: one queue for every trigger, tool-first steps, pull across hosts,
-mail between the Soot that judges and the one that spends).
+`nest-workspace-lifecycle` (the whole workspace, in order: lean teams with no
+workflow inside, then the ontology of entities, relations and processes with an
+end path and the person's gates, then flows per process, run, diagnose,
+improve, and a plain Vietnamese report; money and removing a gate go to
+`manage_gated`).
 
 Only the host's Lead may select this pack (`"packs": ["nest-lead"]`): the
 deployment's `lead`, or `default_soot` on a Nest made before that field. The

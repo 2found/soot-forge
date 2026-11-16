@@ -34,7 +34,7 @@ try {
       const deployment = join(work, 'deployment.json');
       // A runtime refuses a deployment with no Soot, so a probe Soot that selects nothing stands in.
       await mkdir(join(work, 'soots', 'probe'), { recursive: true });
-      await writeFile(join(work, 'soots', 'probe', 'soot.json'), JSON.stringify({ id: 'probe', name: 'Probe' }));
+      await writeFile(join(work, 'soots', 'probe', 'soot.json'), JSON.stringify({ name: 'Probe' }));
       await writeFile(deployment, JSON.stringify({ packs_dir: `library-${pack.id}`, soots: ['soots/probe/soot.json'] }));
       await run(soot, ['add', archive, '--config', deployment, '--json'], { timeout: 30_000, maxBuffer: 1024 * 1024 });
     }

@@ -1,10 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "tts",
-  "name": "Text to speech",
-  "label": {
+  "name": {
     "vi": "Đọc văn bản thành giọng nói",
     "en": "Text to speech"
+  },
+  "description": {
+    "vi": "Đọc văn bản thành tệp WAV bằng OmniVoice chạy trên máy chủ.",
+    "en": "Generate measured WAV narration with OmniVoice through a resident host-owned service."
   },
   "keywords": {
     "vi": [
@@ -20,22 +21,6 @@
       "tts"
     ]
   },
-  "description": {
-    "vi": "Đọc văn bản thành tệp WAV bằng OmniVoice chạy trên máy chủ.",
-    "en": "Generate measured WAV narration with OmniVoice through a resident host-owned service."
-  },
-  "skills": [
-    {
-      "name": "tts_inspect",
-      "file": "skills/inspect.md",
-      "description": "Inspect real PCM audio duration and host-authorized voice references."
-    },
-    {
-      "name": "tts_speak",
-      "file": "skills/speak.md",
-      "description": "Synthesize exact approved words with an explicitly authorized OmniVoice reference voice."
-    }
-  ],
   "tools": [
     {
       "name": "inspect",

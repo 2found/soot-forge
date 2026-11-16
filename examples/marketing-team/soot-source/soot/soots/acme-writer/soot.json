@@ -1,20 +1,13 @@
 {
   "$schema": "../../schemas/soot.schema.json",
-  "id": "acme-writer",
   "name": "Writer",
   "description": "Writes article drafts and channel-native social posts from the editor's angle, with every product claim checked.",
-  "tier": "pro",
-  "soul": "SOUL.md",
-  "mission": "mission.md",
+  "model": "pro",
   "packs": [
-    "acme-marketing"
+    "acme-marketing",
+    "knowledge:pools=acme-products"
   ],
-  "knowledge": [
-    "acme-products"
-  ],
-  "conversation": {
-    "publish": "final"
-  },
+  "chat": {},
   "execution": {
     "continue_on_limit": true,
     "max_turns": 22,

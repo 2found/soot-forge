@@ -1,20 +1,13 @@
 {
   "$schema": "../../schemas/soot.schema.json",
-  "id": "acme-poster",
   "name": "Poster",
   "description": "Posts reviewed social posts from the browser on your computer, exactly as written, and records the URLs.",
-  "tier": "flash",
-  "soul": "SOUL.md",
-  "mission": "mission.md",
+  "model": "flash",
   "packs": [
-    "acme-marketing"
-  ],
-  "host_packs": [
+    "acme-marketing",
     "browser-use"
   ],
-  "conversation": {
-    "publish": "final"
-  },
+  "chat": {},
   "execution": {
     "max_turns": 16,
     "max_tool_calls": 24,

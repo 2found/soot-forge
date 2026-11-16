@@ -1,10 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "office",
-  "name": "Office",
-  "label": {
+  "name": {
     "vi": "Word, Excel, PowerPoint và PDF",
     "en": "Office files"
+  },
+  "description": {
+    "vi": "Đọc, tạo và sửa tệp Word, Excel, PowerPoint và PDF bằng công cụ cục bộ.",
+    "en": "Read, create and edit Word, Excel, PowerPoint and PDF files with bounded local tools."
   },
   "keywords": {
     "vi": [
@@ -22,37 +23,6 @@
       "office"
     ]
   },
-  "description": {
-    "vi": "Đọc, tạo và sửa tệp Word, Excel, PowerPoint và PDF bằng công cụ cục bộ.",
-    "en": "Read, create and edit Word, Excel, PowerPoint and PDF files with bounded local tools."
-  },
-  "skills": [
-    {
-      "name": "office_read",
-      "file": "skills/read.md",
-      "description": "Inspect Office/PDF files, paginate content, preserve formulas and identify scanned pages."
-    },
-    {
-      "name": "office_write",
-      "file": "skills/write.md",
-      "description": "Create editable Office files; make controlled copies and preserve styles."
-    },
-    {
-      "name": "office_spec",
-      "file": "SPEC.md",
-      "description": "Exact JSON schemas, examples, limits and failure semantics for the pack tools."
-    },
-    {
-      "name": "office_render",
-      "file": "skills/render.md",
-      "description": "Render PDF pages for visual QA without Office or browser dependencies."
-    },
-    {
-      "name": "office_convert",
-      "file": "skills/convert.md",
-      "description": "Optional LibreOffice conversion for legacy formats, recalculation and visual inspection."
-    }
-  ],
   "tools": [
     {
       "name": "inspect",

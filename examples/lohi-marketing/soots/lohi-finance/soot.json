@@ -1,0 +1,11 @@
+{
+  "name": "Finance",
+  "model": "lite",
+  "packs": [
+    "company-loop:tools=signals"
+  ],
+  "execution": {
+    "max_run_tokens": 25000,
+    "daily_tokens": 30000
+  }
+}

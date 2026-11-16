@@ -17,7 +17,7 @@ scopes each read to the token's `sub` and answers `401 principal_required`,
 `401 principal_invalid` or `403 principal_mismatch`. An anonymous conversation
 has no token: those reads answer `principal_required` without calling the api.
 **Dual-write window only** (CS engine P5.3, removed in R2): a host that still
-runs the legacy cs bridge grants `LOHI_CS_LEGACY_SCOPE=1` (`pack_grants.lohi-cs.env`).
+runs the legacy cs bridge grants `LOHI_CS_LEGACY_SCOPE=1` (`grants.packs.lohi-cs.env`).
 A conversation without a principal is then scoped by `conversationId`, which the
 api resolves to the bound support thread (`403 thread_unbound` otherwise).
 `find_novel`, `content_health`, `name_check`, `features`, `novel_chapters` and
@@ -26,14 +26,14 @@ Neither the key nor the token is ever put on a command line or printed.
 
 ## Product gate
 
-One runtime may serve several products. A conversation that is not Lohi's is
+One runtime may serve several projects (products). A conversation that is not Lohi's is
 refused with `{"code":"not_lohi_conversation","detail":"..."}` before any request:
-`SOOT_PRODUCT` (or the ToolCall's `product`) names another product than
+`SOOT_PROJECT` (or the ToolCall's `project`) names another project than
 `LOHI_PRODUCT` (default `lohi`), or the conversation's `event.binding` is outside
 `LOHI_BINDINGS` (comma list, optional). `lohi_report_content_issue` proves no
 reader, so without a principal or the legacy scope it also needs a positive Lohi
-signal (the product or a listed binding). Public reads stay open on a
-conversation that carries no product at all.
+signal (the project or a listed binding). Public reads stay open on a
+conversation that carries no project at all.
 
 ## Approvals
 

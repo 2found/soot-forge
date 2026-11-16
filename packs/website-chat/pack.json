@@ -1,8 +1,5 @@
 {
-  "api_version": "soot/v1",
-  "id": "website-chat",
-  "name": "Website chat",
-  "label": {
+  "name": {
     "vi": "Live chat trên website",
     "en": "Website live chat"
   },
@@ -25,13 +22,6 @@
       "embed"
     ]
   },
-  "skills": [
-    {
-      "name": "website-chat",
-      "description": "Configure the Live chat on the owner's websites from chat or Nest through one scoped host authority: read, draft, publish, pause, resume and roll back.",
-      "file": "skills/website-chat.md"
-    }
-  ],
   "tools": [
     {
       "name": "website_view",

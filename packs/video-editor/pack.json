@@ -1,10 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "video-editor",
-  "name": "Video editor",
-  "label": {
+  "name": {
     "vi": "Dựng video",
     "en": "Video editor"
+  },
+  "description": {
+    "vi": "Lên kế hoạch và dựng video ngắn bằng FFmpeg, âm thanh đo được và phụ đề an toàn.",
+    "en": "Plan and produce short videos with FFmpeg, measured audio, safe captions and optional HyperFrames motion."
   },
   "keywords": {
     "vi": [
@@ -20,27 +21,6 @@
       "ffmpeg"
     ]
   },
-  "description": {
-    "vi": "Lên kế hoạch và dựng video ngắn bằng FFmpeg, âm thanh đo được và phụ đề an toàn.",
-    "en": "Plan and produce short videos with FFmpeg, measured audio, safe captions and optional HyperFrames motion."
-  },
-  "skills": [
-    {
-      "name": "video_editor_video",
-      "file": "skills/video.md",
-      "description": "The one video flow: plan, route to FFmpeg or HyperFrames, render, decode frames and deliver. Marketing videos for your own product go through 2build marketing-video, which renders with the same HyperFrames pin."
-    },
-    {
-      "name": "video_editor_inspect",
-      "file": "skills/inspect.md",
-      "description": "Inspect measured media and validate timeline/caption bounds."
-    },
-    {
-      "name": "video_editor_spec",
-      "file": "SPEC.md",
-      "description": "Exact JSON schemas, examples, limits and failure semantics for the pack tools."
-    }
-  ],
   "tools": [
     {
       "name": "probe",

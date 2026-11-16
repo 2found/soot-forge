@@ -140,7 +140,7 @@
       }
     ],
     "cycle_weeks": 6,
-    "max_per_product": 3,
+    "max_per_project": 3,
     "max_per_team": 3,
     "ops_warn_ratio": 0.3
   },

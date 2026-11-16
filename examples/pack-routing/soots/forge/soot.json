@@ -1,8 +1,5 @@
 {
-  "id": "forge",
   "name": "Forge router",
-  "soul": "soul.md",
-  "mission": "mission.md",
   "packs": [
     "artifacts",
     "casework",

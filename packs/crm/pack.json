@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "crm",
-  "label": {
+  "name": {
     "vi": "Khách hàng",
     "en": "Customers"
+  },
+  "description": {
+    "vi": "CRM gọn cho đội Soot: khách, cách liên hệ có đồng ý, cơ hội theo sản phẩm, dòng thời gian và việc theo khách đến hạn.",
+    "en": "A micro-CRM for Soot teams: contacts, consented ways to reach them, one deal per product, a timeline and follow-ups that come due."
   },
   "keywords": {
     "vi": [
@@ -23,27 +25,6 @@
       "follow-up"
     ]
   },
-  "description": {
-    "vi": "CRM gọn cho đội Soot: khách, cách liên hệ có đồng ý, cơ hội theo sản phẩm, dòng thời gian và việc theo khách đến hạn.",
-    "en": "A micro-CRM for Soot teams: contacts, consented ways to reach them, one deal per product, a timeline and follow-ups that come due."
-  },
-  "skills": [
-    {
-      "name": "crm-capture",
-      "description": "Record a buying intent or a contact once, with consent, from a conversation or a desk note; never store what the person did not give to be contacted.",
-      "file": "skills/capture.md"
-    },
-    {
-      "name": "crm-followup",
-      "description": "Work the follow-ups that came due: one next step per open deal, honest stages, touches logged, what needs a person raised.",
-      "file": "skills/followup.md"
-    },
-    {
-      "name": "crm-review",
-      "description": "Read the pipeline for a product, compare with the goal and last period, and check in the numbers without contact details.",
-      "file": "skills/review.md"
-    }
-  ],
   "tools": [
     {
       "name": "contact_find",
@@ -100,7 +81,7 @@
           "product": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+            "description": "Product id (company.projects[].id). Omit inside a task or schedule of that product: the host fills it."
           },
           "limit": {
             "type": "integer",
@@ -208,7 +189,7 @@
           "product": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+            "description": "Product id (company.projects[].id). Omit inside a task or schedule of that product: the host fills it."
           },
           "owner": {
             "type": "string",
@@ -256,7 +237,7 @@
           "product": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+            "description": "Product id (company.projects[].id). Omit inside a task or schedule of that product: the host fills it."
           },
           "summary": {
             "type": "string",
@@ -393,7 +374,7 @@
           "product": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+            "description": "Product id (company.projects[].id). Omit inside a task or schedule of that product: the host fills it."
           },
           "channel": {
             "type": "string",
@@ -460,7 +441,7 @@
           "product": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+            "description": "Product id (company.projects[].id). Omit inside a task or schedule of that product: the host fills it."
           },
           "stage": {
             "type": "string",
@@ -544,7 +525,7 @@
           "product": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+            "description": "Product id (company.projects[].id). Omit inside a task or schedule of that product: the host fills it."
           },
           "horizon_hours": {
             "type": "integer",
@@ -585,7 +566,7 @@
           "product": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
-            "description": "Product id (company.products[].id). Omit inside a task or schedule of that product: the host fills it."
+            "description": "Product id (company.projects[].id). Omit inside a task or schedule of that product: the host fills it."
           },
           "days": {
             "type": "integer",
@@ -733,26 +714,6 @@
         "max_output_bytes": 131072,
         "max_input_bytes": 32768
       }
-    }
-  ],
-  "outcomes": [
-    {
-      "id": "lead_qualified",
-      "label": {
-        "vi": "Khách tiềm năng đủ điều kiện",
-        "en": "Lead qualified"
-      },
-      "unit": "lead",
-      "void_window": "72h"
-    },
-    {
-      "id": "deal_won",
-      "label": {
-        "vi": "Chốt được khách",
-        "en": "Deal won"
-      },
-      "unit": "deal",
-      "void_window": "72h"
     }
   ],
   "storage": {
@@ -1063,5 +1024,25 @@
         ]
       }
     ]
-  }
+  },
+  "outcomes": [
+    {
+      "id": "lead_qualified",
+      "label": {
+        "vi": "Khách tiềm năng đủ điều kiện",
+        "en": "Lead qualified"
+      },
+      "unit": "lead",
+      "void_window": "72h"
+    },
+    {
+      "id": "deal_won",
+      "label": {
+        "vi": "Chốt được khách",
+        "en": "Deal won"
+      },
+      "unit": "deal",
+      "void_window": "72h"
+    }
+  ]
 }

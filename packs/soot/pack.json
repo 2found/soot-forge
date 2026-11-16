@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "soot",
-  "label": {
+  "name": {
     "vi": "Hiểu về Soot",
     "en": "Soot domain"
+  },
+  "description": {
+    "vi": "Mọi điều về Soot và công cụ cấu hình chính Soot đang chạy.",
+    "en": "Everything about Soot and a tool to configure the running Soot."
   },
   "keywords": {
     "vi": [
@@ -17,21 +19,6 @@
       "configuration"
     ]
   },
-  "description": {
-    "vi": "Mọi điều về Soot và công cụ cấu hình chính Soot đang chạy.",
-    "en": "Everything about Soot and a tool to configure the running Soot."
-  },
-  "skills": [
-    {
-      "name": "soot-domain",
-      "description": "Everything about Soot: vocabulary, how Soots, the Lead, teams and their Đầu mối, packs, schedules, approvals, tiers and the workspace fit together, where packs and team templates come from, and the avatar lifecycle.",
-      "file": "skills/domain/SKILL.md"
-    },
-    {
-      "name": "configure_soot",
-      "file": "skills/configure/SKILL.md"
-    }
-  ],
   "tools": [
     {
       "name": "configure",

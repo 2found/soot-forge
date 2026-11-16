@@ -1,7 +1,9 @@
 {
   "packs_dir": "packs",
-  "model": {
-    "provider": "demo"
+  "ai": {
+    "model": {
+      "provider": "demo"
+    }
   },
   "soots": [
     "soots/helper/soot.json"

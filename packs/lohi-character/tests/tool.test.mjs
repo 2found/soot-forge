@@ -99,11 +99,11 @@ test('an api refusal passes through as a decided failure; the key and token are 
 
 test('the manifest declares two read tools and uses every credential it declares', async () => {
   const pack = JSON.parse(await readFile(new URL('../pack.json', import.meta.url), 'utf8'));
-  assert.equal(pack.id, 'lohi-character');
+  assert.equal(pack.id, undefined, 'the folder is the id');
   assert.deepEqual(pack.tools.map(t => [t.name, t.run.mode]), [['context', 'read'], ['remember', 'read']]);
   const used = new Set(pack.tools.flatMap(t => Object.values(t.run.secret_env).map(v => v.match(/\{\{cred:([A-Z_]+)\}\}/)[1])));
   assert.deepEqual([...used].sort(), Object.keys(pack.needs.credentials).sort());
-  const skill = await readFile(new URL('../skills/character.md', import.meta.url), 'utf8');
+  const skill = await readFile(new URL('../skills/character/SKILL.md', import.meta.url), 'utf8');
   assert.match(skill, /You are an AI/);
   assert.match(skill, /Only what the asker has read/);
 });

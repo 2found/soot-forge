@@ -116,9 +116,9 @@ export const hasBuild = env => !!String(env.PRODUCT_REPO ?? '').trim() || /=\s*\
 
 /**
  * Does this runtime build for this product? A `PRODUCT_REPOS` entry names the product, so it is its own. The PRODUCT_REPO
- * fallback is every product's, except that a product's own run (SOOT_PRODUCT) must be the same product.
+ * fallback is every product's, except that a product's own run (SOOT_PROJECT) must be the same product.
  */
-export const buildsHere = (env, product) => explicit(env, product) || (!!String(env.PRODUCT_REPO ?? '').trim() && !(env.SOOT_PRODUCT && product && env.SOOT_PRODUCT !== product));
+export const buildsHere = (env, product) => explicit(env, product) || (!!String(env.PRODUCT_REPO ?? '').trim() && !(env.SOOT_PROJECT && product && env.SOOT_PROJECT !== product));
 
 /**
  * A project is an absolute path, or a bbs registry workspace by name (`ws`, or `ws/<repo folder>` when it lists several):

@@ -39,7 +39,7 @@ nothing else about the Soot changes.
 Nest selects both browser-use and soot-nest. Existing customized Soot definitions
 are preserved; opt them in with `"packs": ["browser-use", "soot-nest"]` alongside
 their existing selections. The pack declares `needs.env: ["PATH", "HOME"]`; the host grants them in
-`pack_grants`: `{"browser-use": {"env": ["PATH", "HOME"]}}` (or `soot grant browser-use`).
+`grants.packs`: `{"browser-use": {"env": ["PATH", "HOME"]}}` (or `soot grant browser-use`).
 
 The manifest's `interface.tool_area` declares label, renderer, read/action tools,
 width/min/max, aspect width/height, resizability and `capabilities`

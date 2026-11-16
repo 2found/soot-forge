@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "casework",
-  "label": {
+  "name": {
     "vi": "Hồ sơ vụ việc",
     "en": "Casework"
+  },
+  "description": {
+    "vi": "Hồ sơ tùy chọn cho việc cần theo dõi hoặc chuyển giao.",
+    "en": "Optional persistent records for work that needs tracking or handoff."
   },
   "keywords": {
     "vi": [
@@ -19,16 +21,6 @@
       "follow-up"
     ]
   },
-  "description": {
-    "vi": "Hồ sơ tùy chọn cho việc cần theo dõi hoặc chuyển giao.",
-    "en": "Optional persistent records for work that needs tracking or handoff."
-  },
-  "skills": [
-    {
-      "file": "skill.md",
-      "description": "Optional persistent records for work that needs tracking or handoff"
-    }
-  ],
   "tools": [
     {
       "name": "read",

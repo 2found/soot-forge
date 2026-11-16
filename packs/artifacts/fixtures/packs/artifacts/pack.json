@@ -1,28 +1,4 @@
 {
-  "api_version": "soot/v1",
-  "id": "artifacts",
-  "skills": [
-    {
-      "name": "artifacts_read",
-      "file": "skills/read.md",
-      "description": "Read artifact metadata and inline content or host path by ref"
-    },
-    {
-      "name": "artifacts_create",
-      "file": "skills/create.md",
-      "description": "Store new content into the content-addressed artifact store"
-    },
-    {
-      "name": "artifacts_export",
-      "file": "skills/export.md",
-      "description": "Export an artifact to an operator-bound export directory with TTL"
-    },
-    {
-      "name": "artifacts_remove",
-      "file": "skills/remove.md",
-      "description": "Delete an artifact and/or a shared export URL from the bound store."
-    }
-  ],
   "tools": [
     {
       "name": "read",

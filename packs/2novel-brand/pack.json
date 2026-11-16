@@ -1,11 +1,13 @@
 {
   "$schema": "../../schemas/pack.schema.json",
-  "api_version": "soot/v1",
+  "name": {
+    "en": "2Novel brand",
+    "vi": "Thương hiệu 2Novel"
+  },
   "description": {
     "en": "The 2Novel brand skill for the marketing team.",
     "vi": "Kỹ năng thương hiệu 2Novel cho đội marketing."
   },
-  "id": "2novel-brand",
   "keywords": {
     "en": [
       "2novel",
@@ -17,16 +19,5 @@
       "thương hiệu"
     ]
   },
-  "label": {
-    "en": "2Novel brand",
-    "vi": "Thương hiệu 2Novel"
-  },
-  "skills": [
-    {
-      "description": "Read FIRST for any marketing work on 2novel: scope and hub site, audience and languages, voice, what may be claimed, signal sources, cadence caps and channels. Role craft is in the marketing-* skills.",
-      "file": "skills/2novel-brand/SKILL.md",
-      "name": "2novel-brand"
-    }
-  ],
   "tools": []
 }

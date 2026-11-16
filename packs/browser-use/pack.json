@@ -1,7 +1,5 @@
 {
-  "api_version": "soot/v1",
-  "id": "browser-use",
-  "label": {
+  "name": {
     "vi": "Trình duyệt",
     "en": "Browser"
   },
@@ -21,13 +19,6 @@
       "chromium"
     ]
   },
-  "skills": [
-    {
-      "name": "browser-use",
-      "description": "Browse and interact with websites using the persistent conversation browser, tabs, snapshots, refs, and CloakBrowser.",
-      "file": "skills/browser.md"
-    }
-  ],
   "tools": [
     {
       "name": "control",
@@ -220,18 +211,6 @@
       }
     }
   },
-  "programs": [
-    {
-      "id": "chromium",
-      "label": {
-        "vi": "Trình duyệt Chromium",
-        "en": "Chromium browser"
-      },
-      "size_mb": 170,
-      "check_op": "chromium_check",
-      "install_op": "chromium_install"
-    }
-  ],
   "interface": {
     "tool_area": {
       "id": "browser",
@@ -252,5 +231,17 @@
         "pacing": "frames"
       }
     }
-  }
+  },
+  "programs": [
+    {
+      "id": "chromium",
+      "label": {
+        "vi": "Trình duyệt Chromium",
+        "en": "Chromium browser"
+      },
+      "size_mb": 170,
+      "check_op": "chromium_check",
+      "install_op": "chromium_install"
+    }
+  ]
 }

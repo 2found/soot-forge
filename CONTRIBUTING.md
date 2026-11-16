@@ -20,7 +20,7 @@ Place `pack.json`, skills, tools and a README in `packs/my-pack/`, then add:
 ```
 
 Use the [Soot pack authoring guide](https://github.com/2found/2agent/blob/main/docs/authoring-packs.md).
-`pack.json` uses `soot/v1`: `skills`, `tools`, optional `needs` and `interface`; `capabilities` and `use` are rejected. Paths stay inside the pack. No symlinks, secrets,
+A pack is the folder `packs/<id>/` (the folder name is the id). `pack.json` holds `name`, `description`, `tools`, optional `needs` and `interface`, with no `id`, `api_version`, `label` or `skills`; skills are `skills/<name>/SKILL.md` with frontmatter `name` (= folder) and `description`; `capabilities` and `use` are rejected. Paths stay inside the pack. No symlinks, secrets,
 vendored dependencies, compiled binaries or runtime state. Tools are installed
 as source; explain how to prepare their executable on the user's platform.
 Packs own skills/tools, not the Soot's soul, mission, schedules or host grants.

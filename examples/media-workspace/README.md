@@ -4,7 +4,7 @@ Copy this example into your own workspace, rename `deployment.example.json` to
 `deployment.json` and install only the packs you need with `soot add --config
 deployment.json`. This example intentionally contains Soot definitions and host
 configuration **outside** distributable packs. Installation grants nothing;
-`pack_grants` is the one place the host grants what each pack's `needs` ask
+`grants.packs` is the one place the host grants what each pack's `needs` ask
 for, and each Soot's `packs` selects whole packs. Remove unused Soots and
 grants. Add the `toolbox` pack if the Soot needs to author specs rather than
 consume supplied files.

@@ -4,7 +4,7 @@ import {mkdtemp, readFile, rm, stat, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {createHash} from 'node:crypto';
-import {readCatalog, materialize} from './catalog.mjs';
+import {readCatalog, materialize, readSkills} from './catalog.mjs';
 import {archivePack} from './archive.mjs';
 
 if(process.argv.length!==4||process.argv[2]!=='--report')throw Error('Usage: node scripts/review-inventory.mjs --report FILE');
@@ -15,10 +15,10 @@ try{
     const folder=await materialize(entry,root,work);
     const manifest=JSON.parse(await readFile(join(folder,'pack.json')));
     const archive=join(work,`${entry.id}.tar.gz`);await archivePack(folder,archive,entry.id);
-    let skillBytes=0;for(const skill of manifest.skills??[])skillBytes+=(await stat(join(folder,skill.file))).size;
+    const skills=await readSkills(folder);let skillBytes=0;for(const skill of skills)skillBytes+=(await stat(join(folder,skill.file))).size;
     const tools=manifest.tools??[],writeTools=tools.filter(tool=>tool.run?.mode&&tool.run.mode!=='read').length;
     const blob=await readFile(archive);
-    packs.push({id:entry.id,source:entry.source,archive_sha256:createHash('sha256').update(blob).digest('hex'),archive_bytes:blob.length,skills:(manifest.skills??[]).length,skill_bytes:skillBytes,tools:tools.length,write_tools:writeTools,needs:Object.keys(manifest.needs?.credentials??{})});
+    packs.push({id:entry.id,source:entry.source,archive_sha256:createHash('sha256').update(blob).digest('hex'),archive_bytes:blob.length,skills:skills.length,skill_bytes:skillBytes,tools:tools.length,write_tools:writeTools,needs:Object.keys(manifest.needs?.credentials??{})});
   }
   await writeFile(resolve(process.argv[3]),JSON.stringify({scope:'Deterministic materialized source archives; excludes fixtures/bin/data/dependency caches exactly as release packaging does',packs},null,2)+'\n');
   console.log(`Recorded ${packs.length} validated source archives`);

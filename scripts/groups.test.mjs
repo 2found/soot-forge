@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { readSkills } from './catalog.mjs';
 import { readGroups, validateGroup, refPack, refTools, partOwners, PARTS } from './groups.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -27,9 +29,9 @@ test('the catalog lists the five standard teams first, then the utilities, then 
   }
 });
 
-test('the Đầu mối of every current template can make a Nest screen: it selects soot-nest, a pack of skills alone', () => {
+test('the Đầu mối of every current template can make a Nest screen: it selects soot-nest, a pack of skills alone', async () => {
   assert.equal(packJson('soot-nest').tools, undefined, 'soot-nest grants no tool, so a read-only member stays read-only');
-  assert.ok(packJson('soot-nest').skills.some(s => s.name === 'nest-pieces'));
+  assert.ok((await readSkills(join(root, 'packs', 'soot-nest'))).some(s => s.name === 'nest-pieces'));
   for (const id of [...STANDARD, 'workshop', 'server-watch']) {
     const t = source(id);
     assert.ok(t.members[0].packs.includes('soot-nest'), `${id}/${t.members[0].id}`);
@@ -95,7 +97,7 @@ test('marketing-team is hubless and asks for publish approval, required by defau
   const pack = JSON.parse(readFileSync(new URL('../packs/marketing/pack.json', import.meta.url), 'utf8'));
   assert.equal(pack.tools.find(x => x.name === 'claim').run.approval, 'operator', 'approval on unless the host says auto');
   const lohi = JSON.parse(readFileSync(new URL('../examples/lohi-marketing/deployment.example.json', import.meta.url), 'utf8'));
-  assert.equal(lohi.approvals.marketing_claim, 'auto', 'the Lohi recipe is publish_approval none');
+  assert.equal(lohi.grants.approvals.marketing_claim, 'auto', 'the Lohi recipe is publish_approval none');
 });
 
 test('company team groups: one group per team, roles by job, no private content table, lean budgets below the old ceiling', () => {

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, posix, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { readCatalog, materialize } from './catalog.mjs';
+import { readCatalog, materialize, readSkills } from './catalog.mjs';
 import { archivePack, packFiles } from './archive.mjs';
 
 const git = promisify(execFile);
@@ -25,16 +25,15 @@ async function sizes(base, paths) {
 const sum = values => values.reduce((total, value) => total + value, 0);
 
 // Tool and skill ids as the validator names them.
-export function packIds(manifest) {
+export function packIds(manifest, skills = []) {
   const tools = (manifest.tools ?? []).map(tool => tool.name).sort();
-  const skills = (manifest.skills ?? []).map(skill => skill.name || `${manifest.id}_${posix.basename(skill.file, posix.extname(skill.file))}`).sort();
-  return { tools, skills };
+  return { tools, skills: skills.map(skill => skill.name).sort() };
 }
 
-// Files a manifest points at: skill files and tool programs/args that exist in the pack.
+// Files a manifest points at: tool programs/args that exist in the pack. Skills
+// are the folder skills/<name>/SKILL.md and are never dev-only.
 export async function referencedFiles(manifest, directory) {
   const referenced = [];
-  for (const skill of manifest.skills ?? []) referenced.push(skill.file);
   for (const tool of manifest.tools ?? []) {
     if (!tool.run) continue;
     for (const candidate of [tool.run.program, ...(tool.run.args ?? [])]) {
@@ -77,7 +76,7 @@ export async function measure(root, { slim = true } = {}) {
         archive_bytes: (await stat(archive)).size,
         archive_sha256: createHash('sha256').update(await readFile(archive)).digest('hex'),
         oversized_skills: oversizedSkills,
-        ids: packIds(manifest),
+        ids: packIds(manifest, await readSkills(directory)),
       });
     }
     // Packs must stay self-contained, so cross-pack copies are reported, not merged.

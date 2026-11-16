@@ -132,7 +132,7 @@ export async function campaign_save(input, deps) {
   for (const key of keys) {
     if (have.some(l => l.channel === key)) continue;
     const target = targetOf(landing, id, key);
-    const r = await api(deps, 'POST', '/admin/links', { product: String(settings.product ?? 'lohi').toLowerCase(), campaign: id, channel: platform(key), target });
+    const r = await api(deps, 'POST', '/admin/links', { product: String(settings.project ?? 'lohi').toLowerCase(), campaign: id, channel: platform(key), target });
     const ok = r.out && typeof r.out.code === 'string' && /^[A-Za-z0-9_-]{1,16}$/.test(r.out.code) && typeof r.out.url === 'string' && /^https?:\/\//.test(r.out.url);
     if (!ok) { links_error = r.error ?? apiError('api_bad', apiHost(deps)); break; }
     try { await store.insert('links', { code: r.out.code, campaign: id, channel: key, post: null, target, url: r.out.url }); have.push({ channel: key, code: r.out.code, url: r.out.url }); }
@@ -244,7 +244,7 @@ const summary = (c, now) => ({ id: c.key, name: c.name, starts: c.starts, ends: 
 
 export async function campaignView(input, { store, now, env, soot }) {
   const settings = await getSettings(store);
-  const head = { page: 'campaigns', product: settings.product ?? null, writer: settings.writer ?? null, editor: soot ?? null, api_host: apiHost({ env }) === 'api' ? null : apiHost({ env }) };
+  const head = { page: 'campaigns', project: settings.project ?? null, writer: settings.writer ?? null, editor: soot ?? null, api_host: apiHost({ env }) === 'api' ? null : apiHost({ env }) };
   const all = await store.query('campaigns', [], { order: 'starts', limit: 100 });
   const known = await store.query('channels', [], { limit: 50 });
   const choices = [...new Set(['blog-lohi', ...known.map(k => k.key)])].sort(byRank).map(key => ({ id: key, label: label(key) }));

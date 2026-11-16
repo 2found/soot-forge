@@ -1,10 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "research",
-  "name": "Nghiên cứu",
-  "label": {
+  "name": {
     "vi": "Nghiên cứu",
     "en": "Research"
+  },
+  "description": {
+    "vi": "Tìm hiểu, phân tích và tổng hợp thông tin.",
+    "en": "Search the web, cross-check sources and report cited evidence."
   },
   "keywords": {
     "vi": [
@@ -20,17 +21,6 @@
       "web"
     ]
   },
-  "description": {
-    "vi": "Tìm hiểu, phân tích và tổng hợp thông tin.",
-    "en": "Search the web, cross-check sources and report cited evidence."
-  },
-  "skills": [
-    {
-      "name": "research_web",
-      "file": "skills/web.md",
-      "description": "Search the web, cross-check sources, and report cited evidence with gaps."
-    }
-  ],
   "tools": [
     {
       "name": "web_search"

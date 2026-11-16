@@ -37,7 +37,7 @@ See each [skill](skills/) for workflow, limitations and operation semantics.
 Operation IDs: `ocr_assess`, `ocr_recognize`.
 
 Credentials are declared in `pack.json` `needs`: `FILE_ROOT` comes from the workspace, `PYTHON_EXECUTABLE` from env `SOOT_MEDIA_PYTHON`, `OCR_BINDING` from env `SOOT_OCR_BINDING`.
-The host grants the non-operator sources in `pack_grants`, e.g. `"pack_grants": {"ocr": {"credentials": {"FILE_ROOT": "workspace"}}}` (or `soot grant ocr`).
+The host grants the non-operator sources in `grants.packs`, e.g. `"grants": {"packs": {"ocr": {"credentials": {"FILE_ROOT": "workspace"}}}}` (or `soot grant ocr`).
 A complete consumer example is in the repository
 [`examples/media-workspace`](../../examples/media-workspace/); it is not inside the pack.
 Use placeholder files only in Git. Credentials and endpoint URLs are never model inputs.

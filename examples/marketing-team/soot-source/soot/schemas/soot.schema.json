@@ -9,12 +9,6 @@
         "null"
       ]
     },
-    "adapter": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "archived": {
       "type": [
         "boolean",
@@ -22,58 +16,83 @@
       ]
     },
     "avatar": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "description": "A mascot (teddy, rocket, keyboard, bomb, saw, speaker), an https image URL or a PNG/JPEG/WebP data URL up to 48 KiB.",
+      "type": "string"
     },
-    "channels": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
+    "chat": {
+      "additionalProperties": false,
+      "description": "Present: the Soot takes conversations. Omit for a Soot that only works jobs and schedules.",
+      "properties": {
+        "channels": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
             "type": [
-              "string",
+              "object",
               "null"
             ]
           },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
+          "type": [
+            "array",
+            "null"
+          ]
         },
-        "type": [
-          "object",
-          "null"
-        ]
-      },
-      "type": [
-        "array",
-        "null"
-      ]
-    },
-    "compact_at": {
-      "type": [
-        "integer",
-        "null"
-      ]
-    },
-    "conversation": {
-      "additionalProperties": false,
-      "properties": {
-        "memory_workspace_write": {
+        "handoff": {
+          "enum": [
+            "",
+            "members"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "memory_write": {
+          "description": "Let the Soot publish into the workspace's shared memory.",
           "type": [
             "boolean",
             "null"
           ]
         },
-        "publish": {
+        "mode": {
+          "enum": [
+            "interactive",
+            "autonomous"
+          ],
           "type": [
             "string",
             "null"
           ]
+        },
+        "publish": {
+          "description": "final (default): only the finished answer is sent; reply: the Soot posts as it works.",
+          "enum": [
+            "final",
+            "reply"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "release_after_hours": {
+          "description": "A live chat a person holds (hand-off, take-over or a member's reply) goes back to the Soot once no member has written for this many hours. Default 6; 0 = never.",
+          "maximum": 168,
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "type": [
@@ -161,6 +180,39 @@
             "null"
           ]
         },
+        "sandbox": {
+          "additionalProperties": false,
+          "properties": {
+            "backend": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "image": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "network_allow": {
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "self_tools": {
           "items": {
             "type": [
@@ -203,50 +255,6 @@
         "null"
       ]
     },
-    "feedback": {
-      "additionalProperties": false,
-      "properties": {
-        "group": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "pool": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "to": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "type": [
-        "object",
-        "null"
-      ]
-    },
-    "host_packs": {
-      "description": "Repository Soots only: host packs to ask the host for, such as browser-use or data-pool:read. Nothing changes until the host allows each one in Nest.",
-      "items": {
-        "pattern": "^[a-z0-9][a-z0-9_-]{0,63}(:read)?$",
-        "type": "string"
-      },
-      "maxItems": 16,
-      "type": [
-        "array",
-        "null"
-      ],
-      "uniqueItems": true
-    },
-    "id": {
-      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-      "type": "string"
-    },
     "improve": {
       "additionalProperties": false,
       "description": "Run soot improve on a cadence: evals, diagnosis, then a configuration proposal or adapter tuning within budget. Produces proposals for review; applies nothing.",
@@ -255,6 +263,31 @@
           "description": "Wall-clock anchor HH:MM, such as 03:00.",
           "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
           "type": "string"
+        },
+        "auto_deploy": {
+          "additionalProperties": false,
+          "description": "Let a scheduled or watched run deploy the trained adapter when the held-out test rises by min_gain and every pinned case passes, and undo it by itself if the Soot gets worse within hold. Omit to keep every adapter for a person to deploy.",
+          "properties": {
+            "hold": {
+              "description": "How long after a deploy the watch compares the Soot with before and undoes the deploy if it got worse, 1h to 744h. Default 72h.",
+              "type": "string"
+            },
+            "min_gain": {
+              "description": "Held-out test score rise over the adapter in use. Default 0.05.",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "min_test_cases": {
+              "description": "Smallest test set a deploy trusts. Default 5.",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "budget": {
           "description": "Weighted tokens one scheduled run may spend, evals included.",
@@ -281,6 +314,63 @@
         "timezone": {
           "description": "IANA timezone for at, such as Asia/Ho_Chi_Minh. Default UTC.",
           "type": "string"
+        },
+        "watch": {
+          "additionalProperties": false,
+          "description": "Read the Soot's real runs between scheduled runs: start a run early when a signal crosses its threshold, and draft eval cases from runs that went wrong for a person to accept. A paused schedule pauses the early runs.",
+          "properties": {
+            "check": {
+              "description": "How often the runtime reads them, at least 15m. Default 1h.",
+              "type": "string"
+            },
+            "cooldown": {
+              "description": "Least time between a run the watch starts and any other improve run, at least 6h. Default 24h.",
+              "type": "string"
+            },
+            "draft_cases": {
+              "description": "Eval cases one check may draft from runs that went wrong; each waits in Cần bạn. Needs traces.content full. Default 3; 0 drafts none.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "failed_rate": {
+              "description": "Share of runs failed, stopped on budget or interrupted. Default 0.2; 0 turns it off.",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "memory_writes_per_run": {
+              "description": "learn and memory_edit calls per run: a Soot correcting how it works one run at a time. Default 1; 0 turns it off.",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            "min_runs": {
+              "description": "Real runs in the window below which rates are not read. Default 20.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pass_rate": {
+              "description": "Share of eval cases passing at their latest run on the deployed adapter, below which a run starts. Default 0.8; 0 turns it off.",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "tool_error_rate": {
+              "description": "Share of tool calls failed or blocked. Default 0.2; 0 turns it off.",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "window": {
+              "description": "How far back signals read, 1h to 168h. Default 24h.",
+              "type": "string"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
         }
       },
       "required": [
@@ -292,196 +382,164 @@
         "null"
       ]
     },
-    "interaction": {
-      "additionalProperties": false,
-      "properties": {
-        "handoff": {
-          "enum": [
-            "",
-            "members"
-          ],
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "mode": {
-          "enum": [
-            "interactive",
-            "autonomous"
-          ],
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "type": [
-        "object",
-        "null"
-      ]
-    },
-    "knowledge": {
-      "items": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "type": [
-        "array",
-        "null"
-      ]
-    },
-    "mascot": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "mission": {
-      "description": "Relative Markdown file for the agent task.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "model": {
-      "additionalProperties": false,
-      "description": "Optional overrides of the shared deployment model and fallback/retry policy. Omit to inherit everything.",
-      "properties": {
-        "auxiliary_effort": {
-          "type": [
-            "string",
-            "null"
-          ]
+      "description": "A tier (flash, lite, pro, max), or an object naming the tier and overriding the host model for this Soot. Omitted fields inherit the host's.",
+      "oneOf": [
+        {
+          "enum": [
+            "flash",
+            "lite",
+            "pro",
+            "max"
+          ],
+          "type": "string"
         },
-        "context_window": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "effort": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "fallbacks": {
-          "description": "Omitted/null inherits the shared chain with its original providers; [] disables fallback. An explicit list replaces the chain; omitted providers use this Soot's primary provider.",
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "auxiliary_effort": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "context_window": {
-                "type": [
-                  "integer",
-                  "null"
-                ]
-              },
-              "effort": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "provider": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "maxItems": 4,
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "name": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "provider": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "retry": {
+        {
           "additionalProperties": false,
-          "description": "Partial override of shared retry policy; omitted/null/empty fields inherit. max_attempts: 1 disables retries.",
           "properties": {
-            "base_delay": {
+            "auxiliary_effort": {
               "type": [
                 "string",
                 "null"
               ]
             },
-            "max_attempts": {
+            "compact_at": {
+              "description": "Context size, in tokens, at which history is compacted. Default: the host's.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "context_window": {
               "type": [
                 "integer",
                 "null"
               ]
             },
-            "max_delay": {
+            "effort": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fallbacks": {
+              "description": "Omitted/null inherits the shared chain with its original providers; [] disables fallback. An explicit list replaces the chain; omitted providers use this Soot's primary provider.",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "auxiliary_effort": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "context_window": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "effort": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "provider": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "maxItems": 4,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "provider": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retry": {
+              "additionalProperties": false,
+              "description": "Partial override of shared retry policy; omitted/null/empty fields inherit. max_attempts: 1 disables retries.",
+              "properties": {
+                "base_delay": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "max_delay": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "tier": {
+              "enum": [
+                "flash",
+                "lite",
+                "pro",
+                "max"
+              ],
               "type": [
                 "string",
                 "null"
               ]
             }
           },
-          "type": [
-            "object",
-            "null"
-          ]
+          "type": "object"
         }
-      },
-      "type": [
-        "object",
-        "null"
       ]
     },
     "name": {
-      "description": "Display name shown in clients and substituted for {{name}} in the soul file. Default: Soot.",
+      "description": "Display name shown in clients and substituted for {{name}} in SOUL.md. Default: Soot.",
       "maxLength": 64,
       "type": "string"
     },
-    "operations": {
-      "items": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "type": [
-        "array",
-        "null"
-      ]
-    },
     "packs": {
-      "description": "Installed packs this Soot uses: \"office\" grants all of the pack's skills and tools, \"office:read\" its skills and read-only tools.",
+      "description": "Everything the Soot can do. \"office\" grants all of a pack's skills and tools, \"office:read\" its skills and read-only tools, \"office:tools=plan,draft\" its skills and the named tools. Built in: \"knowledge\" (every host knowledge pool), \"knowledge:pools=docs,faq\", \"feedback:to=\u003csoot\u003e\" (record_feedback). A Soot deployed from a repository asks the host for any pack its repository does not ship; the host allows it in grants.sources.",
       "items": {
-        "pattern": "^[a-z0-9][a-z0-9_-]{0,63}(:read)?$",
+        "anyOf": [
+          {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}(:read|:tools=[a-z0-9_]{1,64}(,[a-z0-9_]{1,64})*)?$"
+          },
+          {
+            "pattern": "^(knowledge:pools=[a-z0-9][a-z0-9_-]{0,63}(,[a-z0-9][a-z0-9_-]{0,63}){0,3}|feedback:to=[a-z0-9][a-z0-9_-]{0,63})$"
+          }
+        ],
         "type": "string"
       },
       "maxItems": 32,
@@ -489,83 +547,8 @@
         "array",
         "null"
       ]
-    },
-    "skills": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "description": {
-            "description": "Explain when the agent should use this skill. Omitted: read from the file's YAML frontmatter description (Agent Skills SKILL.md); a pack skill without either gets a generic one. A file named SKILL.md takes its folder name.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "file": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "file"
-        ],
-        "type": [
-          "object",
-          "null"
-        ]
-      },
-      "type": [
-        "array",
-        "null"
-      ]
-    },
-    "soul": {
-      "description": "Relative Markdown file for personality and principles.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "targets": {
-      "items": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "type": [
-        "array",
-        "null"
-      ]
-    },
-    "tier": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "tools": {
-      "items": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "type": [
-        "array",
-        "null"
-      ]
     }
   },
-  "required": [
-    "id"
-  ],
   "title": "Soot soot",
   "type": "object"
 }

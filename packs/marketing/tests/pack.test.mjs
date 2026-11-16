@@ -4,9 +4,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
+import { readSkills } from '../../../scripts/catalog.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pack = JSON.parse(readFileSync(join(root, 'pack.json'), 'utf8'));
+const skills = await readSkills(root);
 const tools = Object.fromEntries(pack.tools.map(t => [t.name, t]));
 const ajv = new Ajv({ strict: false, validateFormats: false });
 const accepts = (tool, input) => ajv.compile(tools[tool].parameters)(input);
@@ -21,7 +23,7 @@ const READS = ['cms_list', 'cms_read', 'social_channels', 'social_list', 'radar_
 const OWN = ['draft_save', 'check', 'schedule', 'due', 'claim', 'record', 'fail', 'pause', 'items', 'facts_sync', 'gsc_sync', 'seo_brief', 'page_view', 'page_action', 'channels_setup', 'raised', 'answer', 'replies_sync', 'reply_save', 'video_import', 'campaign_save', 'campaign_report', 'campaign_verify', 'plan', 'channels_probe', 'report', 'radar_read', 'signals_list', 'signals_mark', 'video_stats', 'inputs_health'];
 
 test('the pack is one flat set: five role skills, three social skills, the video glue, every hub tool once and the hubless tools', () => {
-  assert.deepEqual(pack.skills.map(s => s.name), ['marketing-radar', 'marketing-write', 'marketing-edit', 'marketing-publish', 'marketing-measure', 'marketing-browser-post', 'marketing-dispatch', 'marketing-replies', 'marketing-video']);
+  assert.deepEqual(skills.map(s => s.name).sort(), ['marketing-browser-post', 'marketing-dispatch', 'marketing-edit', 'marketing-measure', 'marketing-publish', 'marketing-radar', 'marketing-replies', 'marketing-video', 'marketing-write']);
   assert.deepEqual(pack.tools.map(t => t.name).sort(), [...HUB, ...OWN].sort());
   assert.equal(new Set(pack.tools.map(t => t.name)).size, HUB.length + OWN.length);
   assert.equal(pack.capabilities, undefined);
@@ -64,7 +66,7 @@ test('publishing still binds the reviewed revision', () => {
 });
 
 test('the pack is product-neutral: brands live in each product\'s own skill', () => {
-  const files = [join(root, 'pack.json'), ...pack.skills.map(s => join(root, s.file))];
+  const files = [join(root, 'pack.json'), ...skills.map(s => join(root, s.file))];
   for (const file of files) {
     assert.ok(existsSync(file), file);
     assert.doesNotMatch(readFileSync(file, 'utf8'), /2found|2novel|lohi|trysoot|FOUND_HUB|found_hub/i, file);
@@ -72,7 +74,7 @@ test('the pack is product-neutral: brands live in each product\'s own skill', ()
 });
 
 test('the role skills work on tasks, team tables and team memory', () => {
-  const read = name => readFileSync(join(root, 'skills', `${name}.md`), 'utf8');
+  const read = name => readFileSync(join(root, 'skills', `marketing-${name}`, 'SKILL.md'), 'utf8');
   assert.match(read('radar'), /`signals`/);
   assert.match(read('write'), /`content`[\s\S]*`review`/);
   assert.match(read('edit'), /learn/);

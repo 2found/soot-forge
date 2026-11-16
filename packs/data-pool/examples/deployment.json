@@ -1,6 +1,8 @@
 {
-  "listen": "127.0.0.1:0",
-  "data_dir": "data",
+  "server": {
+    "listen": "127.0.0.1:0",
+    "data_dir": "data"
+  },
   "packs_dir": "packs",
   "soots": [
     "soots/data-manager.json",

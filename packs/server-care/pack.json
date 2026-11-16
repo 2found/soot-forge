@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "server-care",
-  "label": {
+  "name": {
     "vi": "Chăm sóc máy chủ",
     "en": "Server care"
+  },
+  "description": {
+    "vi": "Kiểm tra ứng dụng không ổn định, dùng runbook đã cấp, xác minh hoặc báo lên.",
+    "en": "Inspect unhealthy apps, use granted runbooks, verify or escalate."
   },
   "keywords": {
     "vi": [
@@ -17,28 +19,6 @@
       "monitoring"
     ]
   },
-  "description": {
-    "vi": "Kiểm tra ứng dụng không ổn định, dùng runbook đã cấp, xác minh hoặc báo lên.",
-    "en": "Inspect unhealthy apps, use granted runbooks, verify or escalate."
-  },
-  "skills": [
-    {
-      "name": "server-care",
-      "description": "Inspect unhealthy apps, use granted runbooks, verify or escalate.",
-      "file": "skill.md"
-    }
-  ],
-  "outcomes": [
-    {
-      "id": "alert_triaged",
-      "label": {
-        "vi": "Cảnh báo đã xử lý",
-        "en": "Alert triaged"
-      },
-      "unit": "alert",
-      "void_window": "24h"
-    }
-  ],
   "tools": [
     {
       "name": "remediate",
@@ -98,5 +78,16 @@
         "description": "JSON {url, key?}: địa chỉ HTTPS nhận yêu cầu sửa (restart hoặc reload một dịch vụ) và khoá tuỳ chọn gửi kèm. Chỉ chạy sau khi người vận hành duyệt."
       }
     }
-  }
+  },
+  "outcomes": [
+    {
+      "id": "alert_triaged",
+      "label": {
+        "vi": "Cảnh báo đã xử lý",
+        "en": "Alert triaged"
+      },
+      "unit": "alert",
+      "void_window": "24h"
+    }
+  ]
 }

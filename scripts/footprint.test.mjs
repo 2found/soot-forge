@@ -91,10 +91,10 @@ test('only bundled catalog packs are slimmed by default; an external pack ships 
 });
 
 test('compare fails closed when a pack, tool or skill id disappears', () => {
-  const manifest = { id: 'p', tools: [{ name: 't' }], skills: [{ name: 's', file: 'skills/s.md' }, { file: 'skills/other.md' }] };
-  assert.deepEqual(packIds(manifest), { tools: ['t'], skills: ['p_other', 's'] });
+  const manifest = { tools: [{ name: 't' }] };
+  assert.deepEqual(packIds(manifest, [{ name: 's' }, { name: 'other' }]), { tools: ['t'], skills: ['other', 's'] });
   const pack = (id, ids, bytes) => ({ id, ids, tracked_bytes: bytes, tracked_files: 1, installed_bytes: bytes, installed_files: 1, archive_bytes: bytes, archive_sha256: id });
-  const full = packIds(manifest), before = { packs: [pack('p', full, 100), pack('q', full, 10)] };
+  const full = packIds(manifest, [{ name: 's' }]), before = { packs: [pack('p', full, 100), pack('q', full, 10)] };
   const slimmer = { packs: [pack('p', full, 60), pack('q', full, 10)] };
   assert.deepEqual(removedIds(before, slimmer), []);
   assert.deepEqual(removedIds(before, { packs: [pack('p', { ...full, tools: [] }, 60)] }),

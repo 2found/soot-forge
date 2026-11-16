@@ -81,7 +81,7 @@ export const PROPOSALS_GROUP = 'company:proposals';
  * acknowledges; it never wakes a model. The link is a structured field, not text in the body.
  */
 export async function opportunities_card(input, deps) {
-  // One product (input, else SOOT_PRODUCT) keeps its own card (its own group), so products never settle each other's.
+  // One product (input, else SOOT_PROJECT) keeps its own card (its own group), so products never settle each other's.
   const want = scopeProduct(input, deps.env);
   const group = want ? `${PROPOSALS_GROUP}:${want}` : PROPOSALS_GROUP;
   const host = want ? await hostProduct(deps.store, null) : null;
@@ -102,7 +102,7 @@ const view = o => ({ ref: o.ref, title: o.title, kind: o.kind, state: o.state })
 export async function digest_save(input, deps) {
   const { store, now } = deps;
   const scope = scopeProduct(input, deps.env);
-  // `product` (input, else the run's SOOT_PRODUCT) is the product of the whole digest: an item may leave its own out, and an
+  // `product` (input, else the run's SOOT_PROJECT) is the product of the whole digest: an item may leave its own out, and an
   // item of another product is refused rather than filed under the wrong one.
   const items = Array.isArray(input.opportunities) ? input.opportunities.map(it => (it && typeof it === 'object' && !Array.isArray(it) && scope && it.product === undefined ? { ...it, product: scope } : it)) : input.opportunities;
   if (!Array.isArray(items) || !items.length || items.length > 5) fail('invalid_request', 'opportunities là danh sách 1–5 cơ hội.');
@@ -182,7 +182,7 @@ export const HANDED = ['handed', 'taken'];
 /** The oldest queued topic, marked handed. In a chain (`chain: true`) it is only the query, one at a time and at most one a day. */
 export async function topic_next(input, deps) {
   const { store, now } = deps;
-  // One product (input, else SOOT_PRODUCT) takes only its own topics (an unlabeled one reads as the host's); none takes any.
+  // One product (input, else SOOT_PROJECT) takes only its own topics (an unlabeled one reads as the host's); none takes any.
   const want = scopeProduct(input, deps.env);
   const host = want ? await hostProduct(store, null) : null;
   const mine = t => !want || (productId(t.product) ?? host) === want;

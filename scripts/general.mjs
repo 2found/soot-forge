@@ -15,7 +15,7 @@ const FORGE = '2found/soot-forge';
 const PACKS_DIR = 'packs';
 const SOOT = 'soots/general/soot.json';
 // Source file in general/ -> path inside the release. The soot.json order is the manifest order.
-const DEFINITION = [['soot.json', SOOT], ['SOUL.md', 'soots/general/SOUL.md'], ['mission.md', 'soots/general/mission.md']];
+const DEFINITION = [['soot.json', SOOT], ['SOUL.md', 'soots/general/SOUL.md'], ['MISSION.md', 'soots/general/MISSION.md']];
 // A pack selection: a pack id, or `<id>:read` for its skills and read-mode tools only.
 const selector = /^[a-z0-9][a-z0-9_-]{0,63}(:read)?$/;
 const LEAD = 'nest-lead';
@@ -73,7 +73,7 @@ export async function readGeneral(root, catalog) {
   const files = new Map();
   for (const [name, path] of DEFINITION) files.set(path, await readFile(join(dir, name)));
   const definition = JSON.parse(files.get(SOOT));
-  if (definition.id !== 'general') throw new Error('general/soot.json must define the soot "general"');
+  if ('id' in definition) throw new Error('general/soot.json takes its id from the folder; remove "id"');
   const preset = validatePreset(JSON.parse(await readFile(join(dir, 'preset.json'), 'utf8')), catalog);
   return { files, preset };
 }

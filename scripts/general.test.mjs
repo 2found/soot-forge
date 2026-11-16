@@ -43,9 +43,9 @@ test('the release integer grows with the Forge version and refuses what it canno
 
 test('General is the 2agent template, with 2build fetched from Forge', async () => {
   // Digests of general/* (the General Soot definition).
-  const sources = { 'soot.json': '4287b895e06cbedf48e8f44e3a2baf34ad9855f550d9ba7960b575e0bf90c9ac',
+  const sources = { 'soot.json': '45ca491b47f5eaebb7ef7af5fcebe39d919cd8ba389ba08b1a249d24b8e85017',
     'SOUL.md': '43b7134ff212166c8960e356295f5b975f6f3e79cef528a20394a438ec63bed4',
-    'mission.md': '8d117b67719b82bc1e60fa7c64e2acfc783198c6d0c5b2ccb4fc4d96ac3b62cb' };
+    'MISSION.md': '8d117b67719b82bc1e60fa7c64e2acfc783198c6d0c5b2ccb4fc4d96ac3b62cb' };
   for (const [name, digest] of Object.entries(sources)) assert.equal(sha256(await readFile(join(root, 'general', name))), digest, name);
   const { preset } = await readGeneral(root, catalog);
   assert.deepEqual(Object.values(preset.sources).map(source => source.github_latest), Array(preset.install.length).fill('2found/soot-forge'));
@@ -83,7 +83,7 @@ test('the release archive is a bounded soot/release-v1 definition with no pack f
   assert.notDeepEqual(archive, releaseArchive('0.3.1', files, preset));
 
   const entries = tarEntries(gunzipSync(archive));
-  assert.deepEqual(entries.map(entry => entry.name), ['release.json', 'files/soots/general/SOUL.md', 'files/soots/general/mission.md', 'files/soots/general/soot.json']);
+  assert.deepEqual(entries.map(entry => entry.name), ['release.json', 'files/soots/general/MISSION.md', 'files/soots/general/SOUL.md', 'files/soots/general/soot.json']);
   for (const entry of entries) assert.deepEqual([entry.type, entry.mode, entry.uid, entry.gid, entry.mtime], ['0', 0o600, 0, 0, 0], entry.name);
 
   const manifest = JSON.parse(entries[0].content);
@@ -105,7 +105,7 @@ test('a standard tar reader lists the release archive', async t => {
   const out = join(dir, 'dist'); await mkdir(out);
   await buildGeneral(root, out, '0.3.0', catalog);
   const { stdout } = await promisify(execFile)('tar', ['-tzf', join(out, 'general-release_0.3.0.tar.gz')]);
-  assert.deepEqual(stdout.trim().split('\n'), ['release.json', 'files/soots/general/SOUL.md', 'files/soots/general/mission.md', 'files/soots/general/soot.json']);
+  assert.deepEqual(stdout.trim().split('\n'), ['release.json', 'files/soots/general/MISSION.md', 'files/soots/general/SOUL.md', 'files/soots/general/soot.json']);
 });
 
 test('both assets are written, summed and identical across builds', async t => {

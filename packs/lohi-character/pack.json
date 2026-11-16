@@ -1,8 +1,5 @@
 {
-  "api_version": "soot/v1",
-  "id": "lohi-character",
-  "name": "Lohi Character",
-  "label": {
+  "name": {
     "vi": "Linh thể Lohi",
     "en": "Lohi characters"
   },
@@ -25,13 +22,6 @@
       "novel room"
     ]
   },
-  "skills": [
-    {
-      "name": "character",
-      "file": "skills/character.md",
-      "description": "Answer one companion.answer job as the linh thể named in the job: stay in character as of the asker's chapter, refuse spoilers, say you are an AI when asked, 120-250 tokens, return {reply, remember}."
-    }
-  ],
   "tools": [
     {
       "name": "context",

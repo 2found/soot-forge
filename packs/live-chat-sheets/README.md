@@ -2,7 +2,7 @@
 
 Reusable Google Sheets sink for public Live chat transcripts. Optional integration for the website Live chat in [Soot Nest](../soot-nest/README.md) (the [`website-chat`](../website-chat/) pack). Installing it does not start a worker or grant Google access. The host selects the `live-chat-sheets` pack for an owner configurator, installs the Node dependencies, then explicitly adds a tenant-scoped binding to the host-owned gateway. The adapter owns ingress, OAuth, vault and durable export queue; Soot retains canonical conversation history.
 
-What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/domain/SKILL.md); this pack is kept separate from it on purpose: it needs `google-auth-library`, and the default install stays light.
+What Soots, packs, grants and teams are is in the [Soot guide](../soot/skills/soot-domain/SKILL.md); this pack is kept separate from it on purpose: it needs `google-auth-library`, and the default install stays light.
 
 `tools/client.mjs` is the fixed-endpoint Google Sheets client used by the adapter. `tools/control.mjs` is a scoped executable SDK tool (tools `view` read, `action` write); `NO_CODE_URL` (the complete `/admin/control` endpoint URL) and `NO_CODE_TOKEN` are operator credentials declared in `pack.json` `needs` and entered per Soot in Nest, or bound by a deployment `credentials` entry with `operations`. No model-supplied URLs or Google secrets are accepted.
 

@@ -50,7 +50,7 @@ and [Data Pool](https://trysoot.com/docs/data-pool/index.md). It holds:
 | file | what it is |
 | --- | --- |
 | `soot/source.json` | the four Soots, the `acme-marketing` group, two schedules, the products knowledge pool |
-| `soot/soots/acme-*/mission.md` | **your company**: audience, sources, channels, languages, daily limit |
+| `soot/soots/acme-*/MISSION.md` | **your company**: audience, sources, channels, languages, daily limit |
 | `soot/soots/acme-*/SOUL.md` | each role's character |
 | `soot/packs/acme-marketing/` | **the procedure**, as skills: shared workspace, radar, writing, review and publishing, posting |
 

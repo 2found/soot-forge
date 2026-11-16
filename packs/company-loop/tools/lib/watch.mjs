@@ -10,7 +10,7 @@
 // insight team as `handoff_events`, and what the founder decided on the insight team's page comes back the other way, read
 // from its `handoffs` row: the answer to a question (written to the ticket here, where bbs is), "Đã phát hành", and a
 // build given to a person. A build never records an outcome or a topic here, and raises only the reminder for a session
-// that never started. One product (input, else SOOT_PRODUCT) watches only its own rows.
+// that never started. One product (input, else SOOT_PROJECT) watches only its own rows.
 import { eq, inList, iso, short } from './base.mjs';
 import { productId, scopeProduct, hostProduct } from './products.mjs';
 import { insightTeam, pushEvents, shipped } from './build.mjs';

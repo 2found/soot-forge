@@ -1,10 +1,12 @@
 {
-  "api_version": "soot/v1",
+  "name": {
+    "en": "Lohi ops",
+    "vi": "Vận hành Lohi"
+  },
   "description": {
     "en": "Lohi operations beyond marketing: catalog health and quality, duplicate novels, request/edit/violation queues, enrichment, Litrans jobs, comments, App Store reviews, SEO and pricing. Money and content takedowns stay with a person.",
     "vi": "Vận hành Lohi ngoài marketing: sức khoẻ và chất lượng kho truyện, truyện trùng, hàng đợi yêu cầu, sửa chữ, báo cáo vi phạm, làm giàu dữ liệu, dịch Litrans, bình luận, đánh giá App Store, SEO và giá. Tiền bạc và gỡ nội dung là quyết định của người."
   },
-  "id": "lohi-ops",
   "keywords": {
     "en": [
       "lohi",
@@ -15,491 +17,6 @@
       "lohi",
       "vận hành"
     ]
-  },
-  "label": {
-    "en": "Lohi ops",
-    "vi": "Vận hành Lohi"
-  },
-  "needs": {
-    "credentials": {
-      "ASC_API_KEY": {
-        "description": "JSON {\"key_id\",\"issuer_id\",\"private_key\"} của khoá App Store Connect API (quyền Customer Support) do chủ tài khoản Apple tạo; chỉ để đăng phản hồi đánh giá. Không có khoá thì Soot chỉ soạn nháp. Nhập trong Nest, không nhập trong chat.",
-        "from": "operator",
-        "optional": true,
-        "title": "Khoá App Store Connect API"
-      },
-      "GSC_GOOGLE": {
-        "description": "Đăng nhập Google trong Nest để Soot đọc số hiển thị, lượt bấm và vị trí của các trang truyện (chỉ quyền đọc). Cùng đăng nhập với gói marketing.",
-        "from": "operator",
-        "oauth": {
-          "provider": "google",
-          "scopes": [
-            "https://www.googleapis.com/auth/webmasters.readonly"
-          ]
-        },
-        "optional": true,
-        "title": "Google Search Console"
-      },
-      "PRODUCT_ADMIN_KEY": {
-        "description": "Khoá agent_mod dùng chung cũ. Chỉ là phương án dự phòng khi chưa có PRODUCT_AGENT_KEY; sẽ bị bỏ sau khi mọi Soot đã đổi khoá (docs/AGENT-KEYS.md). Chỉ gửi tới PRODUCT_API_URL.",
-        "from": "operator",
-        "optional": true,
-        "title": "Khoá agent_mod dùng chung (đã lỗi thời)"
-      },
-      "PRODUCT_AGENT_KEY": {
-        "description": "Khoá API của Soot này, đúng một vai trò agent (agent_analyst, agent_moderator, agent_curator, agent_catalog_exec hoặc agent_marketing) tuỳ công cụ nó dùng; mỗi công cụ ghi vai trò cần trong README. Chỉ gửi tới PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
-        "from": "operator",
-        "optional": true,
-        "title": "Khoá agent Lohi"
-      }
-    },
-    "env": [
-      "PRODUCT_API_URL",
-      "CLI_CATALOG_DB",
-      "CLI_DIR",
-      "SOOT_BIN",
-      "APPSTORE_APP_ID",
-      "APPSTORE_COUNTRY",
-      "GSC_SITE",
-      "SITE_URL",
-      "PATH",
-      "HOME"
-    ],
-    "runtime": [
-      "data.read",
-      "data.insert"
-    ]
-  },
-  "skills": [
-    {
-      "description": "Judge a batch of reader comments (spam, abuse, scam, ok, unsure) and hand the verdicts to the pack, which hides only the clear ones.",
-      "file": "skills/moderation/SKILL.md",
-      "name": "lohi-ops-moderation"
-    },
-    {
-      "description": "Draft Vietnamese replies to low-rated App Store reviews; never post without a person approving that reply.",
-      "file": "skills/reviews/SKILL.md",
-      "name": "lohi-ops-reviews"
-    },
-    {
-      "description": "Daily routine of the curator Soot: catalog quality, duplicates, requests, edit suggestions, violation reports, enrichment, Litrans health, then comments and reviews; what it decides alone and what it hands to a person. A quality request is mailed to Catalog Exec and closed from its reply.",
-      "file": "skills/curator/SKILL.md",
-      "name": "lohi-ops-curator"
-    },
-    {
-      "description": "How the Workshop builder runs the curator's catalog jobs on the founder's Mac: jobs run on their own (autorun, radar); the model only settles a request link the catalog has never seen and reads failures.",
-      "file": "skills/builder/SKILL.md",
-      "name": "lohi-ops-builder"
-    },
-    {
-      "description": "Catalog Exec's release gate: sample the first batch of a new novel, judge it by the flags, give one verdict. Short; read only this for ops-release-step.",
-      "file": "skills/release/SKILL.md",
-      "name": "lohi-ops-release"
-    }
-  ],
-  "storage": {
-    "tables": [
-      {
-        "columns": [
-          {
-            "name": "key",
-            "required": true,
-            "type": "text",
-            "unique": true
-          },
-          {
-            "index": true,
-            "name": "check",
-            "type": "text"
-          },
-          {
-            "name": "severity",
-            "type": "text"
-          },
-          {
-            "name": "subject",
-            "search": true,
-            "type": "text"
-          },
-          {
-            "name": "detail",
-            "type": "text"
-          },
-          {
-            "name": "actionable",
-            "type": "boolean"
-          },
-          {
-            "name": "first_seen",
-            "type": "timestamp"
-          },
-          {
-            "name": "last_seen",
-            "type": "timestamp"
-          }
-        ],
-        "description": "Điều bảng sức khoẻ kho truyện đã thấy: truyện ngừng cập nhật, thiếu chương, chương trống hoặc chưa dịch.",
-        "name": "findings"
-      },
-      {
-        "columns": [
-          {
-            "name": "reply_id",
-            "required": true,
-            "type": "text",
-            "unique": true
-          },
-          {
-            "name": "source",
-            "type": "text"
-          },
-          {
-            "name": "excerpt",
-            "type": "text"
-          },
-          {
-            "index": true,
-            "name": "state",
-            "type": "text"
-          },
-          {
-            "name": "verdict",
-            "type": "text"
-          },
-          {
-            "name": "confidence",
-            "type": "number"
-          },
-          {
-            "name": "why",
-            "type": "text"
-          },
-          {
-            "name": "decided_at",
-            "type": "timestamp"
-          }
-        ],
-        "description": "Bình luận đã đưa cho Soot xem và quyết định cho từng cái: ẩn, giữ, hay chờ người.",
-        "name": "comments"
-      },
-      {
-        "columns": [
-          {
-            "name": "rid",
-            "required": true,
-            "type": "text",
-            "unique": true
-          },
-          {
-            "index": true,
-            "name": "rating",
-            "type": "integer"
-          },
-          {
-            "name": "title",
-            "search": true,
-            "type": "text"
-          },
-          {
-            "name": "body",
-            "search": true,
-            "type": "text"
-          },
-          {
-            "name": "version",
-            "type": "text"
-          },
-          {
-            "index": true,
-            "name": "posted_at",
-            "type": "text"
-          },
-          {
-            "name": "country",
-            "type": "text"
-          },
-          {
-            "index": true,
-            "name": "state",
-            "type": "text"
-          },
-          {
-            "name": "reply_draft",
-            "type": "text"
-          },
-          {
-            "name": "asc_id",
-            "type": "text"
-          },
-          {
-            "name": "replied_at",
-            "type": "timestamp"
-          }
-        ],
-        "description": "Đánh giá công khai trên App Store, bản nháp phản hồi và trạng thái đăng.",
-        "name": "reviews"
-      },
-      {
-        "columns": [
-          {
-            "name": "key",
-            "required": true,
-            "type": "text",
-            "unique": true
-          },
-          {
-            "name": "value",
-            "type": "json"
-          }
-        ],
-        "description": "Trạng thái nhỏ: thẻ Cần bạn đã báo, để không báo lại khi chưa có gì đổi.",
-        "name": "state"
-      },
-      {
-        "columns": [
-          {
-            "index": true,
-            "name": "product",
-            "type": "text"
-          },
-          {
-            "index": true,
-            "name": "kind",
-            "type": "text"
-          },
-          {
-            "name": "subject",
-            "search": true,
-            "type": "text"
-          },
-          {
-            "name": "reason",
-            "type": "text"
-          },
-          {
-            "index": true,
-            "name": "state",
-            "type": "text"
-          },
-          {
-            "name": "approved_by",
-            "type": "text"
-          },
-          {
-            "name": "result",
-            "type": "text"
-          },
-          {
-            "name": "at",
-            "type": "timestamp"
-          },
-          {
-            "index": true,
-            "name": "request_id",
-            "type": "text"
-          },
-          {
-            "name": "title",
-            "type": "text"
-          },
-          {
-            "name": "source_url",
-            "type": "text"
-          },
-          {
-            "name": "novel_slug",
-            "type": "text"
-          },
-          {
-            "name": "chapters",
-            "type": "text"
-          },
-          {
-            "name": "copyright",
-            "type": "text"
-          },
-          {
-            "name": "acked",
-            "type": "boolean"
-          }
-        ],
-        "description": "Việc thu thập curator xin Workshop làm (sau khi người duyệt): thu thập, onboard, làm mới, sửa chương.",
-        "name": "catalog_jobs"
-      },
-      {
-        "columns": [
-          {
-            "index": true,
-            "name": "job_id",
-            "required": true,
-            "type": "text"
-          },
-          {
-            "name": "state",
-            "required": true,
-            "type": "text"
-          },
-          {
-            "name": "detail",
-            "type": "text"
-          },
-          {
-            "name": "at",
-            "type": "timestamp"
-          },
-          {
-            "name": "novel_slug",
-            "type": "text"
-          },
-          {
-            "name": "chapters",
-            "type": "text"
-          },
-          {
-            "name": "copyright",
-            "type": "text"
-          }
-        ],
-        "description": "Hàng đợi chỉ thêm: máy Workshop báo việc thu thập đang chạy, xong hay lỗi. catalog_jobs_sync gộp vào catalog_jobs.",
-        "name": "catalog_job_events"
-      },
-      {
-        "columns": [
-          {
-            "name": "key",
-            "required": true,
-            "type": "text",
-            "unique": true
-          },
-          {
-            "name": "type",
-            "type": "text"
-          },
-          {
-            "index": true,
-            "name": "outcome",
-            "type": "text"
-          },
-          {
-            "name": "novel_slug",
-            "type": "text"
-          },
-          {
-            "name": "chapters",
-            "type": "text"
-          },
-          {
-            "name": "note",
-            "type": "text"
-          },
-          {
-            "name": "at",
-            "type": "timestamp"
-          }
-        ],
-        "description": "Điều đã xảy ra với mỗi yêu cầu rời hàng đợi: gắn vào truyện có sẵn, trùng, xong, đã dịch, bị chặn bản quyền.",
-        "name": "request_outcomes"
-      },
-      {
-        "columns": [
-          {
-            "name": "key",
-            "required": true,
-            "type": "text",
-            "unique": true
-          },
-          {
-            "name": "request_id",
-            "type": "text"
-          },
-          {
-            "index": true,
-            "name": "phase",
-            "type": "text"
-          },
-          {
-            "name": "from_chapter",
-            "type": "integer"
-          },
-          {
-            "name": "to_chapter",
-            "type": "integer"
-          },
-          {
-            "name": "job_id",
-            "type": "text"
-          },
-          {
-            "name": "detail",
-            "type": "text"
-          },
-          {
-            "name": "rest_from",
-            "type": "integer"
-          },
-          {
-            "name": "rest_to",
-            "type": "integer"
-          },
-          {
-            "name": "announce",
-            "type": "boolean"
-          },
-          {
-            "name": "at",
-            "type": "timestamp"
-          }
-        ],
-        "description": "Đợt dịch đầu của truyện vừa lên hoặc vừa thêm chương: xin, chờ job Litrans, kéo về, báo người yêu cầu.",
-        "name": "translations"
-      },
-      {
-        "columns": [
-          {
-            "name": "key",
-            "required": true,
-            "type": "text",
-            "unique": true
-          },
-          {
-            "name": "kind",
-            "type": "text"
-          },
-          {
-            "name": "novel_slug",
-            "type": "text"
-          },
-          {
-            "name": "chapter",
-            "type": "integer"
-          },
-          {
-            "index": true,
-            "name": "state",
-            "type": "text"
-          },
-          {
-            "name": "detail",
-            "type": "text"
-          },
-          {
-            "name": "acked",
-            "type": "boolean"
-          },
-          {
-            "name": "started_at",
-            "type": "timestamp"
-          },
-          {
-            "name": "at",
-            "type": "timestamp"
-          }
-        ],
-        "description": "Việc sửa chương đã chạy và kết quả kiểm lại: chờ kiểm, đạt, hỏng, phạm vi rộng.",
-        "name": "fix_checks"
-      }
-    ],
-    "version": 4
   },
   "tools": [
     {
@@ -2554,5 +2071,459 @@
       },
       "title": "Đưa truyện mới tới phát hành"
     }
-  ]
+  ],
+  "needs": {
+    "credentials": {
+      "ASC_API_KEY": {
+        "description": "JSON {\"key_id\",\"issuer_id\",\"private_key\"} của khoá App Store Connect API (quyền Customer Support) do chủ tài khoản Apple tạo; chỉ để đăng phản hồi đánh giá. Không có khoá thì Soot chỉ soạn nháp. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true,
+        "title": "Khoá App Store Connect API"
+      },
+      "GSC_GOOGLE": {
+        "description": "Đăng nhập Google trong Nest để Soot đọc số hiển thị, lượt bấm và vị trí của các trang truyện (chỉ quyền đọc). Cùng đăng nhập với gói marketing.",
+        "from": "operator",
+        "oauth": {
+          "provider": "google",
+          "scopes": [
+            "https://www.googleapis.com/auth/webmasters.readonly"
+          ]
+        },
+        "optional": true,
+        "title": "Google Search Console"
+      },
+      "PRODUCT_ADMIN_KEY": {
+        "description": "Khoá agent_mod dùng chung cũ. Chỉ là phương án dự phòng khi chưa có PRODUCT_AGENT_KEY; sẽ bị bỏ sau khi mọi Soot đã đổi khoá (docs/AGENT-KEYS.md). Chỉ gửi tới PRODUCT_API_URL.",
+        "from": "operator",
+        "optional": true,
+        "title": "Khoá agent_mod dùng chung (đã lỗi thời)"
+      },
+      "PRODUCT_AGENT_KEY": {
+        "description": "Khoá API của Soot này, đúng một vai trò agent (agent_analyst, agent_moderator, agent_curator, agent_catalog_exec hoặc agent_marketing) tuỳ công cụ nó dùng; mỗi công cụ ghi vai trò cần trong README. Chỉ gửi tới PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true,
+        "title": "Khoá agent Lohi"
+      }
+    },
+    "env": [
+      "PRODUCT_API_URL",
+      "CLI_CATALOG_DB",
+      "CLI_DIR",
+      "SOOT_BIN",
+      "APPSTORE_APP_ID",
+      "APPSTORE_COUNTRY",
+      "GSC_SITE",
+      "SITE_URL",
+      "PATH",
+      "HOME"
+    ],
+    "runtime": [
+      "data.read",
+      "data.insert"
+    ]
+  },
+  "storage": {
+    "tables": [
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "index": true,
+            "name": "check",
+            "type": "text"
+          },
+          {
+            "name": "severity",
+            "type": "text"
+          },
+          {
+            "name": "subject",
+            "search": true,
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "actionable",
+            "type": "boolean"
+          },
+          {
+            "name": "first_seen",
+            "type": "timestamp"
+          },
+          {
+            "name": "last_seen",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Điều bảng sức khoẻ kho truyện đã thấy: truyện ngừng cập nhật, thiếu chương, chương trống hoặc chưa dịch.",
+        "name": "findings"
+      },
+      {
+        "columns": [
+          {
+            "name": "reply_id",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "source",
+            "type": "text"
+          },
+          {
+            "name": "excerpt",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "verdict",
+            "type": "text"
+          },
+          {
+            "name": "confidence",
+            "type": "number"
+          },
+          {
+            "name": "why",
+            "type": "text"
+          },
+          {
+            "name": "decided_at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Bình luận đã đưa cho Soot xem và quyết định cho từng cái: ẩn, giữ, hay chờ người.",
+        "name": "comments"
+      },
+      {
+        "columns": [
+          {
+            "name": "rid",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "index": true,
+            "name": "rating",
+            "type": "integer"
+          },
+          {
+            "name": "title",
+            "search": true,
+            "type": "text"
+          },
+          {
+            "name": "body",
+            "search": true,
+            "type": "text"
+          },
+          {
+            "name": "version",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "posted_at",
+            "type": "text"
+          },
+          {
+            "name": "country",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "reply_draft",
+            "type": "text"
+          },
+          {
+            "name": "asc_id",
+            "type": "text"
+          },
+          {
+            "name": "replied_at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Đánh giá công khai trên App Store, bản nháp phản hồi và trạng thái đăng.",
+        "name": "reviews"
+      },
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "value",
+            "type": "json"
+          }
+        ],
+        "description": "Trạng thái nhỏ: thẻ Cần bạn đã báo, để không báo lại khi chưa có gì đổi.",
+        "name": "state"
+      },
+      {
+        "columns": [
+          {
+            "index": true,
+            "name": "product",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "kind",
+            "type": "text"
+          },
+          {
+            "name": "subject",
+            "search": true,
+            "type": "text"
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "approved_by",
+            "type": "text"
+          },
+          {
+            "name": "result",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          },
+          {
+            "index": true,
+            "name": "request_id",
+            "type": "text"
+          },
+          {
+            "name": "title",
+            "type": "text"
+          },
+          {
+            "name": "source_url",
+            "type": "text"
+          },
+          {
+            "name": "novel_slug",
+            "type": "text"
+          },
+          {
+            "name": "chapters",
+            "type": "text"
+          },
+          {
+            "name": "copyright",
+            "type": "text"
+          },
+          {
+            "name": "acked",
+            "type": "boolean"
+          }
+        ],
+        "description": "Việc thu thập curator xin Workshop làm (sau khi người duyệt): thu thập, onboard, làm mới, sửa chương.",
+        "name": "catalog_jobs"
+      },
+      {
+        "columns": [
+          {
+            "index": true,
+            "name": "job_id",
+            "required": true,
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "required": true,
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          },
+          {
+            "name": "novel_slug",
+            "type": "text"
+          },
+          {
+            "name": "chapters",
+            "type": "text"
+          },
+          {
+            "name": "copyright",
+            "type": "text"
+          }
+        ],
+        "description": "Hàng đợi chỉ thêm: máy Workshop báo việc thu thập đang chạy, xong hay lỗi. catalog_jobs_sync gộp vào catalog_jobs.",
+        "name": "catalog_job_events"
+      },
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "type",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "outcome",
+            "type": "text"
+          },
+          {
+            "name": "novel_slug",
+            "type": "text"
+          },
+          {
+            "name": "chapters",
+            "type": "text"
+          },
+          {
+            "name": "note",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Điều đã xảy ra với mỗi yêu cầu rời hàng đợi: gắn vào truyện có sẵn, trùng, xong, đã dịch, bị chặn bản quyền.",
+        "name": "request_outcomes"
+      },
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "request_id",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "phase",
+            "type": "text"
+          },
+          {
+            "name": "from_chapter",
+            "type": "integer"
+          },
+          {
+            "name": "to_chapter",
+            "type": "integer"
+          },
+          {
+            "name": "job_id",
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "rest_from",
+            "type": "integer"
+          },
+          {
+            "name": "rest_to",
+            "type": "integer"
+          },
+          {
+            "name": "announce",
+            "type": "boolean"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Đợt dịch đầu của truyện vừa lên hoặc vừa thêm chương: xin, chờ job Litrans, kéo về, báo người yêu cầu.",
+        "name": "translations"
+      },
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "kind",
+            "type": "text"
+          },
+          {
+            "name": "novel_slug",
+            "type": "text"
+          },
+          {
+            "name": "chapter",
+            "type": "integer"
+          },
+          {
+            "index": true,
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "acked",
+            "type": "boolean"
+          },
+          {
+            "name": "started_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Việc sửa chương đã chạy và kết quả kiểm lại: chờ kiểm, đạt, hỏng, phạm vi rộng.",
+        "name": "fix_checks"
+      }
+    ],
+    "version": 4
+  }
 }

@@ -1,8 +1,5 @@
 {
-  "api_version": "soot/v1",
-  "id": "lohi-cs",
-  "name": "Lohi CS",
-  "label": {
+  "name": {
     "vi": "CSKH Lohi",
     "en": "Lohi customer care"
   },
@@ -27,58 +24,6 @@
       "audio"
     ]
   },
-  "skills": [
-    {
-      "name": "lohi-triage",
-      "file": "skills/lohi-triage.md",
-      "description": "Lohi router, read after team-cs's cs-triage: pick the Lohi skill for the reader's issue (top-up, chapter, name, TTS, audio-pro, features, recommendations, novel request, account)."
-    },
-    {
-      "name": "topup-triage",
-      "file": "skills/topup-triage.md",
-      "description": "Nạp LT chưa vào: tra top-up/đơn của chính khách (lohi_lookup), và khi tiền đã trừ mà không có top-up completed thì hỏi khung giờ rồi gọi lohi_recover_topup một lần (chờ đội duyệt)."
-    },
-    {
-      "name": "chapter-triage",
-      "file": "skills/chapter-triage.md",
-      "description": "Chương thiếu / trống / còn tiếng Trung / nhảy số / sai chữ: tìm truyện, quét content_health, báo cho đội; đoạn sai khách trích nguyên văn hoặc chương hỏng thì lohi_fix_chapter (chờ đội duyệt)."
-    },
-    {
-      "name": "name-triage",
-      "file": "skills/name-triage.md",
-      "description": "Tên nhân vật dịch sai / lệch giữa các chương: đếm cách viết trong văn bản + Book Bible, mở phiếu duyệt cho đội — không tự sửa."
-    },
-    {
-      "name": "tts-triage",
-      "file": "skills/tts-triage.md",
-      "description": "Audio / audio Pro lỗi (phát 2 giây, trống, không nghe được): quét content_health, tách lỗi nội dung với lỗi audio, báo cho đội."
-    },
-    {
-      "name": "audio-pro",
-      "file": "skills/audio-pro.md",
-      "description": "Audio-pro / quota questions: subscription plan plus TTS and audio-pro quota used vs monthly limit."
-    },
-    {
-      "name": "feature-guide",
-      "file": "skills/feature-guide.md",
-      "description": "Hỏi về tính năng web/iOS/Android và gói thành viên: tra lookup features (giá, hạn mức, nền tảng, gói nào mở khóa), giải thích vì sao tính năng bị khóa."
-    },
-    {
-      "name": "novel-recommend",
-      "file": "skills/novel-recommend.md",
-      "description": "Gợi ý truyện theo mong muốn của độc giả: hỏi lại khi mơ hồ, chọn 3-5 truyện từ lookup recommend, giải thích ngắn vì sao hợp, kèm link."
-    },
-    {
-      "name": "novel-request",
-      "file": "skills/novel-request.md",
-      "description": "Create and check novel requests on behalf of the chatting user (idempotent; confirm the title back)."
-    },
-    {
-      "name": "account-help",
-      "file": "skills/account-help.md",
-      "description": "Đăng nhập, mất tài khoản, thiết bị, mã OTP: hướng dẫn theo trang trong kho lohi-support, không bao giờ thay đổi tài khoản."
-    }
-  ],
   "tools": [
     {
       "name": "lohi_lookup",
@@ -594,11 +539,6 @@
       }
     }
   ],
-  "interface": {
-    "subject": {
-      "view_tool": "lohi_subject_card"
-    }
-  },
   "needs": {
     "credentials": {
       "LOHI_CS": {
@@ -622,5 +562,10 @@
       "LOHI_PRODUCT",
       "LOHI_BINDINGS"
     ]
+  },
+  "interface": {
+    "subject": {
+      "view_tool": "lohi_subject_card"
+    }
   }
 }

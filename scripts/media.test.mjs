@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { readSkills } from './catalog.mjs';
 
 const packs = ['office', 'ocr', 'tts', 'google-workspace', 'video-editor', 'image-gen'];
 const root = new URL('../', import.meta.url);
@@ -10,10 +12,10 @@ test('media packs are standalone, opt-in and use operation-scoped host bindings'
   for (const id of packs) {
     const pack = new URL(`packs/${id}/`, root);
     const manifest = JSON.parse(await readFile(new URL('pack.json', pack), 'utf8'));
-    assert.equal(manifest.id, id);
+    for (const v1 of ['id', 'api_version', 'label', 'skills']) assert.equal(manifest[v1], undefined, `${id}: ${v1} is not a pack v2 key`);
     assert.equal(manifest.capabilities, undefined, id);
     assert.equal(manifest.use, undefined, id);
-    for (const skill of manifest.skills) {
+    for (const skill of await readSkills(fileURLToPath(pack))) {
       assert.ok((await readFile(new URL(skill.file, pack), 'utf8')).length > 250, `${id}/${skill.name}`);
     }
     for (const tool of manifest.tools ?? []) {
@@ -50,7 +52,7 @@ test('Google Workspace covers three services with no automatic grants', async ()
   }
   assert.equal(manifest.needs.credentials.GOOGLE_WORKSPACE_BINDING.from ?? 'operator', 'operator');
   const host = JSON.parse(await readFile(new URL('examples/media-workspace/deployment.example.json', root), 'utf8'));
-  assert.equal(host.pack_grants['google-workspace'].credentials.GOOGLE_WORKSPACE_BINDING, undefined, 'the operator enters it in Nest');
+  assert.equal(host.grants.packs['google-workspace'].credentials.GOOGLE_WORKSPACE_BINDING, undefined, 'the operator enters it in Nest');
 });
 
 test('optional HyperFrames host dependency is pinned and locked to the version 2build marketing-video renders with', async () => {

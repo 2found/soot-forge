@@ -429,5 +429,5 @@ test('the catalog and crawl schedules never ask the model to re-file the card th
   for (const id of ['ops-catalog-health', 'ops-crawl-watch']) assert.doesNotMatch(fragment.schedules.find(s => s.id === id).text, /report_blocker/, id);
   const approve = fragment.schedules.find(s => s.id === 'ops-reviews-approve');
   assert.equal(approve.tool.name, 'appstore_drafts');
-  assert.equal(fragment.approvals['lohi-ops_appstore_post'], 'operator', 'posting stays operator-approved');
+  assert.equal(fragment.grants.approvals['lohi-ops_appstore_post'], 'operator', 'posting stays operator-approved');
 });

@@ -1,10 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "google-workspace",
-  "name": "Google Workspace",
-  "label": {
+  "name": {
     "vi": "Google Docs, Sheets và Drive",
     "en": "Google Workspace"
+  },
+  "description": {
+    "vi": "Làm việc với Google Docs, Sheets và Drive bằng công cụ có giới hạn và biên nhận.",
+    "en": "Work with Google Docs, Sheets and Drive through scoped REST tools, bounded files and durable action receipts."
   },
   "keywords": {
     "vi": [
@@ -22,82 +23,6 @@
       "spreadsheet"
     ]
   },
-  "description": {
-    "vi": "Làm việc với Google Docs, Sheets và Drive bằng công cụ có giới hạn và biên nhận.",
-    "en": "Work with Google Docs, Sheets and Drive through scoped REST tools, bounded files and durable action receipts."
-  },
-  "skills": [
-    {
-      "name": "google_workspace_read",
-      "file": "skills/read.md",
-      "description": "Read Docs tabs, revision IDs and bounded Drive document listings."
-    },
-    {
-      "name": "google_workspace_write",
-      "file": "skills/write.md",
-      "description": "Create and edit Docs with durable action receipts and required revision IDs."
-    },
-    {
-      "name": "google_workspace_spec",
-      "file": "SPEC.md",
-      "description": "Exact JSON schemas, examples, limits and failure semantics for the pack tools."
-    },
-    {
-      "name": "google_workspace_export",
-      "file": "skills/export.md",
-      "description": "Export Google Docs to bounded PDF, Word or text files."
-    },
-    {
-      "name": "google_workspace_sheets_read",
-      "file": "skills/sheets.md",
-      "description": "Read real spreadsheet tabs and bounded cell ranges; distinguish formulas, formatted and raw values."
-    },
-    {
-      "name": "google_workspace_sheets_read_spec",
-      "file": "SPEC.md",
-      "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
-    },
-    {
-      "name": "google_workspace_sheets_write",
-      "file": "skills/sheets.md",
-      "description": "Create Sheets, write exact rectangles and append rows with durable receipts and honest concurrency limits."
-    },
-    {
-      "name": "google_workspace_sheets_write_spec",
-      "file": "SPEC.md",
-      "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
-    },
-    {
-      "name": "google_workspace_drive_read",
-      "file": "skills/drive.md",
-      "description": "List paginated visible files/folders and read metadata without arbitrary query or full-Drive scope."
-    },
-    {
-      "name": "google_workspace_drive_read_spec",
-      "file": "SPEC.md",
-      "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
-    },
-    {
-      "name": "google_workspace_drive_download",
-      "file": "skills/drive.md",
-      "description": "Download binary files or export Google-native files into new bounded local artifacts."
-    },
-    {
-      "name": "google_workspace_drive_download_spec",
-      "file": "SPEC.md",
-      "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
-    },
-    {
-      "name": "google_workspace_drive_write",
-      "file": "skills/drive.md",
-      "description": "Create folders, upload small files, rename/move files using explicit actions; parent permissions may apply."
-    },
-    {
-      "name": "google_workspace_drive_write_spec",
-      "file": "SPEC.md",
-      "description": "Exact supported Google Workspace schemas, limits, scopes and retry semantics."
-    }
-  ],
   "tools": [
     {
       "name": "docs_list",

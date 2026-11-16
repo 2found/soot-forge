@@ -19,17 +19,16 @@ The pack is selected whole; it supplies:
 | skill `release-care` | Guidance for interpreting maintenance evidence and fences | None |
 | tool `router-care_status` (read) | Typed status tool, called with `{}` | Node.js 22+ on operator PATH; host-approved status-file environment binding |
 
-Select it in a Soot definition **outside this pack**:
+Select it in a Soot's `soots/<id>/soot.json` **outside this pack**:
 
 ```json
-{"id":"router-keeper","soul":"SOUL.md","mission":"mission.md",
- "packs":["router-care"]}
+{"packs":["router-care"]}
 ```
 
 The pack declares `needs.env: ["ROUTER_CARE_STATUS_FILE"]`; the host grants that one non-secret variable in the deployment:
 
 ```json
-{"pack_grants":{"router-care":{"env":["ROUTER_CARE_STATUS_FILE"]}}}
+{"grants": {"packs": {"router-care":{"env":["ROUTER_CARE_STATUS_FILE"]}}}}
 ```
 
 (or `soot grant router-care`).

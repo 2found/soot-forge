@@ -1,8 +1,5 @@
 {
-  "api_version": "soot/v1",
-  "id": "chat-channels",
-  "name": "Chat channels",
-  "label": {
+  "name": {
     "vi": "Kênh chat Telegram và Discord",
     "en": "Telegram and Discord channels"
   },

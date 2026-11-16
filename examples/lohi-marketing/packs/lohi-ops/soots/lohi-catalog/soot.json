@@ -1,0 +1,11 @@
+{
+  "name": "Danh mục",
+  "model": "lite",
+  "packs": [
+    "lohi-ops"
+  ],
+  "execution": {
+    "max_run_tokens": 30000,
+    "daily_tokens": 80000
+  }
+}

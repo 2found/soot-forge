@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "vibe_cf",
-  "label": {
+  "name": {
     "vi": "Cloudflare: chia sẻ tệp và web app",
     "en": "Cloudflare"
+  },
+  "description": {
+    "vi": "Cloudflare: chia sẻ tệp qua R2, triển khai Worker, D1 và hơn thế.",
+    "en": "Cloudflare mini-stack: R2 file sharing, Workers deploys, D1 and more."
   },
   "keywords": {
     "vi": [
@@ -19,37 +21,6 @@
       "r2"
     ]
   },
-  "description": {
-    "vi": "Cloudflare: chia sẻ tệp qua R2, triển khai Worker, D1 và hơn thế.",
-    "en": "Cloudflare mini-stack: R2 file sharing, Workers deploys, D1 and more."
-  },
-  "skills": [
-    {
-      "name": "cloudflare_r2",
-      "file": "skills/r2.md",
-      "description": "Share files via presigned R2 URLs; upload artifact refs; revoke by deleting the object."
-    },
-    {
-      "name": "cloudflare_worker",
-      "file": "skills/worker.md",
-      "description": "Deploy a single-file Worker and publish it on workers.dev; delete when done."
-    },
-    {
-      "name": "cloudflare_d1",
-      "file": "skills/d1.md",
-      "description": "Create a D1 database and run bounded SQL; results come back as JSON rows."
-    },
-    {
-      "name": "cloudflare_dns",
-      "file": "skills/dns.md",
-      "description": "Point a hostname at a Worker or address: create/list/delete bounded DNS records in the bound zone."
-    },
-    {
-      "name": "cloudflare_shortlink",
-      "file": "skills/shortlink.md",
-      "description": "Mint short redirect links backed by a per-name Worker+D1 service on the bound account."
-    }
-  ],
   "tools": [
     {
       "name": "r2_share",

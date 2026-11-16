@@ -41,7 +41,7 @@ rejects invalid/non-finite or overlong cells instead of silently dropping text.
 Operation IDs: `office_inspect`, `office_compose`, `office_edit`, `office_pdf_modify`, `office_render`, `office_convert`.
 
 Credentials are declared in `pack.json` `needs`: `FILE_ROOT` comes from the workspace, `PYTHON_EXECUTABLE` from env `SOOT_MEDIA_PYTHON`, `OFFICE_BINDING` from env `SOOT_OFFICE_BINDING` (optional, only for `office_convert`).
-The host grants the non-operator sources in `pack_grants`, e.g. `"pack_grants": {"office": {"credentials": {"FILE_ROOT": "workspace"}}}` (or `soot grant office`).
+The host grants the non-operator sources in `grants.packs`, e.g. `"grants": {"packs": {"office": {"credentials": {"FILE_ROOT": "workspace"}}}}` (or `soot grant office`).
 A complete consumer example is in the repository
 [`examples/media-workspace`](../../examples/media-workspace/); it is not inside the pack.
 Use placeholder files only in Git. Credentials and endpoint URLs are never model inputs.

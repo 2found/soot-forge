@@ -64,6 +64,12 @@
               "null"
             ]
           },
+          "inbox": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "lead": {
             "type": [
               "boolean",
@@ -73,6 +79,12 @@
           "limits": {
             "additionalProperties": false,
             "properties": {
+              "daily_tokens": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
               "default": {
                 "items": {
                   "type": [
@@ -144,6 +156,39 @@
           "name": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "projects": {
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "remote": {
+            "additionalProperties": false,
+            "properties": {
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "runtime": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
               "null"
             ]
           }
@@ -474,6 +519,12 @@
               "null"
             ]
           },
+          "cron": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "every": {
             "type": [
               "string",
@@ -492,15 +543,27 @@
               "null"
             ]
           },
+          "input": {
+            "type": "object"
+          },
           "name": {
             "type": [
               "string",
               "null"
             ]
           },
+          "output_schema": {
+            "type": "object"
+          },
           "paused": {
             "type": [
               "boolean",
+              "null"
+            ]
+          },
+          "project": {
+            "type": [
+              "string",
               "null"
             ]
           },
@@ -516,9 +579,102 @@
               "null"
             ]
           },
+          "then": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "input": {
+                  "type": "object"
+                },
+                "input_from": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "pack": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tool": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "timezone": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "tool": {
+            "additionalProperties": false,
+            "properties": {
+              "input": {
+                "type": "object"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pack": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "wake_when": {
+            "additionalProperties": false,
+            "properties": {
+              "equals": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "notify": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
               "null"
             ]
           }

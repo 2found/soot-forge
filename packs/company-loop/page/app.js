@@ -74,7 +74,7 @@ const chosen = nestProduct;
 const asProduct = p => ({ id: p.id, name: p.name, teams: p.teams.slice(0, 64) });
 function viewInput() {
   const product = chosen();
-  // Nest's projects as products (0.14.5's context.products); a host with no list gives only the chosen one.
+  // Nest's projects as products (bridge v2's context.projects); a host with no list gives only the chosen one.
   const list = S.projects.length ? S.projects : nestProduct() ? [S.project] : [];
   const products = list.map(asProduct);
   if (nestProduct() && !products.some(p => p.id === S.project.id) && products.length < 64) products.push(asProduct(S.project));

@@ -45,7 +45,7 @@ test('build: the blog goes to the CMS (lohi2.com/blog) by default; --blog git ne
   // The installed publisher can use the CMS credential and the target; the host grants both names.
   const host = JSON.parse(readFileSync(join(cms.out, 'deployment.json'), 'utf8'));
   const pack = JSON.parse(readFileSync(join(cms.out, 'packs', 'lohi-blog', 'pack.json'), 'utf8'));
-  assert.deepEqual(pack.needs.env.filter(e => !host.pack_grants['lohi-blog'].env.includes(e)), [], 'every env the publisher asks for is granted');
+  assert.deepEqual(pack.needs.env.filter(e => !host.grants.packs['lohi-blog'].env.includes(e)), [], 'every env the publisher asks for is granted');
   assert.ok(pack.needs.credentials.MARKETING_HUB && pack.tools.filter(t => t.name !== 'catalog').every(t => t.run.secret_env.MARKETING_HUB));
   assert.ok(!existsSync(join(cms.out, 'packs', 'lohi-blog', 'tests')));
   assert.match(personSteps().find(s => /blog/i.test(s)), /MARKETING_HUB/);
@@ -54,8 +54,9 @@ test('build: the blog goes to the CMS (lohi2.com/blog) by default; --blog git ne
 
 test('recipe: no Soot guidance names blog.lohi2.com; the blog is lohi2.com/blog', async () => {
   const { readFileSync, readdirSync } = await import('node:fs');
-  for (const f of readdirSync(join(import.meta.dirname, 'soots')).filter(f => f.endsWith('.md'))) {
-    assert.doesNotMatch(readFileSync(join(import.meta.dirname, 'soots', f), 'utf8'), /blog\.lohi2\.com/, f);
+  const soots = join(import.meta.dirname, 'soots');
+  for (const f of ['SOUL.md', ...readdirSync(soots).filter(d => !d.endsWith('.md')).map(d => join(d, 'MISSION.md'))]) {
+    assert.doesNotMatch(readFileSync(join(soots, f), 'utf8'), /blog\.lohi2\.com/, f);
   }
   assert.match(readFileSync(join(import.meta.dirname, 'soots', 'SOUL.md'), 'utf8'), /https:\/\/lohi2\.com\/blog/);
 });
@@ -92,7 +93,7 @@ test('build: the Video Soot is added only when the workspace has the 2build pack
   const bare = build(tmp(), { env: true, connection: null, home: tmp() });
   assert.equal(bare.video, false);
   assert.ok(!soots(bare.out).some(f => f.includes('lohi-video')), 'no 2build pack: no Video Soot');
-  assert.ok(!existsSync(join(bare.out, 'soots', 'video.md')));
+  assert.ok(!existsSync(join(bare.out, 'soots', 'lohi-video')));
   assert.throws(() => build(tmp(), { env: true, video: true, connection: null, home: tmp() }), /pack 2build/, '--video without the pack is refused');
   const dir = tmp();
   mkdirSync(join(dir, 'packs', '2build'), { recursive: true });
@@ -115,7 +116,7 @@ test('recipe: every env a Forge pack asks for is granted (a missing name holds t
   const host = JSON.parse(readFileSync(r(import.meta.dirname, 'deployment.example.json'), 'utf8'));
   for (const id of ['company-loop', 'marketing', 'browser-use']) {
     const pack = JSON.parse(readFileSync(r(import.meta.dirname, '..', '..', 'packs', id, 'pack.json'), 'utf8'));
-    const granted = host.pack_grants?.[id]?.env ?? [];
+    const granted = host.grants.packs?.[id]?.env ?? [];
     assert.deepEqual((pack.needs?.env ?? []).filter(e => !granted.includes(e)), [], `${id}: env not granted by the recipe`);
   }
 });
@@ -125,35 +126,36 @@ test('build: the lean team (Ops, Writer, Analyst, Radar) is installed with its m
   const { readFileSync, existsSync } = await import('node:fs');
   const r = build(tmp(), { env: true, video: false, connection: null, home: tmp() });
   const host = JSON.parse(readFileSync(join(r.out, 'deployment.json'), 'utf8'));
-  assert.deepEqual(host.soots.sort(), ['soots/lohi-analyst.json', 'soots/lohi-catalog.json', 'soots/lohi-editor.json', 'soots/lohi-finance.json', 'soots/lohi-radar.json', 'soots/lohi-writer.json']);
-  for (const f of ['analyst.md', 'radar.md', 'editor.md', 'writer.md', 'SOUL.md', 'catalog.md']) assert.ok(existsSync(join(r.out, 'soots', f)), f);
+  const ids = ['lohi-analyst', 'lohi-catalog', 'lohi-editor', 'lohi-finance', 'lohi-radar', 'lohi-writer'];
+  assert.deepEqual(host.soots.sort(), ids.map(id => `soots/${id}/soot.json`));
+  for (const id of ids) for (const f of ['soot.json', 'SOUL.md', 'MISSION.md']) assert.ok(existsSync(join(r.out, 'soots', id, f)), `${id}/${f}`);
   // The op-catalog Soot comes from the lohi-ops pack: its files leave the pack dir, its approvals reach the host.
   assert.ok(!existsSync(join(r.out, 'packs', 'lohi-ops', 'soots')));
-  assert.equal(host.approvals['lohi-ops_appstore_post'], 'operator');
-  assert.equal(host.approvals['lohi-ops_comments_resolve'], 'operator');
+  assert.equal(host.grants.approvals['lohi-ops_appstore_post'], 'operator');
+  assert.equal(host.grants.approvals['lohi-ops_comments_resolve'], 'operator');
   assert.equal(host.env.LOOP_SOOT_CONFIG, join(r.out, 'deployment.json'));
   assert.equal(host.env.LOOP_SOOT_BIN, undefined, 'no machine path baked in: the CLI is found on PATH');
   assert.ok(existsSync(join(r.out, 'packs', 'lohi-ops', 'pack.json')), 'the recipe ships lohi-ops: it is installed');
   assert.ok(r.packs.includes('lohi-ops'));
   assert.ok(!host.tool_hosts['lohi-video']);
-  assert.ok(host.schedules.every(s => host.soots.includes(`soots/${s.soot}.json`)), 'no schedule points at a left-out Soot');
+  assert.ok(host.schedules.every(s => host.soots.includes(`soots/${s.soot}/soot.json`)), 'no schedule points at a left-out Soot');
 });
 
 test('installLocalPack: the lohi-ops slot copies the pack without tests and merges its fragment; a missing pack or a duplicate schedule changes nothing', async () => {
   const { installLocalPack } = await import('./setup.mjs');
   const { readFileSync, existsSync } = await import('node:fs');
   const out = tmp(); mkdirSync(join(out, 'packs'), { recursive: true });
-  const host = { pack_grants: { marketing: { env: ['PATH'] } }, schedules: [{ id: 'marketing-gsc' }, { id: 'marketing-report' }] };
+  const host = { grants: { packs: { marketing: { env: ['PATH'] } } }, schedules: [{ id: 'marketing-gsc' }, { id: 'marketing-report' }] };
   assert.deepEqual(installLocalPack(out, 'lohi-ops', host, join(tmp(), 'nope')), { installed: false });
   assert.deepEqual(host.schedules.map(s => s.id), ['marketing-gsc', 'marketing-report']);
   const src = tmp();
   mkdirSync(join(src, 'tests'), { recursive: true });
   writeFileSync(join(src, 'pack.json'), '{}'); writeFileSync(join(src, 'tests', 'x.mjs'), '');
-  writeFileSync(join(src, 'deployment.fragment.json'), JSON.stringify({ pack_grants: { 'lohi-ops': { env: ['PATH'] } }, soot_packs: { 'lohi-editor': ['lohi-ops'] }, replace_schedules: ['marketing-gsc'], schedules: [{ id: 'marketing-gsc', note: 'new' }, { id: 'marketing-report', note: 'dup' }, { id: 'ops-new' }] }));
+  writeFileSync(join(src, 'deployment.fragment.json'), JSON.stringify({ grants: { packs: { 'lohi-ops': { env: ['PATH'] } } }, soot_packs: { 'lohi-editor': ['lohi-ops'] }, replace_schedules: ['marketing-gsc'], schedules: [{ id: 'marketing-gsc', note: 'new' }, { id: 'marketing-report', note: 'dup' }, { id: 'ops-new' }] }));
   const r = installLocalPack(out, 'lohi-ops', host, src);
   assert.equal(r.installed, true);
   assert.ok(existsSync(join(out, 'packs', 'lohi-ops', 'pack.json')) && !existsSync(join(out, 'packs', 'lohi-ops', 'tests')));
-  assert.ok(host.pack_grants['lohi-ops'] && host.pack_grants.marketing);
+  assert.ok(host.grants.packs['lohi-ops'] && host.grants.packs.marketing);
   assert.deepEqual(host.schedules.map(s => [s.id, s.note]), [['marketing-report', undefined], ['marketing-gsc', 'new'], ['ops-new', undefined]], 'replace_schedules swaps; an existing id never doubles');
   assert.deepEqual(r.soot_packs, { 'lohi-editor': ['lohi-ops'] });
 });
@@ -164,6 +166,6 @@ test('recipe: no workspace env name starts with SOOT_ (the runtime reserves them
   const r = build(tmp(), { env: true, video: false, connection: null, home: tmp() });
   const host = JSON.parse(readFileSync(join(r.out, 'deployment.json'), 'utf8'));
   for (const name of Object.keys(host.env)) if (name !== 'SOOT_BROWSER_PERSISTENT_SOOTS') assert.doesNotMatch(name, /^SOOT_/, name);
-  for (const g of Object.values(host.pack_grants)) for (const name of g.env ?? []) if (name !== 'SOOT_BROWSER_PERSISTENT_SOOTS') assert.doesNotMatch(name, /^SOOT_/, name);
+  for (const g of Object.values(host.grants.packs)) for (const name of g.env ?? []) if (name !== 'SOOT_BROWSER_PERSISTENT_SOOTS') assert.doesNotMatch(name, /^SOOT_/, name);
   assert.ok('LOOP_SOOT_CONFIG' in host.env && !('LOOP_SOOT_CONFIG' in HOST_ENV));
 });

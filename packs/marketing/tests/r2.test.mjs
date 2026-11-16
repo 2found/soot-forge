@@ -338,7 +338,7 @@ test('Editor and Writer carry only the tools they use: schema bytes stay small',
   const pack = json('packs/marketing/pack.json'), blog = json('examples/lohi-marketing/packs/lohi-blog/pack.json'), browser = json('packs/browser-use/pack.json');
   const size = (p, id, names) => p.tools.filter(t => !names || names.includes(t.name)).reduce((s, t) => s + JSON.stringify({ name: `${id}_${t.name}`, description: t.description, parameters: t.parameters }).length, 0);
   const list = ref => ref.split('tools=')[1].split(',');
-  const editor = json('examples/lohi-marketing/soots/lohi-editor.json').packs, writer = json('examples/lohi-marketing/soots/lohi-writer.json').packs;
+  const editor = json('examples/lohi-marketing/soots/lohi-editor/soot.json').packs, writer = json('examples/lohi-marketing/soots/lohi-writer/soot.json').packs;
   const e = size(pack, 'marketing', list(editor[0])) + size(blog, 'lohi-blog', list(editor[1])) + size(browser, 'browser-use');
   const wr = size(pack, 'marketing', list(writer[0]));
   assert.ok(e < 21_000, `Editor schemas ${e} bytes (was 31,953)`);

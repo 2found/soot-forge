@@ -52,8 +52,8 @@ const listener = createServer();
 await new Promise(r => listener.listen(0, '127.0.0.1', r));
 const port = listener.address().port;
 await new Promise(r => listener.close(r));
-const config = { listen: `127.0.0.1:${port}`, token_env: 'SOOT_MEDIA_RUNTIME_TOKEN', packs_dir: 'packs', data_dir: 'data',
-  default_soot: 'office', soots: packs.map(id => `soots/${id}.json`), pack_grants: grants, tool_hosts: toolHosts, credentials,
+const config = { server: { listen: `127.0.0.1:${port}`, token_env: 'SOOT_MEDIA_RUNTIME_TOKEN', data_dir: 'data' }, packs_dir: 'packs',
+  default_soot: 'office', soots: packs.map(id => `soots/${id}.json`), grants: { packs: grants }, tool_hosts: toolHosts, credentials,
   execution: { max_turns: 24, max_tool_calls: 40, tool_timeout: '6m', subagents: 0, advisor: false, memory_consolidation: false, todo_nudges: 0 } };
 const configFile = join(workspace, 'deployment.json');
 await writeFile(configFile, JSON.stringify(config, null, 2));

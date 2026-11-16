@@ -432,7 +432,7 @@ test('AC11: the Hàng đợi view on a fresh workspace never writes (its storage
 
 test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest browser; "Đã đăng nhập" keeps that channel paused until Bật', async () => {
   const w = world();
-  await w.call('channels_setup', { channels: CHANNELS, product: 'Lohi' });
+  await w.call('channels_setup', { channels: CHANNELS, project: 'Lohi' });
   const due = await w.call('due', {}, { soot: 'lohi-editor' });
   const steps = 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập';
   assert.deepEqual(due.sign_in, {

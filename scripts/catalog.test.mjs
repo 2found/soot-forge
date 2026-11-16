@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateCatalog, validatePack, checkPackModel, checkPieceBundles, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
+import { validateCatalog, validatePack, readSkills, checkPackModel, checkPieceBundles, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -62,7 +62,7 @@ test('a retired pack merges into a listed one by an explicit tool map', () => {
 
 test('outcomes and piece capabilities are checked like the host checks them', () => {
   const tool = { name: 'view', run: { program: 'tools/run', mode: 'read', stdin: 'context' } };
-  const base = () => ({ id: 'p', skills: [], tools: [tool], outcomes: [{ id: 'conversation_resolved', label: { vi: 'Đã giải quyết' }, unit: 'conversation', void_window: '72h', void_on: 'binding_activity' }],
+  const base = () => ({ tools: [tool], outcomes: [{ id: 'conversation_resolved', label: { vi: 'Đã giải quyết' }, unit: 'conversation', void_window: '72h', void_on: 'binding_activity' }],
     interface: { pieces: [{ id: 'library', slot: 'data.tab', label: 'Kho', icon: 'library', access: 'operator', data: { view_tool: 'view' }, bundle: 'page/', provides: ['knowledge'] }] } });
   checkPackModel(base(), 'p');
   const bad = (change, pattern) => assert.throws(() => checkPackModel(change(base()), 'p'), pattern);
@@ -91,12 +91,25 @@ test('the pack model: write tools are marked, and needs match the credentials to
 test('materialization rejects symlink ancestors, missing skills, mismatched ID and forbidden or retired manifest fields', async t => {
   const root = await mkdtemp(join(tmpdir(), 'forge-test-')); t.after(() => rm(root, { recursive: true, force: true }));
   const directory = join(root, 'packs/example'); await mkdir(directory, { recursive: true });
-  const manifest = { api_version: 'soot/v1', id: 'example', skills: [{ name: 'guide', file: 'guide.md' }] };
+  const manifest = { name: 'Example' };
   await writeFile(join(directory, 'pack.json'), JSON.stringify(manifest));
-  await assert.rejects(validatePack(directory, 'example'), /ENOENT/);
-  await writeFile(join(directory, 'guide.md'), 'Read first.');
+  await validatePack(directory, 'example'); // a pack without skills is a pack
+  await mkdir(join(directory, 'skills'), { recursive: true });
+  await writeFile(join(directory, 'skills', 'loose.md'), 'v1 shape');
+  await assert.rejects(validatePack(directory, 'example'), /must be a folder/);
+  await rm(join(directory, 'skills', 'loose.md'));
+  await mkdir(join(directory, 'skills', 'guide'), { recursive: true });
+  await writeFile(join(directory, 'skills', 'guide', 'SKILL.md'), 'Read first.');
+  await assert.rejects(validatePack(directory, 'example'), /frontmatter description/);
+  await writeFile(join(directory, 'skills', 'guide', 'SKILL.md'), '---\nname: other\ndescription: Read first.\n---\nBody\n');
+  await assert.rejects(validatePack(directory, 'example'), /must equal its folder/);
+  await writeFile(join(directory, 'skills', 'guide', 'SKILL.md'), '---\nname: guide\ndescription: Read first.\n---\nBody\n');
   await validatePack(directory, 'example');
-  await assert.rejects(validatePack(directory, 'wrong'), /mismatch/);
+  await assert.rejects(validatePack(directory, 'Wrong Id'), /not a valid id/);
+  for (const v1 of [{ id: 'example' }, { api_version: 'soot/v1' }, { label: 'Example' }, { skills: [] }]) {
+    await writeFile(join(directory, 'pack.json'), JSON.stringify({ ...manifest, ...v1 }));
+    await assert.rejects(validatePack(directory, 'example'), /Invalid pack manifest/);
+  }
   await writeFile(join(directory, 'pack.json'), JSON.stringify({ ...manifest, schedules: [] }));
   await assert.rejects(validatePack(directory, 'example'), /Invalid pack manifest/);
   for (const retired of [{ use: [] }, { capabilities: {} }]) {
@@ -104,7 +117,7 @@ test('materialization rejects symlink ancestors, missing skills, mismatched ID a
     await assert.rejects(validatePack(directory, 'example'), /retired|Invalid pack manifest/);
   }
   await writeFile(join(directory, 'pack.json'), JSON.stringify(manifest));
-  await symlink('guide.md', join(directory, 'link.md'));
+  await symlink('pack.json', join(directory, 'link.md'));
   await assert.rejects(validatePack(directory, 'example'), /non-regular/);
   await rm(join(directory, 'link.md'));
   const escape = join(root, 'escape'); await mkdir(escape);
@@ -148,7 +161,7 @@ test('every external entry names the upstream release its pin belongs to', async
 test('pieces and programs name pack tools with the right mode, or the pack is refused', () => {
   const tool = (name, mode, stdin = 'context') => ({ name, description: name, run: { program: 'soot', args: [], mode, ...(stdin ? { stdin } : {}) } });
   const base = () => ({
-    api_version: 'soot/v1', id: 'library', label: { vi: 'Kho tài liệu', en: 'Library' },
+    name: { vi: 'Kho tài liệu', en: 'Library' },
     tools: [tool('view', 'read'), tool('action', 'write'), tool('chromium_check', 'read', ''), tool('chromium_install', 'write', '')],
     interface: { pieces: [{ id: 'library', slot: 'data.tab', label: 'Kho tài liệu', icon: 'library', access: 'operator', data: { view_tool: 'view', action_tool: 'action' }, bundle: 'page/' }] },
     programs: [{ id: 'chromium', label: { vi: 'Trình duyệt Chromium' }, size_mb: 170, check_op: 'chromium_check', install_op: 'chromium_install' }],
@@ -179,7 +192,7 @@ test('pieces and programs name pack tools with the right mode, or the pack is re
     [m => m.interface.pieces[0].id = 'Kho', /invalid id/],
     [m => m.interface.pieces[0].bundle = 'page', /bundle/],
     [m => m.interface.pieces[0].label = { en: 'Library' }, /label/],
-    [m => m.label = 'x'.repeat(49), /label must be/],
+    [m => m.name = 'x'.repeat(49), /name must be/],
     [m => m.description = { vi: '' }, /description must be/],
     [m => delete m.programs[0].install_op, /install_op undefined must be a write tool/],
     [m => m.programs[0].check_op = 'chromium_install', /check_op chromium_install must be a read tool/],
@@ -206,7 +219,7 @@ test('channel.platforms declarations follow the host rules: id, mode, request_pr
     assert.deepEqual(p.ui.fields.map(f => [f.key, f.kind]), [['bot_token', 'secret']]);
     assert.ok(p.ui.errors.platform_token_rejected, `${p.id}: says where a new token comes from`);
   }
-  const base = () => ({ api_version: 'soot/v1', id: 'zalo', channel: { platforms: [{ id: 'zalo', mode: 'supervised', ui: { label: 'Zalo', icon: 'message-circle', fields: [{ key: 'bot_token', label: 'Mã', kind: 'secret' }], errors: { zalo_refused: 'Zalo từ chối.' } } }] } });
+  const base = () => ({ channel: { platforms: [{ id: 'zalo', mode: 'supervised', ui: { label: 'Zalo', icon: 'message-circle', fields: [{ key: 'bot_token', label: 'Mã', kind: 'secret' }], errors: { zalo_refused: 'Zalo từ chối.' } } }] } });
   checkPackModel(base(), 'zalo');
   const refusals = [
     [m => m.channel.platforms[0].id = 'web', /invalid or duplicate id/],
@@ -242,15 +255,14 @@ test('team-cs ships only generic skills and role Soots that hand off to members 
   const dir = join(import.meta.dirname, '..', 'packs', 'team-cs');
   const read = async path => JSON.parse(await readFile(join(dir, path), 'utf8'));
   const manifest = await read('pack.json');
-  assert.deepEqual(manifest.skills.map(s => s.name), ['cs-triage', 'handoff-policy', 'tone', 'person-memory']);
+  assert.deepEqual((await readSkills(dir)).map(s => s.name).sort(), ['cs-triage', 'handoff-policy', 'person-memory', 'tone']);
   assert.deepEqual(manifest.tools, [], 'team-cs owns no tools; product tools come from the product pack');
   const catalog = JSON.parse(await readFile(join(import.meta.dirname, '..', 'catalog.json'), 'utf8'));
   const products = catalog.packs.filter(p => p.id !== 'team-cs' && p.id !== 'live-chat').map(p => p.id);
   for (const name of ['cs-triage', 'cs-escalation']) {
     const soot = await read(`soots/${name}/soot.json`);
-    assert.equal(soot.id, name);
     assert.deepEqual(soot.packs, ['live-chat', 'team-cs'], `${name} selects only the base and this pack`);
-    assert.deepEqual(soot.interaction, { mode: 'interactive', handoff: 'members' });
+    assert.equal(soot.chat?.handoff, 'members', `${name} hands chats to members`);
     assert.ok(!soot.skills, `${name} declares no skill of its own`);
     assert.ok(!soot.packs.some(p => products.includes(p.split(':')[0])), `${name} imports no product pack`);
   }
@@ -272,7 +284,7 @@ test('every pack Nest lists carries its own localized label, description and key
   for (const id of await readdir(root)) {
     const manifest = JSON.parse(await readFile(join(root, id, 'pack.json'), 'utf8').catch(() => 'null'));
     if (!manifest) continue;
-    for (const field of ['label', 'description']) assert.ok(manifest[field]?.vi && manifest[field]?.en, `${id}: ${field} in vi and en`);
+    for (const field of ['name', 'description']) assert.ok(manifest[field]?.vi && manifest[field]?.en, `${id}: ${field} in vi and en`);
     assert.ok(manifest.keywords?.vi?.length && manifest.keywords?.en?.length, `${id}: keywords in vi and en`);
   }
 });
@@ -282,7 +294,7 @@ test('lohi-cs layers on team-cs with no skill conflict, keeps credit-bearing ops
   const lohi = await read('lohi-cs/pack.json');
   checkPackModel(lohi, 'lohi-cs');
   const names = new Map();
-  for (const id of ['live-chat', 'team-cs', 'lohi-cs']) for (const s of (await read(`${id}/pack.json`)).skills ?? []) {
+  for (const id of ['live-chat', 'team-cs', 'lohi-cs']) for (const s of await readSkills(join(import.meta.dirname, '..', 'packs', id))) {
     assert.ok(!names.has(s.name), `skill ${s.name} is in both ${names.get(s.name)} and ${id}`);
     names.set(s.name, id);
   }

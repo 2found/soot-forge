@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "email",
-  "label": {
+  "name": {
     "vi": "Gửi email",
     "en": "Email"
+  },
+  "description": {
+    "vi": "Gửi email qua tài khoản người quản lý đã gắn; đọc biên nhận trước khi coi là đã gửi.",
+    "en": "Send email through the operator-bound account; read receipts before assuming delivery."
   },
   "keywords": {
     "vi": [
@@ -19,17 +21,6 @@
       "send"
     ]
   },
-  "description": {
-    "vi": "Gửi email qua tài khoản người quản lý đã gắn; đọc biên nhận trước khi coi là đã gửi.",
-    "en": "Send email through the operator-bound account; read receipts before assuming delivery."
-  },
-  "skills": [
-    {
-      "name": "email_smtp",
-      "file": "skills/smtp.md",
-      "description": "Send email through the operator-bound account; read accepted/unknown receipts before assuming delivery."
-    }
-  ],
   "tools": [
     {
       "name": "send",

@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "data-pool",
-  "label": {
+  "name": {
     "vi": "Dữ liệu dùng chung",
     "en": "Shared data"
+  },
+  "description": {
+    "vi": "Dùng dữ liệu chung của công ty, có trích nguồn, thay vì thu thập lại.",
+    "en": "Use shared company data with citations instead of recrawling sources."
   },
   "keywords": {
     "vi": [
@@ -19,27 +21,6 @@
       "search"
     ]
   },
-  "description": {
-    "vi": "Dùng dữ liệu chung của công ty, có trích nguồn, thay vì thu thập lại.",
-    "en": "Use shared company data with citations instead of recrawling sources."
-  },
-  "skills": [
-    {
-      "name": "data-pool-read",
-      "file": "skills/read.md",
-      "description": "Use shared company data with citations instead of recrawling sources."
-    },
-    {
-      "name": "data-pool-write",
-      "file": "skills/write.md",
-      "description": "Import or update explicitly supplied company data and inspect stable request receipts."
-    },
-    {
-      "name": "data-pool-manage",
-      "file": "skills/manage.md",
-      "description": "Manage shared company pools and explicit access for bound Soots."
-    }
-  ],
   "tools": [
     {
       "name": "pools",

@@ -97,7 +97,7 @@ test('F11: voc read through the contract skips the desk scrape; voc unavailable 
   assert.equal((await noToken.call('signals', { voc: true })).packet.cs_voc, 'contract');
   assert.equal((await noToken.call('signals', { voc: false })).packet.cs_feedback, undefined, 'fallback is quiet without the old token');
   // The skill reads voc through the data tool on the team:cs scope and keeps the fallback.
-  const skill = readFileSync(new URL('../skills/digest.md', import.meta.url), 'utf8');
+  const skill = readFileSync(new URL('../skills/company-digest/SKILL.md', import.meta.url), 'utf8');
   assert.match(skill, /scope: "team:cs", table: "voc"/);
   assert.match(skill, /signals \{voc: true\}/);
 });
@@ -162,7 +162,7 @@ const root = new URL('..', import.meta.url);
 const pack = JSON.parse(readFileSync(new URL('pack.json', root), 'utf8'));
 
 test('the pack is product neutral: no brand, no product word in the code, skill or page', () => {
-  const files = [['tools/loop.mjs'], ['skills/digest.md'], ['page/index.html'], ['page/app.js'], ...readdirSync(new URL('tools/lib', root)).map(f => [`tools/lib/${f}`])];
+  const files = [['tools/loop.mjs'], ['skills/company-digest/SKILL.md'], ['page/index.html'], ['page/app.js'], ...readdirSync(new URL('tools/lib', root)).map(f => [`tools/lib/${f}`])];
   const text = files.map(([f]) => readFileSync(new URL(f, root), 'utf8')).join('\n') + JSON.stringify(pack);
   assert.ok(!/lohi|kiem-lai|truyện|lohi2\.com/i.test(text), 'a product name leaked into the pack');
 });

@@ -1,13 +1,4 @@
 {
-  "api_version": "soot/v1",
-  "id": "email",
-  "skills": [
-    {
-      "name": "email_smtp",
-      "file": "skills/smtp.md",
-      "description": "Send email through the operator-bound account; read accepted/unknown receipts before assuming delivery."
-    }
-  ],
   "tools": [
     {
       "name": "send",

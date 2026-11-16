@@ -544,7 +544,7 @@ async function act(/** @type {string} */ op, rest = {}) {
 /** "Nhờ viết bài": Nest opens a new task for the writer Soot (nest://new). */
 function askWriter(/** @type {any} */ d) {
   if (!d.writer) return null;
-  return button(S.t.askWrite, () => bridge.open(M.writeLink(d.writer, d.product)), 'btn sm out');
+  return button(S.t.askWrite, () => bridge.open(M.writeLink(d.writer, d.project)), 'btn sm out');
 }
 
 /** The one button of a next step (do: schedule, post_now, sign_in, …). @param {any} b @param {any} d @param {any} p */
@@ -555,7 +555,7 @@ function doNext(b, d, p) {
     case 'sign_in': return signIn(d, b.channel ?? p?.next?.channel_id, p?.next?.channel);
     case 'resume_channel': return void act('resume', { channel: b.channel ?? p.next.channel_id });
     case 'resume_all': return void act('resume');
-    case 'ask_writer': { const link = p?.id ? M.reviseLink(d.writer, p) : null; return bridge.open(link ?? M.writeLink(d.writer, d.product)); }
+    case 'ask_writer': { const link = p?.id ? M.reviseLink(d.writer, p) : null; return bridge.open(link ?? M.writeLink(d.writer, d.project)); }
     case 'open': return bridge.open(p.url);
     case 'confirm': S.id = p.id; return void run(load);
   }
@@ -685,7 +685,7 @@ function queue(d) {
   const out = [];
   const head = M.queueHeadline(d);
   out.push(h('div', { class: `notice ${head.tone === 'err' ? 'err' : head.tone === 'warn' ? 'plain warn' : 'plain'}`, role: 'status' }, h('b', {}, head.tone === 'plain' ? 'Soot đang chạy' : 'Cần bạn'), h('span', {}, head.text),
-    head.button && button(head.button.label, () => (head.button.do === 'ask_writer' ? bridge.open(M.writeLink(d.writer, d.product)) : doNext(head.button, d, {})), 'btn sm primary')));
+    head.button && button(head.button.label, () => (head.button.do === 'ask_writer' ? bridge.open(M.writeLink(d.writer, d.project)) : doNext(head.button, d, {})), 'btn sm primary')));
   out.push(h('div', { class: 'card pad bar' },
     h('div', { class: 'line gap' }, toggle(t.pauseAll, !d.paused_all, () => void act(d.paused_all ? 'resume' : 'pause')), h('span', { class: 'muted' }, t.switchHint))));
   out.push(h('h3', {}, 'Kênh đăng'), h('ul', { class: 'list card' }, ...d.channels.map((/** @type {any} */ c) => channelRow(d, c))));
@@ -881,7 +881,7 @@ const kpi = (/** @type {string} */ k, /** @type {string} */ v, /** @type {string
 const n = (/** @type {number | null} */ v) => (v == null ? '—' : /** @type {string} */ (M.num(v)));
 
 function campaignDetail(/** @type {any} */ d) {
-  const c = d.campaign, t = d.totals, product = d.product ?? 'sản phẩm';
+  const c = d.campaign, t = d.totals, product = d.project ?? 'sản phẩm';
   const back = h('button', { class: 'btn sm ghost back', type: 'button', onclick: () => { S.campaign = ''; S.notice = null; void run(load); } }, '← Tất cả chiến dịch');
   const failed = d.read && !d.read.ok;
   const when = d.read?.ok ? `đọc số ${product} lúc ${M.hm(d.read.at)}` : d.read ? null : `chưa đọc số ${product}`;

@@ -1,5 +1,7 @@
 {
-  "listen": "127.0.0.1:0",
+  "server": {
+    "listen": "127.0.0.1:0"
+  },
   "packs_dir": "packs",
   "soots": [
     "soots/forge/soot.json"
@@ -10,14 +12,16 @@
     "max_tool_calls": 4,
     "max_output_tokens": 1024
   },
-  "providers": {
-    "claude-code": {
-      "type": "claude-code",
-      "cache_retention": "long"
+  "ai": {
+    "providers": {
+      "claude-code": {
+        "type": "claude-code",
+        "cache_retention": "long"
+      }
+    },
+    "model": {
+      "provider": "claude-code",
+      "name": "claude-sonnet-5-5"
     }
-  },
-  "model": {
-    "provider": "claude-code",
-    "name": "claude-sonnet-5-5"
   }
 }

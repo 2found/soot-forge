@@ -22,7 +22,7 @@ test('the declaration is a server settings piece on the pack\'s read view tool a
   assert.equal(tool(p.data.view_tool).run.stdin, 'context');
   assert.equal(tool(p.data.action_tool).run.stdin, 'context');
   assert.equal(pack.interface.tool_area, undefined, 'the tool area is replaced by the page');
-  assert.equal(pack.label.vi, 'Live chat trên website');
+  assert.equal(pack.name.vi, 'Live chat trên website');
   assert.ok(pack.keywords.vi.includes('live chat'));
 });
 

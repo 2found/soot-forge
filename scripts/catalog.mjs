@@ -134,12 +134,7 @@ const writeVerb = /(^|_)(create|save|send|publish|delete|remove|unshare|upload|w
 // needs.credentials and every declared one is used, and tools never set run.env.
 export function checkPackModel(manifest, expectedID) {
   const problems = [];
-  const skills = new Set(), tools = new Set(), used = new Set();
-  for (const skill of manifest.skills ?? []) {
-    const name = skill.name || `${expectedID}_${posix.basename(skill.file, posix.extname(skill.file))}`;
-    if (!identifier.test(name) || skills.has(name)) problems.push(`Invalid or duplicate skill: ${name}`);
-    skills.add(name);
-  }
+  const tools = new Set(), used = new Set();
   for (const tool of manifest.tools ?? []) {
     if (!identifier.test(tool.name) || tools.has(tool.name)) problems.push(`Invalid or duplicate tool: ${tool.name}`);
     tools.add(tool.name);
@@ -199,7 +194,7 @@ export function localizedText(value, max) {
 // installed pack. Presentation only: none of this grants an operation.
 function checkPresentation(manifest, byName) {
   const problems = [];
-  if (manifest.label !== undefined && !localizedText(manifest.label, 48)) problems.push('label must be a string or {vi, en?} of at most 48 characters');
+  if (manifest.name !== undefined && !localizedText(manifest.name, 48)) problems.push('name must be a string or {vi, en?} of at most 48 characters');
   if (typeof manifest.description === 'object' && !localizedText(manifest.description, 280)) problems.push('description must be a string or {vi, en?} of at most 280 characters');
   for (const lang of ['vi', 'en']) {
     const words = manifest.keywords?.[lang];
@@ -324,21 +319,61 @@ export async function checkPieceBundles(root, manifest) {
   }
 }
 
+// Skills are the folders skills/<name>/SKILL.md; the frontmatter `name` is the
+// skill's name, used as is (no pack prefix), and it equals the folder name.
+export function skillFrontmatter(text) {
+  const match = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
+  const fields = {};
+  if (!match) return fields;
+  for (const line of match[1].split(/\r?\n/)) {
+    const field = /^([A-Za-z_-]+):\s*(.*)$/.exec(line);
+    if (!field) continue;
+    let value = field[2].trim();
+    if (/^".*"$/.test(value)) { try { value = JSON.parse(value); } catch { /* keep the raw text */ } }
+    else if (/^'.*'$/.test(value)) value = value.slice(1, -1).replace(/''/g, "'");
+    fields[field[1]] = value;
+  }
+  return fields;
+}
+
+// [{name, description, file}] of a pack folder, sorted by name.
+export async function readSkills(root) {
+  const base = join(root, 'skills');
+  const entries = await readdir(base, { withFileTypes: true }).catch(() => []);
+  const skills = [];
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory()) throw new Error(`skills/${entry.name} must be a folder skills/<name>/SKILL.md`);
+    const file = `skills/${entry.name}/SKILL.md`;
+    const info = await lstat(join(root, file)).catch(() => null);
+    if (!info?.isFile() || info.size > 128 * 1024) throw new Error(`Missing/oversized skill: ${file}`);
+    const meta = skillFrontmatter(await readFile(join(root, file), 'utf8'));
+    skills.push({ name: meta.name ?? entry.name, description: meta.description ?? '', file, folder: entry.name });
+  }
+  return skills;
+}
+
+export function checkSkills(skills, expectedID) {
+  const problems = [], seen = new Set();
+  for (const skill of skills) {
+    if (!identifier.test(skill.name) || seen.has(skill.name)) problems.push(`Invalid or duplicate skill: ${skill.name}`);
+    seen.add(skill.name);
+    if (skill.name !== skill.folder) problems.push(`Skill ${skill.file}: frontmatter name ${skill.name} must equal its folder`);
+    if (!skill.description.trim()) problems.push(`Skill ${skill.file} needs a frontmatter description`);
+  }
+  if (problems.length) throw new Error(`Pack ${expectedID}: ${problems.join('; ')}`);
+}
+
 export async function validatePack(root, expectedID) {
   await validateTree(root);
   const raw = await readFile(join(root, 'pack.json'));
   if (raw.length > 16 * 1024 * 1024) throw new Error('Pack manifest exceeds 16 MiB');
   const manifest = JSON.parse(raw);
   if (!checkManifest(manifest)) throw new Error(`Invalid pack manifest: ${JSON.stringify(checkManifest.errors)}`);
-  if (manifest.api_version !== 'soot/v1' || manifest.id !== expectedID) throw new Error(`Pack manifest id/version mismatch: ${expectedID}`);
+  if (!identifier.test(expectedID)) throw new Error(`Pack folder is not a valid id: ${expectedID}`);
   for (const retired of ['capabilities', 'use']) if (retired in manifest) throw new Error(`Pack ${expectedID} has retired field ${retired}`);
   checkPackModel(manifest, expectedID);
   await checkPieceBundles(root, manifest);
-  for (const skill of manifest.skills ?? []) {
-    safePath(skill.file);
-    const info = await lstat(join(root, skill.file));
-    if (!info.isFile() || info.size > 128 * 1024) throw new Error(`Missing/oversized skill: ${skill.file}`);
-  }
+  checkSkills(await readSkills(root), expectedID);
   for (const tool of manifest.tools ?? []) {
     if (!tool.run) continue;
     safePath(tool.run.program);

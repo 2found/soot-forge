@@ -7,8 +7,10 @@ import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import { run, TOOLS } from '../tools/crm.mjs';
 import { fakeStore } from './fake-store.mjs';
+import { readSkills } from '../../../scripts/catalog.mjs';
 
 const pack = JSON.parse(readFileSync(new URL('../pack.json', import.meta.url), 'utf8'));
+const skills = await readSkills(fileURLToPath(new URL('..', import.meta.url)));
 const T0 = Date.parse('2026-11-12T02:00:00Z');
 const HOUR = 3600e3;
 
@@ -22,7 +24,7 @@ const person = { principal: { tenant: 'lohi', binding: 'lohi', sub: 'u_42', leve
 
 test('the pack is one flat set of node tools over its own storage', () => {
   assert.deepEqual(pack.tools.map(t => t.name).sort(), Object.keys(TOOLS).sort());
-  assert.deepEqual(pack.skills.map(s => s.name), ['crm-capture', 'crm-followup', 'crm-review']);
+  assert.deepEqual(skills.map(s => s.name), ['crm-capture', 'crm-followup', 'crm-review']);
   const reads = ['contact_find', 'followups_due', 'pipeline_report'];
   for (const t of pack.tools) {
     assert.deepEqual(t.run.args, ['tools/crm.mjs', t.name], t.name);
@@ -116,12 +118,12 @@ test('deal rules: open keeps a next step, lost needs a reason, only won churns, 
   assert.deepEqual(moves, ['new', 'qualified', 'won']);
 });
 
-test('the product comes from the host when the run has one, and a deal needs one', async () => {
+test('the product comes from the host (run project) when the run has one, and a deal needs one', async () => {
   const h = harness();
   await assert.rejects(h.call('lead_record', { request_id: 'x', summary: 'y', name: 'N' }), { code: 'product_required' });
-  const out = await h.call('lead_record', { request_id: 'x', summary: 'y', name: 'N' }, { product: '2novel' });
+  const out = await h.call('lead_record', { request_id: 'x', summary: 'y', name: 'N' }, { project: '2novel' });
   assert.equal(out.deal.product, '2novel');
-  await assert.rejects(h.call('lead_record', { request_id: 'z', summary: 'ai đó muốn mua' }, { product: '2novel' }), { code: 'invalid_request' }, 'nobody to follow up is feedback, not a lead');
+  await assert.rejects(h.call('lead_record', { request_id: 'z', summary: 'ai đó muốn mua' }, { project: '2novel' }), { code: 'invalid_request' }, 'nobody to follow up is feedback, not a lead');
 });
 
 test('followups_due notifies only when a step is due or an inbox row is held', async () => {
@@ -243,7 +245,7 @@ test('the executable talks to pack storage over the per-call token and answers J
     p.stdout.on('data', d => { out += d; });
     p.on('error', reject);
     p.on('close', code => resolve({ code, out: JSON.parse(out) }));
-    p.stdin.end(JSON.stringify({ api_version: 'soot/v1', hook: 'tool.call', soot: 'desk', operation: `crm_${name}`, product: '2found', input }));
+    p.stdin.end(JSON.stringify({ api_version: 'soot/v1', hook: 'tool.call', soot: 'desk', operation: `crm_${name}`, project: '2found', input }));
   });
   try {
     const a = await exec('lead_record', { request_id: 'FB-9', summary: 'cần tư vấn', identities: [{ kind: 'email', value: 'q@x.vn' }], consent: 'yes' });

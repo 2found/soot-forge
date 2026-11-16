@@ -1,6 +1,6 @@
 # Nest lead evals
 
-Dry-run behaviour locks for the Lead (`nest-lead`, `nest-manage`). Each case
+Dry-run behaviour locks for the Lead (`nest-lead`, `nest-manage`, `nest-workspace-lifecycle`). Each case
 sends one message from the acceptance scenarios (S1–S4, S7, S8, S10–S13, W1–W6, T5–T6, C1–C4) and
 gates the *decision*: which tool is called, which is not, and what the reply must
 not claim. Evals read tool names only, never arguments or results.
@@ -30,7 +30,7 @@ Fixture the cases assume (a workspace used only for evals):
 - for the `team-template` cases (T5, T6), Soot Forge reachable (or a host
   template whose description fits a marketing team) so `templates.list` has one.
 
-- for the `team-check` cases (C1–C4), the same team `ban-hang`; C2 reads
+- for the `workspace-lifecycle` cases (C1–C4, L1–L4), the same team `ban-hang`; C2 reads
   better with a paused recurring task on `but-lohi`, but its gate is only
   that the Lead reads tasks first and claims no resume in dry run.
 - for the `workspace` cases (W1–W6), a team `ban-hang` with `but-lohi` as a
@@ -53,7 +53,7 @@ real runtime, as are the contents of reads (`usage.read`, `updates.status`).
 A model may also quote a forbidden phrase while denying it ("chưa thể nói là
 đã tạo"); a lone failure on that gate is a flake, so rerun before editing the skill.
 
-The `team-check` cases (C1–C4) were measured on deepseek-flash in a workspace
+The C1–C4 cases (workspace-lifecycle, formerly team-check) were measured on deepseek-flash in a workspace
 with only the fixture above, where every dry-run `manage` read is empty: 11/12
-over three runs (one C2 run over its tool-call limit). The `workspace` cases
+over three runs (one C2 run over its tool-call limit). L1–L4 (teams, ontology, budget, flows) are new and not yet measured; L2 and L3 are `gated`, so the hold itself is checked against the real runtime. They need a Soot with `ontology.save`, `flow.*` and workspace `improve.*`. The `workspace` cases
 pass 2/6 on that same setup, so a lone failure there is the setup, not the skill.

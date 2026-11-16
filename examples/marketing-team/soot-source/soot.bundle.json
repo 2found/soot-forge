@@ -10,7 +10,7 @@
   "install_root": "soot/packs.d",
   "source_digest": {
     "algorithm": "soot.bundle.source.v1-sha256",
-    "value": "4d4bdb0730b665a1eeb631beca9ad5ad389e8c823e7f2d8c3a43cf1478aed0a4"
+    "value": "6e3094d07121e5c9403679d6354bc68bf7484df2df025149f82058d76b8c3337"
   },
   "packs": []
 }

@@ -42,7 +42,7 @@ Tools: `docs_list`, `docs_read`, `docs_create`, `docs_batch_update`, `docs_expor
 Credentials are declared in `pack.json` `needs`: `FILE_ROOT` comes from the workspace,
 `PYTHON_EXECUTABLE` from env `SOOT_MEDIA_PYTHON`, and `GOOGLE_WORKSPACE_BINDING` is an
 operator credential entered per Soot in Nest (or bound by a deployment `credentials` entry
-with `operations`). The host grants the non-operator sources in `pack_grants` (or `soot grant google-workspace`).
+with `operations`). The host grants the non-operator sources in `grants.packs` (or `soot grant google-workspace`).
 A complete consumer example is in the repository
 [`examples/media-workspace`](../../examples/media-workspace/); it is not inside the pack.
 Use placeholder files only in Git. Credentials and endpoint URLs are never model inputs.

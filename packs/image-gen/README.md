@@ -43,7 +43,7 @@ IMAGE_GEN_BINDING from env `SOOT_IMAGE_GEN_BINDING` (JSON). Example (paths are p
 ```
 
 Credentials are declared in `pack.json` `needs`; the host grants the non-operator
-ones in `pack_grants`. Select `"image-gen"` (or `"image-gen:read"` for inspection
+ones in `grants.packs`. Select `"image-gen"` (or `"image-gen:read"` for inspection
 only) in `soot.json`, then `soot check --show`. Installation grants nothing. The host owns executable
 paths and memory budgets; the model cannot supply command flags or model URLs.
 Text encoding and VAE stages default to the chosen `backend` (Metal by default).

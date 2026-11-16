@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "micro-fish",
-  "label": {
+  "name": {
     "vi": "Micro Fish: xã hội giả lập",
     "en": "Micro Fish"
+  },
+  "description": {
+    "vi": "Xã hội giả lập: mỗi persona là một Soot riêng, cùng lướt một feed và tương tác với nhau, để thử nội dung, sản phẩm, giá hay chiến dịch.",
+    "en": "A simulated society: every persona is its own Soot on a shared feed, reacting to each other, to test content, a product, a price or a campaign."
   },
   "keywords": {
     "vi": [
@@ -21,22 +23,6 @@
       "test"
     ]
   },
-  "description": {
-    "vi": "Xã hội giả lập: mỗi persona là một Soot riêng, cùng lướt một feed và tương tác với nhau, để thử nội dung, sản phẩm, giá hay chiến dịch.",
-    "en": "A simulated society: every persona is its own Soot on a shared feed, reacting to each other, to test content, a product, a price or a campaign."
-  },
-  "skills": [
-    {
-      "name": "micro-fish-expert",
-      "description": "Review a simulation's subjects through one named expert lens and record severity-ranked findings.",
-      "file": "skills/expert.md"
-    },
-    {
-      "name": "micro-fish-analyze",
-      "description": "Turn a simulation tally into a decision report with evidence, segment differences and caveats.",
-      "file": "skills/analyze.md"
-    }
-  ],
   "tools": [
     {
       "name": "timeline",

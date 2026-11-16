@@ -1,9 +1,11 @@
 {
-  "api_version": "soot/v1",
-  "id": "lohi-ops",
-  "label": {
+  "name": {
     "vi": "Vận hành Lohi",
     "en": "Lohi operations"
+  },
+  "description": {
+    "vi": "Vận hành Lohi ngoài marketing: sức khoẻ kho truyện, theo dõi thu thập, ẩn bình luận spam, đánh giá App Store, báo cáo SEO trang truyện và báo cáo giá. Chỉ đọc số tổng hợp; tiền bạc là quyết định của người.",
+    "en": "Lohi operations beyond marketing: catalog health, crawl watch, comment moderation, App Store reviews, novel-page SEO and a pricing report. Aggregate reads only; money decisions stay with a person."
   },
   "keywords": {
     "vi": [
@@ -21,60 +23,6 @@
       "pricing"
     ]
   },
-  "description": {
-    "vi": "Vận hành Lohi ngoài marketing: sức khoẻ kho truyện, theo dõi thu thập, ẩn bình luận spam, đánh giá App Store, báo cáo SEO trang truyện và báo cáo giá. Chỉ đọc số tổng hợp; tiền bạc là quyết định của người.",
-    "en": "Lohi operations beyond marketing: catalog health, crawl watch, comment moderation, App Store reviews, novel-page SEO and a pricing report. Aggregate reads only; money decisions stay with a person."
-  },
-  "needs": {
-    "env": [
-      "PRODUCT_API_URL",
-      "CLI_CATALOG_DB",
-      "APPSTORE_APP_ID",
-      "APPSTORE_COUNTRY",
-      "GSC_SITE",
-      "SITE_URL",
-      "PATH",
-      "HOME"
-    ],
-    "credentials": {
-      "PRODUCT_ADMIN_KEY": {
-        "title": "Khoá admin sản phẩm",
-        "description": "Khoá API vai trò agent_mod của Lohi để đọc sức khoẻ kho truyện, bảng số tổng hợp và ẩn hoặc giữ bình luận. Chỉ gửi tới PRODUCT_API_URL. Dùng chung khoá đã nhập cho marketing; nhập trong Nest, không nhập trong chat.",
-        "from": "operator",
-        "optional": true
-      },
-      "GSC_GOOGLE": {
-        "title": "Google Search Console",
-        "description": "Đăng nhập Google trong Nest để Soot đọc số hiển thị, lượt bấm và vị trí của các trang truyện (chỉ quyền đọc). Cùng đăng nhập với gói marketing.",
-        "from": "operator",
-        "optional": true,
-        "oauth": {
-          "provider": "google",
-          "scopes": [
-            "https://www.googleapis.com/auth/webmasters.readonly"
-          ]
-        }
-      },
-      "ASC_API_KEY": {
-        "title": "Khoá App Store Connect API",
-        "description": "JSON {\"key_id\",\"issuer_id\",\"private_key\"} của khoá App Store Connect API (quyền Customer Support) do chủ tài khoản Apple tạo; chỉ để đăng phản hồi đánh giá. Không có khoá thì Soot chỉ soạn nháp. Nhập trong Nest, không nhập trong chat.",
-        "from": "operator",
-        "optional": true
-      }
-    }
-  },
-  "skills": [
-    {
-      "name": "lohi-ops-moderation",
-      "description": "Judge a batch of reader comments (spam, abuse, scam, ok, unsure) and hand the verdicts to the pack, which hides only the clear ones.",
-      "file": "skills/moderation.md"
-    },
-    {
-      "name": "lohi-ops-reviews",
-      "description": "Draft Vietnamese replies to low-rated App Store reviews; never post without a person approving that reply.",
-      "file": "skills/reviews.md"
-    }
-  ],
   "tools": [
     {
       "name": "catalog_health",
@@ -532,6 +480,44 @@
       }
     }
   ],
+  "needs": {
+    "env": [
+      "PRODUCT_API_URL",
+      "CLI_CATALOG_DB",
+      "APPSTORE_APP_ID",
+      "APPSTORE_COUNTRY",
+      "GSC_SITE",
+      "SITE_URL",
+      "PATH",
+      "HOME"
+    ],
+    "credentials": {
+      "PRODUCT_ADMIN_KEY": {
+        "title": "Khoá admin sản phẩm",
+        "description": "Khoá API vai trò agent_mod của Lohi để đọc sức khoẻ kho truyện, bảng số tổng hợp và ẩn hoặc giữ bình luận. Chỉ gửi tới PRODUCT_API_URL. Dùng chung khoá đã nhập cho marketing; nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
+      },
+      "GSC_GOOGLE": {
+        "title": "Google Search Console",
+        "description": "Đăng nhập Google trong Nest để Soot đọc số hiển thị, lượt bấm và vị trí của các trang truyện (chỉ quyền đọc). Cùng đăng nhập với gói marketing.",
+        "from": "operator",
+        "optional": true,
+        "oauth": {
+          "provider": "google",
+          "scopes": [
+            "https://www.googleapis.com/auth/webmasters.readonly"
+          ]
+        }
+      },
+      "ASC_API_KEY": {
+        "title": "Khoá App Store Connect API",
+        "description": "JSON {\"key_id\",\"issuer_id\",\"private_key\"} của khoá App Store Connect API (quyền Customer Support) do chủ tài khoản Apple tạo; chỉ để đăng phản hồi đánh giá. Không có khoá thì Soot chỉ soạn nháp. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true
+      }
+    }
+  },
   "storage": {
     "version": 1,
     "tables": [

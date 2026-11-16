@@ -1,4 +1,4 @@
-// Every tool that used to assume one product takes an optional `product` that defaults to the run's SOOT_PRODUCT, and works
+// Every tool that used to assume one product takes an optional `product` that defaults to the run's SOOT_PROJECT, and works
 // per product. With neither, a single-product deployment behaves as before (the other test files).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +13,7 @@ after(() => { home.close(); novel.close(); });
 const env = { SCOREBOARD_URL: home.url, PRODUCT_ADMIN_KEY: KEY, SCOREBOARD_URLS: `2novel=${novel.url}`, SCOREBOARD_KEYS: `2novel=${OTHER_KEY}` };
 const page = { page: { page: 'company' } };
 
-test('scoreboard_sync: product (input or SOOT_PRODUCT) reads only that product\'s source; none reads all', async () => {
+test('scoreboard_sync: product (input or SOOT_PROJECT) reads only that product\'s source; none reads all', async () => {
   home.calls.length = 0; novel.calls.length = 0;
   const w = world({ env });
   const one = await w.call('scoreboard_sync', { product: '2novel' });
@@ -23,7 +23,7 @@ test('scoreboard_sync: product (input or SOOT_PRODUCT) reads only that product\'
   assert.ok(novel.calls.every(c => c.key === OTHER_KEY));
   // The run's own product does the same without the model saying it; the single SCOREBOARD_URL is the host's.
   novel.calls.length = 0;
-  const run = world({ env: { ...env, SOOT_PRODUCT: 'lohi' } });
+  const run = world({ env: { ...env, SOOT_PROJECT: 'lohi' } });
   await run.call('scoreboard_sync');
   assert.ok(home.calls.length && !novel.calls.length, 'the host board only');
   // Everything, as before.
@@ -42,7 +42,7 @@ test('scoreboard_sync: a product with no source is a quiet skip naming it; a mal
 });
 
 test('digest_save: the digest\'s product fills items that omit theirs; an item of another product is refused (all or none)', async () => {
-  const w = world({ env: { ...env, SOOT_PRODUCT: '2novel' } });
+  const w = world({ env: { ...env, SOOT_PROJECT: '2novel' } });
   const { product, ...bare } = ITEM.content;
   const ok = await w.call('digest_save', { opportunities: [bare] });
   assert.equal(ok.saved.length, 1);
@@ -91,8 +91,8 @@ test('review: a product scores only its own decisions', async () => {
   assert.equal(out.waiting, 1, 'only the 2novel decision was looked at');
 });
 
-test('metrics_record and parts_set default their product to SOOT_PRODUCT; with neither they refuse', async () => {
-  const w = world({ env: { SOOT_PRODUCT: 'acme' } });
+test('metrics_record and parts_set default their product to SOOT_PROJECT; with neither they refuse', async () => {
+  const w = world({ env: { SOOT_PROJECT: 'acme' } });
   const rec = await w.call('metrics_record', { period: { from: '2026-11-02', to: '2026-11-08' }, metrics: [{ key: 'mrr_usd', value: 10 }] });
   assert.equal(rec.product, 'acme');
   const set = await w.call('parts_set', { parts: [{ part: 'value', team: 'insight' }] });
@@ -107,7 +107,7 @@ test('signals and page_view default to the run\'s product; the page narrows and 
   await w.call('scoreboard_sync');
   await w.call('digest_save', { opportunities: [ITEM.product, { ...ITEM.product, product: '2novel', title: 'Dịch lại chương lỗi tự động' }] });
   const run = w;
-  run.env.SOOT_PRODUCT = '2novel';
+  run.env.SOOT_PROJECT = '2novel';
   const sig = await run.call('signals');
   assert.equal(sig.packet.product, '2novel');
   assert.deepEqual(sig.packet.waiting.map(x => x.title), ['Dịch lại chương lỗi tự động']);
