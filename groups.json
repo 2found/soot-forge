@@ -5,7 +5,7 @@
     {
       "id": "insight",
       "name": "Insight",
-      "description": "Đôi mắt và đầu mối gọn của công ty: một Analyst đọc số liệu từng sản phẩm, viết bản tin tuần và bản rà soát tiền hằng tuần (chỉ đọc). Tín hiệu thị trường đến từ nhóm Growth. Nhóm cũng đặt mục tiêu và chia ngân sách token; người sáng lập quyết.",
+      "description": "Đôi mắt của công ty: Analyst đọc số liệu từng sản phẩm, viết bản tin tuần và rà soát tiền hằng tuần (chỉ đọc). Go của người sáng lập thành yêu cầu để xưởng trên máy người sáng lập kéo về dựng.",
       "source": "groups/insight/group.source.json",
       "stability": "experimental",
       "audience": "internal",
@@ -19,7 +19,7 @@
     {
       "id": "growth",
       "name": "Growth",
-      "description": "Marketing và bán hàng của công ty: Writer đọc radar và nguồn rồi viết, Editor kiểm tra, đăng những gì đã qua kiểm tra và là Đầu mối. Tín hiệu thị trường nhóm giữ được chuyển cho Insight. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này.",
+      "description": "Marketing cho bốn sản phẩm qua hub 2found.dev: Writer đọc radar và viết, Editor duyệt, đăng blog và là Đầu mối. Bài mạng xã hội đã duyệt do poster trên máy người sáng lập đăng.",
       "source": "groups/growth/group.source.json",
       "parts": [
         "marketing",
@@ -32,20 +32,21 @@
     {
       "id": "support",
       "name": "Support",
-      "description": "Giao giá trị phía khách: Answerer trả lời khách từ dữ kiện của sản phẩm trên website và các kênh chat; Feedback desk (Đầu mối) gom điều khách hỏi, báo hoặc muốn thành các dòng voice-of-customer cho bạn.",
+      "description": "Trả lời khách của mọi sản phẩm: độc giả Lohi (app, Discord, Telegram) và khách trên 2found.dev, trysoot.com, 2novel.app; bàn ghi nhận lưu sổ, ghi chủ đề không danh tính và viết tổng kết hằng ngày.",
       "source": "groups/support/group.source.json",
       "parts": [
         "delivery"
       ],
       "entries": [
+        "support",
         "desk",
-        "answerer"
+        "reception"
       ]
     },
     {
       "id": "operations",
       "name": "Operations",
-      "description": "Giao giá trị phía sản phẩm: Operator chạy các việc vận hành của công ty (theo dõi máy chủ, nhập nội dung) và Curator giữ danh mục, chất lượng nội dung và kiểm duyệt cộng đồng. Gói của việc đến từ sản phẩm nên mẫu không mang sẵn.",
+      "description": "Giao giá trị phía sản phẩm: Operator theo dõi sức khoẻ mọi sản phẩm và là Đầu mối; Curator giữ kho truyện Lohi, chất lượng nội dung, đánh giá App Store và gửi việc thu thập cho xưởng; Moderator kiểm duyệt bình luận và báo cáo vi phạm; Catalog Exec chạy việc dịch, sửa chương và TTS trong hạn mức.",
       "source": "groups/operations/group.source.json",
       "stability": "experimental",
       "audience": "internal",
@@ -53,32 +54,22 @@
         "delivery"
       ],
       "entries": [
-        "operator"
-      ]
-    },
-    {
-      "id": "finance",
-      "name": "Finance",
-      "description": "Tùy chọn, cho công ty muốn một kiểm soát tài chính riêng: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm, chỉ đọc. Bản rà soát tiền hằng tuần mặc định do Analyst của Insight viết.",
-      "source": "groups/finance/group.source.json",
-      "stability": "experimental",
-      "audience": "internal",
-      "parts": [
-        "finance"
-      ],
-      "entries": [
-        "controller"
+        "operator",
+        "curator",
+        "moderator",
+        "catalog-exec"
       ]
     },
     {
       "id": "workshop",
       "name": "Workshop",
-      "description": "Xưởng chạy trên máy của người sáng lập (cần trình duyệt và một agent lập trình): Builder kéo các yêu cầu đã duyệt từ nhóm Insight và dựng bằng Claude Code qua bbs, Poster đăng bài đã duyệt bằng trình duyệt. Máy chủ không với tới máy này; xưởng tự kéo việc và báo lại.",
+      "description": "Trên máy này: Builder dựng bằng Claude Code, chạy cli, làm video; Poster đăng bài bằng trình duyệt. Tự kéo việc từ máy chủ.",
       "source": "groups/workshop/group.source.json",
       "stability": "experimental",
       "audience": "internal",
       "entries": [
-        "builder"
+        "builder",
+        "poster"
       ]
     },
     {
@@ -130,11 +121,11 @@
     {
       "id": "team-financial",
       "name": "Financial team (deprecated)",
-      "description": "Deprecated, use `finance`. Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
+      "description": "Deprecated, use `insight`. Tài chính chỉ đọc: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm. Nhóm này báo cáo và cảnh báo, không bao giờ tự xử lý tiền.",
       "source": "groups/team-financial/group.source.json",
       "stability": "deprecated",
       "audience": "internal",
-      "replaced_by": "finance"
+      "replaced_by": "insight"
     },
     {
       "id": "team-op",
@@ -144,6 +135,15 @@
       "stability": "deprecated",
       "audience": "internal",
       "replaced_by": "operations"
+    },
+    {
+      "id": "finance",
+      "name": "Finance",
+      "description": "Deprecated, use `insight`. Tùy chọn, cho công ty muốn một kiểm soát tài chính riêng: doanh thu, nhóm người dùng, gói, hiệu quả trên mỗi người dùng và chi phí Soot của từng nhóm, chỉ đọc. Bản rà soát tiền hằng tuần mặc định do Analyst của Insight viết.",
+      "source": "groups/finance/group.source.json",
+      "stability": "deprecated",
+      "audience": "internal",
+      "replaced_by": "insight"
     }
   ],
   "companies": [

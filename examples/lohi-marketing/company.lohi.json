@@ -1,104 +1,96 @@
 {
-  "extends": "company-team",
-  "id": "lohi",
-  "name": "Lohi",
-  "description": "Lohi như một công ty gồm năm nhóm chuẩn (Insight, Growth, Support, Operations, Finance). Mã Soot theo công thức; Operations là Soot lohi-catalog mà gói lohi-ops mang theo; nhóm Support và bàn tiếp nhận chạy trên máy chủ CS, chỉ khai báo ở đây, setup không triển khai.",
-  "teams": {
-    "insight": {
-      "soots": [
-        {
-          "id": "lohi-analyst",
-          "role": "analyst"
-        },
-        {
-          "id": "lohi-radar",
-          "role": "radar"
-        }
-      ]
+ "description": "Lohi như một công ty gồm bốn nhóm chuẩn (Insight, Growth, Support, Operations). Mã Soot theo công thức; Operations là Soot lohi-catalog mà gói lohi-ops mang theo; nhóm Support và bàn tiếp nhận chạy trên máy chủ CS, chỉ khai báo ở đây, setup không triển khai.",
+ "extends": "company-team",
+ "id": "lohi",
+ "name": "Lohi",
+ "teams": {
+  "growth": {
+   "daily_tokens": 250000,
+   "soots": [
+    {
+     "id": "lohi-editor",
+     "role": "editor"
     },
-    "growth": {
-      "soots": [
-        {
-          "id": "lohi-editor",
-          "role": "editor"
-        },
-        {
-          "id": "lohi-writer",
-          "role": "writer"
-        }
-      ],
-      "daily_tokens": 250000
-    },
-    "support": {
-      "soots": [
-        {
-          "id": "desk",
-          "role": "sorts feedback"
-        },
-        {
-          "id": "support",
-          "role": "answers readers"
-        }
-      ]
-    },
-    "finance": {
-      "soots": [
-        {
-          "id": "lohi-finance",
-          "role": "controller"
-        }
-      ]
-    },
-    "operations": {
-      "description": "Giữ danh mục truyện sạch, duyệt bình luận, theo dõi đánh giá.",
-      "soots": [
-        {
-          "id": "lohi-catalog",
-          "role": "operator"
-        }
-      ],
-      "takes_in": [
-        {
-          "from": "insight",
-          "what": "cơ hội danh mục đã duyệt",
-          "contract": "job-requests",
-          "optional": true
-        }
-      ],
-      "gives_out": [
-        {
-          "table": "findings",
-          "pack": "lohi-ops",
-          "fields": [
-            "key",
-            "check",
-            "severity",
-            "subject",
-            "detail",
-            "actionable",
-            "first_seen",
-            "last_seen"
-          ],
-          "note": "điều các lần kiểm tra danh mục, thu thập và SEO tìm thấy; gói lohi-ops giữ bảng này"
-        }
-      ],
-      "decides": {
-        "alone": [
-          "việc danh mục thường lệ trong giới hạn của gói"
-        ],
-        "with_founder": [
-          "mọi việc xóa hoặc đăng lại truyện"
-        ]
-      },
-      "daily_tokens": 80000,
-      "escalates_when": [
-        {
-          "when": "một nguồn đang hỏng",
-          "on": "chain_failed"
-        },
-        "một việc sắp gỡ nội dung"
-      ],
-      "slot": "examples/lohi-marketing/packs/lohi-ops"
+    {
+     "id": "lohi-writer",
+     "role": "writer"
     }
+   ]
+  },
+  "insight": {
+   "soots": [
+    {
+     "id": "lohi-analyst",
+     "role": "analyst"
+    },
+    {
+     "id": "lohi-radar",
+     "role": "radar"
+    }
+   ]
+  },
+  "operations": {
+   "daily_tokens": 80000,
+   "decides": {
+    "alone": [
+     "việc danh mục thường lệ trong giới hạn của gói"
+    ],
+    "with_founder": [
+     "mọi việc xóa hoặc đăng lại truyện"
+    ]
+   },
+   "description": "Giữ danh mục truyện sạch, duyệt bình luận, theo dõi đánh giá.",
+   "escalates_when": [
+    {
+     "on": "chain_failed",
+     "when": "một nguồn đang hỏng"
+    },
+    "một việc sắp gỡ nội dung"
+   ],
+   "gives_out": [
+    {
+     "fields": [
+      "key",
+      "check",
+      "severity",
+      "subject",
+      "detail",
+      "actionable",
+      "first_seen",
+      "last_seen"
+     ],
+     "note": "điều các lần kiểm tra danh mục, thu thập và SEO tìm thấy; gói lohi-ops giữ bảng này",
+     "pack": "lohi-ops",
+     "table": "findings"
+    }
+   ],
+   "slot": "examples/lohi-marketing/packs/lohi-ops",
+   "soots": [
+    {
+     "id": "lohi-catalog",
+     "role": "operator"
+    }
+   ],
+   "takes_in": [
+    {
+     "contract": "job-requests",
+     "from": "insight",
+     "optional": true,
+     "what": "cơ hội danh mục đã duyệt"
+    }
+   ]
+  },
+  "support": {
+   "soots": [
+    {
+     "id": "desk",
+     "role": "sorts feedback"
+    },
+    {
+     "id": "support",
+     "role": "answers readers"
+    }
+   ]
   }
+ }
 }

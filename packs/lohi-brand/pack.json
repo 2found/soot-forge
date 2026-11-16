@@ -1,0 +1,31 @@
+{
+  "api_version": "soot/v1",
+  "description": {
+    "en": "The Lohi brand skill for the marketing team.",
+    "vi": "Kỹ năng thương hiệu Lohi cho đội marketing."
+  },
+  "id": "lohi-brand",
+  "keywords": {
+    "en": [
+      "lohi",
+      "brand",
+      "marketing"
+    ],
+    "vi": [
+      "lohi",
+      "thương hiệu"
+    ]
+  },
+  "label": {
+    "en": "Lohi brand",
+    "vi": "Thương hiệu Lohi"
+  },
+  "skills": [
+    {
+      "description": "Read FIRST for any marketing work on Lohi: scope and hub site, readers and language, voice, what may be claimed (novels, prices), signal sources, cadence caps and channels. Role craft is in the marketing-* skills.",
+      "file": "skills/lohi-brand/SKILL.md",
+      "name": "lohi-brand"
+    }
+  ],
+  "tools": []
+}

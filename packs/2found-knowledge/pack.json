@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schemas/pack.schema.json",
+  "api_version": "soot/v1",
+  "description": {
+    "en": "Routing and playbooks for the 2found website reception.",
+    "vi": "Điều hướng và cẩm nang cho lễ tân website 2found."
+  },
+  "id": "2found-knowledge",
+  "keywords": {
+    "en": [
+      "2found",
+      "reception",
+      "knowledge"
+    ],
+    "vi": [
+      "2found",
+      "lễ tân"
+    ]
+  },
+  "label": {
+    "en": "2found knowledge",
+    "vi": "Kiến thức 2found"
+  },
+  "skills": [
+    {
+      "description": "Read FIRST for any product-choice, 'what is 2found', 'which product do I need', comparison or status question. Behaviour only: how to look product facts up with knowledge_search and cite the page, how to choose one product from the published need-to-product table, how to speak about any product that is in preview or development, honesty rules and Vietnamese phrasing. Product facts themselves are not here.",
+      "file": "skills/routing/SKILL.md",
+      "name": "2found-routing"
+    },
+    {
+      "description": "Read when the visitor is evaluating or buying: wants a recommendation, asks 'how much / is it free / open source / better than X', wants a demo or a human, or shows buying intent. Covers qualification (one question at a time), price handling (look prices up with knowledge_search), competitor comparisons and lead capture with consent.",
+      "file": "skills/sales-playbook/SKILL.md",
+      "name": "2found-sales-playbook"
+    },
+    {
+      "description": "Read when the visitor reports a problem, bug, complaint or asks how to do something and the product pages did not settle it; also before calling record_feedback for any kind other than lead. Covers triage, what to collect, privacy rules, record_feedback kinds and wording, and escalation. Fixes, per-product report details and support channels come from knowledge_search.",
+      "file": "skills/support-playbook/SKILL.md",
+      "name": "2found-support-playbook"
+    }
+  ],
+  "tools": []
+}

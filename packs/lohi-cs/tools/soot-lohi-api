@@ -422,7 +422,7 @@ case $cmd in
     state_dir=$(pack_state)
     # Idempotency per (conversation, novel, kind, from): a retry reuses the
     # stored id. Persist only AFTER a successful POST so a rejected id never sticks.
-    key=$(printf '%s\n' "$input" | jq -r '[.novelId, .kind, (.from|tostring), (.wrongName // "")] | join(":")' | cksum | cut -d' ' -f1)
+    key=$(printf '%s\n' "$input" | jq -r '[.novelId, .kind, (.from|tostring), (.wrongName // ""), (.find // "")] | join(":")' | cksum | cut -d' ' -f1)
     rid_file=$state_dir/report-$(printf '%s' "$cid" | tr -c 'A-Za-z0-9_.-' '_')-$key.id
     if [ -s "$rid_file" ]; then
       rid=$(cat "$rid_file")
@@ -434,7 +434,9 @@ case $cmd in
     body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" --arg r "$rid" '{
       conversationId: $c, reportId: $r, novelId: .novelId, kind: .kind,
       from: .from, to: (.to // null), note: (.note // null),
-      wrongName: (.wrongName // null), rightName: (.rightName // null)} | with_entries(select(.value != null))')
+      wrongName: (.wrongName // null), rightName: (.rightName // null),
+      find: (.find // null), replace: (.replace // null),
+      expectOccurrences: (.expectOccurrences // null), summary: (.summary // null)} | with_entries(select(.value != null))')
     req POST "$base/agent/support/content-reports" "$body" && printf '%s' "$rid" >"$rid_file"
     ;;
   recover-topup)

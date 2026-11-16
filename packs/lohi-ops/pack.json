@@ -1,0 +1,2558 @@
+{
+  "api_version": "soot/v1",
+  "description": {
+    "en": "Lohi operations beyond marketing: catalog health and quality, duplicate novels, request/edit/violation queues, enrichment, Litrans jobs, comments, App Store reviews, SEO and pricing. Money and content takedowns stay with a person.",
+    "vi": "Vận hành Lohi ngoài marketing: sức khoẻ và chất lượng kho truyện, truyện trùng, hàng đợi yêu cầu, sửa chữ, báo cáo vi phạm, làm giàu dữ liệu, dịch Litrans, bình luận, đánh giá App Store, SEO và giá. Tiền bạc và gỡ nội dung là quyết định của người."
+  },
+  "id": "lohi-ops",
+  "keywords": {
+    "en": [
+      "lohi",
+      "operations",
+      "catalog"
+    ],
+    "vi": [
+      "lohi",
+      "vận hành"
+    ]
+  },
+  "label": {
+    "en": "Lohi ops",
+    "vi": "Vận hành Lohi"
+  },
+  "needs": {
+    "credentials": {
+      "ASC_API_KEY": {
+        "description": "JSON {\"key_id\",\"issuer_id\",\"private_key\"} của khoá App Store Connect API (quyền Customer Support) do chủ tài khoản Apple tạo; chỉ để đăng phản hồi đánh giá. Không có khoá thì Soot chỉ soạn nháp. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true,
+        "title": "Khoá App Store Connect API"
+      },
+      "GSC_GOOGLE": {
+        "description": "Đăng nhập Google trong Nest để Soot đọc số hiển thị, lượt bấm và vị trí của các trang truyện (chỉ quyền đọc). Cùng đăng nhập với gói marketing.",
+        "from": "operator",
+        "oauth": {
+          "provider": "google",
+          "scopes": [
+            "https://www.googleapis.com/auth/webmasters.readonly"
+          ]
+        },
+        "optional": true,
+        "title": "Google Search Console"
+      },
+      "PRODUCT_ADMIN_KEY": {
+        "description": "Khoá agent_mod dùng chung cũ. Chỉ là phương án dự phòng khi chưa có PRODUCT_AGENT_KEY; sẽ bị bỏ sau khi mọi Soot đã đổi khoá (docs/AGENT-KEYS.md). Chỉ gửi tới PRODUCT_API_URL.",
+        "from": "operator",
+        "optional": true,
+        "title": "Khoá agent_mod dùng chung (đã lỗi thời)"
+      },
+      "PRODUCT_AGENT_KEY": {
+        "description": "Khoá API của Soot này, đúng một vai trò agent (agent_analyst, agent_moderator, agent_curator, agent_catalog_exec hoặc agent_marketing) tuỳ công cụ nó dùng; mỗi công cụ ghi vai trò cần trong README. Chỉ gửi tới PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
+        "from": "operator",
+        "optional": true,
+        "title": "Khoá agent Lohi"
+      }
+    },
+    "env": [
+      "PRODUCT_API_URL",
+      "CLI_CATALOG_DB",
+      "CLI_DIR",
+      "SOOT_BIN",
+      "APPSTORE_APP_ID",
+      "APPSTORE_COUNTRY",
+      "GSC_SITE",
+      "SITE_URL",
+      "PATH",
+      "HOME"
+    ],
+    "runtime": [
+      "data.read",
+      "data.insert"
+    ]
+  },
+  "skills": [
+    {
+      "description": "Judge a batch of reader comments (spam, abuse, scam, ok, unsure) and hand the verdicts to the pack, which hides only the clear ones.",
+      "file": "skills/moderation/SKILL.md",
+      "name": "lohi-ops-moderation"
+    },
+    {
+      "description": "Draft Vietnamese replies to low-rated App Store reviews; never post without a person approving that reply.",
+      "file": "skills/reviews/SKILL.md",
+      "name": "lohi-ops-reviews"
+    },
+    {
+      "description": "Daily routine of the curator Soot: catalog quality, duplicates, requests, edit suggestions, violation reports, enrichment, Litrans health, then comments and reviews; what it decides alone and what it hands to a person. A quality request is mailed to Catalog Exec and closed from its reply.",
+      "file": "skills/curator/SKILL.md",
+      "name": "lohi-ops-curator"
+    },
+    {
+      "description": "How the Workshop builder runs the curator's catalog jobs on the founder's Mac: jobs run on their own (autorun, radar); the model only settles a request link the catalog has never seen and reads failures.",
+      "file": "skills/builder/SKILL.md",
+      "name": "lohi-ops-builder"
+    },
+    {
+      "description": "Catalog Exec's release gate: sample the first batch of a new novel, judge it by the flags, give one verdict. Short; read only this for ops-release-step.",
+      "file": "skills/release/SKILL.md",
+      "name": "lohi-ops-release"
+    }
+  ],
+  "storage": {
+    "tables": [
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "index": true,
+            "name": "check",
+            "type": "text"
+          },
+          {
+            "name": "severity",
+            "type": "text"
+          },
+          {
+            "name": "subject",
+            "search": true,
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "actionable",
+            "type": "boolean"
+          },
+          {
+            "name": "first_seen",
+            "type": "timestamp"
+          },
+          {
+            "name": "last_seen",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Điều bảng sức khoẻ kho truyện đã thấy: truyện ngừng cập nhật, thiếu chương, chương trống hoặc chưa dịch.",
+        "name": "findings"
+      },
+      {
+        "columns": [
+          {
+            "name": "reply_id",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "source",
+            "type": "text"
+          },
+          {
+            "name": "excerpt",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "verdict",
+            "type": "text"
+          },
+          {
+            "name": "confidence",
+            "type": "number"
+          },
+          {
+            "name": "why",
+            "type": "text"
+          },
+          {
+            "name": "decided_at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Bình luận đã đưa cho Soot xem và quyết định cho từng cái: ẩn, giữ, hay chờ người.",
+        "name": "comments"
+      },
+      {
+        "columns": [
+          {
+            "name": "rid",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "index": true,
+            "name": "rating",
+            "type": "integer"
+          },
+          {
+            "name": "title",
+            "search": true,
+            "type": "text"
+          },
+          {
+            "name": "body",
+            "search": true,
+            "type": "text"
+          },
+          {
+            "name": "version",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "posted_at",
+            "type": "text"
+          },
+          {
+            "name": "country",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "reply_draft",
+            "type": "text"
+          },
+          {
+            "name": "asc_id",
+            "type": "text"
+          },
+          {
+            "name": "replied_at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Đánh giá công khai trên App Store, bản nháp phản hồi và trạng thái đăng.",
+        "name": "reviews"
+      },
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "value",
+            "type": "json"
+          }
+        ],
+        "description": "Trạng thái nhỏ: thẻ Cần bạn đã báo, để không báo lại khi chưa có gì đổi.",
+        "name": "state"
+      },
+      {
+        "columns": [
+          {
+            "index": true,
+            "name": "product",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "kind",
+            "type": "text"
+          },
+          {
+            "name": "subject",
+            "search": true,
+            "type": "text"
+          },
+          {
+            "name": "reason",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "approved_by",
+            "type": "text"
+          },
+          {
+            "name": "result",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          },
+          {
+            "index": true,
+            "name": "request_id",
+            "type": "text"
+          },
+          {
+            "name": "title",
+            "type": "text"
+          },
+          {
+            "name": "source_url",
+            "type": "text"
+          },
+          {
+            "name": "novel_slug",
+            "type": "text"
+          },
+          {
+            "name": "chapters",
+            "type": "text"
+          },
+          {
+            "name": "copyright",
+            "type": "text"
+          },
+          {
+            "name": "acked",
+            "type": "boolean"
+          }
+        ],
+        "description": "Việc thu thập curator xin Workshop làm (sau khi người duyệt): thu thập, onboard, làm mới, sửa chương.",
+        "name": "catalog_jobs"
+      },
+      {
+        "columns": [
+          {
+            "index": true,
+            "name": "job_id",
+            "required": true,
+            "type": "text"
+          },
+          {
+            "name": "state",
+            "required": true,
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          },
+          {
+            "name": "novel_slug",
+            "type": "text"
+          },
+          {
+            "name": "chapters",
+            "type": "text"
+          },
+          {
+            "name": "copyright",
+            "type": "text"
+          }
+        ],
+        "description": "Hàng đợi chỉ thêm: máy Workshop báo việc thu thập đang chạy, xong hay lỗi. catalog_jobs_sync gộp vào catalog_jobs.",
+        "name": "catalog_job_events"
+      },
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "type",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "outcome",
+            "type": "text"
+          },
+          {
+            "name": "novel_slug",
+            "type": "text"
+          },
+          {
+            "name": "chapters",
+            "type": "text"
+          },
+          {
+            "name": "note",
+            "type": "text"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Điều đã xảy ra với mỗi yêu cầu rời hàng đợi: gắn vào truyện có sẵn, trùng, xong, đã dịch, bị chặn bản quyền.",
+        "name": "request_outcomes"
+      },
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "request_id",
+            "type": "text"
+          },
+          {
+            "index": true,
+            "name": "phase",
+            "type": "text"
+          },
+          {
+            "name": "from_chapter",
+            "type": "integer"
+          },
+          {
+            "name": "to_chapter",
+            "type": "integer"
+          },
+          {
+            "name": "job_id",
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "rest_from",
+            "type": "integer"
+          },
+          {
+            "name": "rest_to",
+            "type": "integer"
+          },
+          {
+            "name": "announce",
+            "type": "boolean"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Đợt dịch đầu của truyện vừa lên hoặc vừa thêm chương: xin, chờ job Litrans, kéo về, báo người yêu cầu.",
+        "name": "translations"
+      },
+      {
+        "columns": [
+          {
+            "name": "key",
+            "required": true,
+            "type": "text",
+            "unique": true
+          },
+          {
+            "name": "kind",
+            "type": "text"
+          },
+          {
+            "name": "novel_slug",
+            "type": "text"
+          },
+          {
+            "name": "chapter",
+            "type": "integer"
+          },
+          {
+            "index": true,
+            "name": "state",
+            "type": "text"
+          },
+          {
+            "name": "detail",
+            "type": "text"
+          },
+          {
+            "name": "acked",
+            "type": "boolean"
+          },
+          {
+            "name": "started_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "at",
+            "type": "timestamp"
+          }
+        ],
+        "description": "Việc sửa chương đã chạy và kết quả kiểm lại: chờ kiểm, đạt, hỏng, phạm vi rộng.",
+        "name": "fix_checks"
+      }
+    ],
+    "version": 4
+  },
+  "tools": [
+    {
+      "description": "Run the api catalog-health checks (stale ongoing novels, chapter-number gaps, empty or very short recent chapters, recent chapters still mostly Chinese, quality: published novels missing a cover, synopsis, genres or any chapter), keep a findings table, and raise one Cần bạn card only for what a person must act on (wake/notify when that set changes; resolves_need when it clears). Each run scans a bounded window of novels per check (pages x limit), never the whole catalog.",
+      "name": "catalog_health",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "act_gap_chapters": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "act_stale_days": {
+            "maximum": 365,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "checks": {
+            "items": {
+              "enum": [
+                "stale",
+                "gaps",
+                "thin",
+                "untranslated",
+                "quality"
+              ]
+            },
+            "maxItems": 5,
+            "type": "array"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pages": {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recent_days": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "stale_days": {
+            "maximum": 365,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "catalog_health"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "3m"
+      },
+      "title": "Sức khoẻ kho truyện"
+    },
+    {
+      "description": "BUILDER ONLY (founder's Mac, needs the local CLI_CATALOG_DB; never grant it to a server Soot). Read the cli crawler catalog (CLI_CATALOG_DB, SQLite, opened read-only): sources with work left, crawls stuck in \"crawling\", failed crawls grouped by error, sources that stopped moving, radar finds not yet onboarded. One Cần bạn card only for stuck, repeated failures or a stalled source. Without CLI_CATALOG_DB it answers a quiet skipped.",
+      "name": "crawl_watch",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "stale_days": {
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "stuck_hours": {
+            "maximum": 168,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "crawl_watch"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Theo dõi thu thập truyện (Mac)"
+    },
+    {
+      "description": "Pull comments to screen from the api: those readers reported (flagged) and the newest visible ones (recent), minus the ones already decided. Short thanks, praise and emoji among the newest are kept by the tool itself (auto_kept) and never reach the model; notify is true only when something needs a judgment. Answers {items:[{id, source, body, report_reason}]} and the rules to judge them by. Comment text only: no author, no reader.",
+      "name": "comments_pull",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "scope": {
+            "enum": [
+              "flagged",
+              "recent",
+              "both"
+            ]
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "comments_pull"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Lấy bình luận cần xem"
+    },
+    {
+      "description": "Apply the model verdicts [{id, verdict: spam|abuse|scam|ok|unsure, confidence, why}]. Only spam/abuse/scam at confidence >= 0.9 is hidden through the api (at most 15 per call); a confident ok on a reader-flagged comment is kept; everything else is escalated to one Cần bạn card. dry_run records without calling the api.",
+      "name": "comments_decide",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "dry_run": {
+            "type": "boolean"
+          },
+          "verdicts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "confidence": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "id": {
+                  "maxLength": 36,
+                  "type": "string"
+                },
+                "verdict": {
+                  "enum": [
+                    "spam",
+                    "abuse",
+                    "scam",
+                    "ok",
+                    "unsure"
+                  ]
+                },
+                "why": {
+                  "maxLength": 200,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "verdict",
+                "confidence"
+              ],
+              "type": "object"
+            },
+            "maxItems": 50,
+            "type": "array"
+          }
+        },
+        "required": [
+          "verdicts"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "comments_decide"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "2m"
+      },
+      "title": "Quyết định bình luận"
+    },
+    {
+      "description": "Apply a person's decision on a comment that was escalated: hide it (with a reason) or keep it (restores it if hidden). Only an escalated comment can be resolved here.",
+      "name": "comments_resolve",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "hide",
+              "keep"
+            ]
+          },
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "spam",
+              "abuse",
+              "scam",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "action"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "comments_resolve"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Xử lý bình luận chờ người"
+    },
+    {
+      "description": "Read the Lohi app public reviews from Apple's customer-reviews feed (APPSTORE_APP_ID, APPSTORE_COUNTRY; no sign-in), store the new ones (no reviewer name) and list the 1-3 star reviews that still need a reply. notify: true when there are new reviews.",
+      "name": "appstore_sync",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "pages": {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "appstore_sync"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "90s"
+      },
+      "title": "Đọc đánh giá App Store"
+    },
+    {
+      "description": "Store a Vietnamese reply draft (at most 1000 characters, no email or phone) for one review id from appstore_sync. Posts nothing.",
+      "name": "appstore_draft",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "reply": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "rid": {
+            "maxLength": 40,
+            "type": "string"
+          }
+        },
+        "required": [
+          "rid",
+          "reply"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "appstore_draft"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Soạn phản hồi đánh giá"
+    },
+    {
+      "description": "Gather every drafted, not yet posted App Store reply into one Cần bạn card (no model): a new batch replaces the open card, none left settles it. Its \"Đăng\" option wakes the Soot to post them with appstore_post, which still waits for an operator's approval. Never posts.",
+      "name": "appstore_drafts",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "appstore_drafts"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Phản hồi chờ duyệt"
+    },
+    {
+      "description": "Post one drafted reply through the App Store Connect API (ASC_API_KEY, the founder's key). Without the key it answers needs_credential naming ASC_API_KEY and posts nothing; it never invents a key. Operator approval of the exact reply is expected before calling.",
+      "name": "appstore_post",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "rid": {
+            "maxLength": 40,
+            "type": "string"
+          }
+        },
+        "required": [
+          "rid"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "appstore_post"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "ASC_API_KEY": "{{cred:ASC_API_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Đăng phản hồi lên App Store"
+    },
+    {
+      "description": "From Search Console (the same GSC_GOOGLE sign-in as marketing): lohi2.com/truyen pages with impressions but a low CTR for their position, or sitting at positions 8-20, with the top queries, the page's current title and meta, one concrete change each, and up to 3 content opportunities in the shape company-loop digest_save takes. Read-only; the web app is not changed.",
+      "name": "seo_report",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "maximum": 90,
+            "minimum": 7,
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 40,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "min_impressions": {
+            "maximum": 100000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "site": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "seo_report"
+        ],
+        "max_output_bytes": 131072,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "GSC_GOOGLE": "{{cred:GSC_GOOGLE}}"
+        },
+        "stdin": "context",
+        "timeout": "90s"
+      },
+      "title": "Báo cáo SEO trang truyện"
+    },
+    {
+      "description": "Read the scoreboard's plans and cohorts (api.lohi2.com, last N full days) and report the payer funnel, plan mix with revenue per start, cohort retention, and hypotheses to test. Read-only: it never changes a price, plan or discount; each suggestion is marked decision: founder.",
+      "name": "pricing_report",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "maximum": 92,
+            "minimum": 7,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "pricing_report"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Báo cáo giá và gói"
+    },
+    {
+      "description": "Curator. List pending reader requests (default type novel; also chapters, quality), paid votes first and flagged priority paid. Before listing, settles the obvious ones with no model: a request whose novel is already published is attached and marked done, an exact duplicate title is merged (auto_resolved says which). Page with next_cursor. A request that reached the api's auto-onboard score and holds a day's slot (auto_onboard) is approved and its onboard job opened already approved (approved_by policy:auto_onboard), once per request.",
+      "name": "requests_pending",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_resolve": {
+            "type": "boolean"
+          },
+          "cursor": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "novel",
+              "feature",
+              "audio",
+              "chapters",
+              "quality"
+            ]
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "requests_pending"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Yêu cầu truyện đang chờ"
+    },
+    {
+      "description": "Curator. approve a pending request, mark it done (the novel is already published) or merge it into an active duplicate (target_id). Approve with kind onboard|refresh (+ title, source_url, novel_slug, chapters \"A-B\", optional source) also opens the catalog job: a refresh of an existing novel starts approved, an onboard of a new novel waits for the daily card. Bookkeeping: no reader sees a refusal. When the api answers autoOnboard (the request reached the score and holds a day's slot) the onboard starts approved too.",
+      "name": "request_accept",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "approve",
+              "done",
+              "merge"
+            ]
+          },
+          "chapters": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "onboard",
+              "refresh"
+            ]
+          },
+          "note": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "novel_slug": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "source": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "source_url": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "target_id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "novel",
+              "feature",
+              "audio",
+              "chapters",
+              "quality"
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "request_accept"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Chấp nhận yêu cầu truyện"
+    },
+    {
+      "description": "Curator. Reject a pending request with a reason the requester can read (at least a short sentence; the api echoes it, it does not store it yet). Waits for an operator's approval of the exact reason.",
+      "name": "request_reject",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 300,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "approval": "operator",
+        "args": [
+          "tools/ops.mjs",
+          "request_reject"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Từ chối yêu cầu truyện"
+    },
+    {
+      "description": "Curator. List reader edit suggestions nobody judged yet, oldest first (limit, cursor from next_cursor). Read-only.",
+      "name": "edits_pending",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unreviewed_only": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "edits_pending"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Hàng đợi sửa chữ của độc giả"
+    },
+    {
+      "description": "Curator. The paragraphs around ONE edit suggestion, whether the chapter moved since, and how comparable edits were decided. Read it before edit_verdict. Read-only.",
+      "name": "edits_context",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "edits_context"
+        ],
+        "max_output_bytes": 131072,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Ngữ cảnh một gợi ý sửa"
+    },
+    {
+      "description": "Curator. Record accept / reject / unsure with an honest confidence (0-100) and one Vietnamese sentence. This is a verdict, not a decision: the api combines it with the submitter's trust to apply the edit, drop it or hand it to a moderator.",
+      "name": "edit_verdict",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "accept",
+              "reject",
+              "unsure"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "verdict",
+          "confidence",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "edit_verdict"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Nhận định gợi ý sửa"
+    },
+    {
+      "description": "Curator. Open takedown / violation reports, oldest first, with the 48h deadline and an overdue flag. The reporter is never shown. Page with next_offset. Read-only.",
+      "name": "violations_list",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offset": {
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "acknowledged"
+            ]
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "violations_list"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Báo cáo vi phạm đang mở"
+    },
+    {
+      "description": "Curator. Acknowledge a report, or dismiss a NON-copyright one, with a note. Removing content and dismissing a copyright claim stay with a person (the api answers copyright_needs_person). Waits for an operator's approval of the exact note.",
+      "name": "violation_resolve",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "acknowledge",
+              "dismiss"
+            ]
+          },
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "notes": {
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "approval": "operator",
+        "args": [
+          "tools/ops.mjs",
+          "violation_resolve"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Xử lý báo cáo vi phạm"
+    },
+    {
+      "description": "Curator. Put one catalogue novel (slug) in the enrichment pipeline for tags and synopsis proposals. Proposals still wait for review; a novel outside the catalogue is refused (not_catalogue).",
+      "name": "enrichment_enqueue",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "slug": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "enrichment_enqueue"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Đưa truyện vào làm giàu dữ liệu"
+    },
+    {
+      "description": "Curator. One page of published novels missing a cover, a real synopsis, genres or any published chapter (problems filters: cover, synopsis, genres, chapters). Page with next_cursor. Read-only; catalog_health with check quality keeps the findings.",
+      "name": "quality_list",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "problems": {
+            "items": {
+              "enum": [
+                "cover",
+                "synopsis",
+                "genres",
+                "chapters"
+              ]
+            },
+            "maxItems": 4,
+            "type": "array"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "quality_list"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Chất lượng kho truyện"
+    },
+    {
+      "description": "Curator. Scan a bounded window of the catalog for novels whose titles are alike (accent-folded, typo-tolerant, index-backed in the api; also the same Chinese title). Keeps one finding per pair (check duplicate) and answers both slugs with the similarity. It never merges or archives: that is a person's decision.",
+      "name": "duplicates_scan",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pages": {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "scope": {
+            "enum": [
+              "published",
+              "all"
+            ]
+          },
+          "threshold": {
+            "maximum": 1,
+            "minimum": 0.5,
+            "type": "number"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "duplicates_scan"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "3m"
+      },
+      "title": "Truyện trùng lặp"
+    },
+    {
+      "description": "Curator. Cross-novel Litrans job health: counts by status, the longest queue wait, running jobs with no heartbeat, recent failures. Keeps findings and raises one Cần bạn card when jobs are stalled, queued too long or failing repeatedly.",
+      "name": "litrans_health",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "days": {
+            "maximum": 14,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "queue_wait_minutes": {
+            "maximum": 1440,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "stalled_seconds": {
+            "maximum": 3600,
+            "minimum": 60,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "litrans_health"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Sức khoẻ dịch Litrans"
+    },
+    {
+      "description": "Curator. Ask the Workshop builder (the founder's Mac) for crawler work: kind crawl | onboard | refresh | repair, subject \"<source>/<novel>\" (a repair adds \"#<from>-<to>\"), and why. Waits for an operator's approval of the exact request; once approved the job is queued for the builder. An open duplicate answers the existing job.",
+      "name": "catalog_job_request",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "crawl",
+              "onboard",
+              "refresh",
+              "repair"
+            ]
+          },
+          "product": {
+            "enum": [
+              "lohi",
+              "2novel",
+              "2found",
+              "trysoot"
+            ]
+          },
+          "reason": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "subject",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "approval": "operator",
+        "args": [
+          "tools/ops.mjs",
+          "catalog_job_request"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Xin việc thu thập cho Workshop"
+    },
+    {
+      "description": "Curator, no model. Fold the builder's catalog_job_events (running, done, failed, radar) back into the catalog_jobs table. A done onboard or refresh queues the translation of the chapters it added (translate_step); a refresh the radar policy opened is announced to readers once translated. Posts the request's stage: translating on a done onboard, failed (cause blocked_copyright, no_source or failed; the api refunds donated LT once) on a stopped one, with the fixed reader-facing line asking for a link on no_source. Radar finds from the Mac open one refresh job each (approved_by policy:radar) for novels with readers, inside a daily cap. notify is true only when a job failed.",
+      "name": "catalog_jobs_sync",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "catalog_jobs_sync"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Cập nhật kết quả việc thu thập"
+    },
+    {
+      "description": "Builder (Mac). First report how the jobs this Mac started ended (state, novel_slug, chapters, copyright from the runner's result), then list the approved catalog jobs of the operations team that this Mac has not started. With autorun true it also starts them (at most max_start, default 3) as deterministic cli sequences with no model: refresh and repair run onboard --chapters A-B --chapters-only [--overwrite] --no-announce; an onboard of a new novel runs dry-run, copyright check, then stops blocked_copyright or does the real run (draft for a request). A request whose title matches no single catalog novel ends failed no_source (the api refunds donors); a request link the catalog never saw comes back as needs_source with an instruction. notify is true only for needs_source or a job that could not start.",
+      "name": "catalog_jobs_pull",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "autorun": {
+            "type": "boolean"
+          },
+          "max_start": {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "catalog_jobs_pull"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Việc thu thập đã duyệt"
+    },
+    {
+      "description": "Builder (Mac). Run ONE approved job by id as the same deterministic cli sequence autorun uses (argv arrays, no shell, detached, logged under the pack state dir). For a job answered needs_source, pass source and novel (the cli slugs of the link's novel; the source must be the link's own site and the catalog must hold the row). Reports a running event to the operations team.",
+      "name": "catalog_job_run",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "novel": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "source": {
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "catalog_job_run"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Chạy một việc thu thập"
+    },
+    {
+      "description": "Builder (Mac). Report the end (done or failed, with a short detail) of a job that Claude Code ran from catalog_job_run's instruction. state blocked_copyright (with copyright) stops an onboard that matches a rights holder; a done onboard or refresh carries novel_slug and chapters.",
+      "name": "catalog_job_report",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chapters": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "copyright": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "detail": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "job_id": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "novel_slug": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "failed",
+              "blocked_copyright"
+            ]
+          }
+        },
+        "required": [
+          "job_id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "catalog_job_report"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Báo kết quả việc thu thập"
+    },
+    {
+      "description": "BUILDER ONLY (founder's Mac, needs CLI_DIR and the local catalog). Tool-first, no model: one sweep at a time, started detached with the cli's own radar (at most 60 novels per sweep, prod-synced, not finished, no copyright flag), harvested on the next call. Novels that gained chapters become `radar` events on the operations queue catalog_job_events; the curator's policy turns them into refresh jobs. notify is true only when a sweep failed or never finished.",
+      "name": "radar_scan",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "radar_scan"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Quét chương mới của truyện đang theo dõi (Mac)"
+    },
+    {
+      "description": "Curator, no model. Files ONE Cần bạn card per day listing every requested onboard job (new novels) with its copyright result. Refresh jobs never appear.",
+      "name": "onboard_card",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "force": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "onboard_card"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Thẻ duyệt truyện mới trong ngày"
+    },
+    {
+      "description": "Card option only, never a model's call (it refuses any run that is not the card's own schedule step). Runs when the person presses Duyệt or Từ chối on the daily onboard card: approves or declines the jobs stored with that card's one-time nonce. The click is the approval, so it is not operator-gated.",
+      "name": "catalog_jobs_answer",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "approve",
+              "decline"
+            ]
+          },
+          "nonce": {
+            "maxLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "nonce"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "catalog_jobs_answer"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Bấm thẻ truyện mới"
+    },
+    {
+      "description": "Curator. After the person answers the daily card: approve or decline the listed requested onboard jobs, or ack a copyright stop. Approving is the person's decision, so an operator approves this exact call.",
+      "name": "catalog_jobs_decide",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "approve",
+              "decline",
+              "ack"
+            ]
+          },
+          "ids": {
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          }
+        },
+        "required": [
+          "action",
+          "ids"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "approval": "operator",
+        "args": [
+          "tools/ops.mjs",
+          "catalog_jobs_decide"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Trả lời thẻ truyện mới"
+    },
+    {
+      "description": "Curator. Queue a Litrans translation of at most 10 chapters of one novel (from, to, optional request_id). beyond_first_batch true is allowed only when the api reports enough active readers.",
+      "name": "translate_start",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "beyond_first_batch": {
+            "type": "boolean"
+          },
+          "from": {
+            "maximum": 999999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "request_id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "to": {
+            "maximum": 999999,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "from"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "translate_start"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Xin dịch một đợt chương"
+    },
+    {
+      "description": "Curator, no model. One tick of every open translation: start it, wait for the Litrans job, pull the chapters, then mark the chapters request translated so requesters are told. A new novel's first batch from a request goes to the quality gate instead (stage quality; release_step closes it at release).",
+      "name": "translate_step",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "translate_step"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Đẩy việc dịch đi tiếp"
+    },
+    {
+      "description": "Curator. Mark a request done or translated (the api tells the requesters) and keep the outcome with the novel and chapters.",
+      "name": "request_finish",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chapters": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "novel_slug": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "done",
+              "translated"
+            ]
+          },
+          "type": {
+            "enum": [
+              "novel",
+              "feature",
+              "audio",
+              "chapters",
+              "quality"
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "request_finish"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Đóng yêu cầu có kết quả"
+    },
+    {
+      "description": "Curator. List pending support actions the curator may run itself (requeue_crawl, requeue_tts, fix_chapter) with their chapter span and reporter count; wide ones, review tasks (needs_review) and a person's holds (needs_person) are flagged. Read-only.",
+      "name": "fixes_pull",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "fixes_pull"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Việc sửa chương đang chờ"
+    },
+    {
+      "description": "Curator. Room reports the automatic check could not act on (Lỗi dịch, Sai tên, Lặp đoạn, Đọc sai tên, or a chapter that looked healthy), grouped by novel, kind and 10-chapter window with the number of distinct readers, the detail counts and up to 3 reader notes. Read-only; it files nothing.",
+      "name": "reports_open",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "maximum": 14,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "reports_open"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Báo lỗi chưa ai xem"
+    },
+    {
+      "description": "Curator. Run one pending support action inside the api's daily caps. A wide scope is not run (it goes to a person). The chapter is re-checked later by fix_recheck.",
+      "name": "fix_execute",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "fix_execute"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Chạy một việc sửa chương"
+    },
+    {
+      "description": "Curator. The person saw a fix card (wide scope, refused or failed): stop carding those action ids.",
+      "name": "fix_ack",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "keys": {
+            "items": {
+              "maxLength": 80,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "fix_ack"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Đã xem việc sửa không tự làm được"
+    },
+    {
+      "description": "Curator. Force re-translate ONE chapter (api cap 20 per day).",
+      "name": "chapter_retranslate",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chapter": {
+            "maximum": 999999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "slug": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "chapter"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "chapter_retranslate"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Dịch lại một chương"
+    },
+    {
+      "description": "Curator. Regenerate the audio of ONE chapter with the voice it used (api cap 20 per day).",
+      "name": "chapter_tts",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chapter": {
+            "maximum": 999999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "slug": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "voice_id": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "chapter",
+          "voice_id"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "chapter_tts"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Tạo lại audio một chương"
+    },
+    {
+      "description": "Curator, no model. Look again at fixed chapters (content health / audio): a pass is closed, a fail or a wide scope becomes one Cần bạn card.",
+      "name": "fix_recheck",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "fix_recheck"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Kiểm lại chương đã sửa"
+    },
+    {
+      "description": "Catalog Exec, no model. Run every pending support action the api will run as it stands (re-crawl, re-voice, a reader-quoted text replacement inside the api's bounds), within the api's daily caps. Returns to_review: review tasks (reports the automatic check could not judge) for the model, each once. Wide scopes and a person's holds are carded by fix_recheck.",
+      "name": "fixes_run",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "fixes_run"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "60s"
+      },
+      "title": "Chạy các việc sửa chương sẵn sàng"
+    },
+    {
+      "description": "Catalog Exec. One review task: the reported issue, Lạc Phong's summary, how many readers reported it, the text bounds, and the chapter text (clipped) with its repeated paragraphs. Never who reported it. Read-only.",
+      "name": "fix_context",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "fix_context"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Xem việc cần soát"
+    },
+    {
+      "description": "Catalog Exec. Decide one review task: replace (find = a verbatim quote from the chapter, replace = the corrected text; the api re-checks the quote and its bounds, then runs it), revoice, recrawl, not_reproduced (closed with the reason), or needs_person (a card). Lạc Phong tells every reporter when it settles.",
+      "name": "fix_resolve",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "expect_occurrences": {
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "find": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "replace",
+              "revoice",
+              "recrawl",
+              "not_reproduced",
+              "needs_person"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "replace": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 300,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "outcome",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "fix_resolve"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Kết luận việc cần soát"
+    },
+    {
+      "description": "Catalog Exec. Read the quality sample of a new novel's first batch (at most 10 chapters, api-bounded): per chapter the source and translated length, leftover Chinese, Book Bible names missing from the translation, audio; the api's thresholds; the gate so far. Read only.",
+      "name": "quality_sample",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "maximum": 999999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "slug": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "to": {
+            "maximum": 999999,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "quality_sample"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "30s"
+      },
+      "title": "Mẫu chất lượng truyện mới"
+    },
+    {
+      "description": "Catalog Exec. Post the verdict on a sample (score 0-1, one Vietnamese reason; optional per-chapter scores). pass: the api dispatches pro TTS for the batch, platform-paid inside its daily cap (deferred past it), and the request moves to audio. fail: the api answers next = retranslate (this tool re-translates the named chapters, else the batch, and the batch is sampled again) or human (one Cần bạn card). A replayed verdict changes nothing; dry_run writes nothing.",
+      "name": "quality_verdict",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt": {
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "from": {
+            "maximum": 999999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 600,
+            "type": "string"
+          },
+          "request_id": {
+            "maxLength": 36,
+            "type": "string"
+          },
+          "retranslate": {
+            "items": {
+              "maximum": 999999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 10,
+            "type": "array"
+          },
+          "score": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "scores": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "chapter": {
+                  "maximum": 999999,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "score": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "chapter",
+                "score"
+              ],
+              "type": "object"
+            },
+            "maxItems": 10,
+            "type": "array"
+          },
+          "slug": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "to": {
+            "maximum": 999999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "verdict": {
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          },
+          "voice_id": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "verdict",
+          "score",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "quality_verdict"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "2m"
+      },
+      "title": "Kết luận chất lượng"
+    },
+    {
+      "description": "Catalog Exec, no model. One tick of every new novel on its way to release: a retranslated batch goes back for a new sample, deferred audio is retried, dispatched audio is checked and, once every sampled chapter has it, the request is marked released and closed (the api tells the readers). Wakes only when a sample waits for a verdict.",
+      "name": "release_step",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tools/ops.mjs",
+          "release_step"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "node",
+        "secret_env": {
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}"
+        },
+        "stdin": "context",
+        "timeout": "2m"
+      },
+      "title": "Đưa truyện mới tới phát hành"
+    }
+  ]
+}

@@ -373,7 +373,7 @@
     {
       "name": "lohi_report_content_issue",
       "title": "Báo lỗi nội dung cho đội hỗ trợ",
-      "description": "Ask the support team to fix a broken novel/chapter/audio defect that kind=content_health has ALREADY shown for this window. kind=content (chapters missing/empty/placeholder/untranslated) or kind=audio (Pro audio too short/placeholder on good text). The server re-checks the defect itself and refuses a healthy window; nothing is changed until a member approves it. Max 3 pending per conversation. Tell the reader it is queued for the team, never that it is fixed or when. kind=name (wrong character name): needs wrongName (+ rightName) and requires that kind=name_check showed the wrong spelling in the text; it opens a REVIEW for staff, who decide — never promise a rename.",
+      "description": "Ask the support team to fix a broken novel/chapter/audio defect that kind=content_health has ALREADY shown for this window. kind=content (chapters missing/empty/placeholder/untranslated) or kind=audio (Pro audio too short/placeholder on good text). The server re-checks the defect itself and refuses a healthy window; nothing is changed until a member approves it. Max 3 pending per conversation. Tell the reader it is queued for the team, never that it is fixed or when. kind=name (wrong character name): needs wrongName (+ rightName) and requires that kind=name_check showed the wrong spelling in the text; it opens a REVIEW for staff, who decide — never promise a rename. kind=text (a wrong passage in ONE chapter that the reader quoted or that you found): find = the passage copied verbatim from the chapter (the server refuses a quote that is not there), replace = the corrected text, short, expectOccurrences = how many places (1-3), summary = one line in your words (never the reader's message). A reviewer (Catalog Exec) checks it against the chapter and fixes it; the reader hears back from Lạc Phong when it is done.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -385,7 +385,8 @@
             "enum": [
               "content",
               "audio",
-              "name"
+              "name",
+              "text"
             ]
           },
           "from": {
@@ -414,6 +415,23 @@
           "rightName": {
             "type": "string",
             "maxLength": 60
+          },
+          "find": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "replace": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "expectOccurrences": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 200
           }
         },
         "required": [

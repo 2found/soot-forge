@@ -22,7 +22,7 @@ const runtime = { skip: haveRuntime ? false : 'LOOP_SOOT_BIN does not name an L6
 
 const work = mkdtempSync(join(tmpdir(), 'forge-company-test-'));
 after(() => rmSync(work, { recursive: true, force: true }));
-// Pinned archives of the company's group templates (insight, growth, operations, finance), built from this tree.
+// Pinned archives of the company's group templates (insight, growth, operations), built from this tree.
 const dist = await buildLocalGroups(root, join(work, 'dist'), '0.0.0', { ledByFirstMember: true });
 const pins = await readPins(dist);
 const create = { mode: 'create', root, pins, remotes };
@@ -33,7 +33,7 @@ const check = (overlay, options = create) => checkCompany(template, overlay, { .
 // A second company from the same template: three teams (the Operations job is stock), no finance, no support, renamed growth.
 const shop = {
   extends: 'company-team', id: 'shop', name: 'Shop',
-  remove: ['finance', 'support', 'workshop'],
+  remove: ['support', 'workshop'],
   rename: { growth: 'content' },
   teams: {
     insight: { soots: [{ id: 'shop-analyst', role: 'analyst' }] },
@@ -47,7 +47,7 @@ const shop = {
 test('compile: W2 files go in unchanged; teams, edges, remote, lead and ceiling come out as the runtime names them', async () => {
   const { company, notes } = await compileCompany(template, lohi, create);
   assert.equal(company.api_version, 'soot/company-template/v1');
-  assert.deepEqual(company.teams.map(t => t.id), ['insight', 'growth', 'support', 'operations', 'finance'], 'workshop (a remote Mac) has no remote here and is left out');
+  assert.deepEqual(company.teams.map(t => t.id), ['insight', 'growth', 'support', 'operations'], 'workshop (a remote Mac) has no remote here and is left out');
   assert.match(notes.join('\n'), /team workshop runs on founder-mac/);
   assert.deepEqual(company.company, { name: 'Lohi', lead_team: 'insight', daily_token_ceiling: 550000, goals: template.goals });
   assert.deepEqual(company.remotes, { 'cs-server': { url: 'https://soot.lohi2.com', token_env: 'CS_RUNTIME_TOKEN' } });
@@ -57,22 +57,20 @@ test('compile: W2 files go in unchanged; teams, edges, remote, lead and ceiling 
   assert.deepEqual(byId.support.contract.provides.tables.map(t => `${t.pack}.${t.table}`), ['lohi-cs.voc']);
   assert.equal(byId.insight.template.sha256, pins.insight.sha256);
   // Each created team names its Đầu mối: a member role of its template.
-  assert.deepEqual(Object.fromEntries(company.teams.filter(t => t.template).map(t => [t.id, t.coordinator])), { insight: 'analyst', growth: 'editor', operations: 'operator', finance: 'controller' });
+  assert.deepEqual(Object.fromEntries(company.teams.filter(t => t.template).map(t => [t.id, t.coordinator])), { insight: 'analyst', growth: 'editor', operations: 'operator' });
   assert.equal(byId.insight.profile, 'lean');
   // takes_in becomes consumes (optional and why kept), a read contract becomes the reader's edge, decides is renamed.
   assert.deepEqual(byId.insight.contract.consumes.map(c => [c.team, c.item, c.optional ?? false]), [['growth', 'metrics', false], ['support', 'voc', true]]);
   assert.deepEqual(byId.growth.contract.consumes[0], { team: 'insight', item: 'topics', fields: ['query', 'reason', 'opportunity_ref', 'state'], why: 'chủ đề nội dung cần viết' });
-  assert.deepEqual(byId.finance.contract.decides, { self: ['viết báo cáo hằng tuần'], with_person: ['không bao giờ tự động xử lý tiền: mọi thay đổi do người sáng lập quyết'] });
-  assert.deepEqual(byId.finance.contract.provides.events, ['weekly_finance_report']);
+  assert.ok((byId.insight.contract.provides.events ?? []).includes('weekly_money_review'), 'the analyst owns the weekly money review');
   assert.deepEqual(byId.insight.contract.escalates[0], { when: 'một khóa bảng số liệu bị từ chối hoặc sản phẩm không trả số liệu', on: 'input_starving', after: '24h' }, 'the trigger is a code of the company file, not a match on the text');
   // No trigger depends on the wording: every escalation the group templates give a code has the same code in the compiled company.
   const codes = c => (c.contract.escalates ?? []).filter(e => e.on).map(e => e.on).sort();
   assert.deepEqual(codes(byId.growth), ['chain_failed', 'queue_waiting']);
-  assert.deepEqual(codes(byId.finance), ['budget_80']);
+
   assert.deepEqual(codes(byId.operations), ['chain_failed']);
   assert.equal(byId.growth.contract.budget.daily_tokens, 250000);
-  assert.deepEqual(byId.operations.contract.provides, undefined, "the job pack's table is provided once the pack is installed (adopt)");
-  assert.match(notes.join('\n'), /lohi-ops\.findings is provided once/);
+  assert.deepEqual(byId.operations.contract.provides.tables.map(t => `${t.pack}.${t.table}`), ['lohi-ops.findings'], 'the operations group ships lohi-ops, so it owns its tables');
   // A team without a description cannot be saved from Nest (group_purpose_required), so every compiled team carries one.
   assert.deepEqual(company.teams.filter(t => !t.description).map(t => t.id), [], 'every team says what it is for');
 });
@@ -87,7 +85,7 @@ test('compile: adopt mode names the Soots of the overlay, leaves budgets to the 
   assert.equal(byId.insight.contract.budget, undefined, 'no explicit budget: the runtime sums the members');
   assert.equal(byId.growth.contract.budget.daily_tokens, 250000, 'the overlay set it on purpose');
   assert.deepEqual(byId.operations.contract.provides.tables.map(t => t.table), ['findings'], 'adopt owns the pack table');
-  assert.equal(byId.finance.members.length, 1);
+
   assert.equal(byId.growth.entries, undefined, 'without entries the runtime makes every member an entry');
   // A company that wants one entry per team says so: the first soot is the Đầu mối.
   const one = (await compileCompany(template, { ...lohi, teams: { ...lohi.teams, growth: { ...lohi.teams.growth, entries: ['lohi-editor'] } } }, { mode: 'adopt', root, remotes })).company;
@@ -97,8 +95,8 @@ test('compile: adopt mode names the Soots of the overlay, leaves budgets to the 
 test('compile: adopt with the deployment derives each team budget from its members\' caps, else drops budget_80', async () => {
   // Pure: a minimal deployment whose Soot files carry (or omit) execution.daily_tokens, as setup.mjs writes them.
   const ws = mkdtempSync(join(work, 'caps-'));
-  const ids = ['lohi-analyst', 'lohi-radar', 'lohi-writer', 'lohi-editor', 'lohi-finance', 'lohi-catalog'];
-  const cap = { 'lohi-analyst': 60000, 'lohi-radar': 40000, 'lohi-finance': 0 };
+  const ids = ['lohi-analyst', 'lohi-radar', 'lohi-writer', 'lohi-editor', 'lohi-catalog'];
+  const cap = { 'lohi-analyst': 60000, 'lohi-radar': 40000 };
   mkdirSync(join(ws, 'soots'));
   for (const id of ids) writeFileSync(join(ws, 'soots', `${id}.json`), JSON.stringify({ id, ...(cap[id] ? { execution: { daily_tokens: cap[id] } } : {}) }));
   writeFileSync(join(ws, 'deployment.json'), JSON.stringify({ soots: ids.map(id => `soots/${id}.json`) }));
@@ -106,9 +104,7 @@ test('compile: adopt with the deployment derives each team budget from its membe
   const byId = Object.fromEntries(company.teams.map(t => [t.id, t]));
   assert.equal(byId.insight.contract.budget.daily_tokens, 100000, 'the sum of the members\' caps, the value adopt derives');
   assert.equal(byId.growth.contract.budget.daily_tokens, 250000, 'an explicit budget is kept as set');
-  assert.equal(byId.finance.contract.budget, undefined, 'no member cap: no budget is invented');
-  assert.ok(!(byId.finance.contract.escalates ?? []).some(e => e.on === 'budget_80'), 'budget_80 without a budget is left out');
-  assert.match(notes.join('\n'), /team finance: no member has a daily token cap/);
+  assert.equal(byId.operations.contract.budget.daily_tokens, 80000, 'an explicit operations budget is kept');
   // Without the deployment nothing changes: adopt derives the budget when it applies.
   const { company: plain } = await compileCompany(template, lohi, { mode: 'adopt', root, remotes });
   assert.equal(plain.teams.find(t => t.id === 'insight').contract.budget, undefined);
@@ -116,11 +112,11 @@ test('compile: adopt with the deployment derives each team budget from its membe
 
 test('compile: remove and rename go to the runtime as its overlay, patches and adds are shaped here; nothing is validated', async () => {
   const { company } = await compileCompany(template, shop, create);
-  assert.deepEqual(company.overlay, { remove: ['finance', 'support'], rename: { growth: 'content' } }, 'the runtime removes what it holds; workshop has no remote here and is not its to remove');
-  assert.deepEqual((await compileCompany(template, shop, { mode: 'create', root, pins })).company.overlay, { remove: ['finance'], rename: { growth: 'content' } }, 'support without a remote is left out by the compiler');
-  assert.deepEqual(company.teams.map(t => t.id), ['insight', 'growth', 'support', 'operations', 'finance']);
-  const { company: ex } = await compileCompany(template, { remove: ['growth', 'finance'] }, create);
-  assert.deepEqual(ex.overlay.remove, ['growth', 'finance']);
+  assert.deepEqual(company.overlay, { remove: ['support'], rename: { growth: 'content' } }, 'the runtime removes what it holds; workshop has no remote here and is not its to remove');
+  assert.deepEqual((await compileCompany(template, shop, { mode: 'create', root, pins })).company.overlay, { rename: { growth: 'content' } }, 'support without a remote is left out by the compiler');
+  assert.deepEqual(company.teams.map(t => t.id), ['insight', 'growth', 'support', 'operations']);
+  const { company: ex } = await compileCompany(template, { remove: ['growth', 'operations'] }, create);
+  assert.deepEqual(ex.overlay.remove, ['growth', 'operations']);
   // A contract naming a table nobody gives out compiles: refusing it is the runtime's job.
   const bad = await compileCompany(template, { contracts: { add: [{ id: 'ghost', owner: 'insight', reader: 'growth', table: 'ghost', pack: 'company-loop', mode: 'read', fields: ['x'] }] } }, create);
   assert.ok(bad.company.teams.find(t => t.id === 'growth').contract.consumes.some(c => c.item === 'ghost'));
@@ -156,9 +152,8 @@ test('the template and the Lohi overlay compile and pass `soot company check`; a
   assert.deepEqual(r.teams, ['insight', 'content', 'operations']);
   assert.ok(r.edges.some(e => e.from === 'content' && e.to === 'insight' && e.item === 'topics'), 'a renamed team keeps its edges');
   assert.ok(r.edges.some(e => e.from === 'operations' && e.item === 'opportunities'), 'the added contract is an edge');
-  assert.ok(!r.edges.some(e => e.to === 'finance' || e.from === 'finance'), 'the removed team took its optional edges');
   const l = await check(lohi);
-  assert.deepEqual(l.teams, ['insight', 'growth', 'support', 'operations', 'finance']);
+  assert.deepEqual(l.teams, ['insight', 'growth', 'support', 'operations']);
 });
 
 test('Lohi adopt: the setup.mjs workspace and the adopt-mode company pass `soot company check --config`', runtime, async () => {
@@ -166,7 +161,7 @@ test('Lohi adopt: the setup.mjs workspace and the adopt-mode company pass `soot 
   build(ws, { env: true, video: false, connection: null, home: join(work, 'home') });
   const r = await check(lohi, { mode: 'adopt', root, remotes, config: join(ws, 'deployment.json') });
   assert.deepEqual(r.diagnostics, []);
-  assert.deepEqual(r.teams, ['insight', 'growth', 'support', 'operations', 'finance']);
+  assert.deepEqual(r.teams, ['insight', 'growth', 'support', 'operations']);
   // Every Soot of the overlay is a Soot of the recipe, and every scheduled Soot belongs to a team.
   const host = JSON.parse(readFileSync(join(ws, 'deployment.json'), 'utf8'));
   const owned = new Set(r.company.teams.flatMap(t => t.members ?? []));
@@ -186,7 +181,7 @@ test('refusals are the runtime\'s: a required edge, the lead, an unknown team, a
   assert.deepEqual(codes(await check({ remove: ['insight'] })), ['company_lead_removed']);
   assert.deepEqual(codes(await check({ remove: ['nope'] })), ['company_unknown_team']);
   // An optional edge goes with its removed team.
-  assert.equal((await check({ remove: ['finance'] })).ok, true);
+  assert.equal((await check({ remove: ['operations'] })).ok, true);
   const badField = { contracts: { remove: ['topics'], add: [{ id: 'topics', owner: 'insight', reader: 'growth', table: 'topics', pack: 'company-loop', mode: 'read', fields: ['nope'] }] } };
   assert.deepEqual(codes(await check(badField)), ['contract_field_unknown']);
   const ghost = { teams: { insight: { } }, contracts: { add: [{ id: 'ghost', owner: 'insight', reader: 'growth', table: 'ghost', pack: 'company-loop', mode: 'read', fields: ['x'] }] } };
@@ -205,19 +200,19 @@ test('Lohi end to end: setup.mjs builds the recipe, `soot company adopt` moves i
   const deployment = join(ws, 'deployment.json');
   copyFileSync(deployment, join(work, 'pre-adopt.json'));
   const soot = (...args) => execFileSync(bin, args, { encoding: 'utf8', env: { PATH: process.env.PATH, HOME: process.env.HOME, SOOT_HOME: home } });
-  assert.match(soot('check', '--config', deployment), /Valid: 6 Soot/);
+  assert.match(soot('check', '--config', deployment), /Valid: 5 Soot/);
   const { company } = await compileCompany(template, lohi, { mode: 'adopt', root, remotes });
   writeFileSync(out, JSON.stringify(company));
-  assert.equal(JSON.parse(soot('company', 'adopt', out, '--config', deployment, '--json')).teams, 5);
-  assert.match(soot('check', '--config', deployment), /Valid: 6 Soot/);
+  assert.equal(JSON.parse(soot('company', 'adopt', out, '--config', deployment, '--json')).teams, 4);
+  assert.match(soot('check', '--config', deployment), /Valid: 5 Soot/);
   const after = JSON.parse(readFileSync(deployment, 'utf8')), before = JSON.parse(readFileSync(join(work, 'pre-adopt.json'), 'utf8'));
-  assert.deepEqual(Object.keys(after.groups).sort(), ['finance', 'growth', 'insight', 'operations', 'support']);
+  assert.deepEqual(Object.keys(after.groups).sort(), ['growth', 'insight', 'operations', 'support']);
   assert.ok(after.schedules.length === before.schedules.length && after.schedules.every(x => x.group), 'every schedule joined its team');
   assert.ok(after.schedules.every((x, i) => x.tool && x.soot === before.schedules[i].soot), 'a tool chain keeps its member');
   const sum = id => Object.keys(after.groups[id].members).reduce((n, m) => n + JSON.parse(readFileSync(join(ws, 'soots', `${m}.json`), 'utf8')).execution.daily_tokens, 0);
-  for (const id of ['insight', 'growth', 'finance', 'operations']) assert.equal(after.groups[id].contract.budget.daily_tokens, sum(id), `${id}: the team budget is the sum of its members' caps`);
+  for (const id of ['insight', 'growth', 'operations']) assert.equal(after.groups[id].contract.budget.daily_tokens, sum(id), `${id}: the team budget is the sum of its members' caps`);
   assert.ok(after.access.every(g => g.subject.startsWith('team:') && g.scope.startsWith('soot:') && g.level === 'read'), 'team: read grants on the old soot: scopes');
-  assert.deepEqual(after.access.map(g => g.scope).sort(), ['soot:lohi-analyst', 'soot:lohi-catalog', 'soot:lohi-editor', 'soot:lohi-finance', 'soot:lohi-radar', 'soot:lohi-writer']);
+  assert.deepEqual(after.access.map(g => g.scope).sort(), ['soot:lohi-analyst', 'soot:lohi-catalog', 'soot:lohi-editor', 'soot:lohi-radar', 'soot:lohi-writer']);
   assert.equal(after.default_groups['lohi-writer'], 'growth', 'each Soot can still be chatted to directly');
   assert.equal(after.groups.growth.entries[0], 'lohi-editor', 'the first Soot of the team is its Đầu mối');
   assert.deepEqual(after.company, { name: 'Lohi', lead_team: 'insight', daily_token_ceiling: 550000, goals: template.goals });

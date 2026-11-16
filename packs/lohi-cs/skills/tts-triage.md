@@ -25,8 +25,8 @@ First separate TEXT problems from AUDIO problems.
 
 - `on_empty_text` — audio exists but the chapter text is empty/placeholder.
   This is a TEXT defect first: report `kind:"content"` (see `chapter-triage`).
-  Tell the reader the audio will need regenerating once the text is fixed. The
-  report tool refuses `kind:"audio"` here (`content_first`) on purpose.
+  Tell the reader the text is fetched again first and the audio is redone after.
+  A `kind:"audio"` report here is turned into the same text re-fetch by the api.
 - `placeholder` — the stored audio narrated only the placeholder sentence while
   the text is now fine: stale audio. Report `kind:"audio"`.
 - `too_short` — audio far shorter than the chapter text (e.g. 2 seconds for a

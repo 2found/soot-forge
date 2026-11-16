@@ -1,85 +1,185 @@
 {
   "api_version": "soot-forge/company-template/v1",
-  "id": "company-team",
-  "name": "Company",
-  "description": "Một công ty gồm các nhóm, mỗi nhóm là một giao diện: nhận gì, giao ra gì, tự quyết gì hay quyết cùng người sáng lập, ngân sách token mỗi ngày và khi nào báo bạn. Thêm, bớt hay đổi tên nhóm, hoặc sửa hợp đồng, trong một tệp overlay; không cần sửa mã.",
+  "contracts": [
+    {
+      "fields": [
+        "query",
+        "reason",
+        "opportunity_ref",
+        "state"
+      ],
+      "id": "topics",
+      "mode": "read",
+      "owner": "insight",
+      "pack": "company-loop",
+      "reader": "growth",
+      "table": "topics"
+    },
+    {
+      "fields": [
+        "url",
+        "source",
+        "day",
+        "views",
+        "likes",
+        "comments",
+        "impressions",
+        "clicks"
+      ],
+      "id": "marketing-numbers",
+      "mode": "read",
+      "owner": "growth",
+      "pack": "marketing",
+      "reader": "insight",
+      "table": "metrics"
+    },
+    {
+      "fields": [
+        "opportunity",
+        "product",
+        "requirement",
+        "target_outcome",
+        "state",
+        "released_at",
+        "answer",
+        "answer_note",
+        "answer_for"
+      ],
+      "id": "build-request",
+      "mode": "read",
+      "optional": true,
+      "owner": "insight",
+      "pack": "company-loop",
+      "reader": "workshop",
+      "table": "handoffs"
+    },
+    {
+      "fields": [
+        "kind",
+        "summary",
+        "created"
+      ],
+      "id": "support-voc",
+      "mode": "read",
+      "optional": true,
+      "owner": "support",
+      "pack": "lohi-cs",
+      "reader": "insight",
+      "table": "voc"
+    },
+    {
+      "fields": [
+        "ref",
+        "title",
+        "kind",
+        "state"
+      ],
+      "id": "job-requests",
+      "mode": "read",
+      "optional": true,
+      "owner": "insight",
+      "pack": "company-loop",
+      "reader": "operations",
+      "table": "opportunities"
+    },
+    {
+      "fields": [
+        "handoff",
+        "state",
+        "ticket",
+        "asked",
+        "url",
+        "note",
+        "at",
+        "product"
+      ],
+      "id": "handoff-events",
+      "mode": "write",
+      "optional": true,
+      "owner": "insight",
+      "pack": "company-loop",
+      "reader": "workshop",
+      "table": "handoff_events"
+    }
+  ],
   "daily_token_ceiling": 550000,
+  "description": "Một công ty gồm các nhóm, mỗi nhóm là một giao diện: nhận gì, giao ra gì, tự quyết gì hay quyết cùng người sáng lập, ngân sách token mỗi ngày và khi nào báo bạn. Thêm, bớt hay đổi tên nhóm, hoặc sửa hợp đồng, trong một tệp overlay; không cần sửa mã.",
   "goals": {
-    "cycle_weeks": 6,
-    "max_per_product": 3,
-    "max_per_team": 3,
-    "ops_warn_ratio": 0.3,
     "approve_team_goals": "person",
     "approve_waking_repeats": "person",
     "cadence": [
       {
-        "id": "weekly-commit",
-        "title": {
-          "vi": "Cam kết tuần",
-          "en": "Weekly commitments"
-        },
         "cron": "0 8 * * 1",
+        "id": "weekly-commit",
+        "text": "Monday commitments. Load the coordinator-rhythm skill if you have it. Read your team's active goals (goal list), last week's check-in, your open tasks and the signals your tools give you. Cancel or park open tasks that serve no active goal and are not operations. Commit at most 5 tasks for the week, each linked to one of your team's goals (operations tasks carry no goal): biggest gap first, a guardrail past its limit first of all. Warn the Lead if operations are more than about 30 % of the week. Report once in the team's thread. With no active goal, do operations only and say so in one line.",
         "timezone": "Asia/Ho_Chi_Minh",
-        "text": "Monday commitments. Load the coordinator-rhythm skill if you have it. Read your team's active goals (goal list), last week's check-in, your open tasks and the signals your tools give you. Cancel or park open tasks that serve no active goal and are not operations. Commit at most 5 tasks for the week, each linked to one of your team's goals (operations tasks carry no goal): biggest gap first, a guardrail past its limit first of all. Warn the Lead if operations are more than about 30 % of the week. Report once in the team's thread. With no active goal, do operations only and say so in one line."
+        "title": {
+          "en": "Weekly commitments",
+          "vi": "Cam kết tuần"
+        }
       },
       {
-        "id": "weekly-checkin",
-        "title": {
-          "vi": "Check-in tuần",
-          "en": "Weekly check-in"
-        },
         "cron": "0 16 * * 5",
+        "id": "weekly-checkin",
+        "text": "Friday check-in. Load the coordinator-rhythm skill if you have it. For each active goal of your team, read its metric from the tool that owns the number, then goal checkin with the value, a confidence from 0 to 10 and one sentence. Never estimate a number: say 'chưa đo' when you cannot read it. Mark done only tasks you saw finished. Send the person the wins of the week (two or three lines, each a result with its number and its goal); say so plainly when there was none.",
         "timezone": "Asia/Ho_Chi_Minh",
-        "text": "Friday check-in. Load the coordinator-rhythm skill if you have it. For each active goal of your team, read its metric from the tool that owns the number, then goal checkin with the value, a confidence from 0 to 10 and one sentence. Never estimate a number: say 'chưa đo' when you cannot read it. Mark done only tasks you saw finished. Send the person the wins of the week (two or three lines, each a result with its number and its goal); say so plainly when there was none."
+        "title": {
+          "en": "Weekly check-in",
+          "vi": "Check-in tuần"
+        }
       },
       {
-        "id": "cycle-review",
-        "title": {
-          "vi": "Nhìn lại cuối chu kỳ",
-          "en": "Cycle review"
-        },
         "cron": "0 17 * * 5",
+        "id": "cycle-review",
+        "text": "Cycle review. Load the coordinator-rhythm skill if you have it. This runs every Friday after the check-in because a cron cannot count a cycle. If no active goal of your team ends within the next 7 days, answer 'chưa cuối chu kỳ' in one line and stop. Otherwise score each team goal from 0 to 1 (0.6 to 0.7 is good), compare the bets that pointed at each goal (expected_delta against actual_delta), say keep, drop or change with a reason, and propose next cycle's team goals with goal propose as drafts (at most 3, each with a baseline you read, a target with your reasoning, and a guardrail). Do not approve them. Report once.",
         "timezone": "Asia/Ho_Chi_Minh",
-        "text": "Cycle review. Load the coordinator-rhythm skill if you have it. This runs every Friday after the check-in because a cron cannot count a cycle. If no active goal of your team ends within the next 7 days, answer 'chưa cuối chu kỳ' in one line and stop. Otherwise score each team goal from 0 to 1 (0.6 to 0.7 is good), compare the bets that pointed at each goal (expected_delta against actual_delta), say keep, drop or change with a reason, and propose next cycle's team goals with goal propose as drafts (at most 3, each with a baseline you read, a target with your reasoning, and a guardrail). Do not approve them. Report once."
+        "title": {
+          "en": "Cycle review",
+          "vi": "Nhìn lại cuối chu kỳ"
+        }
       }
-    ]
+    ],
+    "cycle_weeks": 6,
+    "max_per_product": 3,
+    "max_per_team": 3,
+    "ops_warn_ratio": 0.3
   },
+  "id": "company-team",
+  "name": "Company",
   "teams": [
     {
-      "id": "insight",
-      "name": "Insight",
+      "coordinator": "analyst",
+      "daily_tokens": 130000,
+      "decides": {
+        "alone": [
+          "xếp hạng và xếp hàng chủ đề nội dung",
+          "đề xuất cách chia ngân sách"
+        ],
+        "with_founder": [
+          "một cơ hội sản phẩm (Go, Để sau, Bỏ)",
+          "mục tiêu",
+          "mọi thay đổi ngân sách mỗi ngày của một nhóm"
+        ]
+      },
       "description": "Đọc số liệu từng sản phẩm, tìm cơ hội, rà soát tiền hằng tuần.",
-      "kind": "group",
-      "group": "insight",
-      "soots": [
+      "escalates_when": [
         {
-          "id": "analyst",
-          "role": "analyst"
-        }
-      ],
-      "takes_in": [
-        {
-          "from": "growth",
-          "what": "bài đã đăng, số liệu của bài và tín hiệu thị trường (metrics, posts, signals)",
-          "contract": "marketing-numbers"
+          "after": "24h",
+          "on": "input_starving",
+          "when": "một khóa bảng số liệu bị từ chối hoặc sản phẩm không trả số liệu"
         },
         {
-          "from": "support",
-          "what": "ý kiến độc giả đã gom (voc)",
-          "contract": "support-voc",
-          "optional": true
+          "on": "queue_waiting",
+          "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ"
         },
         {
-          "from": "workshop",
-          "what": "sự kiện dựng của yêu cầu đã duyệt (handoff_events)",
-          "contract": "handoff-events",
-          "optional": true
+          "after": "168h",
+          "on": "queue_waiting",
+          "when": "một thẻ Cần bạn của đội chờ bạn quá một tuần"
         }
       ],
       "gives_out": [
         {
-          "table": "opportunities",
-          "pack": "company-loop",
           "fields": [
             "ref",
             "title",
@@ -89,11 +189,11 @@
             "target_outcome",
             "expected_delta"
           ],
-          "note": "xếp hạng mỗi tuần; cơ hội sản phẩm do người sáng lập quyết"
+          "note": "xếp hạng mỗi tuần; cơ hội sản phẩm do người sáng lập quyết",
+          "pack": "company-loop",
+          "table": "opportunities"
         },
         {
-          "table": "topics",
-          "pack": "company-loop",
           "fields": [
             "query",
             "reason",
@@ -101,11 +201,11 @@
             "kind",
             "state"
           ],
-          "note": "chủ đề nội dung để Marketing viết tiếp"
+          "note": "chủ đề nội dung để Marketing viết tiếp",
+          "pack": "company-loop",
+          "table": "topics"
         },
         {
-          "table": "scoreboard",
-          "pack": "company-loop",
           "fields": [
             "key",
             "period_from",
@@ -114,11 +214,11 @@
             "cohorts",
             "plans"
           ],
-          "note": "số liệu của sản phẩm, mỗi tuần một dòng"
+          "note": "số liệu của sản phẩm, mỗi tuần một dòng",
+          "pack": "company-loop",
+          "table": "scoreboard"
         },
         {
-          "table": "handoffs",
-          "pack": "company-loop",
           "fields": [
             "opportunity",
             "product",
@@ -133,110 +233,52 @@
             "answer_note",
             "answer_for"
           ],
-          "note": "yêu cầu làm sản phẩm đã duyệt, tình trạng và câu trả lời của người sáng lập cho phiên dựng (xưởng kéo về)"
-        }
-      ],
-      "decides": {
-        "alone": [
-          "xếp hạng và xếp hàng chủ đề nội dung",
-          "đề xuất cách chia ngân sách"
-        ],
-        "with_founder": [
-          "một cơ hội sản phẩm (Go, Để sau, Bỏ)",
-          "mục tiêu",
-          "mọi thay đổi ngân sách mỗi ngày của một nhóm"
-        ]
-      },
-      "daily_tokens": 130000,
-      "escalates_when": [
-        {
-          "when": "một khóa bảng số liệu bị từ chối hoặc sản phẩm không trả số liệu",
-          "on": "input_starving",
-          "after": "24h"
+          "note": "yêu cầu làm sản phẩm đã duyệt, tình trạng và câu trả lời của người sáng lập cho phiên dựng (xưởng kéo về)",
+          "pack": "company-loop",
+          "table": "handoffs"
         },
         {
-          "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ",
-          "on": "queue_waiting"
-        },
-        {
-          "when": "một thẻ Cần bạn của đội chờ bạn quá một tuần",
-          "on": "queue_waiting",
-          "after": "168h"
+          "event": "weekly_money_review",
+          "note": "bản rà soát tiền hằng tuần, chỉ đọc"
         }
       ],
+      "group": "insight",
+      "id": "insight",
+      "kind": "group",
       "lead": true,
+      "name": "Insight",
       "parts": [
         "value"
       ],
-      "coordinator": "analyst"
-    },
-    {
-      "id": "growth",
-      "name": "Growth",
-      "description": "Marketing và bán hàng: đọc radar, viết, kiểm tra và đăng.",
-      "kind": "group",
-      "group": "growth",
       "soots": [
         {
-          "id": "editor",
-          "role": "editor"
-        },
-        {
-          "id": "writer",
-          "role": "writer"
+          "id": "analyst",
+          "role": "analyst"
         }
       ],
       "takes_in": [
         {
-          "from": "insight",
-          "what": "chủ đề nội dung cần viết",
-          "contract": "topics"
-        }
-      ],
-      "gives_out": [
-        {
-          "table": "posts",
-          "pack": "marketing",
-          "fields": [
-            "ref",
-            "kind",
-            "channel",
-            "title",
-            "link",
-            "state",
-            "url"
-          ],
-          "note": "bản ghi duy nhất về việc đã viết và đã đăng"
+          "contract": "marketing-numbers",
+          "from": "growth",
+          "what": "bài đã đăng, số liệu của bài và tín hiệu thị trường (metrics, posts, signals)"
         },
         {
-          "table": "metrics",
-          "pack": "marketing",
-          "fields": [
-            "url",
-            "source",
-            "day",
-            "views",
-            "likes",
-            "comments",
-            "impressions",
-            "clicks"
-          ],
-          "note": "số liệu Search Console, TikTok và YouTube"
+          "contract": "support-voc",
+          "from": "support",
+          "optional": true,
+          "what": "ý kiến độc giả đã gom (voc)"
         },
         {
-          "table": "signals",
-          "pack": "marketing",
-          "fields": [
-            "source",
-            "title",
-            "url",
-            "state",
-            "note",
-            "ref"
-          ],
-          "note": "tín hiệu thị trường radar đã giữ"
+          "contract": "handoff-events",
+          "from": "workshop",
+          "optional": true,
+          "what": "sự kiện dựng của yêu cầu đã duyệt (handoff_events)"
         }
-      ],
+      ]
+    },
+    {
+      "coordinator": "editor",
+      "daily_tokens": 250000,
       "decides": {
         "alone": [
           "viết và lên lịch trong các bước kiểm tra và giới hạn",
@@ -249,55 +291,90 @@
           "mọi việc liên quan đến tiền hoặc tài khoản"
         ]
       },
-      "daily_tokens": 250000,
+      "description": "Marketing và bán hàng: đọc radar, viết, kiểm tra và đăng.",
       "escalates_when": [
         {
-          "when": "một kênh bị đăng xuất",
-          "on": "chain_failed"
+          "on": "chain_failed",
+          "when": "một kênh bị đăng xuất"
         },
         {
-          "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ",
-          "on": "queue_waiting"
+          "on": "queue_waiting",
+          "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ"
         },
         "một phản hồi nói về tiền, tài khoản hoặc khiếu nại"
       ],
+      "gives_out": [
+        {
+          "fields": [
+            "ref",
+            "kind",
+            "channel",
+            "title",
+            "link",
+            "state",
+            "url"
+          ],
+          "note": "bản ghi duy nhất về việc đã viết và đã đăng",
+          "pack": "marketing",
+          "table": "posts"
+        },
+        {
+          "fields": [
+            "url",
+            "source",
+            "day",
+            "views",
+            "likes",
+            "comments",
+            "impressions",
+            "clicks"
+          ],
+          "note": "số liệu Search Console, TikTok và YouTube",
+          "pack": "marketing",
+          "table": "metrics"
+        },
+        {
+          "fields": [
+            "source",
+            "title",
+            "url",
+            "state",
+            "note",
+            "ref"
+          ],
+          "note": "tín hiệu thị trường radar đã giữ",
+          "pack": "marketing",
+          "table": "signals"
+        }
+      ],
+      "group": "growth",
+      "id": "growth",
+      "kind": "group",
+      "name": "Growth",
       "parts": [
         "marketing",
         "sales"
       ],
-      "coordinator": "editor"
-    },
-    {
-      "id": "support",
-      "name": "Support",
-      "description": "Giao giá trị phía khách: một Soot trả lời độc giả và gom phản hồi.",
-      "kind": "external",
-      "group": "",
       "soots": [
         {
-          "id": "support",
-          "role": "answers readers and sorts feedback"
+          "id": "editor",
+          "role": "editor"
+        },
+        {
+          "id": "writer",
+          "role": "writer"
         }
       ],
       "takes_in": [
         {
+          "contract": "topics",
           "from": "insight",
-          "what": "chỗ thiếu kiến thức mà bản tổng hợp tìm thấy",
-          "optional": true
+          "what": "chủ đề nội dung cần viết"
         }
-      ],
-      "gives_out": [
-        {
-          "table": "voc",
-          "pack": "lohi-cs",
-          "fields": [
-            "kind",
-            "summary",
-            "created"
-          ],
-          "note": "điều độc giả đã hỏi, báo hoặc muốn"
-        }
-      ],
+      ]
+    },
+    {
+      "daily_tokens": 0,
       "decides": {
         "alone": [
           "trả lời dựa trên dữ kiện",
@@ -307,29 +384,77 @@
           "hoàn tiền, tài khoản và khiếu nại chuyển cho một người"
         ]
       },
-      "daily_tokens": 0,
+      "description": "Giao giá trị phía khách: một Soot trả lời độc giả và gom phản hồi.",
       "escalates_when": [
         "một độc giả đang chờ một người"
       ],
       "external": {
-        "runtime": "cs-server",
-        "note": "chỉ khai báo, setup không triển khai; xem nhóm hỗ trợ"
+        "note": "chỉ khai báo, setup không triển khai; xem nhóm hỗ trợ",
+        "runtime": "cs-server"
       },
+      "gives_out": [
+        {
+          "fields": [
+            "kind",
+            "summary",
+            "created"
+          ],
+          "note": "điều độc giả đã hỏi, báo hoặc muốn",
+          "pack": "lohi-cs",
+          "table": "voc"
+        }
+      ],
+      "group": "",
+      "id": "support",
+      "kind": "external",
+      "name": "Support",
       "optional": true,
       "parts": [
         "delivery"
+      ],
+      "soots": [
+        {
+          "id": "support",
+          "role": "answers readers and sorts feedback"
+        }
+      ],
+      "takes_in": [
+        {
+          "from": "insight",
+          "optional": true,
+          "what": "chỗ thiếu kiến thức mà bản tổng hợp tìm thấy"
+        }
       ]
     },
     {
-      "id": "operations",
-      "name": "Operations",
+      "coordinator": "operator",
+      "daily_tokens": 80000,
+      "decides": {
+        "alone": [
+          "việc vận hành thường lệ trong giới hạn của gói công việc"
+        ],
+        "with_founder": [
+          "mọi việc xóa hoặc đăng lại nội dung",
+          "mọi việc liên quan đến tiền hoặc tài khoản"
+        ]
+      },
       "description": "Giao giá trị phía sản phẩm: Operator chạy việc vận hành, Curator giữ danh mục, chất lượng nội dung và kiểm duyệt cộng đồng.",
-      "kind": "group",
+      "escalates_when": [
+        {
+          "on": "chain_failed",
+          "when": "một nguồn đang hỏng"
+        },
+        "một việc sắp gỡ nội dung"
+      ],
+      "gives_out": [],
       "group": "operations",
+      "id": "operations",
+      "kind": "group",
+      "name": "Operations",
+      "optional": true,
       "parts": [
         "delivery"
       ],
-      "coordinator": "operator",
       "soots": [
         {
           "id": "operator",
@@ -342,85 +467,44 @@
       ],
       "takes_in": [
         {
-          "from": "insight",
-          "what": "cơ hội vận hành đã duyệt",
           "contract": "job-requests",
-          "optional": true
-        }
-      ],
-      "gives_out": [],
-      "decides": {
-        "alone": [
-          "việc vận hành thường lệ trong giới hạn của gói công việc"
-        ],
-        "with_founder": [
-          "mọi việc xóa hoặc đăng lại nội dung",
-          "mọi việc liên quan đến tiền hoặc tài khoản"
-        ]
-      },
-      "daily_tokens": 80000,
-      "escalates_when": [
-        {
-          "when": "một nguồn đang hỏng",
-          "on": "chain_failed"
-        },
-        "một việc sắp gỡ nội dung"
-      ],
-      "optional": true
-    },
-    {
-      "id": "finance",
-      "name": "Finance",
-      "description": "Tùy chọn: kiểm soát tài chính riêng, chỉ đọc (mặc định bản rà soát tiền do Analyst của Insight viết).",
-      "kind": "group",
-      "group": "finance",
-      "soots": [
-        {
-          "id": "controller",
-          "role": "controller"
-        }
-      ],
-      "takes_in": [
-        {
           "from": "insight",
-          "what": "dòng bảng số liệu về doanh thu, nhóm người dùng và gói",
-          "contract": "scoreboard"
+          "optional": true,
+          "what": "cơ hội vận hành đã duyệt"
         }
-      ],
-      "gives_out": [
-        {
-          "event": "weekly_finance_report",
-          "note": "báo cáo tài chính hằng tuần, chỉ đọc; company-loop không có bảng báo cáo"
-        }
-      ],
-      "decides": {
-        "alone": [
-          "viết báo cáo hằng tuần"
-        ],
-        "with_founder": [
-          "không bao giờ tự động xử lý tiền: mọi thay đổi do người sáng lập quyết"
-        ]
-      },
-      "daily_tokens": 30000,
-      "escalates_when": [
-        "doanh thu giảm hai tuần liên tiếp",
-        {
-          "when": "đội đã dùng 80% ngân sách token trong ngày",
-          "on": "budget_80"
-        }
-      ],
-      "optional": true,
-      "parts": [
-        "finance"
-      ],
-      "coordinator": "controller"
+      ]
     },
     {
-      "id": "workshop",
-      "name": "Workshop",
+      "coordinator": "builder",
+      "daily_tokens": 100000,
+      "decides": {
+        "alone": [
+          "dựng yêu cầu đã được người sáng lập duyệt",
+          "đăng bài đã có claim đã ký"
+        ],
+        "with_founder": [
+          "lệnh phát hành",
+          "đăng bài khi còn yêu cầu publish_approval"
+        ]
+      },
       "description": "Xưởng trên máy người sáng lập: dựng yêu cầu đã duyệt và đăng bài bằng trình duyệt.",
-      "kind": "external",
+      "escalates_when": [
+        "phiên dựng hỏi người duyệt, hoặc bản dựng xong chờ người commit và phát hành",
+        "việc dựng bị chặn hoặc sản phẩm chưa có kho mã trên máy này"
+      ],
+      "external": {
+        "note": "chạy trên máy người sáng lập (trình duyệt và agent lập trình); máy chủ không với tới, xưởng tự kéo việc từ insight",
+        "runtime": "founder-mac",
+        "via": "bbs autopilot"
+      },
+      "gives_out": [],
       "group": "workshop",
+      "id": "workshop",
+      "kind": "external",
+      "name": "Workshop",
+      "parts": [
+        "delivery"
+      ],
       "soots": [
         {
           "id": "builder",
@@ -433,154 +517,11 @@
       ],
       "takes_in": [
         {
+          "contract": "build-request",
           "from": "insight",
-          "what": "yêu cầu sản phẩm đã được người sáng lập duyệt (handoffs ở trạng thái approved), xưởng tự kéo về",
-          "contract": "build-request"
+          "what": "yêu cầu sản phẩm đã được người sáng lập duyệt (handoffs ở trạng thái approved), xưởng tự kéo về"
         }
-      ],
-      "gives_out": [],
-      "decides": {
-        "alone": [
-          "dựng yêu cầu đã được người sáng lập duyệt",
-          "đăng bài đã có claim đã ký"
-        ],
-        "with_founder": [
-          "lệnh phát hành",
-          "đăng bài khi còn yêu cầu publish_approval"
-        ]
-      },
-      "daily_tokens": 100000,
-      "escalates_when": [
-        "phiên dựng hỏi người duyệt, hoặc bản dựng xong chờ người commit và phát hành",
-        "việc dựng bị chặn hoặc sản phẩm chưa có kho mã trên máy này"
-      ],
-      "external": {
-        "runtime": "founder-mac",
-        "via": "bbs autopilot",
-        "note": "chạy trên máy người sáng lập (trình duyệt và agent lập trình); máy chủ không với tới, xưởng tự kéo việc từ insight"
-      },
-      "coordinator": "builder",
-      "parts": [
-        "delivery"
       ]
-    }
-  ],
-  "contracts": [
-    {
-      "id": "topics",
-      "owner": "insight",
-      "reader": "growth",
-      "table": "topics",
-      "pack": "company-loop",
-      "mode": "read",
-      "fields": [
-        "query",
-        "reason",
-        "opportunity_ref",
-        "state"
-      ]
-    },
-    {
-      "id": "marketing-numbers",
-      "owner": "growth",
-      "reader": "insight",
-      "table": "metrics",
-      "pack": "marketing",
-      "mode": "read",
-      "fields": [
-        "url",
-        "source",
-        "day",
-        "views",
-        "likes",
-        "comments",
-        "impressions",
-        "clicks"
-      ]
-    },
-    {
-      "id": "scoreboard",
-      "owner": "insight",
-      "reader": "finance",
-      "table": "scoreboard",
-      "pack": "company-loop",
-      "mode": "read",
-      "fields": [
-        "period_from",
-        "period_to",
-        "metrics",
-        "cohorts",
-        "plans"
-      ],
-      "optional": true
-    },
-    {
-      "id": "build-request",
-      "owner": "insight",
-      "reader": "workshop",
-      "table": "handoffs",
-      "pack": "company-loop",
-      "mode": "read",
-      "fields": [
-        "opportunity",
-        "product",
-        "requirement",
-        "target_outcome",
-        "state",
-        "released_at",
-        "answer",
-        "answer_note",
-        "answer_for"
-      ],
-      "optional": true
-    },
-    {
-      "id": "support-voc",
-      "owner": "support",
-      "reader": "insight",
-      "table": "voc",
-      "pack": "lohi-cs",
-      "mode": "read",
-      "fields": [
-        "kind",
-        "summary",
-        "created"
-      ],
-      "optional": true
-    },
-    {
-      "id": "job-requests",
-      "owner": "insight",
-      "reader": "operations",
-      "table": "opportunities",
-      "pack": "company-loop",
-      "mode": "read",
-      "fields": [
-        "ref",
-        "title",
-        "kind",
-        "state"
-      ],
-      "optional": true
-    },
-    {
-      "id": "handoff-events",
-      "owner": "insight",
-      "reader": "workshop",
-      "table": "handoff_events",
-      "pack": "company-loop",
-      "mode": "write",
-      "fields": [
-        "handoff",
-        "state",
-        "ticket",
-        "asked",
-        "url",
-        "note",
-        "at",
-        "product"
-      ],
-      "optional": true
     }
   ]
 }

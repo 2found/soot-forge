@@ -1,0 +1,487 @@
+{
+  "_comment": "Two runtimes (TEAMS.md): `server` = soot.lohi2.com, merged into /etc/soot-lohi/flock.json; `mac` = ~/.soot/nest/deployment.json. No credential values here: PRODUCT_ADMIN_KEY, GSC_GOOGLE, ASC_API_KEY are entered in Nest. Operations split by Lohi key role (2026-11-12): curator, Moderator, Catalog Exec each hold their own PRODUCT_AGENT_KEY@lohi. Needs a soot with the data.read / data.insert runtime scopes. Approval policy (generic): refresh of a published novel, translate of at most 10 chapters, and one-chapter fix / TTS inside the api's daily caps run without a person; onboard of a new novel (one daily card), takedown or overwrite, and money or accounts always wait for one. Request → release (bs-kh1atl85): a request that reached the api's auto-onboard score and holds a day's slot onboards without the daily card (approved_by policy:auto_onboard); its first batch passes the quality gate before the platform-paid pro audio (api daily cap) and release.",
+  "server": {
+    "pack_grants": {
+      "lohi-ops": {
+        "env": [
+          "PRODUCT_API_URL",
+          "APPSTORE_APP_ID",
+          "APPSTORE_COUNTRY",
+          "GSC_SITE",
+          "SITE_URL",
+          "PATH",
+          "HOME"
+        ],
+        "runtime": [
+          "data.read",
+          "data.insert"
+        ]
+      }
+    },
+    "soot_packs": {
+      "curator": [
+        "lohi-ops:tools=catalog_health,appstore_sync,appstore_draft,appstore_drafts,appstore_post,seo_report,pricing_report,requests_pending,request_accept,request_reject,request_finish,edits_pending,edits_context,edit_verdict,enrichment_enqueue,quality_list,duplicates_scan,litrans_health,catalog_job_request,catalog_jobs_sync,onboard_card,catalog_jobs_answer,catalog_jobs_decide,reports_open"
+      ],
+      "s-ba32b6d0-5622-4aa4-8008-2f3d50d25e80": [
+        "lohi-ops:tools=comments_pull,comments_decide,comments_resolve,violations_list,violation_resolve"
+      ],
+      "s-98ffbd86-5b84-4cc4-989c-7905006042dd": [
+        "lohi-ops:tools=translate_start,translate_step,request_finish,fixes_pull,fix_execute,fix_ack,fix_recheck,chapter_retranslate,chapter_tts,quality_sample,quality_verdict,release_step,fixes_run,fix_context,fix_resolve"
+      ]
+    },
+    "approvals": {
+      "lohi-ops_appstore_post": "operator",
+      "lohi-ops_comments_resolve": "operator",
+      "lohi-ops_request_reject": "operator",
+      "lohi-ops_violation_resolve": "operator",
+      "lohi-ops_catalog_job_request": "operator",
+      "lohi-ops_catalog_jobs_decide": "operator"
+    },
+    "schedules": [
+      {
+        "id": "ops-catalog-health",
+        "name": "Sức khoẻ kho truyện",
+        "soot": "curator",
+        "cron": "30 6 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "catalog_health",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_catalog_health failed: say the reason in one line and end the turn. What a person must act on is already one Cần bạn card the tool raised; do not file another. Then follow the lohi-ops-curator skill section 1 for the quality findings."
+      },
+      {
+        "id": "ops-comments",
+        "name": "Kiểm duyệt bình luận",
+        "soot": "s-ba32b6d0-5622-4aa4-8008-2f3d50d25e80",
+        "cron": "*/30 7-23 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "comments_pull",
+          "input": {
+            "limit": 40
+          }
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_comments_pull brought comments to judge. Follow your mission with this batch (do not pull again): lohi-ops_comments_decide once with a verdict per id. End with one line."
+      },
+      {
+        "id": "ops-reviews",
+        "name": "Đánh giá App Store",
+        "soot": "curator",
+        "every": "24h",
+        "at": "09:10",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "appstore_sync",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_appstore_sync found new reviews. Follow the lohi-ops-reviews skill: lohi-ops_appstore_draft for each review in needs_reply. Do not post: the drafts reach the person as one Cần bạn card at 09:40. End with one line."
+      },
+      {
+        "id": "ops-reviews-approve",
+        "name": "Phản hồi App Store chờ duyệt",
+        "soot": "curator",
+        "every": "24h",
+        "at": "09:40",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "appstore_drafts",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_appstore_drafts failed: say the reason in one line and end the turn."
+      },
+      {
+        "id": "ops-seo",
+        "name": "Báo cáo SEO trang truyện",
+        "soot": "curator",
+        "cron": "0 8 * * 2",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "seo_report",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_seo_report has the weekly novel-page SEO report. Summarize it in Vietnamese per your mission."
+      },
+      {
+        "id": "ops-pricing",
+        "name": "Báo cáo giá và gói",
+        "soot": "curator",
+        "cron": "30 8 * * 1",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "pricing_report",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_pricing_report has the weekly plans and cohorts analysis. Summarize it in Vietnamese per your mission; every suggestion is the founder's decision."
+      },
+      {
+        "id": "ops-requests",
+        "name": "Yêu cầu truyện đang chờ",
+        "soot": "curator",
+        "cron": "0 8 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "requests_pending",
+          "input": {
+            "limit": 30
+          }
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_requests_pending brought the requests that are left after the pack attached and merged the obvious ones (auto_resolved; do not redo them). Paid ones (priority paid) first. Follow the lohi-ops-curator skill (Requests): request_accept with kind onboard|refresh and the job fields for a new or growing novel, request_reject with a reason, or hand a doubt to a person. End with one line."
+      },
+      {
+        "id": "ops-edits",
+        "name": "Gợi ý sửa chữ của độc giả",
+        "soot": "curator",
+        "cron": "10 8,14,20 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "edits_pending",
+          "input": {
+            "limit": 10
+          }
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_edits_pending brought edit suggestions. Follow the lohi-ops-curator skill (Queues, Edit suggestions): edits_context then edit_verdict for each. End with one line."
+      },
+      {
+        "id": "ops-violations-mod",
+        "name": "Báo cáo vi phạm",
+        "soot": "s-ba32b6d0-5622-4aa4-8008-2f3d50d25e80",
+        "cron": "20 */3 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "violations_list",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_violations_list has open reports (48h deadline). Follow your mission (Violation reports): acknowledge, never take down or dismiss a copyright claim. End with one line."
+      },
+      {
+        "id": "ops-duplicates",
+        "name": "Truyện trùng lặp",
+        "soot": "curator",
+        "cron": "0 7 * * 1",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "duplicates_scan",
+          "input": {
+            "pages": 6
+          }
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_duplicates_scan listed duplicate candidates. Summarize them in Vietnamese for a person (max 10, highest similarity first); merge nothing."
+      },
+      {
+        "id": "ops-litrans",
+        "name": "Sức khoẻ dịch Litrans",
+        "soot": "curator",
+        "cron": "40 */2 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "litrans_health",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_litrans_health failed: say the reason in one line and end the turn. What a person must act on is already one Cần bạn card."
+      },
+      {
+        "id": "ops-catalog-jobs-sync",
+        "name": "Kết quả việc thu thập",
+        "soot": "curator",
+        "cron": "*/15 * * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "catalog_jobs_sync",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_catalog_jobs_sync reports a FAILED catalog job (the only reason it wakes you). Done onboards and refreshes are already queued for translation, radar finds are already turned into refresh jobs by the policy, copyright stops are one Cần bạn card, and a stopped request's donors are already refunded. Say each failure in one Vietnamese line; open a follow-up job only if the failure names a fixable cause."
+      },
+      {
+        "id": "ops-requests-chapters",
+        "name": "Yêu cầu thêm chương",
+        "soot": "curator",
+        "cron": "5 8,16 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "requests_pending",
+          "input": {
+            "type": "chapters",
+            "limit": 30
+          }
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_requests_pending (type chapters) brought chapter requests, already merged per novel. Follow the lohi-ops-curator skill (Requests, chapters): request_accept with kind refresh, novel_slug and chapters \"A-B\" (up to the 10-chapter first batch). End with one line."
+      },
+      {
+        "id": "ops-requests-quality",
+        "name": "Yêu cầu sửa chất lượng truyện",
+        "soot": "curator",
+        "cron": "15 8,16 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "requests_pending",
+          "input": {
+            "type": "quality",
+            "limit": 30
+          }
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_requests_pending (type quality) brought quality requests. Follow the lohi-ops-curator skill (Requests, quality): accept the request, send ONE work mail to Catalog Exec with the novel, chapters, the reader's complaint and what the reply must hold, then close the request from its reply (Xong: -> request_finish; Không làm được: -> a person). Never retranslate yourself. End with one line."
+      },
+      {
+        "id": "ops-onboard-card",
+        "name": "Thẻ duyệt truyện mới trong ngày",
+        "soot": "curator",
+        "cron": "0 9 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "onboard_card",
+          "input": {}
+        },
+        "text": "lohi-ops_onboard_card failed: say the reason in one line and end the turn. The daily card is already filed by the tool."
+      },
+      {
+        "id": "ops-translate-step",
+        "name": "Dịch chương mới (đợt đầu và chương tự nhập)",
+        "soot": "s-98ffbd86-5b84-4cc4-989c-7905006042dd",
+        "cron": "*/15 * * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "translate_step",
+          "input": {}
+        },
+        "text": "Tool-only schedule: no model is woken. Failures and fixes that need a person are Cần bạn cards filed by the tool itself."
+      },
+      {
+        "id": "ops-release-step",
+        "name": "Kiểm chất lượng và phát hành truyện mới",
+        "soot": "s-98ffbd86-5b84-4cc4-989c-7905006042dd",
+        "cron": "7,37 * * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "release_step",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_release_step: for each novel in to_judge, lohi-ops_quality_sample {slug, from, to} once, judge it by the lohi-ops-release skill (the only skill to read), then lohi-ops_quality_verdict once with attempt as given (pass or fail, score 0-1, one Vietnamese reason, retranslate = the flagged chapters on a fail). Released novels are already closed and their readers told by the api. One Vietnamese line per novel; never retry a refused call. A sample you have already been woken for is not announced again for 6 hours."
+      },
+      {
+        "id": "ops-fixes",
+        "name": "Việc sửa chương chờ chạy",
+        "soot": "s-98ffbd86-5b84-4cc4-989c-7905006042dd",
+        "cron": "*/10 * * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "fixes_run",
+          "input": {
+            "limit": 20
+          }
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_fixes_run already ran every fix it could without you. For each to_review item: lohi-ops_fix_context {id} once, judge it by the lohi-ops-curator skill (Fixes, review task), then one lohi-ops_fix_resolve. One Vietnamese line per item; never retry a refused call."
+      },
+      {
+        "id": "ops-fix-recheck",
+        "name": "Kiểm lại chương đã sửa",
+        "soot": "s-98ffbd86-5b84-4cc4-989c-7905006042dd",
+        "cron": "*/20 * * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "fix_recheck",
+          "input": {}
+        },
+        "text": "Tool-only schedule: no model is woken. Failures and fixes that need a person are Cần bạn cards filed by the tool itself."
+      }
+    ],
+    "_soots": {
+      "s-ba32b6d0-5622-4aa4-8008-2f3d50d25e80": "Moderator (agent_moderator key)",
+      "s-98ffbd86-5b84-4cc4-989c-7905006042dd": "Catalog Exec (agent_catalog_exec key)",
+      "curator": "agent_curator key"
+    },
+    "exec_loop_intent": {
+      "_comment": "Catalog Exec loop (server). Every schedule is a tool that runs without a model and wakes the model only for the condition below; the per-run budget is the most tokens one wake may spend. Intended set, mirrored in schedules above.",
+      "schedules": [
+        {
+          "id": "ops-translate-step",
+          "cron": "*/15 * * * *",
+          "tool": "translate_step",
+          "wake_when": "never (cards only)",
+          "token_budget_per_run": 0
+        },
+        {
+          "id": "ops-release-step",
+          "cron": "7,37 * * * *",
+          "tool": "release_step",
+          "wake_when": "a novel's sample waits for a verdict, once per 6h cooldown (woke_at)",
+          "token_budget_per_run": 64000
+        },
+        {
+          "id": "ops-fixes",
+          "cron": "*/10 * * * *",
+          "tool": "fixes_run",
+          "wake_when": "a review task not yet seen (to_review, once per task)",
+          "token_budget_per_run": 10000
+        },
+        {
+          "id": "ops-fix-recheck",
+          "cron": "*/20 * * * *",
+          "tool": "fix_recheck",
+          "wake_when": "never (cards only)",
+          "token_budget_per_run": 0
+        }
+      ],
+      "mail": "A quality request arrives as one work mail from the curator (not a schedule): about 15000 tokens for the reply (sample, retranslate within the 20 per day cap, recheck).",
+      "api_caps_respected": {
+        "translate": "10 per call, 20 per novel per day, 200 per day",
+        "retranslate": "20 per day",
+        "tts": "20 per day",
+        "release_audio": "60 chapters per day",
+        "beyond_first_batch": "30 active readers in 7 days"
+      }
+    },
+    "radar_policy": {
+      "_comment": "Auto-ingest of new chapters. The Mac sweeps (ops-radar-scan), the server policy (inside ops-catalog-jobs-sync) opens refresh jobs. Constants live in tools/lib/radar.mjs RADAR.",
+      "min_active_readers": 1,
+      "daily_refresh_jobs": 10,
+      "window_chapters": 50,
+      "novels_per_sweep": 60,
+      "sweep_gap_hours": 2,
+      "translate_beyond_first_batch": "only past the api's reader bar; otherwise the first 10 chapters only"
+    }
+  },
+  "mac": {
+    "pack_grants": {
+      "lohi-ops": {
+        "env": [
+          "PRODUCT_API_URL",
+          "CLI_CATALOG_DB",
+          "CLI_DIR",
+          "SOOT_BIN",
+          "PATH",
+          "HOME"
+        ],
+        "runtime": [
+          "data.read",
+          "data.insert"
+        ]
+      }
+    },
+    "soot_packs": {
+      "builder": [
+        "lohi-ops:tools=catalog_jobs_pull,catalog_job_run,catalog_job_report,crawl_watch,radar_scan"
+      ]
+    },
+    "schedules": [
+      {
+        "id": "ops-crawl-watch",
+        "name": "Theo dõi thu thập truyện",
+        "soot": "builder",
+        "cron": "15 */4 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "crawl_watch",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_crawl_watch failed: say the reason in one line and end the turn. What a person must act on is already one Cần bạn card the tool raised; do not file another."
+      },
+      {
+        "id": "ops-catalog-jobs-pull",
+        "name": "Việc thu thập đã duyệt",
+        "soot": "builder",
+        "cron": "*/15 * * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "catalog_jobs_pull",
+          "input": {
+            "autorun": true,
+            "max_start": 3
+          }
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_catalog_jobs_pull started the approved jobs itself. You are woken only for needs_source (a request link the catalog has never seen) or a job that could not start. Follow the lohi-ops-builder skill: resolve the link's novel by the link alone and call lohi-ops_catalog_job_run {job_id, source, novel}, or do nothing and the job ends no source after 24 hours. One line."
+      },
+      {
+        "id": "ops-radar-scan",
+        "name": "Quét chương mới của truyện đang theo dõi",
+        "soot": "builder",
+        "cron": "20 */2 * * *",
+        "timezone": "Asia/Ho_Chi_Minh",
+        "tool": {
+          "pack": "lohi-ops",
+          "name": "radar_scan",
+          "input": {}
+        },
+        "wake_when": {
+          "notify": true
+        },
+        "text": "lohi-ops_radar_scan reports a failed or unfinished radar sweep. Say the reason in one line and end the turn; finds are already sent to the curator's policy."
+      }
+    ]
+  }
+}

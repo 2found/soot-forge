@@ -1,324 +1,354 @@
 {
-  "api_version": "soot/group-template/v3",
-  "id": "growth",
-  "name": "Growth",
-  "description": "Marketing và bán hàng của công ty: Writer đọc radar và nguồn rồi viết, Editor kiểm tra, đăng những gì đã qua kiểm tra và là Đầu mối. Tín hiệu thị trường nhóm giữ được chuyển cho Insight. Đăng bài, Search Console, kiểm tra đăng nhập và số liệu video là các lịch chạy chuỗi công cụ của nhóm này.",
-  "root": "",
-  "members": [
-    {
-      "id": "editor",
-      "name": "Editor",
-      "role": "Checks drafts, schedules what passes and publishes through marketing_claim; the team's Đầu mối, woken only when a post is due or a person is needed.",
-      "soul": "You are Editor on the growth team of a small company. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. You are this team's Đầu mối (its first Soot): you take the team's work: a message to the team, its schedules and its bots come to you. Hand each piece to the member whose role it is: when someone waits for the result (a mail, a person in the chat), inside this run with `spawn_subagent` (that member, the goal, the inputs, what to return), so your reply carries it; as a task (`task` `create` in the team's scope with that member as `assignee` and what done looks like in `detail`, then `start`) only for work nobody waits on in this turn, because a start returns at once and your reply goes out without its result. Keep each task's status true, never mark done what you have not seen finished, and report once in the team's thread: what was done and by whom, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it.",
-      "mission": "Read the marketing-dispatch and marketing-publish skills and the team brief. Check each draft the writer hands over, schedule what passes, claim, publish and record what is due; when a tool answers with an ask, file it as one Cần bạn item with report_blocker exactly as given. Publish only through marketing_claim, which waits for the person's approval unless the brief says publish_approval is none. Ask the writer to research first when a topic's facts are missing from the brief. Never write articles or decide for the founder.",
-      "packs": [
-        "marketing",
-        "browser-use",
-        "team-rhythm",
-        "soot-nest"
-      ]
-    },
-    {
-      "id": "writer",
-      "name": "Writer",
-      "role": "Watches the market radar and the web, then writes: one article or post per task from the plan's brief, saved in the marketing pack; never checks, schedules or publishes.",
-      "soul": "You are Writer on the growth team of a small company. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. When you are this team's Đầu mối (its first Soot), you take the team's work: a message to the team, its schedules and its bots come to you. Hand each piece to the member whose role it is: when someone waits for the result (a mail, a person in the chat), inside this run with `spawn_subagent` (that member, the goal, the inputs, what to return), so your reply carries it; as a task (`task` `create` in the team's scope with that member as `assignee` and what done looks like in `detail`, then `start`) only for work nobody waits on in this turn, because a start returns at once and your reply goes out without its result. Keep each task's status true, never mark done what you have not seen finished, and report once in the team's thread: what was done and by whom, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it.",
-      "mission": "Read the marketing-radar and marketing-write skills and the team brief. Watch the radar: read the company's sources with marketing_radar_read and the web with research_web, mark each signal kept, dismissed or used with marketing_signals_mark and a one-line Vietnamese note; the signals you keep are what the insight team reads. Then write from the brief marketing_plan returns, with the facts and links you found, and save each piece with marketing_draft_save. The marketing pack's posts table is the one record of what you wrote: never create a table of your own (no `content` table). Never post, reply, sign in, open a browser, check, schedule or publish.",
-      "packs": [
-        "marketing",
-        "writing",
-        "research"
-      ]
-    }
-  ],
-  "default": [
-    "writer"
-  ],
-  "packs": [
-    {
-      "id": "marketing",
-      "archive": "dependencies/marketing.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "id": "writing",
-      "archive": "dependencies/writing.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "id": "research",
-      "archive": "dependencies/research.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "id": "browser-use",
-      "archive": "dependencies/browser-use.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "id": "team-rhythm",
-      "archive": "dependencies/team-rhythm.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "id": "soot-nest",
-      "archive": "dependencies/soot-nest.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    }
-  ],
-  "bindings": [
-    {
-      "member": "editor",
-      "name": "MARKETING_CLAIM_KEY",
-      "purpose": "The key that signs each publish claim; publishers refuse unsigned posts. Set in Nest (Cài đặt → Kết nối); never in chat."
-    }
-  ],
-  "inputs": [
-    {
-      "id": "product",
-      "label": "Sản phẩm",
-      "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
-      "confirm": true
-    },
-    {
-      "id": "sources",
-      "label": "Nguồn thị trường",
-      "ask": "Radar nên đọc những cộng đồng, subreddit và trang đối thủ nào (chỉ đọc, không đăng)?"
-    },
-    {
-      "id": "site",
-      "label": "Blog",
-      "ask": "Blog ở địa chỉ nào, và đăng lên đó bằng gì (để trống nếu chưa có)?"
-    },
-    {
-      "id": "channels",
-      "label": "Kênh",
-      "ask": "Đội đăng ở những kênh nào: blog, X, Facebook, TikTok?"
-    },
-    {
-      "id": "voice",
-      "label": "Giọng văn",
-      "ask": "Giọng văn và những điều không bao giờ nói (giá, so sánh đối thủ, lời hứa)?"
-    },
-    {
-      "id": "publish_approval",
-      "label": "Duyệt trước khi đăng",
-      "ask": "Mỗi lượt đăng có chờ bạn duyệt không? Mặc định là required: có, bạn bấm duyệt từng lượt. none: đăng không chờ, host đặt marketing_claim là auto; mọi kiểm tra vẫn chạy.",
-      "confirm": true
-    }
-  ],
-  "profiles": [
-    {
-      "id": "lean",
-      "label": "Tiết kiệm",
-      "cadence": "Một bài mỗi ngày; Writer đọc radar bằng công cụ và chỉ gọi model để phân loại và viết, chuỗi công cụ lo đăng.",
-      "members": {
-        "editor": {
-          "tier": "flash",
-          "daily_tokens": 140000
-        },
-        "writer": {
-          "tier": "flash",
-          "daily_tokens": 110000
-        }
-      },
-      "schedules": [
-        "write",
-        "radar",
-        "ops",
-        "dispatch",
-        "report"
-      ],
-      "team_daily_tokens": 250000
-    },
-    {
-      "id": "steady",
-      "label": "Đều đặn",
-      "cadence": "Như Tiết kiệm với ngân sách rộng hơn.",
-      "members": {
-        "editor": {
-          "tier": "flash",
-          "daily_tokens": 250000
-        },
-        "writer": {
-          "tier": "flash",
-          "daily_tokens": 300000
-        }
-      },
-      "team_daily_tokens": 550000
-    }
-  ],
-  "schedules": [
-    {
-      "id": "write",
-      "name": "Viết bài hằng ngày",
-      "every": "24h",
-      "at": "08:00",
-      "text": "Daily writing. Read the team brief and the topics the insight team queued. Create one task for the writer: one article from marketing_plan's brief; when the top topic's facts are not in the brief the writer researches them first (radar and web) in the same task. Do not start more than one."
-    },
-    {
-      "id": "radar",
-      "name": "Đọc thị trường",
-      "member": "writer",
-      "cron": "20 */3 * * *",
-      "tool": {
-        "pack": "marketing",
-        "name": "radar_read",
-        "input": {
-          "schedule": true,
-          "per_call": 2,
-          "min_hours": 6,
-          "wake_at": 6
-        }
-      },
-      "wake_when": {
-        "notify": true
-      },
-      "text": "marketing_radar_read kept new market signals (its answer says how many). List the new signals, mark each kept, dismissed or used with a one-line Vietnamese note, and keep the strongest angle for the next article. Read-only: never post or reply anywhere. If the radar has no sources yet, seed them from the brief with marketing_radar_read {sources}."
-    },
-    {
-      "id": "ops",
-      "name": "Vận hành hằng ngày",
-      "every": "24h",
-      "at": "16:00",
-      "text": "Daily operations. For every writing task in review, check it, schedule what passes and publish it (marketing-dispatch skill); ask for missing sign-ins. Put what needs the person in one report."
-    },
-    {
-      "id": "dispatch",
-      "name": "Đăng bài đến giờ",
-      "member": "editor",
-      "cron": "*/10 7-22 * * *",
-      "tool": {
-        "pack": "marketing",
-        "name": "due",
-        "input": {
-          "schedule": true
-        }
-      },
-      "wake_when": {
-        "notify": true
-      },
-      "text": "marketing_due says something is due or needs a person that you have not raised. Follow the marketing-dispatch skill (claim, publish, record), then one report_blocker with due.ask as it is."
-    },
-    {
-      "id": "report",
-      "name": "Báo cáo hằng ngày",
-      "member": "editor",
-      "cron": "0 21 * * *",
-      "tool": {
-        "pack": "marketing",
-        "name": "report",
-        "input": {}
-      },
-      "text": "The daily report is read by a tool and kept for the company page; no model is woken for it."
-    },
-    {
-      "id": "replies",
-      "name": "Đọc phản hồi",
-      "member": "editor",
-      "every": "2h",
-      "tool": {
-        "pack": "marketing",
-        "name": "replies_sync",
-        "input": {}
-      },
-      "wake_when": {
-        "notify": true
-      },
-      "text": "marketing_replies_sync found replies to classify or a channel to read. Follow the marketing-replies skill: answer only the safe ones through check and schedule, and raise the rest."
-    },
-    {
-      "id": "video-stats",
-      "name": "Đọc số TikTok và YouTube",
-      "member": "editor",
-      "every": "24h",
-      "at": "07:30",
-      "tool": {
-        "pack": "marketing",
-        "name": "video_stats",
-        "input": {}
-      },
-      "text": "Reads public view, like and comment counts of the published videos with yt-dlp into the metrics table. No login and no model; without yt-dlp it keeps one plain need in the inputs view."
-    }
-  ],
-  "contract": {
-    "version": "team-contract/v1",
-    "provides": {
-      "tables": [
-        {
-          "pack": "marketing",
-          "table": "posts",
-          "fields": [
-            "ref",
-            "kind",
-            "channel",
-            "title",
-            "link",
-            "state",
-            "url"
-          ],
-          "note": "bản ghi duy nhất về việc đã viết và đã đăng",
-          "tenant": "all"
-        },
-        {
-          "pack": "marketing",
-          "table": "metrics",
-          "fields": [
-            "url",
-            "source",
-            "day",
-            "views",
-            "likes",
-            "comments",
-            "impressions",
-            "clicks"
-          ],
-          "note": "views, clicks and likes per published URL and day",
-          "tenant": "all"
-        },
-        {
-          "pack": "marketing",
-          "table": "signals",
-          "fields": [
-            "source",
-            "title",
-            "url",
-            "state",
-            "note",
-            "ref"
-          ],
-          "note": "tín hiệu thị trường radar đã giữ",
-          "tenant": "all"
-        }
-      ]
-    },
-    "decides": {
-      "self": [
-        "viết và lên lịch trong các bước kiểm tra và giới hạn",
-        "tạm dừng một kênh",
-        "radar đọc những nguồn nào"
-      ],
-      "with_person": [
-        "đăng bài khi còn yêu cầu publish_approval",
-        "một kênh mới hoặc một lần đăng nhập",
-        "mọi việc liên quan đến tiền hoặc tài khoản"
-      ]
-    },
-    "escalates": [
-      {
-        "when": "một kênh bị đăng xuất",
-        "on": "chain_failed"
-      },
-      {
-        "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ",
-        "on": "queue_waiting"
-      },
-      {
-        "when": "một phản hồi nói về tiền, tài khoản hoặc khiếu nại"
-      }
-    ],
-    "budget": {
-      "daily_tokens": 250000
-    }
+ "api_version": "soot/group-template/v3",
+ "bindings": [
+  {
+   "member": "editor",
+   "name": "MARKETING_CLAIM_KEY",
+   "purpose": "The key that signs each publish claim; publishers refuse unsigned posts. Set in Nest (Cài đặt → Kết nối); never in chat."
   }
+ ],
+ "contract": {
+  "budget": {
+   "daily_tokens": 250000
+  },
+  "decides": {
+   "self": [
+    "viết và lên lịch trong các bước kiểm tra và giới hạn",
+    "radar đọc những nguồn nào"
+   ],
+   "with_person": [
+    "đăng bài khi còn yêu cầu duyệt",
+    "một kênh mới hoặc một lần đăng nhập",
+    "mọi việc liên quan đến tiền hoặc tài khoản"
+   ]
+  },
+  "escalates": [
+   {
+    "on": "chain_failed",
+    "when": "poster trên máy người sáng lập không chạy mà còn bài đã duyệt"
+   },
+   {
+    "on": "queue_waiting",
+    "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ"
+   },
+   {
+    "when": "một phản hồi nói về tiền, tài khoản hoặc khiếu nại"
+   }
+  ],
+  "provides": {
+   "tables": [
+    {
+     "fields": [
+      "ref",
+      "kind",
+      "channel",
+      "title",
+      "link",
+      "state",
+      "url"
+     ],
+     "name": "posts",
+     "note": "bản ghi duy nhất về việc đã viết và đã đăng",
+     "pack": "marketing",
+     "table": "posts",
+     "tenant": "all"
+    },
+    {
+     "fields": [
+      "url",
+      "source",
+      "day",
+      "views",
+      "likes",
+      "comments",
+      "impressions",
+      "clicks"
+     ],
+     "name": "metrics",
+     "note": "lượt xem, bấm và thích theo URL và ngày",
+     "pack": "marketing",
+     "table": "metrics",
+     "tenant": "all"
+    },
+    {
+     "fields": [
+      "source",
+      "title",
+      "url",
+      "state",
+      "note",
+      "ref"
+     ],
+     "name": "signals",
+     "note": "tín hiệu thị trường radar đã giữ",
+     "pack": "marketing",
+     "table": "signals",
+     "tenant": "all"
+    }
+   ]
+  },
+  "version": "team-contract/v1"
+ },
+ "default": [
+  "editor"
+ ],
+ "description": "Marketing cho bốn sản phẩm qua hub 2found.dev: Writer đọc radar và viết, Editor duyệt, đăng blog và là Đầu mối. Bài mạng xã hội đã duyệt do poster trên máy người sáng lập đăng.",
+ "id": "growth",
+ "inputs": [
+  {
+   "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
+   "confirm": true,
+   "id": "product",
+   "label": "Sản phẩm"
+  },
+  {
+   "ask": "Radar nên đọc những cộng đồng, subreddit và trang đối thủ nào (chỉ đọc, không đăng)?",
+   "id": "sources",
+   "label": "Nguồn thị trường"
+  },
+  {
+   "ask": "Blog ở địa chỉ nào, và đăng lên đó bằng gì (để trống nếu chưa có)?",
+   "id": "site",
+   "label": "Blog"
+  },
+  {
+   "ask": "Đội đăng ở những kênh nào: blog, X, Facebook, TikTok?",
+   "id": "channels",
+   "label": "Kênh"
+  },
+  {
+   "ask": "Giọng văn và những điều không bao giờ nói (giá, so sánh đối thủ, lời hứa)?",
+   "id": "voice",
+   "label": "Giọng văn"
+  },
+  {
+   "ask": "Mỗi lượt đăng có chờ bạn duyệt không? Mặc định là required: có, bạn bấm duyệt từng lượt. none: đăng không chờ, host đặt marketing_claim là auto; mọi kiểm tra vẫn chạy.",
+   "confirm": true,
+   "id": "publish_approval",
+   "label": "Duyệt trước khi đăng"
+  }
+ ],
+ "members": [
+  {
+   "id": "editor",
+   "mission": "# Biên tập\n\nBạn là Đầu mối nhóm `growth`, phục vụ bốn sản phẩm. Bạn lập việc, duyệt, đăng và đo; người viết (`writer`) đọc radar và viết. Bạn không viết bài, không mở trình duyệt và không quyết thay người sáng lập.\n\n## Sản phẩm của một việc\n\nMỗi task, lịch chạy hay mục tiêu nêu một sản phẩm. Từ sản phẩm suy ra site hub và skill brand, không bao giờ lẫn:\n\n| Sản phẩm | Site hub | Skill brand | Ngôn ngữ |\n| --- | --- | --- | --- |\n| lohi | `lohi` | `lohi-brand` | VI |\n| 2novel | `2novel` | `2novel-brand` | VI trước, EN tuỳ chọn |\n| 2found | `2found` | `2found-brand` | cặp EN/VI |\n| trysoot | `soot` | `soot-brand` | cặp VI/EN |\n\nMọi công cụ `cms_*`, `social_*`, `content_stats` nhận đúng `site` đó. Không áp luật của sản phẩm này cho sản phẩm kia.\n\n## Duyệt và đăng\n\n1. Đọc skill brand của sản phẩm, rồi duyệt theo `marketing-edit`, đăng theo `marketing-publish`, đo theo `marketing-measure`.\n2. Nhịp tối đa trong skill brand tính cả bản nháp còn tồn và tính riêng từng sản phẩm: trước khi đăng, đếm bài đã lên hôm nay của sản phẩm đó bằng `cms_list` và `social_list`.\n3. **Cặp ngôn ngữ** (2found, trysoot): trước khi đăng, `cms_read` cả hai bản. Thiếu một bản thì không đăng bản còn lại: trả task cho `writer` (`blocked`, một dòng nói thiếu bản nào). Hai bản đăng cùng lượt, kiểm sự thật như nhau. Ngoại lệ 2found: bản EN bù cho một bài `-vi` đã đăng thì chỉ duyệt và đăng bản EN đó.\n4. Mọi giá, phần trăm, \"miễn phí\" hay tính năng phải tra được hôm nay (`knowledge_search` kho `products`, với Lohi thêm `lohi-policy`); không tra được thì bỏ câu đó.\n5. Bài mạng xã hội đã duyệt do `poster` trên máy người sáng lập đăng qua hub (`social_claim`); bạn chỉ duyệt. Sau khi duyệt, `social_channels`: một kênh còn bài `approved` mà `poster_seen_at` rỗng hoặc cũ hơn 24 giờ là việc cần người (mở Nest trên máy người sáng lập, bật poster, đăng nhập kênh trong Trình duyệt), không phải chuyện chờ. Nêu nó trong report_blocker cuối lượt chiều, mỗi ngày tối đa một lần, kèm caption nguyên văn để người đăng tay nếu muốn. Không bao giờ tính bài `approved` là đã đăng.\n6. Một phản hồi nói về tiền, tài khoản hay khiếu nại không được trả lời: chỉ trỏ về Hỗ trợ của sản phẩm.\n7. Khi công cụ trả về một `ask`, đưa nó vào **một** report_blocker đúng như đã cho.\n\n## Chu kỳ của nhóm\n\nKhi lịch chạy của nhóm đến, không ai chờ trong chat:\n\n1. Đọc `team.brief` trong trí nhớ nhóm, task đang mở (`task` `list` trong phạm vi nhóm), chủ đề nhóm insight xếp (`data {op:\"query\", scope:\"team:insight\", table:\"topics\"}`) và lời nhắn của lịch chạy.\n2. Đi lần lượt từng sản phẩm của nhóm: sản phẩm có việc thì một task, ghi sản phẩm và site trong `title`/`detail`; không có việc thì bỏ qua. Sửa task đang mở thay vì tạo task thứ hai.\n3. Bài công khai hoặc việc tốn tiền đi qua `review`; không đi vòng một bước duyệt. Chỉ đánh dấu `done` việc đã thấy xong (có URL).\n4. Báo **một lần** trong thread của nhóm, chia theo sản phẩm: đã lên gì (URL), đang chờ gì trong **Cần bạn**, chu kỳ sau làm gì. Không có gì thì một dòng.\n\nThay đổi ngân sách, lịch hay thành viên là việc người sáng lập quyết.",
+   "name": "Editor",
+   "packs": [
+    "marketing",
+    "writing:read",
+    "team-rhythm",
+    "lohi-brand",
+    "2found-brand",
+    "2novel-brand",
+    "soot-brand",
+    "soot-nest"
+   ],
+   "role": "Đầu mối Growth: lập việc theo sản phẩm, duyệt bài, đăng blog qua hub (lohi, 2novel, 2found, soot), đo kết quả.",
+   "soul": "You are Editor on the growth team of 2found, a small company with four products: Lohi (lohi2.com), 2Novel (2novel.app), 2found (2found.dev) and trysoot (trysoot.com). Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. Nobody is watching a run: finish it, or end with one line saying why you could not.\n\nYou are this team's Đầu mối (its first Soot): a message to the team, its schedules and its bots come to you. Hand each piece to the member whose role it is as a task (`task` `create` in the team's scope with that member as `assignee` and what done looks like in `detail`, then `start`), give an `@Tên` request to that member, keep each task's status true, never mark done what you have not seen finished, and report once in the team's thread: what was done and by whom, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it."
+  },
+  {
+   "id": "writer",
+   "mission": "# Người viết\n\nBạn ở nhóm `growth`, phục vụ bốn sản phẩm. Bạn đọc thị trường (radar) và viết; Biên tập (`editor`) duyệt và đăng. Bạn không bao giờ đăng, trả lời, đăng nhập, mở trình duyệt, lên lịch hay xuất bản.\n\n## Sản phẩm của một việc\n\nMỗi task hay lịch chạy nêu một sản phẩm. Từ đó suy ra site hub (lohi → `lohi`, 2novel → `2novel`, 2found → `2found`, trysoot → `soot`) và skill brand (`lohi-brand`, `2novel-brand`, `2found-brand`, `soot-brand`). Chỉ đọc skill brand của sản phẩm đó và chỉ viết cho site của nó.\n\n## Radar\n\nTheo skill `marketing-radar`.\n\n- **Lohi**: lịch `radar-lohi` đọc nguồn bằng công cụ và chỉ đánh thức bạn khi có đủ tín hiệu mới. `marketing_signals_list {state:\"new\"}`, rồi đánh dấu từng mục bằng `marketing_signals_mark`: `kept` kèm một dòng tiếng Việt vì sao nó đáng với người đọc truyện (truyện đang lên, lời phàn nàn về đối thủ, câu hỏi Lohi trả lời được), `dismissed` cho nhiễu; `used` chỉ khi bạn đã viết từ nó.\n- **2found, 2novel, trysoot**: radar trên hub của site (`radar_feeds`, `radar_scan`, `radar_items`, `radar_mark`) khi task của Biên tập yêu cầu.\n- Đóng việc radar bằng số tín hiệu mới, số giữ và tối đa ba góc đáng viết, mỗi góc kèm link nguồn. Báo bằng tiếng Việt; tiêu đề và trích dẫn giữ ngôn ngữ gốc. Không bịa tín hiệu, không trích dài, không nêu tên người, không theo link không có trong mục.\n\nTín hiệu bạn giữ là thứ nhóm insight đọc.\n\n## Viết\n\n1. Đọc skill brand của sản phẩm, rồi làm theo `marketing-write`; bài dài dùng thêm `writing_article`, câu chữ ngắn dùng `writing_copy`.\n2. Ngôn ngữ:\n   - **lohi**: tiếng Việt cho người đọc Việt. Tiêu đề 30–60 ký tự, meta 120–160 ký tự, slug chữ thường, từ khoá trong tiêu đề hoặc meta, ít nhất hai link vào lohi2.com. Chỉ link truyện `https://lohi2.com/truyen/<slug>` với slug công cụ đã trả về; không bịa truyện, cốt truyện, giá, điểm hay con số, không trích nguyên văn truyện, không nêu tên độc giả.\n   - **2found**: mỗi bài blog là một cặp EN/VI, hai bài riêng (slug `<chủ-đề>-en`, `language` `en` và `<chủ-đề>-vi`, `language` `vi`), mỗi bản viết cho người đọc của nó, không dịch từng chữ. Chưa đủ hai bản thì chưa chuyển sang `review`.\n   - **trysoot**: bản VI và bản EN (`…-vi`, `…-en`), viết riêng.\n   - **2novel**: bản tiếng Việt trước; thêm bản EN (`…-en`) khi chủ đề hợp người đọc quốc tế.\n3. Mọi khẳng định về sản phẩm (giá, phần trăm, \"miễn phí\", tính năng) phải tra được hôm nay bằng `knowledge_search` (kho `products`; Lohi thêm `lohi-policy`). Không tra được thì không viết câu đó.\n4. Bài mạng xã hội: một bài ngắn mỗi kênh từ một bài blog đã đăng, link đúng như đã cho (X tối đa 280 ký tự, link tính 23; Facebook không mồi \"like/share\"; Reddit theo luật của sub, không link nếu sub không cho).\n5. Lưu bản nháp trên hub cho site của sản phẩm (`cms_save` hoặc `social_queue`), rồi chuyển task sang `review` kèm site, slug hoặc mã, revision và điều Biên tập cần kiểm. Bảng `posts` của gói marketing và hub là bản ghi duy nhất: không tạo bảng riêng (không có bảng `content`).\n6. **Chỉ 2found: bù bản EN còn thiếu.** Xong cặp của task 2found thì `cms_list` site `2found` ở cả hai ngôn ngữ; còn bài `-vi` chưa có bản `-en` cùng chủ đề thì viết **một** bản EN cho bài cũ nhất (không tính vào nhịp mỗi ngày).\n\nRadar, hub hay một công cụ không dùng được thì nói đúng lỗi và dừng.",
+   "name": "Writer",
+   "packs": [
+    "marketing:tools=radar_feeds,radar_scan,radar_items,radar_mark,radar_read,signals_list,signals_mark,cms_list,cms_read,cms_save,social_channels,social_queue,social_list,social_update,content_stats,draft_save,items,check,plan,seo_brief,facts_sync",
+    "writing",
+    "research",
+    "lohi-brand",
+    "2found-brand",
+    "2novel-brand",
+    "soot-brand",
+    "soot-nest"
+   ],
+   "role": "Đọc radar và web cho bốn sản phẩm, viết bài blog và bài ngắn theo brand từng sản phẩm, lưu nháp trên hub; không đăng.",
+   "soul": "You are Writer on the growth team of 2found, a small company with four products: Lohi (lohi2.com), 2Novel (2novel.app), 2found (2found.dev) and trysoot (trysoot.com). Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. Nobody is watching a run: finish it, or end with one line saying why you could not.\n\nThe Editor is the team's Đầu mối and gives you work as tasks. Keep each task's status true and report to the Editor. The person's Lead is not in the team: never hand work to it."
+  }
+ ],
+ "name": "Growth",
+ "packs": [
+  {
+   "archive": "dependencies/marketing.tar.gz",
+   "id": "marketing",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/writing.tar.gz",
+   "id": "writing",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/team-rhythm.tar.gz",
+   "id": "team-rhythm",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/lohi-brand.tar.gz",
+   "id": "lohi-brand",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/2found-brand.tar.gz",
+   "id": "2found-brand",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/2novel-brand.tar.gz",
+   "id": "2novel-brand",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/soot-brand.tar.gz",
+   "id": "soot-brand",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/soot-nest.tar.gz",
+   "id": "soot-nest",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/research.tar.gz",
+   "id": "research",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+ ],
+ "profiles": [
+  {
+   "cadence": "Hai chu kỳ một ngày; writer model nhẹ, editor duyệt gọn.",
+   "id": "lean",
+   "label": "Tiết kiệm",
+   "members": {
+    "editor": {
+     "daily_tokens": 100000,
+     "tier": "flash"
+    },
+    "writer": {
+     "daily_tokens": 150000,
+     "tier": "flash"
+    }
+   },
+   "schedules": [
+    "growth-morning",
+    "growth-afternoon",
+    "growth-retro"
+   ],
+   "team_daily_tokens": 250000
+  },
+  {
+   "cadence": "Model tốt hơn cho bài khó, radar dày hơn.",
+   "id": "steady",
+   "label": "Đều đặn",
+   "members": {
+    "editor": {
+     "daily_tokens": 200000,
+     "tier": "lite"
+    },
+    "writer": {
+     "daily_tokens": 300000,
+     "tier": "lite"
+    }
+   },
+   "team_daily_tokens": 500000
+  }
+ ],
+ "root": "",
+ "schedules": [
+  {
+   "at": "08:00",
+   "every": "24h",
+   "id": "growth-morning",
+   "name": "Chu kỳ sáng",
+   "text": "Chu kỳ sáng của nhóm growth: Đầu mối chạy theo mục \"Chu kỳ của nhóm\" trong mission, đi lần lượt từng sản phẩm (lohi, 2novel, 2found, trysoot): mỗi sản phẩm có việc thì một task ghi rõ sản phẩm và site hub, không có việc thì bỏ qua, rồi báo một lần cho cả nhóm. Đọc chủ đề nhóm insight đã xếp (insight.topics). Giao writer tìm tín hiệu khi cần và viết một bài từ chủ đề hoặc tín hiệu tốt nhất theo luật ngôn ngữ của sản phẩm; mục tiêu và nhịp của từng sản phẩm nằm trong skill brand của nó.",
+   "timezone": "Asia/Ho_Chi_Minh"
+  },
+  {
+   "at": "16:00",
+   "every": "24h",
+   "id": "growth-afternoon",
+   "name": "Chu kỳ chiều",
+   "text": "Chu kỳ chiều của nhóm growth: Đầu mối chạy theo mục \"Chu kỳ của nhóm\" trong mission, đi lần lượt từng sản phẩm (lohi, 2novel, 2found, trysoot): mỗi sản phẩm có việc thì một task ghi rõ sản phẩm và site hub, không có việc thì bỏ qua, rồi báo một lần cho cả nhóm. Duyệt các task đang ở review và đăng bài blog đã qua (cms_publish đúng site); bài thiếu một bản ngôn ngữ thì trả về writer, không đăng nửa bài; bài mạng xã hội đã duyệt mà poster không chạy thì báo Cần bạn một lần. Nêu đã lên gì, đang chờ gì, theo từng sản phẩm.",
+   "timezone": "Asia/Ho_Chi_Minh"
+  },
+  {
+   "cron": "0 9 * * 0",
+   "id": "growth-retro",
+   "name": "Tổng kết tuần",
+   "text": "Tổng kết tuần của nhóm growth: Đầu mối đo từng sản phẩm bằng marketing-measure (content_stats 7 ngày của site đó), ghi tối đa ba bài học vào trí nhớ nhóm (nêu sản phẩm) và đề xuất một thay đổi cho tuần sau; báo một lần. Thay đổi ngân sách, lịch hay thành viên là việc người sáng lập quyết.",
+   "timezone": "Asia/Ho_Chi_Minh"
+  },
+  {
+   "cron": "20 6 * * *",
+   "id": "radar-lohi",
+   "member": "writer",
+   "name": "Đọc thị trường Lohi",
+   "text": "marketing_radar_read kept new Lohi market signals (its answer says how many). Follow your mission, section \"Radar\", for Lohi. Read-only: never post or reply anywhere.",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "tool": {
+    "input": {
+     "keywords": [
+      "truyện chữ",
+      "truyện dịch",
+      "đọc truyện",
+      "web novel",
+      "webnovel",
+      "tiên hiệp",
+      "ngôn tình",
+      "kiếm hiệp",
+      "đam mỹ",
+      "truyện audio",
+      "ebook",
+      "tangthuvien",
+      "metruyenchu",
+      "truyenfull",
+      "wattpad"
+     ],
+     "lang": "vi",
+     "max_items": 15,
+     "min_hours": 20,
+     "per_call": 5,
+     "retire": [
+      "reddit-webnovels",
+      "reddit-progfantasy",
+      "reddit-webnovel",
+      "reddit-lightnovels"
+     ],
+     "schedule": true,
+     "sources": [
+      {
+       "key": "reddit-vietnam-truyen",
+       "kind": "reddit",
+       "url": "https://www.reddit.com/r/Vietnam/search.rss?q=truy%E1%BB%87n+ch%E1%BB%AF&restrict_sr=1&sort=new"
+      },
+      {
+       "key": "news-truyen-chu",
+       "kind": "news",
+       "url": "https://news.google.com/rss/search?q=truy%E1%BB%87n+ch%E1%BB%AF+online&hl=vi&gl=VN&ceid=VN:vi"
+      },
+      {
+       "key": "news-truyen-dich",
+       "kind": "news",
+       "url": "https://news.google.com/rss/search?q=truy%E1%BB%87n+d%E1%BB%8Bch+web+novel&hl=vi&gl=VN&ceid=VN:vi"
+      },
+      {
+       "key": "news-doc-truyen-app",
+       "kind": "news",
+       "url": "https://news.google.com/rss/search?q=%E1%BB%A9ng+d%E1%BB%A5ng+%C4%91%E1%BB%8Dc+truy%E1%BB%87n+audio&hl=vi&gl=VN&ceid=VN:vi"
+      },
+      {
+       "key": "news-doi-thu",
+       "kind": "news",
+       "url": "https://news.google.com/rss/search?q=tangthuvien+OR+metruyenchu+OR+truyenfull+OR+wattpad&hl=vi&gl=VN&ceid=VN:vi"
+      }
+     ],
+     "wake_at": 6,
+     "wake_gap_hours": 20
+    },
+    "name": "radar_read",
+    "pack": "marketing"
+   },
+   "wake_when": {
+    "notify": true
+   }
+  }
+ ]
 }

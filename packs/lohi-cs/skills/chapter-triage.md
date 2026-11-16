@@ -29,6 +29,22 @@ gives a TITLE or a lohi2.com LINK, almost never an id. Resolve it yourself.
    The server re-checks the defect itself and queues it for a team member to
    approve. Then tell the reader it was passed to the team.
 
+## A wrong passage in one chapter: report it with `kind: "text"` (preferred)
+
+When the reader quotes the wrong wording exactly (a repeated word, a wrong name
+in one sentence, a garbled phrase), file it with
+`lohi-cs_lohi_report_content_issue`
+`{"novelId":"…","kind":"text","from":N,"find":"<the passage exactly as it stands>","replace":"<corrected text>","expectOccurrences":1,"summary":"<one line in your words>","reportId":"<new uuid>"}`.
+The server checks the quote stands in chapter N; `quote_not_found {found}` means
+it does not (ask for a longer exact passage, never guess). A reviewer (Catalog
+Exec) checks it against the chapter and fixes it within its limits; anything
+wider goes to a person. Tell the reader it was passed to the chapter reviewer and
+that you will tell them here when it is done. Never put the reader's own message
+in `summary`. Use `lohi_fix_chapter` below only when a person asked for it.
+
+In a room turn (`[Phòng truyện …]` / `[Báo lỗi …]`) the same call files it for
+the room: the answer and the final outcome land in the room.
+
 ## Fixing a chapter (`lohi_fix_chapter`)
 
 One call per report, held for the team's approval like a recovery.

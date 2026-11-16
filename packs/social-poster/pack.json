@@ -1,0 +1,364 @@
+{
+  "api_version": "soot/v1",
+  "description": {
+    "en": "Posts approved social posts from a logged-in browser through the marketing hub; reads X for the hub radar and reports a signed-out channel.",
+    "vi": "Đăng bài mạng xã hội đã duyệt bằng trình duyệt đã đăng nhập qua hub marketing; đọc X cho radar và báo kênh mất đăng nhập."
+  },
+  "id": "social-poster",
+  "keywords": {
+    "en": [
+      "social",
+      "posting",
+      "browser"
+    ],
+    "vi": [
+      "mạng xã hội",
+      "đăng bài"
+    ]
+  },
+  "label": {
+    "en": "Social poster",
+    "vi": "Đăng mạng xã hội"
+  },
+  "name": "Social poster",
+  "needs": {
+    "credentials": {
+      "MARKETING_HUB": {
+        "description": "Khóa để Poster nhận bài đã duyệt từ hub, báo đã đăng và gửi bài X cho radar. Chỉ nhập ở đây, không gửi qua trò chuyện.",
+        "title": "Khóa hub đăng bài (Poster)"
+      }
+    }
+  },
+  "skills": [
+    {
+      "description": "How to post one claimed approved post exactly once from the claimed account's browser profile (X or Facebook Page), and report the outcome to the hub; when unsure, record uncertain and never repost.",
+      "file": "skills/social-post/SKILL.md",
+      "name": "social-post"
+    },
+    {
+      "description": "How to read one X search page for the marketing hub radar from a logged-in browser profile, read-only, and hand the posts to the hub.",
+      "file": "skills/social-read-x/SKILL.md",
+      "name": "social-read-x"
+    },
+    {
+      "description": "What to do when a browser account is signed out or is the wrong account: release the post, raise one Cần bạn item naming the profile, never type credentials.",
+      "file": "skills/social-signed-out/SKILL.md",
+      "name": "social-signed-out"
+    }
+  ],
+  "tools": [
+    {
+      "description": "Take the oldest approved post whose account is posted from a browser (X or Facebook Page, any product). Returns post (id, revision, channel, source.site), type (the exact text to post), account (@handle or Page name) and browser_account {channel, site, handle or page_url/page_name, profile}: the browser profile to open with browser-use_control profile. post: null when nothing waits. A claimed post is never handed out again to post: finish it with social_record or social_release in this run. resume: true means an earlier run left this claim open and it may already be on the account: look there first, never type it blind.",
+      "name": "social_claim",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "x",
+              "facebook"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "soot",
+        "resource": "marketing_hub",
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Nhận bài đã duyệt để đăng bằng trình duyệt"
+    },
+    {
+      "description": "Record the post you just made from the browser: its address, https://x.com/<handle>/status/<digits> on X, or the post's https://www.facebook.com/... address on a Page. Only for a post you claimed in this run, on the account named in browser_account.",
+      "name": "social_record",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "pattern": "^SP-[0-9A-F]{8}$",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "expected_revision",
+          "url"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "soot",
+        "resource": "marketing_hub",
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Ghi link bài vừa đăng"
+    },
+    {
+      "description": "Hand a claimed post back. not_posted: you never pressed Post (it stays approved for the next run). refused: the platform rejected it (it becomes failed). unknown: you pressed Post and cannot find it on the account (it becomes uncertain for a human). note says what happened.",
+      "name": "social_release",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "pattern": "^SP-[0-9A-F]{8}$",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "not_posted",
+              "refused",
+              "unknown"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "expected_revision",
+          "outcome",
+          "note"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "soot",
+        "resource": "marketing_hub",
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Trả lại bài chưa đăng được"
+    },
+    {
+      "description": "List social posts, newest first, optionally by channel or status: approved posts wait for you; publishing ones are claimed.",
+      "name": "social_list",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "x",
+              "facebook"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "publishing",
+              "published",
+              "uncertain",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "soot",
+        "resource": "marketing_hub",
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Xem bài đã duyệt hoặc đang đăng"
+    },
+    {
+      "description": "Every account the hub posts on, per channel: kind (api or browser), the sites it carries, handle or Page, the browser profile it expects, and when a poster last asked for work. Read-only.",
+      "name": "social_channels",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "soot",
+        "resource": "marketing_hub",
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Xem các tài khoản đăng"
+    },
+    {
+      "description": "The X pages the radar wants read in this browser: each feed's id, read_url and last_ok_at (when its posts were last handed in, null if never).",
+      "name": "radar_feeds",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "read",
+        "program": "soot",
+        "resource": "marketing_hub",
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Xem các trang X cần đọc"
+    },
+    {
+      "description": "Hand in the posts you read on one feed's page, at most 40. Each entry: url https://x.com/<handle>/status/<digits>, title (the post's first line), author (@handle), excerpt (the full text), published_at (ISO time), score (likes), comments (replies). Posts already handed in are recognised by URL.",
+      "name": "radar_submit",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "author": {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                "comments": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "excerpt": {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                "published_at": {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                "score": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "title": {
+                  "maxLength": 600,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "url": {
+                  "maxLength": 500,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "title"
+              ],
+              "type": "object"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "type": "array"
+          },
+          "feed": {
+            "maxLength": 48,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feed",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "run": {
+        "args": [
+          "tool-forward",
+          "--binding-env",
+          "MARKETING_HUB"
+        ],
+        "max_output_bytes": 65536,
+        "mode": "write",
+        "program": "soot",
+        "resource": "marketing_hub",
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}"
+        },
+        "stdin": "context",
+        "timeout": "20s"
+      },
+      "title": "Nộp bài X cho radar"
+    }
+  ]
+}

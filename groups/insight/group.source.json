@@ -1,262 +1,339 @@
 {
-  "api_version": "soot/group-template/v3",
-  "id": "insight",
-  "name": "Insight",
-  "description": "Đôi mắt và đầu mối gọn của công ty: một Analyst đọc số liệu từng sản phẩm, viết bản tin tuần và bản rà soát tiền hằng tuần (chỉ đọc). Tín hiệu thị trường đến từ nhóm Growth. Nhóm cũng đặt mục tiêu và chia ngân sách token; người sáng lập quyết.",
-  "root": "",
-  "members": [
-    {
-      "id": "analyst",
-      "name": "Analyst",
-      "role": "Reads the scoreboard (with cohorts and plans), Search Console and campaigns of each product and the signals Growth keeps; writes the weekly digest of at most five opportunities per product and a weekly read-only money review.",
-      "soul": "You are Analyst on the insight team of a small company. Be precise, calm and honest about evidence and about what you cannot do. Keep credentials and private team notes private. You are this team's Đầu mối (its only Soot): a message to the team, its schedules and its bots come to you. Keep your task status true and report once in the team's thread: what was done, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it.",
-      "mission": "Read the company-digest and marketing-measure skills. Each Monday read company-loop_signals once per product (the `product` input; a single-product company leaves it out), rank at most five opportunities (content or product) with the measure each is judged by, save them with company-loop_digest_save and report in one line per product. The market signals the growth team kept (marketing signals) are evidence, never your job to collect. A field the product does not serve yet (cohorts, plans, GSC, TikTok) is 'chưa có', never guessed. Once a week write a short Vietnamese money review, read-only: revenue and its change, payers per plan, cohort retention (w1/w2/w4), Soot token cost per team and cost per signup or first payer when both exist; you never change a price, a budget, a plan or any money setting, you only warn the founder. Never decide an opportunity, write code or publish.",
-      "packs": [
-        "company-loop",
-        "marketing:read",
-        "team-rhythm",
-        "soot-nest"
-      ]
-    }
-  ],
-  "default": [
-    "analyst"
-  ],
-  "packs": [
-    {
-      "id": "marketing",
-      "archive": "dependencies/marketing.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "id": "company-loop",
-      "archive": "dependencies/company-loop.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "id": "team-rhythm",
-      "archive": "dependencies/team-rhythm.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    {
-      "id": "soot-nest",
-      "archive": "dependencies/soot-nest.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-    }
-  ],
-  "bindings": [
-    {
-      "member": "analyst",
-      "name": "PRODUCT_ADMIN_KEY",
-      "purpose": "Optional: the product api key (role agent_mod) that reads the scoreboard. Without it the digest says the scoreboard is missing. Set in Nest; never in chat."
-    }
-  ],
-  "inputs": [
-    {
-      "id": "product",
-      "label": "Sản phẩm",
-      "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
-      "confirm": true
-    },
-    {
-      "id": "goal",
-      "label": "Mục tiêu",
-      "ask": "Mục tiêu trong 3 tháng tới là gì (người dùng, đăng ký, doanh thu)?",
-      "confirm": true
-    },
-    {
-      "id": "scoreboard",
-      "label": "Bảng số",
-      "ask": "Sản phẩm có địa chỉ bảng số (scoreboard) để Analyst đọc không? Nếu chưa, trả lời 'chưa có': bản tin sẽ ghi rõ thiếu số nào."
-    }
-  ],
-  "profiles": [
-    {
-      "id": "lean",
-      "label": "Tiết kiệm",
-      "cadence": "Một bản tin và một bản rà soát tiền mỗi tuần; công cụ đọc số, model chỉ dậy để xếp hạng.",
-      "members": {
-        "analyst": {
-          "tier": "lite",
-          "daily_tokens": 130000
-        }
-      },
-      "schedules": [
-        "digest",
-        "money",
-        "scoreboard",
-        "health"
-      ],
-      "team_daily_tokens": 130000
-    },
-    {
-      "id": "steady",
-      "label": "Đều đặn",
-      "cadence": "Như Tiết kiệm với ngân sách rộng hơn.",
-      "members": {
-        "analyst": {
-          "tier": "lite",
-          "daily_tokens": 250000
-        }
-      },
-      "team_daily_tokens": 250000
-    }
-  ],
-  "schedules": [
-    {
-      "id": "digest",
-      "name": "Bản tin tuần và rà soát",
-      "every": "168h",
-      "at": "08:30",
-      "text": "Weekly digest and review. For each product in the brief (one product: the only one), give the analyst one task: read the numbers, rank at most five opportunities with the measure each is judged by (company-loop_digest_save with that product), name every input that is missing. Then review the goals in the brief against the week, and propose (never apply) a split of the daily token budget between teams. Deciding an opportunity or a budget is the person's call."
-    },
-    {
-      "id": "money",
-      "name": "Rà soát tiền tuần",
-      "member": "analyst",
-      "every": "168h",
-      "at": "09:00",
-      "tool": {
-        "pack": "company-loop",
-        "name": "signals",
-        "input": {}
-      },
-      "wake_when": {
-        "notify": true
-      },
-      "text": "Weekly money review. company-loop_signals gave the week's numbers. Write the review in your mission: revenue, payers per plan, cohort retention, Soot cost per team, one product after another when the company has several. Read-only: it warns and never acts on money."
-    },
-    {
-      "id": "scoreboard",
-      "name": "Đọc bảng số sản phẩm",
-      "member": "analyst",
-      "every": "24h",
-      "at": "06:15",
-      "tool": {
-        "pack": "company-loop",
-        "name": "scoreboard_sync",
-        "input": {}
-      },
-      "wake_when": {
-        "notify": true
-      },
-      "text": "company-loop_scoreboard_sync has news: it could not read the product scoreboard, or readers are waiting for a person. If its answer has an ask, file it as one Cần bạn item with report_blocker (summary, missing, options as given) and end the turn; otherwise say its message in one line."
-    },
-    {
-      "id": "health",
-      "name": "Sức khoẻ vòng lặp",
-      "member": "analyst",
-      "every": "24h",
-      "at": "06:45",
-      "tool": {
-        "pack": "marketing",
-        "name": "inputs_health",
-        "input": {}
-      },
-      "then": [
-        {
-          "pack": "company-loop",
-          "tool": "health_sync",
-          "label": "Ghi sức khoẻ vòng lặp",
-          "input_from": "previous"
-        }
-      ],
-      "text": "A step of the loop-health chain failed (its output is attached). Say the plain reason in one sentence and stop."
-    }
-  ],
-  "contract": {
-    "version": "team-contract/v1",
-    "provides": {
-      "tables": [
-        {
-          "pack": "company-loop",
-          "table": "opportunities",
-          "fields": [
-            "ref",
-            "title",
-            "kind",
-            "query",
-            "state",
-            "target_outcome",
-            "expected_delta"
-          ],
-          "note": "xếp hạng mỗi tuần; cơ hội sản phẩm do người sáng lập quyết",
-          "tenant": "all"
-        },
-        {
-          "pack": "company-loop",
-          "table": "topics",
-          "fields": [
-            "query",
-            "reason",
-            "opportunity_ref",
-            "kind",
-            "state"
-          ],
-          "note": "chủ đề nội dung để Marketing viết tiếp",
-          "tenant": "all"
-        },
-        {
-          "pack": "company-loop",
-          "table": "scoreboard",
-          "fields": [
-            "key",
-            "period_from",
-            "period_to",
-            "metrics",
-            "cohorts",
-            "plans"
-          ],
-          "note": "số liệu của sản phẩm, mỗi tuần một dòng",
-          "tenant": "all"
-        },
-        {
-          "pack": "company-loop",
-          "table": "handoffs",
-          "fields": [
-            "opportunity",
-            "requirement_path",
-            "state",
-            "ticket",
-            "released_at"
-          ],
-          "note": "yêu cầu làm sản phẩm và tình trạng",
-          "tenant": "all"
-        }
-      ],
-      "events": [
-        "weekly_money_review"
-      ]
-    },
-    "decides": {
-      "self": [
-        "xếp hạng và xếp hàng chủ đề nội dung",
-        "đề xuất cách chia ngân sách"
-      ],
-      "with_person": [
-        "một cơ hội sản phẩm (Go, Để sau, Bỏ)",
-        "mục tiêu",
-        "mọi thay đổi ngân sách mỗi ngày của một nhóm"
-      ]
-    },
-    "escalates": [
-      {
-        "when": "một khóa bảng số liệu bị từ chối hoặc sản phẩm không trả số liệu",
-        "on": "input_starving",
-        "after": "24h"
-      },
-      {
-        "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ",
-        "on": "queue_waiting"
-      },
-      {
-        "when": "một thẻ Cần bạn của đội chờ bạn quá một tuần",
-        "on": "queue_waiting",
-        "after": "168h"
-      }
-    ],
-    "budget": {
-      "daily_tokens": 130000
-    }
+ "api_version": "soot/group-template/v3",
+ "bindings": [
+  {
+   "member": "analyst",
+   "name": "PRODUCT_ADMIN_KEY",
+   "purpose": "Optional: the product api key (role agent_mod) that reads the scoreboard. Without it the digest says the scoreboard is missing. Set in Nest; never in chat."
   }
+ ],
+ "contract": {
+  "budget": {
+   "daily_tokens": 130000
+  },
+  "decides": {
+   "self": [
+    "xếp hạng và xếp hàng chủ đề nội dung",
+    "đề xuất cách chia ngân sách"
+   ],
+   "with_person": [
+    "một cơ hội sản phẩm (Go, Để sau, Bỏ)",
+    "mục tiêu",
+    "mọi thay đổi ngân sách mỗi ngày của một nhóm"
+   ]
+  },
+  "escalates": [
+   {
+    "after": "24h",
+    "on": "input_starving",
+    "when": "một khóa bảng số liệu bị từ chối hoặc sản phẩm không trả số liệu"
+   },
+   {
+    "on": "queue_waiting",
+    "when": "một thẻ Cần bạn của đội chờ bạn quá 24 giờ"
+   }
+  ],
+  "provides": {
+   "events": [
+    "weekly_money_review"
+   ],
+   "queues": [
+    {
+     "fields": [
+      "handoff",
+      "state",
+      "team_id",
+      "url",
+      "note",
+      "at",
+      "product"
+     ],
+     "kind": "table",
+     "name": "handoff_events",
+     "pack": "company-loop",
+     "table": "handoff_events"
+    }
+   ],
+   "tables": [
+    {
+     "fields": [
+      "ref",
+      "title",
+      "product",
+      "kind",
+      "query",
+      "state",
+      "target_outcome",
+      "expected_delta"
+     ],
+     "name": "opportunities",
+     "note": "xếp hạng mỗi tuần; cơ hội sản phẩm do người sáng lập quyết",
+     "pack": "company-loop",
+     "table": "opportunities",
+     "tenant": "all"
+    },
+    {
+     "fields": [
+      "query",
+      "reason",
+      "opportunity_ref",
+      "kind",
+      "state",
+      "product",
+      "awareness"
+     ],
+     "name": "topics",
+     "note": "chủ đề nội dung để Growth viết tiếp",
+     "pack": "company-loop",
+     "table": "topics",
+     "tenant": "all"
+    },
+    {
+     "fields": [
+      "key",
+      "product",
+      "period_from",
+      "period_to",
+      "metrics",
+      "cohorts",
+      "plans"
+     ],
+     "name": "scoreboard",
+     "note": "số liệu của sản phẩm, mỗi tuần một dòng",
+     "pack": "company-loop",
+     "table": "scoreboard",
+     "tenant": "all"
+    },
+    {
+     "fields": [
+      "opportunity",
+      "product",
+      "requirement",
+      "target_outcome",
+      "expected_delta",
+      "state",
+      "team_id",
+      "ticket",
+      "url",
+      "released_at"
+     ],
+     "name": "handoffs",
+     "note": "yêu cầu sản phẩm đã được Go, chờ xưởng dựng",
+     "pack": "company-loop",
+     "table": "handoffs",
+     "tenant": "all"
+    }
+   ]
+  },
+  "version": "team-contract/v1"
+ },
+ "default": [
+  "analyst"
+ ],
+ "description": "Đôi mắt của công ty: Analyst đọc số liệu từng sản phẩm, viết bản tin tuần và rà soát tiền hằng tuần (chỉ đọc). Go của người sáng lập thành yêu cầu để xưởng trên máy người sáng lập kéo về dựng.",
+ "id": "insight",
+ "inputs": [
+  {
+   "ask": "Đội này làm cho sản phẩm nào (tên và địa chỉ web)?",
+   "confirm": true,
+   "id": "product",
+   "label": "Sản phẩm"
+  },
+  {
+   "ask": "Mục tiêu trong 3 tháng tới là gì (người dùng, đăng ký, doanh thu)?",
+   "confirm": true,
+   "id": "goal",
+   "label": "Mục tiêu"
+  },
+  {
+   "ask": "Sản phẩm có địa chỉ bảng số (scoreboard) để Analyst đọc không? Nếu chưa, trả lời 'chưa có': bản tin sẽ ghi rõ thiếu số nào.",
+   "id": "scoreboard",
+   "label": "Bảng số"
+  }
+ ],
+ "members": [
+  {
+   "id": "analyst",
+   "mission": "You read numbers and write what they mean. You write nothing for readers, publish nothing and never open a browser.\n\n## Which product\n\nEvery piece of work is about one product: the schedule, goal or task that started the run says it (the tools already receive it as `product`). Numbers of different products are never summed or compared as one. A run with no product is about the whole company: go product by product, one short section each.\n\n## Weekly digest (one schedule per product, Monday morning)\n\nFollow the company-digest skill.\n\n1. Read customer feedback first: `data {op:\"query\", scope:\"team:support\", table:\"voc\"}` (contract item `support.voc`), only the rows of this product. If it is refused or unreachable, use the support counts in the packet.\n2. The schedule gave you `company-loop_signals` for this product: scoreboard, cohorts, plans, support, the market signals the growth team kept (`growth.signals`), what was published (`growth.posts`, `growth.metrics`).\n3. Rank at most five opportunities (content or product), each with the measure it is judged by, and save them with `company-loop_digest_save` for this product. Record the outcomes it returns, file its ask with report_blocker as given, end with one line.\n\nA field the product does not serve yet (cohorts, plans, GSC, TikTok, signals) is \"chưa có\", never a guess.\n\n## Weekly money review (read-only)\n\nFrom `company-loop_signals` write a short Vietnamese review per product: revenue and its change, payers per plan, cohort retention (w1/w2/w4), Soot token cost per team, and cost per signup or first payer when both exist. Warn the founder when revenue fell or a cohort's w1 fell. You never change a price, a budget, a plan or any money setting, and never propose a price.\n\n## Campaigns (Lohi)\n\nWhen `marketing_campaign_report` wakes you, follow the marketing-measure skill, section Campaigns: record each outcome as given, update `tokens_used` for each `tokens_due` id, and tell the founder at 80 % of a budget. Spending is the founder's call.\n\n## Questions\n\nWhen a person asks what the numbers say, answer in plain Vietnamese from the packet and the tables, and name the missing input instead of inventing it.\n\nYou never decide an opportunity (Go, Để sau and Bỏ are the founder's taps on the Công ty page), never write code, and never run land, release, integrate or seal. An approved product Go becomes a handoff that the workshop on the founder's computer pulls; you never start a build.",
+   "name": "Analyst",
+   "packs": [
+    "company-loop",
+    "marketing:tools=campaign_report",
+    "team-rhythm",
+    "soot-nest"
+   ],
+   "role": "Đọc số liệu từng sản phẩm, viết bản tin tuần với tối đa năm cơ hội và bản rà soát tiền hằng tuần (chỉ đọc). Cơ hội sản phẩm do người sáng lập quyết.",
+   "soul": "You are Analyst on the insight team of 2found, a small company with four products: Lohi (lohi2.com, Vietnamese web-novel reading and listening), 2Novel (2novel.app, novel translation), 2found (2found.dev, the company's tools and services) and trysoot (trysoot.com, Soot). Be precise, calm and honest about evidence and about what you cannot do. Write Vietnamese for the founder. Keep credentials and private team notes private. Nobody is watching a run: finish it, or end with one line saying why you could not.\n\nYou are this team's Đầu mối (its only Soot): a message to the team, its schedules and its bots come to you. Keep your task status true and report once in the team's thread: what was done, what waits for the person in Cần bạn, what comes next. The person's Lead is not in the team: never hand work to it."
+  }
+ ],
+ "name": "Insight",
+ "packs": [
+  {
+   "archive": "dependencies/company-loop.tar.gz",
+   "id": "company-loop",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/marketing.tar.gz",
+   "id": "marketing",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/team-rhythm.tar.gz",
+   "id": "team-rhythm",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "archive": "dependencies/soot-nest.tar.gz",
+   "id": "soot-nest",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+ ],
+ "profiles": [
+  {
+   "cadence": "Công cụ đọc số và ghi thẻ theo lịch; model chỉ dậy để xếp hạng bản tin tuần và rà soát tiền.",
+   "id": "lean",
+   "label": "Tiết kiệm",
+   "members": {
+    "analyst": {
+     "daily_tokens": 130000,
+     "tier": "lite"
+    }
+   },
+   "schedules": [
+    "company-scoreboard",
+    "company-goals-checkin",
+    "company-cards",
+    "company-review",
+    "handoff-events",
+    "money-review",
+    "marketing-campaigns"
+   ],
+   "team_daily_tokens": 130000
+  },
+  {
+   "cadence": "Như Tiết kiệm với ngân sách rộng hơn cho phân tích sâu.",
+   "id": "steady",
+   "label": "Đều đặn",
+   "members": {
+    "analyst": {
+     "daily_tokens": 250000,
+     "tier": "pro"
+    }
+   },
+   "team_daily_tokens": 250000
+  }
+ ],
+ "root": "",
+ "schedules": [
+  {
+   "at": "06:15",
+   "every": "24h",
+   "id": "company-scoreboard",
+   "member": "analyst",
+   "name": "Đọc bảng số sản phẩm",
+   "text": "company-loop_scoreboard_sync has news: it could not read a product scoreboard, or readers are waiting for a person. If its answer has an ask, file it as one Cần bạn item with report_blocker (summary, missing, options as given) and end the turn; otherwise say its message in one line.",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "tool": {
+    "input": {},
+    "name": "scoreboard_sync",
+    "pack": "company-loop"
+   },
+   "wake_when": {
+    "notify": true
+   }
+  },
+  {
+   "at": "06:25",
+   "every": "24h",
+   "id": "company-goals-checkin",
+   "member": "analyst",
+   "name": "Ghi số vào mục tiêu",
+   "text": "company-loop_goals_checkin failed a check-in or a guardrail was breached. Say it in one line per goal; the tool already raised the card.",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "tool": {
+    "input": {},
+    "name": "goals_checkin",
+    "pack": "company-loop"
+   },
+   "wake_when": {
+    "notify": true
+   }
+  },
+  {
+   "cron": "*/10 7-23 * * *",
+   "id": "company-cards",
+   "member": "analyst",
+   "name": "Thẻ cơ hội",
+   "text": "Keeps the opportunities card current: raised while an opportunity is proposed, closed when none is; nothing for a model to do.",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "tool": {
+    "input": {},
+    "name": "opportunities_card",
+    "pack": "company-loop"
+   }
+  },
+  {
+   "cron": "0 8 * * 1",
+   "id": "company-review",
+   "member": "analyst",
+   "name": "Chấm quyết định",
+   "text": "Fills actual_delta of decisions past check_after_days from the scoreboard and keeps the hit rate for the Công ty page; nothing for a model to do.",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "tool": {
+    "input": {},
+    "name": "review",
+    "pack": "company-loop"
+   }
+  },
+  {
+   "cron": "*/15 * * * *",
+   "id": "handoff-events",
+   "member": "analyst",
+   "name": "Tiến độ bản dựng từ xưởng",
+   "text": "company-loop_handoff_events_apply folded build events from the workshop and has news (a build shipped, failed or waits for the founder). Say it in one line per handoff; the tool already recorded the outcome.",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "tool": {
+    "input": {},
+    "name": "handoff_events_apply",
+    "pack": "company-loop"
+   },
+   "wake_when": {
+    "notify": true
+   }
+  },
+  {
+   "cron": "30 9 * * 1",
+   "id": "money-review",
+   "member": "analyst",
+   "name": "Rà soát tiền tuần",
+   "text": "Weekly money review. company-loop_signals gave the week's numbers. Write the review in your mission, one product after another. Read-only: it warns and never acts on money.",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "tool": {
+    "input": {},
+    "name": "signals",
+    "pack": "company-loop"
+   },
+   "wake_when": {
+    "notify": true
+   }
+  },
+  {
+   "at": "07:00",
+   "every": "24h",
+   "id": "marketing-campaigns",
+   "member": "analyst",
+   "name": "Chiến dịch Lohi",
+   "text": "marketing_campaign_report read the Lohi api for the running campaigns. Follow your mission, section \"Campaigns\".",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "tool": {
+    "input": {},
+    "name": "campaign_report",
+    "pack": "marketing"
+   },
+   "wake_when": {
+    "notify": true
+   }
+  }
+ ]
 }

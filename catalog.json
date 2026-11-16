@@ -480,6 +480,105 @@
         "kind": "bundled",
         "path": "packs/image-gen"
       }
+    },
+    {
+      "id": "voc",
+      "name": "Voice of the customer",
+      "description": "Aggregate, non-personal notes of what customers ask, report or want, one row per note, for every product; the table the support team's contract serves the company.",
+      "tags": [
+        "communication",
+        "support"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/voc"
+      }
+    },
+    {
+      "id": "2found-knowledge",
+      "name": "2found knowledge",
+      "description": "Routing and playbooks for the 2found website reception: which product fits which need, sales and support playbooks; product facts come from knowledge_search, not this pack.",
+      "tags": [
+        "communication",
+        "support"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/2found-knowledge"
+      }
+    },
+    {
+      "id": "lohi-ops",
+      "name": "Lohi ops",
+      "description": "Lohi operations tools and skills: catalog health and quality, duplicate novels, request/edit/violation queues, enrichment, Litrans jobs, comments, App Store reviews, SEO and pricing.",
+      "tags": [
+        "operations"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/lohi-ops"
+      }
+    },
+    {
+      "id": "social-poster",
+      "name": "Social poster",
+      "description": "Posts approved social posts from a logged-in browser for the marketing hub's accounts and reads X for the hub radar; reports a signed-out channel.",
+      "tags": [
+        "marketing",
+        "communication"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/social-poster"
+      }
+    },
+    {
+      "id": "lohi-brand",
+      "name": "Lohi brand",
+      "description": "The Lohi brand skill for the marketing team: scope and hub site, readers and language, voice, claims, signal sources, cadence caps and channels.",
+      "tags": [
+        "marketing"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/lohi-brand"
+      }
+    },
+    {
+      "id": "2novel-brand",
+      "name": "2Novel brand",
+      "description": "The 2Novel brand skill for the marketing team: scope and hub site, audience and languages, voice, claims, signal sources, cadence caps and channels.",
+      "tags": [
+        "marketing"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/2novel-brand"
+      }
+    },
+    {
+      "id": "2found-brand",
+      "name": "2found brand",
+      "description": "The 2found brand skill for the marketing team: scope and hub site, audience and languages, voice, claims, signal sources, cadence caps and channels.",
+      "tags": [
+        "marketing"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/2found-brand"
+      }
+    },
+    {
+      "id": "soot-brand",
+      "name": "Soot brand",
+      "description": "The Soot brand skill for the marketing team: scope and hub site, audience and languages, voice, claims, signal sources, cadence caps and channels.",
+      "tags": [
+        "marketing"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/soot-brand"
+      }
     }
   ],
   "retired": [
