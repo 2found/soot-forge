@@ -102,7 +102,7 @@ or "để tôi xem", propose the draft link instead of acting.
 | `group.create` | `group`: `{template, name, title, profile, brief, coordinator}` — `coordinator` is the member role (from `members`) that becomes the team's Đầu mối, required when the template has `asks_coordinator` (`group_coordinator_required`, `group_coordinator_invalid`), left out otherwise; `name` is the team's short id (lowercase, `-`), `title` what the person calls it, `profile` one of the template's `profiles` ids, `brief` the answers by input id. A template from Forge is installed by this same change |
 | `company.project.save` | `company_project`: `{id, name}` — a new `id` (lowercase, `-`) creates the project, an existing one renames it. Deleting a project is the person's, in Nest › Dự án |
 | `group.projects` | `group_projects`: `{group, projects}` — the project ids a team serves; `[]` means all projects. Create the project first |
-| `group.policy.create` / `.save` | `team`: `{name, description, entries, members}`; `id` to save. The first of `entries` is the team's Đầu mối; never list yourself (`group_lead_member`), and a team needs at least one entry |
+| `group.policy.create` / `.save` | `id` (the team's short id, required to create and to save: lowercase letters, digits, dashes); `team`: `{name, description, entries, members}`. The first of `entries` is the team's Đầu mối; never list yourself (`group_lead_member`), and a team needs at least one entry |
 | `group.policy.delete` | `id` |
 | `approval.policy` | `id` (the tool), `approval`: `operator` asks first, `auto` runs alone, `default` follows its pack |
 | `soot.data_pool` | `id`, `data_pool`: true or false |

@@ -113,13 +113,16 @@ run() {
   [[ -f "$brief" ]] || die "no brief at $brief"
   local added
   added=$(driver populate "$brief" | node -e 'let s = ""; process.stdin.on("data", d => s += d).on("end", () => console.log(JSON.parse(s).added))') || die "could not build the population"
-  if [[ "$added" != 0 ]]; then
-    echo "added $added persona Soots" >&2
-    running && stop >/dev/null
+  # The marker outlives a failed adopt: a retry adds nobody, yet the runtime
+  # still serves the old roster and every new persona's session fails.
+  [[ "$added" == 0 ]] || { echo "added $added persona Soots" >&2; touch "$WS/.adopt-pending"; }
+  if [[ -f "$WS/.adopt-pending" ]]; then
+    stop >/dev/null
     soot check --config "$DEPLOY" >/dev/null || die "the workspace no longer validates; run: soot check --config $DEPLOY"
     # A runtime that has served before keeps starting from the roster it knew
     # until the edited one is adopted.
     (cd "$WS" && soot migrate adopt --config "$DEPLOY" >/dev/null) || die "could not adopt the new roster; run: soot migrate adopt --config $DEPLOY"
+    rm -f "$WS/.adopt-pending"
   fi
   running || start >&2
   mkdir -p "$RUNS"
@@ -136,6 +139,9 @@ sims() { driver sims; }
 
 stop() {
   local pid
+  # `soot run` starts a managed runtime of its own when this script's server is
+  # down; it holds the workspace store too.
+  soot stop --config "$DEPLOY" >/dev/null 2>&1 || true
   if running; then pid=$(cat "$PID_FILE")
   else
     # A server whose pid file was lost still holds the workspace; match its exact config.

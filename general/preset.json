@@ -10,7 +10,9 @@
     "nest-lead",
     "office",
     "ocr",
-    "image-gen"
+    "image-gen",
+    "research",
+    "writing"
   ],
   "sources": {
     "toolbox": {
@@ -42,6 +44,12 @@
     },
     "image-gen": {
       "github_latest": "2found/soot-forge"
+    },
+    "research": {
+      "github_latest": "2found/soot-forge"
+    },
+    "writing": {
+      "github_latest": "2found/soot-forge"
     }
   },
   "packs": [
@@ -49,6 +57,8 @@
     "toolbox",
     "2build",
     "browser-use",
+    "research",
+    "writing:read",
     "soot",
     "office",
     "ocr",

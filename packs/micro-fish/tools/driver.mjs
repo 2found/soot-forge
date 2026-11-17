@@ -158,6 +158,8 @@ function soot(w, id, message, conversation) {
       let result; try { result = JSON.parse(out); } catch { result = { state: 'failed', text: out.slice(0, 200) }; }
       // Waiting cannot fix a persona the runtime never loaded.
       if ((result.diagnostics || []).some(d => d.code === 'agent_selection_required')) die(`the runtime does not serve ${id}: it started before this persona was added. Stop it, run "soot migrate adopt --config ${w.deploy}", start it and run again`);
+      // The runtime logs no failure_kind anywhere a reader finds it: keep why each failed session failed.
+      if (result.state !== 'completed') note(`${id} ${result.state}: ${JSON.stringify({ text: String(result.text || '').slice(0, 200), diagnostics: result.diagnostics })}`);
       done(result);
     });
     child.stdin.end(message);

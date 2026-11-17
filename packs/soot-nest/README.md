@@ -21,7 +21,7 @@ and `piece.json` last), its queries, named actions and questions, the kit
 (`_kit/piece.css`, `_kit/piece.js` and the `soot` global, bridge levels 1 and
 2), every refusal of a save or a call and its fix, the changes that need a new
 approval, the limits, the events it receives, and how to propose a layout
-change. It grants nothing: the runtime gives every Soot the `files` tool, runs
+change. It grants nothing: the runtime gives a Soot that selects `read_file` the `storage` tool, runs
 nothing a Soot writes, and decides what a screen may read and call; the person
 approves a screen and its tools before they are shown or called. The reference
 it mirrors is `docs/build-a-piece.md` (Path 1), `docs/written-pieces.md` and

@@ -51,6 +51,12 @@
     },
     {
       "name": "run_shell"
+    },
+    {
+      "name": "eval"
+    },
+    {
+      "name": "run_js"
     }
   ]
 }

@@ -9,7 +9,7 @@ Reusable workspace and research tools. These are linked Go tools from
 | write | `write_file`, `edit_file`, `edit_lines` |
 | research | `web_fetch`, `web_search` |
 | http | `http_request` |
-| shell | `run_shell` |
+| code | `run_shell`, `eval`, `run_js` |
 
 Copy this directory into the deployment's `packs_dir`. The pack is selected
 whole: `"packs": ["toolbox"]` gives every tool above, including write, HTTP and
@@ -59,14 +59,33 @@ search) and exclude dependency/VCS directories. They do not consult global Git
 ignore files or `.git/info/exclude`. `path: "."` searches the workspace root.
 Grep reports skipped unreadable/over-2MiB files, caps each page at 200 matches,
 and supplies `offset` to continue. Long matching lines point to byte reads.
-Listings are bounded at 100000 files; narrow `path`/`glob` when needed. Host and
-sandbox substrates share the same Go matching and paging behavior.
+Listings are bounded at 100000 files; narrow `path`/`glob` when needed. `grep`
+runs ripgrep when `rg` is on the host's PATH (it then also searches files above
+2MiB) and the Go engine otherwise, with the same rows and paging; `output_mode`
+returns matching lines, only file paths, or per-file counts.
 
-`run_shell` executes on the host under the Soot process's OS permissions. Its
-working directory is **not OS isolation**. Select the pack whole only on a host/account
-trusted with model-authored commands. It does not inherit the daemon's environment.
-Credentials for fixed runbooks are declared in the owning pack's `needs`; this
-pack does not expose a global credential resolver to the model.
+`run_shell` and `eval` (a persistent Python or JavaScript session) run inside
+the OS sandbox by default: Seatbelt on macOS, bubblewrap on Linux. A command
+reads only system and toolchain directories, the workspace and its own temp
+directory; it writes only the workspace (never `.soot/`, `.git/hooks` or
+`.git/config`); it gets a clean environment and no network unless the Soot's
+`execution.sandbox.network_allow` lists a host, reached through a filtering
+proxy. A refused host shows up in Cần bạn, where a person can allow it. When the
+sandbox cannot start the call is refused with how to fix it; it never falls back
+to the host. `execution.sandbox.backend: "host"` runs unsandboxed and is flagged
+by `soot check`; on Windows the code tools need the `docker` backend. Credentials
+for fixed runbooks are declared in the owning pack's `needs`; this pack does not
+expose a global credential resolver to the model.
+
+`run_js` is different: it runs a JavaScript script inside the runtime itself
+(QuickJS compiled to WebAssembly), with no operating system, network,
+environment, modules or timers behind it, so it is offered on every platform,
+Windows without Docker included. A script gets `read(path)` and
+`write(path, text)` on its workspace (same confinement and quota as the file
+tools, never `.soot/`), `tool(name, args)` to call any tool its run holds (the
+call goes through the run's permission policy, budget and journal like a model
+call) and `console.log`. Each call starts fresh and is bounded in time, memory,
+output and tool calls; a runaway loop or memory bomb ends with a clear error.
 
 Every toolbox tool accepts `async: true`. It returns a jobs receipt; use
 `job_status`, `job_wait`, `job_list` or `job_cancel`. Jobs cancel with their run;

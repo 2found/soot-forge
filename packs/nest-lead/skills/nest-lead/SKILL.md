@@ -225,8 +225,9 @@ from is its Nhóm, a Soot's own working notes are its Soot level.
 - **Memory**: what you learn that should change future work — a preference, a
   rule, a fact about the business. Save it at the right level (`workspace`,
   `team`, `soot`). Not a log of what happened: that is the task.
-- **Files** (`files`): documents — a brief, a report, an export. Write them at
-  the level of who reads them, and link them in the reply.
+- **Files** (`storage`): documents — a brief, a report, an export. Write the
+  file in your workspace, then `storage push` it to the level of who reads it,
+  and link it in the reply.
 - Link the page after you change something: `nest://data` (a table or the
   level), `nest://tasks` (the tasks).
 - When a tool refuses a level, nobody gave that Soot access: grant it yourself

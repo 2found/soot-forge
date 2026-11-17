@@ -30,7 +30,7 @@ Fixture the cases assume (a workspace used only for evals):
 - for the `team-template` cases (T5, T6), Soot Forge reachable (or a host
   template whose description fits a marketing team) so `templates.list` has one.
 
-- for the `workspace-lifecycle` cases (C1–C4, L1–L4), the same team `ban-hang`; C2 reads
+- for the `workspace-lifecycle` cases (C1–C4, L1–L9), the same team `ban-hang`; C2 reads
   better with a paused recurring task on `but-lohi`, but its gate is only
   that the Lead reads tasks first and claims no resume in dry run.
 - for the `workspace` cases (W1–W6), a team `ban-hang` with `but-lohi` as a
@@ -55,5 +55,5 @@ A model may also quote a forbidden phrase while denying it ("chưa thể nói l�
 
 The C1–C4 cases (workspace-lifecycle, formerly team-check) were measured on deepseek-flash in a workspace
 with only the fixture above, where every dry-run `manage` read is empty: 11/12
-over three runs (one C2 run over its tool-call limit). L1–L4 (teams, ontology, budget, flows) are new and not yet measured; L2 and L3 are `gated`, so the hold itself is checked against the real runtime. They need a Soot with `ontology.save`, `flow.*` and workspace `improve.*`. The `workspace` cases
+over three runs (one C2 run over its tool-call limit). L1–L9 (teams, ontology, budget, flows, ontology.patch, a peer-owned ontology, a gate removal, the tidy, memory health) are new and not yet measured; L2, L3 and L7 are `gated`, so the hold itself is checked against the real runtime. They need a Soot with `ontology.save`, `flow.*` and workspace `improve.*`. The `workspace` cases
 pass 2/6 on that same setup, so a lone failure there is the setup, not the skill.

@@ -7,7 +7,8 @@ description: "Make a screen of your own in Nest (a piece) when a person keeps co
 You can make a small screen for the person you work with, and Nest shows it
 beside its own: a list they open every morning, numbers they keep asking for,
 a box that sends text to a service and shows the answer, a box that asks you.
-Nest calls it a **piece**. You write it with the `files` tool; no pack,
+Nest calls it a **piece**. You write each file in your workspace with `write_file` and send it to
+storage with the `storage` tool's `push`; no pack,
 release or new permission is involved.
 
 When the screen needs an outside service, you also write a **tool**,
@@ -58,7 +59,7 @@ sends you events (`"actions": true`) still works; a `piece.json` with an
 | You | `ui/<id>/` | `tools/<id>/tool.json` | `soot:<your id>` |
 | A team (its Đầu mối writes) | `ui/<id>/` | `tools/<id>/tool.json` | `team:<id>` |
 
-Always pass `scope`: in a team run `files` defaults to the team. Ids match
+Always pass `scope` to `storage push`: in a team run it defaults to the team. Ids match
 `^[a-z][a-z0-9-]{1,47}$` and are the folder's name. A screen folder holds
 `piece.json`, `index.html` at its top and your files (types `html js mjs css
 json map txt svg png jpg jpeg gif webp avif ico woff woff2 ttf otf wasm`);
@@ -74,8 +75,11 @@ follow its documentation; if you know none, ask which they use.
 
 ## The order
 
-One `files` `op: "write"` per file (`content` is the file's text), and read
-each result:
+Per file: `write_file` it in your workspace (`pieces/<path>`), then one
+`storage` `op: "push"` with `from` (that path) and `path` (where it lands in
+storage), and read each result. A refused push says why in `{code, message,
+recovery}`; `stale_revision` means the stored file changed, so `pull` it, merge
+and push again:
 
 ```text
 1. data create_table glossary      only if the screen uses a table; it must exist
@@ -86,7 +90,7 @@ each result:
 ```
 
 ```json
-{"op": "write", "scope": "soot:writer", "path": "tools/translate/tool.json", "content": "{\n  \"id\": \"translate\", …\n}"}
+{"op": "push", "scope": "soot:writer", "from": "pieces/tools/translate/tool.json", "path": "tools/translate/tool.json"}
 ```
 
 The table is one `data` call:

@@ -6,6 +6,7 @@ import { readFile, writeFile, rm, access, lstat, realpath, open, mkdir } from 'n
 import { join, resolve, sep, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { constants } from 'node:fs';
 import { parseProxies, proxyPlan, launchEnv, readLaunched, writeLaunched, mapFailure, scrub } from './proxy.mjs';
 
 // Profiles, daemon names and session files live in the Pack's state directory,
@@ -141,6 +142,43 @@ export async function uploadFile(input, fileRoot = process.env.FILE_ROOT) {
   if (hash.digest('hex')!==spec.sha256) throw new Error('Upload file changed: sha256 does not match the claim');
   return {selector: spec.selector, file: at, bytes: st.size};
 }
+// Screenshot (seeing what a page draws, such as one the Soot is building): the
+// PNG lands at a clean workspace-relative path under the host-bound FILE_ROOT,
+// where the Soot reads it with read_file. Never an absolute, hidden or
+// symlinked path, and never a file written through a symlink.
+export const SCREENSHOT_MAX = 32 * 1024 * 1024;
+const PNG_MAGIC = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]);
+export function screenshotSpec(input) {
+  const {path} = input;
+  if (typeof path!=='string'||!path||path.length>512||path.startsWith('/')||path.includes('\\')||path.includes('\0')) throw new Error('Screenshot path must be relative to the workspace');
+  const parts=path.split('/');
+  if (parts.some(p=>!p||p==='.'||p==='..'||p.startsWith('.'))) throw new Error('Screenshot path must be a clean workspace path without hidden parts');
+  if (extname(path).toLowerCase()!=='.png') throw new Error('Screenshot path must end in .png');
+  if (input.full_page!==undefined&&typeof input.full_page!=='boolean') throw new Error('Invalid full_page');
+  return {parts};
+}
+/** Writes a PNG into the workspace: missing folders are made, nothing is followed through a symlink. */
+export async function saveScreenshot(input, png, fileRoot = process.env.FILE_ROOT) {
+  const spec=screenshotSpec(input);
+  if (typeof fileRoot!=='string'||!fileRoot.startsWith('/')) throw new Error('The host gave this Soot no workspace for screenshots (FILE_ROOT)');
+  if (!Buffer.isBuffer(png)||png.length<PNG_MAGIC.length||!png.subarray(0,PNG_MAGIC.length).equals(PNG_MAGIC)) throw new Error('The browser did not produce a PNG');
+  if (png.length>SCREENSHOT_MAX) throw new Error('The screenshot is larger than 32 MiB');
+  const root=await realpath(fileRoot);
+  let at=root;
+  for (const part of spec.parts.slice(0,-1)) {
+    at=join(at,part);
+    const st=await lstat(at).catch(()=>null);
+    if (!st) { await mkdir(at,{mode:0o700}); continue; }
+    if (st.isSymbolicLink()||!st.isDirectory()) throw new Error('Screenshot path must not pass through a symlink or a file');
+  }
+  at=join(at,spec.parts.at(-1));
+  if (!resolve(at).startsWith(root+sep)) throw new Error('Screenshot path leaves the workspace');
+  const st=await lstat(at).catch(()=>null);
+  if (st&&(st.isSymbolicLink()||!st.isFile())) throw new Error('Screenshot path is a symlink or not a file');
+  const fh=await open(at,constants.O_WRONLY|constants.O_CREAT|constants.O_TRUNC|constants.O_NOFOLLOW,0o600);
+  try { await fh.writeFile(png); } finally { await fh.close(); }
+  return {path:input.path,bytes:png.length};
+}
 export function validateInput(input) {
   if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Invalid browser input');
   if(input.tab!==undefined && (typeof input.tab!=='string'||!/^t[0-9]+$/.test(input.tab)))throw new Error('Invalid tab');
@@ -155,6 +193,7 @@ export function validateInput(input) {
     case 'key':case 'text':if(typeof input.text!=='string'||input.text.length>8000)throw new Error('Invalid text');break;
     case 'scroll':if(!['up','down'].includes(input.direction))throw new Error('Invalid direction');for(const key of ['x','y'])if(key in input)number(key,0,2400);for(const key of ['delta_x','delta_y'])if(key in input)number(key,-2400,2400);break;
     case 'upload':uploadSpec(input);break;
+    case 'screenshot':screenshotSpec(input);break;
     case 'close':break;
     default:throw new Error('Unknown browser action');
   }
@@ -340,6 +379,14 @@ export async function main() {
       case 'upload': {
         const up=await uploadFile(input);
         result={...(await run(['upload',up.selector,up.file])),uploaded:{path:input.path,bytes:up.bytes}};break;
+      }
+      case 'screenshot': {
+        // agent-browser writes into the pack's own session folder; only the checked bytes reach the workspace.
+        const shot=join(sessionDir,'screenshot.png');
+        await rm(shot,{force:true});
+        try { await run(['screenshot',...(input.full_page?['--full']:[]),shot]); result={screenshot:await saveScreenshot(input,await readFile(shot))}; }
+        finally { await rm(shot,{force:true}); }
+        break;
       }
       case 'close':result=running?await run(['close']):{closed:true};await writeFile(closedFile,'closed',{mode:0o600});if(ident.named&&!bound)await rm(link,{force:true});break;
       default:throw new Error('Unknown browser action');

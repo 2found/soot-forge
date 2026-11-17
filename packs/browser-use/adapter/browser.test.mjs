@@ -195,3 +195,31 @@ test('a view follows the conversation link and stops when the grant is revoked',
   assert.equal(result.status,1);assert.match(result.stderr,/browser_profile_not_granted/);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+import {screenshotSpec,saveScreenshot} from './browser.mjs';
+import {symlinkSync as linkFile,readFileSync as readBytes,lstatSync as lstatFile} from 'node:fs';
+test('screenshot writes a PNG only to a clean workspace path, never through a symlink',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'soot-shot-')), outside=mkdtempSync(join(tmpdir(),'soot-out-'));
+  const png=Buffer.concat([Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]),Buffer.from('pixels')]);
+  try {
+    assert.deepEqual(validateInput({action:'screenshot',path:'tmp/s.png'}).path,'tmp/s.png');
+    for (const path of ['/etc/x.png','../x.png','a/../x.png','.hidden/x.png','tmp/.x.png','x.jpg','x','tmp//x.png','a\\b.png'])
+      assert.throws(()=>screenshotSpec({path}),undefined,path);
+    assert.throws(()=>screenshotSpec({path:'x.png',full_page:'yes'}));
+    const saved=await saveScreenshot({path:'tmp/deep/s.png'},png,root);
+    assert.deepEqual(saved,{path:'tmp/deep/s.png',bytes:png.length});
+    assert.deepEqual(readBytes(join(root,'tmp/deep/s.png')),png);
+    assert.equal(lstatFile(join(root,'tmp/deep/s.png')).mode&0o777,0o600);
+    await saveScreenshot({path:'tmp/deep/s.png'},png,root); // replaced in place
+    await assert.rejects(saveScreenshot({path:'n.png'},Buffer.from('not a png'),root),/PNG/);
+    await assert.rejects(saveScreenshot({path:'n.png'},png,undefined),/FILE_ROOT/);
+    // A symlinked folder or file never carries the write out of the workspace.
+    linkFile(outside,join(root,'link'));
+    await assert.rejects(saveScreenshot({path:'link/s.png'},png,root),/symlink/);
+    writeFileSync(join(outside,'target.png'),'keep');
+    linkFile(join(outside,'target.png'),join(root,'f.png'));
+    await assert.rejects(saveScreenshot({path:'f.png'},png,root),/symlink/);
+    assert.equal(readBytes(join(outside,'target.png'),'utf8'),'keep');
+    assert.equal(existsSync(join(outside,'s.png')),false);
+  } finally { rmSync(root,{recursive:true,force:true}); rmSync(outside,{recursive:true,force:true}); }
+});

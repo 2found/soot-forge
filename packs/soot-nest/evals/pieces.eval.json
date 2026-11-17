@@ -37,7 +37,7 @@
               "waiting_human"
             ],
             "called": [
-              "files"
+              "storage"
             ],
             "reply_matches": [
               "(?i)(chưa lưu|không lưu|chưa tạo|chưa thay đổi|thử|dry)"
@@ -50,7 +50,7 @@
             "max_tool_calls": 12,
             "order": [
               "data",
-              "files"
+              "storage"
             ]
           }
         }

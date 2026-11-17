@@ -112,7 +112,7 @@ that leaves it alone runs the checks and publishes nothing.
 The General Soot installs default pack archives from a stable Forge release;
 its 2build pack still resolves the latest stable 2build release from upstream.
 Keep a Forge release containing `toolbox`, `soot`, `browser-use`, `soot-nest`,
-`nest-lead`, `vibe_cf`, `office`, `ocr` and `image-gen` available before releasing that Soot
+`nest-lead`, `vibe_cf`, `office`, `ocr`, `image-gen`, `research` and `writing` available before releasing that Soot
 default. Source on `main` alone does not make those archives available to a
 fresh Nest installation: the installer resolves the latest published stable
 release. The browser pack also needs the host preparation in

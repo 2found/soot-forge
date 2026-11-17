@@ -27,7 +27,7 @@
     {
       "name": "manage",
       "title": "Đổi cài đặt Nest",
-      "description": "Read and change this Nest's settings as the Lead, the person's assistant: Soots, schedules, teams, projects (create, rename, which a team serves), the workspace ontology, flows (tests of a process) and workspace improvement, tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
+      "description": "Read and change this Nest's settings as the Lead, the person's assistant: Soots, schedules, teams, projects (create, rename, which a team serves), the workspace ontology (read, patch one part, save), flows (tests of a process) and workspace improvement, tool approvals, data access, model tiers, website clients, updates, token budgets, Soot improvement, who reaches which tables, memory and files (access), and who is paired to the Telegram/Discord bots (status, revoke). Connecting a bot is not here: that is the person's, in Kênh chat. Read first to get the revision. A change only the person may approve (delete, a grant you do not hold yourself, relaxing an approval, a customer-facing Soot) is refused with the reason; send that same input to manage_gated.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -70,6 +70,7 @@
               "channel.unpair",
               "ontology.read",
               "ontology.save",
+              "ontology.patch",
               "flow.list",
               "flow.save",
               "flow.delete",
@@ -163,7 +164,7 @@
           "team": {
             "type": "object",
             "additionalProperties": true,
-            "description": "group.policy.create or save: {name, description, entries, members}; members maps Soot ids to {}."
+            "description": "group.policy.create or save: {name, description, entries, members}; members maps Soot ids to {}. The team's short id goes in the top-level id field (lowercase letters, digits, dashes), required for create as well as save."
           },
           "model": {
             "type": "object",
@@ -337,7 +338,41 @@
           "ontology": {
             "type": "object",
             "additionalProperties": true,
-            "description": "ontology.save: the whole ontology/v1 document ({version, about?, terms?, teams?, entities, relations, processes}). Removing a gates entry is held for the person."
+            "description": "ontology.save: the whole ontology/v1 document ({version, about?, terms?, teams?, entities, relations, processes}). Removing a gates entry is held for the person. Prefer ontology.patch to change one part."
+          },
+          "ops": {
+            "type": "array",
+            "maxItems": 64,
+            "description": "ontology.patch: up to 64 edits, all applied or none. Each is {op: \"set\"|\"remove\", path, value?}. Paths: about, teams.<id>, entities.<id>, relations[<team>,<entity>], terms[<term>], processes.<id>, processes.<id>.moves[<from>><to>], processes.<id>.gates[<at>]. A set of a team, entity, process or term replaces that whole object: read it first and send it complete. Needs revision.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "set",
+                    "remove"
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                },
+                "value": {}
+              },
+              "required": [
+                "op",
+                "path"
+              ]
+            }
+          },
+          "clear": {
+            "type": "boolean",
+            "description": "ontology.save: true only when the person asked to empty the whole ontology; an empty one is otherwise refused."
+          },
+          "reason": {
+            "type": "string",
+            "description": "ontology.save or ontology.patch: why, in one plain sentence. It is kept in the workspace history next to the change, where the person can put it back."
           },
           "flow": {
             "type": "object",
@@ -433,6 +468,7 @@
               "channel.unpair",
               "ontology.read",
               "ontology.save",
+              "ontology.patch",
               "flow.list",
               "flow.save",
               "flow.delete",
@@ -526,7 +562,7 @@
           "team": {
             "type": "object",
             "additionalProperties": true,
-            "description": "group.policy.create or save: {name, description, entries, members}; members maps Soot ids to {}."
+            "description": "group.policy.create or save: {name, description, entries, members}; members maps Soot ids to {}. The team's short id goes in the top-level id field (lowercase letters, digits, dashes), required for create as well as save."
           },
           "model": {
             "type": "object",
@@ -700,7 +736,41 @@
           "ontology": {
             "type": "object",
             "additionalProperties": true,
-            "description": "ontology.save: the whole ontology/v1 document ({version, about?, terms?, teams?, entities, relations, processes}). Removing a gates entry is held for the person."
+            "description": "ontology.save: the whole ontology/v1 document ({version, about?, terms?, teams?, entities, relations, processes}). Removing a gates entry is held for the person. Prefer ontology.patch to change one part."
+          },
+          "ops": {
+            "type": "array",
+            "maxItems": 64,
+            "description": "ontology.patch: up to 64 edits, all applied or none. Each is {op: \"set\"|\"remove\", path, value?}. Paths: about, teams.<id>, entities.<id>, relations[<team>,<entity>], terms[<term>], processes.<id>, processes.<id>.moves[<from>><to>], processes.<id>.gates[<at>]. A set of a team, entity, process or term replaces that whole object: read it first and send it complete. Needs revision.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "set",
+                    "remove"
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                },
+                "value": {}
+              },
+              "required": [
+                "op",
+                "path"
+              ]
+            }
+          },
+          "clear": {
+            "type": "boolean",
+            "description": "ontology.save: true only when the person asked to empty the whole ontology; an empty one is otherwise refused."
+          },
+          "reason": {
+            "type": "string",
+            "description": "ontology.save or ontology.patch: why, in one plain sentence. It is kept in the workspace history next to the change, where the person can put it back."
           },
           "flow": {
             "type": "object",
