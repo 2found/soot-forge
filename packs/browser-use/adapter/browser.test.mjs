@@ -274,6 +274,12 @@ test('screenshot steps capture frames between commands, checked and bounded',()=
   assert.throws(()=>commandSteps({action:'command',steps:[['screenshot','/etc/x.png']]}),/relative/);
   assert.throws(()=>commandSteps({action:'command',steps:[['screenshot','tmp/a.png','--other']]}),/screenshot step/);
   assert.throws(()=>commandSteps({action:'command',steps:Array.from({length:MAX_SHOTS+1},(_,i)=>['screenshot',`tmp/${i}.png`])}),/at most/);
+  // A viewport change between frames; a bad size or an unknown verb says what is allowed.
+  assert.deepEqual(commandSteps({action:'command',steps:[['screenshot','tmp/a.png'],['resize','900','700'],['screenshot','tmp/b.png']]})[1],['resize','900','700']);
+  assert.throws(()=>commandSteps({action:'command',steps:[['resize','9000','700']]}),/Invalid width/);
+  assert.throws(()=>commandSteps({action:'command',steps:[['resize','900']]}),/resize step/);
+  assert.throws(()=>commandSteps({action:'command',steps:[['zoom','2']]}),/Unsupported browser command "zoom"; commands: open, .*screenshot and resize/);
+  assert.throws(()=>command({action:'command',args:['zoom']}),err=>/"zoom"/.test(err.message)&&!/as steps/.test(err.message));
   // A lone args screenshot still goes through action screenshot.
   assert.throws(()=>command({action:'command',args:['screenshot','x.png']}),/Unsupported/);
 });

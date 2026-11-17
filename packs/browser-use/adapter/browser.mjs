@@ -114,8 +114,9 @@ export function command(input) {
   const args = input.args;
   const verbs = new Set(['open','snapshot','click','dblclick','fill','type','press','hover','select','check','uncheck','scroll','scrollintoview','get','eval','back','forward','reload','tab','wait','errors','console','find']);
   const flags = new Set(['-i','-c','-d','-s','--interactive','--compact','--depth','--selector','--name','--exact','--new-tab','--url','--load','--fn','--text','--timeout']);
-  if (!Array.isArray(args) || !args.length || args.length>32 || !verbs.has(args[0]) || args.some(x=>typeof x!=='string'||x.length>8000)) throw new Error('Unsupported browser command');
-  for (const arg of args.slice(1)) if (arg.startsWith('-') && !flags.has(arg)) throw new Error('Unsupported browser flag');
+  if (!Array.isArray(args) || !args.length || args.length>32 || args.some(x=>typeof x!=='string'||x.length>8000)) throw new Error('A command is a list of 1 to 32 strings, e.g. ["open","https://example.com"]');
+  if (!verbs.has(args[0])) throw new Error(`Unsupported browser command ${JSON.stringify(args[0])}; commands: ${[...verbs].join(', ')}${input.step?', and as steps screenshot and resize':''}`);
+  for (const arg of args.slice(1)) if (arg.startsWith('-') && !flags.has(arg)) throw new Error(`Unsupported browser flag ${JSON.stringify(arg)}; flags: ${[...flags].join(', ')}`);
   if(args[0]==='open') navigationUrl(args[1]);
   if(args[0]==='tab' && args[1]==='new') navigationUrl(args[2]??'about:blank');
   return args;
@@ -129,7 +130,13 @@ export function commandSteps(input) {
   if(!Array.isArray(input.steps)||!input.steps.length||input.steps.length>MAX_STEPS) throw new Error(`steps takes 1 to ${MAX_STEPS} commands`);
   let shots=0;
   const list=input.steps.map(args=>{
-    if(!Array.isArray(args)||args[0]!=='screenshot') return command({action:'command',args});
+    // A viewport change between frames, as action resize does.
+    if(Array.isArray(args)&&args[0]==='resize') {
+      if(args.length!==3) throw new Error('A resize step is ["resize", "<width>", "<height>"]');
+      validateInput({action:'resize',width:Number(args[1]),height:Number(args[2])});
+      return ['resize',String(Number(args[1])),String(Number(args[2]))];
+    }
+    if(!Array.isArray(args)||args[0]!=='screenshot') return command({action:'command',args,step:true});
     // A frame between steps: written by the adapter like action screenshot, at most MAX_SHOTS a call.
     const full=args[2]==='--full';
     if(args.length>(full?3:2)) throw new Error('A screenshot step is ["screenshot", "<path>.png"] or ["screenshot", "<path>.png", "--full"]');
@@ -483,6 +490,7 @@ export async function main() {
           for(const [i,args] of list.entries()) {
             try {
               if(args[0]==='screenshot') {const step={path:args[1],full_page:args[2]==='--full'};done.push({step:i+1,command:'screenshot',result:await capture(step)});(shown??=[]).push(step.path);}
+              else if(args[0]==='resize') {done.push({step:i+1,command:'resize',result:await run(['set','viewport',args[1],args[2],DENSITY])});await writeFile(join(sessionDir,'viewport.json'),JSON.stringify({width:Number(args[1]),height:Number(args[2])}),{mode:0o600});}
               else done.push({step:i+1,command:args[0],result:await run(args)});
             }
             catch(error) {if(!done.length)throw error;result={steps:done,failed:{step:i+1,command:args[0],error:scrub(error.message,entry)}};break;}
