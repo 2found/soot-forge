@@ -1,14 +1,14 @@
 // The team contract is what the runtime enforces between teams: a queue or table row may carry only declared
 // fields, and a Workshop that reads a table sees only declared fields. A tool that writes a column the contract does
 // not name loses it silently on a live runtime (the builder then fails "no_source: title_too_short"). This test reads
-// the pack's tool sources, finds every column written to the two contract-bound tables, and requires the repo's
-// declared fields on both sides to cover them.
+// the pack's tool sources, finds every column written to the two contract-bound tables, and requires the declared
+// fields on both sides to cover them. The contract lives in the workspace ontology.json (entities and relations);
+// fixtures/ontology.json is its lohi-ops slice, kept equal to the live server's by 2found/soot/tests.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
 const here = new URL('../', import.meta.url);
-const soot = new URL('../../', here);
 const json = u => JSON.parse(readFileSync(u, 'utf8'));
 const LIB = new URL('tools/lib/', here);
 const sources = readdirSync(LIB).filter(f => f.endsWith('.mjs')).map(f => ({ f, s: readFileSync(new URL(f, LIB), 'utf8') }));
@@ -92,12 +92,11 @@ function written(table) {
   return out;
 }
 
-const server = json(new URL('runtimes/server/config/flock.json', soot));
-const mac = json(new URL('runtimes/mac/config/deployment.json', soot));
-const ops = (Array.isArray(server.groups) ? server.groups.find(g => g.id === 'operations' || g.name === 'Operations') : server.groups.operations).contract;
-const queue = ops.provides.queues.find(q => q.name === 'catalog_job_events');
-const table = ops.provides.tables.find(t => t.name === 'catalog_jobs');
-const consumed = JSON.stringify(mac).includes('"catalog_jobs"') ? (function find(o) { if (o && typeof o === 'object') { if (o.item === 'catalog_jobs' && o.team === 'operations') return o; for (const v of Object.values(o)) { const r = find(v); if (r) return r; } } return null; })(mac) : null;
+const ontology = json(new URL('tests/fixtures/ontology.json', here));
+const queue = ontology.entities.catalog_job_events;
+const table = ontology.entities.catalog_jobs;
+const consumed = ontology.relations.find(r => r.team === 'workshop' && r.entity === 'catalog_jobs' && r.can.includes('read'));
+
 // Columns the pack's own store adds (id, timestamps) are not row fields a team declares.
 const OWN = new Set(['id', '_id', 'created_at', 'updated_at', 'key', 'value']);
 
@@ -111,12 +110,13 @@ test('the scanner sees what the tools write (guards the test itself)', () => {
 test('catalog_job_events: every field a tool writes is declared by the operations queue contract', () => {
   const declared = new Set(queue.fields);
   const missing = [...written('catalog_job_events')].filter(([k]) => !OWN.has(k) && !declared.has(k)).map(([k, f]) => `${k} (${f})`);
-  assert.deepEqual(missing, [], `declare in flock.json operations provides.queues[catalog_job_events].fields: ${missing}`);
+  assert.deepEqual(missing, [], `declare in ontology.json entities.catalog_job_events.fields: ${missing}`);
 });
 
 test('catalog_jobs: every field a tool writes is declared on the operations side and the Workshop side', () => {
-  assert.ok(consumed, 'the Workshop consumes catalog_jobs');
-  for (const [label, fields] of [['operations provides.tables[catalog_jobs]', table.fields], ['workshop consumes catalog_jobs', consumed.fields]]) {
+  assert.ok(consumed, 'the Workshop reads catalog_jobs');
+  assert.ok(queue.queue && table.owner === 'operations' && queue.owner === 'operations');
+  for (const [label, fields] of [['ontology.json entities.catalog_jobs.fields', table.fields], ['ontology.json relation workshop → catalog_jobs fields', consumed.fields]]) {
     const declared = new Set(fields);
     const missing = [...written('catalog_jobs')].filter(([k]) => !OWN.has(k) && !declared.has(k)).map(([k, f]) => `${k} (${f})`);
     assert.deepEqual(missing, [], `declare in ${label}: ${missing}`);

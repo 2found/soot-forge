@@ -1,14 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { TOOLS } from '../tools/ops.mjs';
-import { readSkills } from '../../../scripts/catalog.mjs';
-import { fileURLToPath } from 'node:url';
 
 const dir = new URL('../', import.meta.url);
 const read = f => JSON.parse(readFileSync(new URL(f, dir), 'utf8'));
 const pack = read('pack.json'), frag = read('deployment.fragment.json');
-const skills = await readSkills(fileURLToPath(dir));
 const names = pack.tools.map(t => t.name);
 
 test('every manifest tool has an implementation, and the other way round', () => {
@@ -17,15 +14,23 @@ test('every manifest tool has an implementation, and the other way round', () =>
 });
 
 test('skills exist; writes that reach readers or a rights holder wait for an operator', () => {
+  // A pack's skills are skills/<name>/SKILL.md whose frontmatter names the folder and describes it.
+  const skills = readdirSync(new URL('skills/', dir), { withFileTypes: true }).filter(e => e.isDirectory())
+    .map(e => [e.name, (() => { try { return readFileSync(new URL(`skills/${e.name}/SKILL.md`, dir), 'utf8'); } catch { return null; } })()])
+    .filter(([, body]) => body !== null);
   assert.ok(skills.length > 0);
-  for (const s of skills) assert.ok(existsSync(new URL(s.file, dir)), s.file);
+  for (const [name, body] of skills) {
+    const front = /^---\n([\s\S]*?)\n---\n/.exec(body)?.[1] ?? '';
+    assert.match(front, new RegExp(`^name: ${name}$`, 'm'), name);
+    assert.match(front, /^description: \S/m, name);
+  }
   const approval = Object.fromEntries(pack.tools.filter(t => t.run.approval).map(t => [t.name, t.run.approval]));
   for (const n of ['request_reject', 'violation_resolve', 'catalog_job_request', 'catalog_jobs_decide']) assert.equal(approval[n], 'operator', n);
 });
 
 test('modes: the read tools are read, anything that stores or posts is write', () => {
   const mode = Object.fromEntries(pack.tools.map(t => [t.name, t.run.mode]));
-  for (const n of ['edit_queue', 'edit_context', 'violations_list', 'quality_list', 'seo_report', 'pricing_report']) assert.equal(mode[n], 'read', n);
+  for (const n of ['edits_pending', 'edits_context', 'violations_list', 'quality_list', 'seo_report', 'pricing_report']) assert.equal(mode[n], 'read', n);
   for (const n of ['request_accept', 'request_reject', 'edit_verdict', 'violation_resolve', 'enrichment_enqueue', 'duplicates_scan', 'litrans_health', 'catalog_job_request', 'catalog_jobs_sync', 'catalog_jobs_pull', 'catalog_job_run', 'catalog_job_report', 'requests_pending', 'onboard_card', 'catalog_jobs_decide', 'translate_start', 'translate_step', 'request_finish', 'fix_execute', 'fix_recheck', 'chapter_retranslate', 'chapter_tts']) assert.equal(mode[n], 'write', n);
   assert.equal(mode.fixes_pull, 'read');
   assert.equal(mode.reports_open, 'read');
@@ -102,7 +107,7 @@ test('the Catalog Exec loop is tool-first: translate_step and fix_recheck never 
   const byId = Object.fromEntries(frag.server.schedules.map(s => [s.id, s]));
   for (const id of ['ops-translate-step', 'ops-fix-recheck']) assert.equal(byId[id].wake_when, undefined, id);
   for (const id of ['ops-release-step', 'ops-fixes']) assert.deepEqual(byId[id].wake_when, { notify: true }, id);
-  const execSoot = read('../../runtimes/server/config/soots/s-98ffbd86-5b84-4cc4-989c-7905006042dd/soot.json');
+  const execSoot = read('tests/fixtures/catalog-exec.json'); // Catalog Exec's run budget on the server
   assert.ok(execSoot.execution.max_run_tokens >= 64000, 'sized from the measured release verdict run (about 32000 tokens, cache reads counted) with headroom');
   const intent = frag.server.exec_loop_intent.schedules;
   assert.deepEqual(intent.map(s => s.id).sort(), ['ops-fix-recheck', 'ops-fixes', 'ops-release-step', 'ops-translate-step']);

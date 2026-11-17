@@ -1,0 +1,97 @@
+{
+  "_comment": "The slice of the operations team contract (2found ontology.json, owned by runtime server) that lohi-ops tools write to. 2found/soot/tests/lohi-ops-fixtures.test.mjs keeps it equal to the live snapshot.",
+  "entities": {
+    "catalog_jobs": {
+      "description": "Việc thu thập đã được người duyệt, chờ xưởng chạy; có request_id khi bắt đầu từ yêu cầu của độc giả.",
+      "owner": "operations",
+      "store": {
+        "pack": "lohi-ops",
+        "table": "catalog_jobs"
+      },
+      "fields": [
+        "product",
+        "kind",
+        "subject",
+        "reason",
+        "state",
+        "approved_by",
+        "result",
+        "at",
+        "title",
+        "source_url",
+        "request_id",
+        "novel_slug",
+        "chapters",
+        "copyright",
+        "acked"
+      ],
+      "state": "state",
+      "states": [
+        "requested",
+        "approved",
+        "running",
+        "done",
+        "failed",
+        "blocked_copyright",
+        "declined"
+      ],
+      "terminal": [
+        "done",
+        "failed",
+        "blocked_copyright",
+        "declined"
+      ]
+    },
+    "catalog_job_events": {
+      "owner": "operations",
+      "store": {
+        "pack": "lohi-ops",
+        "table": "catalog_job_events"
+      },
+      "fields": [
+        "job_id",
+        "state",
+        "detail",
+        "at",
+        "novel_slug",
+        "chapters",
+        "copyright"
+      ],
+      "queue": true
+    }
+  },
+  "relations": [
+    {
+      "team": "workshop",
+      "entity": "catalog_jobs",
+      "can": [
+        "read"
+      ],
+      "fields": [
+        "product",
+        "kind",
+        "subject",
+        "reason",
+        "state",
+        "approved_by",
+        "result",
+        "at",
+        "title",
+        "source_url",
+        "request_id",
+        "novel_slug",
+        "chapters",
+        "copyright",
+        "acked"
+      ],
+      "why": "việc thu thập đã được người duyệt, để chạy"
+    },
+    {
+      "team": "workshop",
+      "entity": "catalog_job_events",
+      "can": [
+        "request"
+      ]
+    }
+  ]
+}

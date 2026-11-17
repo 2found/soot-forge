@@ -23,7 +23,10 @@ export const TOOLS = { catalog_health, crawl_watch, comments_pull, comments_deci
 /** Tools that never touch the pack's own tables. */
 const NO_STORE = new Set(['seo_report', 'pricing_report', 'request_reject', 'edits_pending', 'edits_context', 'edit_verdict', 'violations_list', 'violation_resolve', 'enrichment_enqueue', 'quality_list', 'fixes_pull', 'reports_open', 'fix_context']);
 
-export async function run(name, ctx, { env = process.env, event, store, now = Date.now(), fetchImpl = fetch, apiTimeoutMs, openDb, soot, spawnJob, fsImpl } = {}) {
+/** The time a tool sees: the context's `now` or SOOT_NOW when a trial runtime moved its clock (soot flow advance), else the wall clock. */
+const clockNow = (env, ctx) => { const t = Date.parse(ctx?.now ?? env?.SOOT_NOW ?? ''); return Number.isFinite(t) ? t : Date.now(); };
+
+export async function run(name, ctx, { env = process.env, event, store, now = clockNow(env, ctx), fetchImpl = fetch, apiTimeoutMs, openDb, soot, spawnJob, fsImpl } = {}) {
   const tool = Object.hasOwn(TOOLS, name) ? TOOLS[name] : null;
   if (!tool) fail('invalid_request', `Unknown tool ${name}.`);
   const needsStore = !NO_STORE.has(name);

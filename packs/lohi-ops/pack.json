@@ -1,6 +1,6 @@
 {
   "name": {
-    "en": "Lohi ops",
+    "en": "Lohi operations",
     "vi": "Vận hành Lohi"
   },
   "description": {
@@ -9,13 +9,24 @@
   },
   "keywords": {
     "en": [
-      "lohi",
       "operations",
-      "catalog"
+      "catalog",
+      "moderation",
+      "reviews",
+      "pricing",
+      "duplicates",
+      "requests",
+      "violations"
     ],
     "vi": [
-      "lohi",
-      "vận hành"
+      "vận hành",
+      "kho truyện",
+      "bình luận",
+      "đánh giá",
+      "giá",
+      "trùng lặp",
+      "yêu cầu",
+      "vi phạm"
     ]
   },
   "tools": [

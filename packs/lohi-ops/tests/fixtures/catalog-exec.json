@@ -1,0 +1,6 @@
+{
+  "_comment": "Catalog Exec (s-98ffbd86-…) as the server runs it: the run budget the tool-first loop must fit in. 2found/soot/tests/lohi-ops-fixtures.test.mjs keeps it equal to the live snapshot.",
+  "execution": {
+    "max_run_tokens": 64000
+  }
+}
