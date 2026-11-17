@@ -67,8 +67,10 @@ back in one call as `screenshot` steps: `"steps": [["open","http://127.0.0.1:800
 ["screenshot","tmp/f0.png"],["eval","setTime(0.5)"],["screenshot","tmp/f1.png"]]`,
 up to 4 frames. Opening or reloading a `127.0.0.1`/`localhost` page always
 loads your latest files, never a cached copy. To check a page you built in the
-workspace, serve it with `bash` in the background (`python3 -m
-http.server "$PORT"`), open `http://127.0.0.1:<that port>/page.html`, check
+workspace, open it at the preview URL your working guidance names (the runtime
+serves your workspace there, read-only, nothing to start); without one, serve
+it with `bash` in the background (`python3 -m http.server "$PORT"`) and open
+`http://127.0.0.1:<that port>/page.html`. `file://` is refused. Check
 `errors` and `console`, and take screenshots. On such a page `navigate` already
 answers `page_errors` (message, line, column) when its scripts threw or did not
 parse: fix that line first. For an animation, take several
