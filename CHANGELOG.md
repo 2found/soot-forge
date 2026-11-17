@@ -3,6 +3,10 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+- **Skills describe their tools; they stop limiting how a Soot works.** browser-use no longer says a screenshot needs no second look, never to build a zoomed copy, not to re-check a complete result, one `eval` and never a turn per page, or to submit a whole form in one call; research no longer caps queries at 2-5 and fetches at about 12; image-gen no longer fixes a 512×512 draft, forbids re-checking or retrying a generation; retries are no longer limited to one. The facts about each tool stay.
+
 ## 0.21.0 — 2026-11-17
 
 Baseline: v0.19.0 (0.20.0 was never released; its notes are folded in below). **Config v2: every pack, General and every team template is in the config v2 shapes, with no v1 compatibility.** Pairs with the Soot runtime release that reads config v2 only and provides `toolbox` (2agent docs/plans/config-v2.md), and with its `ontology.*`, `ontology.patch`, `flow.*` and workspace `improve.*` actions on `manage` (docs/plans/team-flows.md D6, D9, D10) and the Nest page Quy trình. **Ship this only after that runtime release.** An older runtime refuses these packs: its auto-update validates a new archive at staging, refuses it and keeps the packs it has installed (a Soot 0.20.0 `soot add` of a 0.21.0 archive answers `invalid_type` on `pack.json`), so nothing breaks there, and nothing updates either until the runtime is upgraded. The new runtime in turn refuses a pack from 0.19.0 or earlier and says that release predates it. No storage changes.

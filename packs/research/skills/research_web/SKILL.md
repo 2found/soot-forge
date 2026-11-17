@@ -6,7 +6,7 @@ Research a question with the two granted tools and answer with evidence, not
 recall. This pack exists so the operator can grant research without
 shell, HTTP or file access.
 
-1. Decompose the question into 2-5 concrete search queries. Prefer primary
+1. Decompose the question into concrete search queries. Prefer primary
    sources (vendor docs, official announcements, papers) over aggregators.
 2. Call `web_search` for each query. Open the most relevant results with
    `web_fetch`; never cite a search snippet you did not open.
@@ -25,5 +25,4 @@ shell, HTTP or file access.
 6. Time-sensitivity: note the publication or access date when the fact can
    change (versions, prices, deprecation status).
 
-Limits: keep total fetches under ~12 per question; quote sparingly and
-paraphrase; answer in the language the operator's mission asks for.
+Quote sparingly and paraphrase; answer in the language the operator's mission asks for.

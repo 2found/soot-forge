@@ -25,4 +25,4 @@ publish anywhere.
    stays in the operator-bound store and is not a public URL.
 5. Failures mean the draft was not stored — exit non-zero or an error
    field. Do not retry blindly on validation errors (fix the input); a
-   storage error is safe to retry once.
+   storage error is safe to retry.
