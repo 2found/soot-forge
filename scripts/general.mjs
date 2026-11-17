@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
-import { identifier, stableVersion } from './catalog.mjs';
+import { identifier, stableVersion, RUNTIME_PACKS } from './catalog.mjs';
 
 // General is the default Soot every new Soot home starts with. Its definition lives in
 // general/ and ships with each Forge release as two assets, next to the pack archives:
@@ -56,12 +56,12 @@ export function validatePreset(preset, catalog) {
   const nest = preset.nest;
   if (!nest || typeof nest !== 'object') throw new Error('Invalid General preset nest');
   const nestPacks = list(nest.packs, 'nest.packs');
-  // `common` is the runtime's built-in pack; everything else names an installed pack.
+  // `common` and the runtime-provided packs (`toolbox`) are not installed; everything else names an installed pack.
   for (const [label, group] of [['packs', packs], ['nest.packs', nestPacks]]) {
     for (const item of group) {
       if (!selector.test(item)) throw new Error(`Invalid General preset ${label} selection: ${item}`);
       const id = item.replace(/:read$/, '');
-      if (id !== 'common' && !install.includes(id)) throw new Error(`General preset ${label} selects ${id}, which it does not install`);
+      if (id !== 'common' && !RUNTIME_PACKS.includes(id) && !install.includes(id)) throw new Error(`General preset ${label} selects ${id}, which it does not install`);
     }
   }
   if (packs.some(item => item.replace(/:read$/, '') === LEAD)) throw new Error(`Only the default Soot may select ${LEAD}`);

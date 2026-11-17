@@ -7,6 +7,9 @@ import { readFileSync } from 'node:fs';
 
 export const run = promisify(execFile);
 export const identifier = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+// Packs the Soot runtime provides itself (`toolbox` is embedded in its binary). A Soot, a group member or a General
+// preset selects them like any pack, but Forge neither carries nor installs them.
+export const RUNTIME_PACKS = ['toolbox'];
 const repoName = /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const commit = /^[0-9a-f]{40}$/;
 export const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;

@@ -44,7 +44,7 @@ test('the release integer grows with the Forge version and refuses what it canno
 test('General is the 2agent template, with 2build fetched from Forge', async () => {
   // Digests of general/* (the General Soot definition).
   const sources = { 'soot.json': '45ca491b47f5eaebb7ef7af5fcebe39d919cd8ba389ba08b1a249d24b8e85017',
-    'SOUL.md': '43b7134ff212166c8960e356295f5b975f6f3e79cef528a20394a438ec63bed4',
+    'SOUL.md': 'afbce105c77a47dbb08a98ce7992a5d16c126bddbbdfe3e36c1a03846997c324',
     'MISSION.md': '8d117b67719b82bc1e60fa7c64e2acfc783198c6d0c5b2ccb4fc4d96ac3b62cb' };
   for (const [name, digest] of Object.entries(sources)) assert.equal(sha256(await readFile(join(root, 'general', name))), digest, name);
   const { preset } = await readGeneral(root, catalog);
@@ -68,12 +68,20 @@ test('the creation preset must resolve from this repository alone', async () => 
     p => { p.nest.packs.push('not-installed'); },
     p => { p.version = 2; },
     p => { p.sources.toolbox = null; },
+    p => { p.install.push('toolbox'); p.sources.toolbox = { github_latest: '2found/soot-forge' }; },
     p => { p.install.push(p.install[0]); },
   ];
   for (const mutate of mutations) {
     const copy = structuredClone(preset); mutate(copy);
     assert.throws(() => validatePreset(copy, catalog));
   }
+});
+
+test('toolbox is provided by the Soot runtime: General selects it and Forge neither carries nor installs it', async () => {
+  const { preset } = await readGeneral(root, catalog);
+  assert.ok(preset.packs.includes('toolbox'));
+  assert.ok(!preset.install.includes('toolbox') && !('toolbox' in (preset.sources ?? {})));
+  assert.ok(!catalog.packs.some(pack => pack.id === 'toolbox'));
 });
 
 test('the release archive is a bounded soot/release-v1 definition with no pack files, byte for byte reproducible', async () => {

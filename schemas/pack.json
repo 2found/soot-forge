@@ -393,6 +393,9 @@
                 "null"
               ]
             },
+            "close": {
+              "type": "object"
+            },
             "id": {
               "type": [
                 "string",
@@ -507,6 +510,9 @@
                   "object",
                   "null"
                 ]
+              },
+              "close": {
+                "type": "object"
               },
               "id": {
                 "type": [

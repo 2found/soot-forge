@@ -1,6 +1,6 @@
 {
   "name": "soot-browser",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "type": "module",
   "description": "Conversation browser adapter for Soot packs",
@@ -14,8 +14,8 @@
     "node": ">=24"
   },
   "dependencies": {
-    "agent-browser": "0.38.2",
-    "cloakbrowser": "0.5.10",
+    "agent-browser": "0.43.0",
+    "cloakbrowser": "0.6.5",
     "ws": "8.22.0"
   }
 }

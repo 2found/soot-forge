@@ -1,7 +1,6 @@
 {
   "version": 1,
   "install": [
-    "toolbox",
     "2build",
     "soot",
     "vibe_cf",
@@ -15,9 +14,6 @@
     "writing"
   ],
   "sources": {
-    "toolbox": {
-      "github_latest": "2found/soot-forge"
-    },
     "soot": {
       "github_latest": "2found/soot-forge"
     },

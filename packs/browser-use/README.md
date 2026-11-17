@@ -2,18 +2,20 @@
 
 A configuration and skill pack. It selects the standalone `soot-browser`
 adapter, which drives [agent-browser](https://github.com/vercel-labs/agent-browser)
-with [CloakBrowser](https://github.com/CloakHQ/cloakbrowser).
+on Chrome for Testing, or on [CloakBrowser](https://github.com/CloakHQ/cloakbrowser)
+(a stealth-fingerprint Chromium) when a call asks for `engine: "cloak"` or the
+host sets `SOOT_BROWSER_ENGINE=cloak`. Sign-in profiles always use CloakBrowser.
 The standalone adapter source is bundled in `adapter/`; it runs separately from Soot. No desktop UI lives in this pack.
 
 The simplest install needs nothing but Soot: click **Cài trình duyệt** in
 Nest's browser panel, or run `soot browser install` on the host that runs the
 Soot. Either downloads a prebuilt single-file `soot-browser` and the pinned
 `agent-browser` (about 30 MB, checksum-pinned by the runtime) into the Soot
-home, then Chromium (about 140 MB). Neither the app nor the CLI carries them,
+home, then Chrome for Testing (about 190 MB download, 380 MB unpacked; CloakBrowser is a separate download of about 140 MB, fetched only when a Soot first asks for it). Neither the app nor the CLI carries them,
 so nobody pays for a browser they never open.
 
 The manifest also declares the browser as a **program** (`programs[chromium]`,
-about 170 MB). Nest's Programs list reads `chromium_check` (`soot browser status
+about 225 MB). Nest's Programs list reads `chromium_check` (`soot browser status
 --json --check`, a read tool that never downloads and exits 1 while the browser
 is missing, as a `check_op` must) and its Install button runs
 `chromium_install` (`soot browser install --json`, a write tool). Both return

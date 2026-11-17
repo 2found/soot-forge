@@ -2,7 +2,7 @@
 
 Initial bundled content was exported from 2found/2agent at `3fcfafa2eb6011f6ce1f71500fc25456d803e512`.
 `health`, `server-care` and `vibe_cf` move here; the runtime no longer owns their source.
-`toolbox`, `soot`, `browser-use` and `soot-nest` are committed-source exports.
+`soot`, `browser-use` and `soot-nest` are committed-source exports (`toolbox` was one too; the Soot runtime now provides it and Forge no longer carries it).
 At the initial export the runtime retained copies for internal tooling; the remaining contrib migration below retires those copies after moving host consumers to explicit snapshots. General creation consumes Forge releases; updates are explicit, never automatic.
 The exported generated pack schema uses the same revision.
 

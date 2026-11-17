@@ -129,7 +129,8 @@ export function build(dir, { port = 7790, video, blog = 'cms', blogRemote, produ
     host.soots = host.soots.filter(f => !f.includes('lohi-video'));
     delete host.tool_hosts?.['lohi-video'];
   }
-  const packs = ['marketing', 'browser-use', 'company-loop', ...(video ? ['toolbox'] : [])];
+  // `toolbox` (the Video Soot's bash) is provided by the Soot runtime: selected in its soot.json, never installed.
+  const packs = ['marketing', 'browser-use', 'company-loop'];
   const hostEnv = { ...HOST_ENV, LOHI_BLOG_TARGET: blog, ...(blogRemote && blog === 'git' ? { LOHI_BLOG_REMOTE: blogRemote } : {}), ...(productRepo ? { PRODUCT_REPO: productRepo } : {}), ...(csRuntimeUrl ? { CS_RUNTIME_URL: csRuntimeUrl } : {}), ...(connection ? { LOHI_CONNECTION: connection } : {}) };
   // The Vòng lặp view asks this workspace's own soot CLI for runs and tokens: it needs the deployment file's absolute path.
   hostEnv.LOOP_SOOT_CONFIG = join(out, 'deployment.json');

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,readFile,chmod,rm,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {launchSettings,boundedJSON,lock} from './launch.mjs';
+import {launchSettings,boundedJSON,lock,defaultEngine,chromeForTesting} from './launch.mjs';
 import {agentInvocation,agent,useBundledAgent} from './agent.mjs';
 
 test('launch cache avoids repeated resolution and refreshes stale, oversized or missing executable state',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'browser-launch-'));let resolutions=0;
- const binary=join(dir,'chromium'),cache=join(dir,'launch.json');
+ const binary=join(dir,'chromium'),cache=join(dir,'launch-chromium.json');
  const resolve=async()=>{resolutions++;await writeFile(binary,'fixture',{mode:0o700});return {binary,args:['--fixture']};};
  try {
   await launchSettings(dir,resolve);await launchSettings(dir,resolve);assert.equal(resolutions,1);
@@ -25,9 +25,34 @@ test('host CloakBrowser overrides bypass the launch cache',async()=>{
  try {
   process.env[key]='fixture';const binary=join(dir,'chromium');await writeFile(binary,'fixture',{mode:0o700});
   const resolve=async()=>{calls++;return {binary,args:[]};};
-  await launchSettings(dir,resolve);await launchSettings(dir,resolve);assert.equal(calls,2);
-  await assert.rejects(readFile(join(dir,'launch.json')), {code:'ENOENT'});
+  await launchSettings(dir,resolve,'cloak');await launchSettings(dir,resolve,'cloak');assert.equal(calls,2);
+  await assert.rejects(readFile(join(dir,'launch-cloak.json')), {code:'ENOENT'});
+  // Chromium does not read CloakBrowser's variables, so they do not stop its cache.
+  await launchSettings(dir,resolve,'chromium');await launchSettings(dir,resolve,'chromium');assert.equal(calls,3);
  }finally{if(previous===undefined)delete process.env[key];else process.env[key]=previous;await rm(dir,{recursive:true,force:true});}
+});
+test('each engine resolves and caches its own browser; the default is Chromium',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'browser-engine-'));const seen=[];
+ try {
+  const binary=join(dir,'browser');await writeFile(binary,'fixture',{mode:0o700});
+  const resolve=async engine=>{seen.push(engine);return {binary,args:engine==='cloak'?['--fingerprint=1']:[]};};
+  assert.deepEqual((await launchSettings(dir,resolve)).args,[]);
+  assert.deepEqual((await launchSettings(dir,resolve,'cloak')).args,['--fingerprint=1']);
+  await launchSettings(dir,resolve);await launchSettings(dir,resolve,'cloak');
+  assert.deepEqual(seen,['chromium','cloak']);
+  await assert.rejects(launchSettings(dir,resolve,'firefox'),/Unknown browser engine/);
+  assert.equal(defaultEngine({}),'chromium');assert.equal(defaultEngine({SOOT_BROWSER_ENGINE:'cloak'}),'cloak');assert.equal(defaultEngine({SOOT_BROWSER_ENGINE:'x'}),'chromium');
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+test('Chrome for Testing is found by version, newest first, never another Chrome',async()=>{
+ const home=await mkdtemp(join(tmpdir(),'browser-cft-'));
+ try {
+  assert.equal(await chromeForTesting(home,'linux'),null);
+  for(const v of ['148.0.7778.1','157.0.8103.78','99.0.1.1']){await mkdir(join(home,'.agent-browser','browsers',`chrome-${v}`),{recursive:true});await writeFile(join(home,'.agent-browser','browsers',`chrome-${v}`,'chrome'),'x',{mode:0o700});}
+  await mkdir(join(home,'.agent-browser','browsers','chrome-999'),{recursive:true});
+  assert.equal(await chromeForTesting(home,'linux'),join(home,'.agent-browser','browsers','chrome-157.0.8103.78','chrome'));
+  assert.equal(await chromeForTesting(home,'plan9'),null);
+ }finally{await rm(home,{recursive:true,force:true});}
 });
 test('pinned executable selection preserves argv and falls back to its own wrapper',async()=>{
  const directory=await mkdtemp(join(tmpdir(),'browser-bin-'));const args=['fill','@e1','literal $() text'];

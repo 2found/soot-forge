@@ -1,7 +1,7 @@
 import { agent } from './agent.mjs';
 import { sendInput, textEvents } from './input.mjs';
 import { idleTimeoutMs, assertProfileFree, sessionNames } from './profile.mjs';
-import { launchSettings, boundedJSON, lock, resolveBrowser } from './launch.mjs';
+import { launchSettings, boundedJSON, lock, resolveBrowser, ENGINES, defaultEngine } from './launch.mjs';
 import { readFile, writeFile, rm, access, lstat, realpath, open, mkdir } from 'node:fs/promises';
 import { join, resolve, sep, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,27 @@ const SAFE_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 export const DENSITY='2';
 export const DENSITY_ARGS=['--force-device-scale-factor='+DENSITY];
 export const STREAM_ENV={AGENT_BROWSER_STREAM_MAX_WIDTH:'4800',AGENT_BROWSER_STREAM_MAX_HEIGHT:'4800',AGENT_BROWSER_STREAM_QUALITY:'85'};
+
+// CloakBrowser hides page exceptions and console calls from the DevTools
+// protocol (a page cannot then tell it is being watched), so agent-browser's
+// `errors` and `console` stay empty: a Soot checking a page it built cannot
+// see that its script never parsed. This init script records them, only on a
+// loopback page (the Soot's own server), in a symbol-keyed array a site
+// cannot find by name. Nothing is recorded on any other site.
+export const PAGE_LOG_KEY='soot.page.log';
+export const PAGE_LOG_SCRIPT=`(()=>{const h=location.hostname;if(h!=='127.0.0.1'&&h!=='localhost'&&h!=='[::1]')return;
+const log=[],add=e=>{if(log.length<200)log.push(e);};Object.defineProperty(window,Symbol.for('${PAGE_LOG_KEY}'),{value:log});
+addEventListener('error',e=>{if(e instanceof ErrorEvent)add({text:String(e.message||e.error||'error'),url:e.filename||null,line:e.lineno||null,column:e.colno||null});},true);
+addEventListener('unhandledrejection',e=>add({text:'Unhandled rejection: '+String(e.reason&&e.reason.stack||e.reason).slice(0,2000)}));
+for(const level of ['error','warn','log','info','debug']){const f=console[level];console[level]=function(...a){add({type:level,text:a.map(x=>{try{return typeof x==='string'?x:JSON.stringify(x)}catch{return String(x)}}).join(' ').slice(0,2000)});return f.apply(this,a);};}
+})();`;
+const PAGE_LOG_READ=`JSON.stringify(window[Symbol.for('${PAGE_LOG_KEY}')]||null)`;
+/** Splits the page log into agent-browser's errors and console shapes; null when the page records none. */
+export function pageLog(raw) {
+  let log; try { log=JSON.parse(typeof raw==='string'?raw:'null'); } catch { return null; }
+  if (!Array.isArray(log)) return null;
+  return {errors:log.filter(e=>!e.type).map(({text,url,line,column})=>({text,url,line,column})),messages:log.filter(e=>e.type).map(({type,text})=>({type,text}))};
+}
 
 /** Soot ids the host lists in SOOT_BROWSER_PERSISTENT_SOOTS (comma separated). */
 export function persistentSoots(value = process.env.SOOT_BROWSER_PERSISTENT_SOOTS) {
@@ -99,6 +120,69 @@ export function command(input) {
   if(args[0]==='tab' && args[1]==='new') navigationUrl(args[2]??'about:blank');
   return args;
 }
+// steps runs several commands in one call (fill a form, then submit) instead
+// of one model turn each; every step passes the same check as args.
+export const MAX_STEPS=16;
+export function commandSteps(input) {
+  if(input.steps===undefined) return [command(input)];
+  if(input.args!==undefined) throw new Error('Pass args or steps, not both');
+  if(!Array.isArray(input.steps)||!input.steps.length||input.steps.length>MAX_STEPS) throw new Error(`steps takes 1 to ${MAX_STEPS} commands`);
+  let shots=0;
+  const list=input.steps.map(args=>{
+    if(!Array.isArray(args)||args[0]!=='screenshot') return command({action:'command',args});
+    // A frame between steps: written by the adapter like action screenshot, at most MAX_SHOTS a call.
+    const full=args[2]==='--full';
+    if(args.length>(full?3:2)) throw new Error('A screenshot step is ["screenshot", "<path>.png"] or ["screenshot", "<path>.png", "--full"]');
+    screenshotSpec({path:args[1]});
+    if(++shots>MAX_SHOTS) throw new Error(`steps takes at most ${MAX_SHOTS} screenshots`);
+    return args;
+  });
+  return list;
+}
+export const MAX_SHOTS=4;
+// agent-browser reports its daemon's launch bookkeeping on every result; the
+// model never acts on it and it rides every later turn, so it is dropped.
+export function compact(data) {
+  if(!data||typeof data!=='object'||Array.isArray(data)||!('lifecycle' in data)) return data;
+  const {lifecycle, ...rest}=data;
+  return rest;
+}
+// A loopback page is the Soot's own work in progress: opening or reloading it
+// must show the file as it is now, not what Chromium cached on the last visit
+// (a stale script reads as a bug the Soot then chases through more edits).
+export const LOOPBACK=new Set(['127.0.0.1','localhost','[::1]']);
+export function localReopen(args) {
+  if(args[0]==='reload') return true;
+  if(args[0]!=='open'||typeof args[1]!=='string') return false;
+  try{return LOOPBACK.has(new URL(args[1]).hostname);}catch{return false;}
+}
+// Network.clearBrowserCache over the session's own DevTools endpoint. Best
+// effort: the HTTP cache only, never cookies or storage, and a failure leaves
+// the open to proceed as before.
+export async function clearCache(run, connect=url=>new WebSocket(url)) {
+  try {
+    const cdp=(await run(['get','cdp-url']))?.cdpUrl;
+    const u=new URL(cdp);
+    if(u.protocol!=='ws:'||!LOOPBACK.has(u.hostname)) return false;
+    return await new Promise(resolve=>{
+      const ws=connect(cdp);let id=0;const waiting=new Map();
+      const done=ok=>{clearTimeout(timer);try{ws.close();}catch{}resolve(ok);};
+      const timer=setTimeout(()=>done(false),3000);
+      const send=(method,params={},sessionId)=>new Promise((res,rej)=>{const n=++id;waiting.set(n,{res,rej});ws.send(JSON.stringify({id:n,method,params,...(sessionId?{sessionId}:{})}));});
+      ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}const w=waiting.get(m.id);if(!w)return;waiting.delete(m.id);m.error?w.rej(new Error(m.error.message)):w.res(m.result);};
+      ws.onerror=()=>done(false);
+      ws.onopen=async()=>{
+        try {
+          const page=(await send('Target.getTargets')).targetInfos.find(t=>t.type==='page');
+          if(!page) return done(false);
+          const {sessionId}=await send('Target.attachToTarget',{targetId:page.targetId,flatten:true});
+          await send('Network.clearBrowserCache',{},sessionId);
+          done(true);
+        } catch {done(false);}
+      };
+    });
+  } catch {return false;}
+}
 export function navigationUrl(value='about:blank') {
   if(typeof value!=='string'||value.length>4096)throw new Error('Invalid URL');
   const url=new URL(value);
@@ -144,7 +228,7 @@ export async function uploadFile(input, fileRoot = process.env.FILE_ROOT) {
 }
 // Screenshot (seeing what a page draws, such as one the Soot is building): the
 // PNG lands at a clean workspace-relative path under the host-bound FILE_ROOT,
-// where the Soot reads it with read_file. Never an absolute, hidden or
+// where the Soot reads it with the read tool. Never an absolute, hidden or
 // symlinked path, and never a file written through a symlink.
 export const SCREENSHOT_MAX = 32 * 1024 * 1024;
 const PNG_MAGIC = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]);
@@ -177,23 +261,28 @@ export async function saveScreenshot(input, png, fileRoot = process.env.FILE_ROO
   if (st&&(st.isSymbolicLink()||!st.isFile())) throw new Error('Screenshot path is a symlink or not a file');
   const fh=await open(at,constants.O_WRONLY|constants.O_CREAT|constants.O_TRUNC|constants.O_NOFOLLOW,0o600);
   try { await fh.writeFile(png); } finally { await fh.close(); }
-  return {path:input.path,bytes:png.length};
+  // IHDR: width and height follow the 8-byte magic and the 8-byte chunk head.
+  const width=png.length>=24?png.readUInt32BE(16):0, height=png.length>=24?png.readUInt32BE(20):0;
+  return {path:input.path,bytes:png.length,width,height,scale:Number(DENSITY)};
 }
 export function validateInput(input) {
   if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Invalid browser input');
   if(input.tab!==undefined && (typeof input.tab!=='string'||!/^t[0-9]+$/.test(input.tab)))throw new Error('Invalid tab');
   if(input.profile!==undefined && (typeof input.profile!=='string'||!PROFILE_ID.test(input.profile)))throw new Error('Invalid browser profile');
   const number=(key,min,max)=>{const n=input[key];if(!Number.isInteger(n)||n<min||n>max)throw new Error(`Invalid ${key}`);};
+  if(input.engine!==undefined && !ENGINES.includes(input.engine))throw new Error(`Invalid engine: use ${ENGINES.join(' or ')}`);
   switch(input.action) {
-    case 'command':command(input);break;
+    case 'command':commandSteps(input);break;
     case 'navigate':case 'tab_new':navigationUrl(input.url??'about:blank');break;
     case 'tab_select':case 'tab_close':if(typeof input.tab!=='string'||!/^t[0-9]+$/.test(input.tab))throw new Error('Invalid tab');break;
     case 'resize':number('width',240,2400);number('height',240,2400);break;
-    case 'click':number('x',0,2400);number('y',0,2400);break;
+    // click is a pointer press at page coordinates. A model that names the
+    // element instead is told the element-level command, not just "Invalid x".
+    case 'click':if(!('x' in input)&&!('y' in input))throw new Error('Invalid x: click presses at x,y (CSS pixels of the page); to click an element by its ref, selector or text use command ["click","@e12"] or ["find","text","Sign in","click"]');number('x',0,2400);number('y',0,2400);break;
     case 'key':case 'text':if(typeof input.text!=='string'||input.text.length>8000)throw new Error('Invalid text');break;
     case 'scroll':if(!['up','down'].includes(input.direction))throw new Error('Invalid direction');for(const key of ['x','y'])if(key in input)number(key,0,2400);for(const key of ['delta_x','delta_y'])if(key in input)number(key,-2400,2400);break;
     case 'upload':uploadSpec(input);break;
-    case 'screenshot':screenshotSpec(input);break;
+    case 'screenshot':screenshotSpec(input);if(input.url!==undefined)navigationUrl(input.url);break;
     case 'close':break;
     default:throw new Error('Unknown browser action');
   }
@@ -300,16 +389,32 @@ export async function main() {
     // A named profile is launched through its proxy or not at all (contract §6): decided before anything starts.
     const plan=ident.named&&input.action!=='close'?proxyPlan({id:ident.named,chosen,proxies:parseProxies(),launched:await readLaunched(sessionDir)}):{entry:null,relaunch:false};
     const entry=plan.entry; secretEntry=entry;
-    const launch=await launchSettings(sessionDir);
+    // A sign-in profile (named or kept for a Soot) stays on CloakBrowser, the
+    // engine it was made with: its cookies are sealed to that browser. A
+    // conversation's own browser is Chromium unless the call or host asks for
+    // CloakBrowser; switching closes it and reopens on the other engine.
+    const engineFile=join(sessionDir,'engine');
+    const previous=await readFile(engineFile,'utf8').then(e=>ENGINES.includes(e)?e:null,()=>null);
+    const engine=ident.persistent?'cloak':input.engine??previous??defaultEngine();
+    if(ident.persistent&&input.engine&&input.engine!=='cloak')throw new Error('A sign-in profile always runs on CloakBrowser');
+    const switching=input.action!=='close'&&previous!==null&&previous!==engine;
+    const profile=ident.persistent||engine==='cloak'?ident.profile:`${ident.profile}.chromium`;
+    const launch=await launchSettings(sessionDir,undefined,engine);
     const binary=launch.binary;
     const seed=10000+parseInt(createHash('sha256').update(ident.session).digest('hex').slice(0,8),16)%90000;
     // The proxy reaches the daemon only through this environment, and only this profile's own; every other
     // session's environment has no proxy variable at all (not even the host's SOOT_BROWSER_PROXIES).
-    const {env}=launchEnv({...process.env, AGENT_BROWSER_SESSION:ident.session, AGENT_BROWSER_EXECUTABLE_PATH:binary,
+    const pageLogPath=join(sessionDir,'page-log.js');
+    if(input.action!=='close'&&await readFile(pageLogPath,'utf8').catch(()=>null)!==PAGE_LOG_SCRIPT) await writeFile(pageLogPath,PAGE_LOG_SCRIPT,{mode:0o600});
+    const {env}=launchEnv({...process.env, AGENT_BROWSER_SESSION:ident.session, AGENT_BROWSER_EXECUTABLE_PATH:binary, AGENT_BROWSER_INIT_SCRIPTS:pageLogPath,
       ...STREAM_ENV,
-      AGENT_BROWSER_PROFILE:ident.profile, AGENT_BROWSER_HEADED:'0', AGENT_BROWSER_IDLE_TIMEOUT_MS:String(idleTimeoutMs())},
+      AGENT_BROWSER_PROFILE:profile, AGENT_BROWSER_HEADED:'0', AGENT_BROWSER_IDLE_TIMEOUT_MS:String(idleTimeoutMs())},
       {entry,args:[...launch.args.map(a=>a.startsWith('--fingerprint=')?`--fingerprint=${seed}`:a),...DENSITY_ARGS],argsKey:'AGENT_BROWSER_ARGS'});
-    const run=async args=> {try{return await run0(args);}catch(e){throw mapFailure(e,entry);}};
+    const run=async args=> {
+      // A Soot edits its own page and opens it again: the browser must not answer from its cache.
+      if(localReopen(args)) await clearCache(run0);
+      try{return await run0(args);}catch(e){throw mapFailure(e,entry);}
+    };
     const run0=async args=> {
       let stdout;
       try { ({stdout}=await agent(['--session',ident.session,'--json',...args],{env,timeout:60000,maxBuffer:2*1024*1024})); }
@@ -319,7 +424,7 @@ export async function main() {
       }
       let result;try{result=JSON.parse(stdout);}catch{const error=new Error('Invalid agent-browser response');error.uncertain=!readonly;throw error;}
       if(!result.success) throw new Error(result.error||'Browser command failed');
-      return result.data;
+      return compact(result.data);
     };
     const url=()=>navigationUrl(input.url??'about:blank');
     const number=(key,min,max)=>{const n=input[key];if(!Number.isInteger(n)||n<min||n>max)throw new Error(`Invalid ${key}`);return String(n);};
@@ -328,14 +433,15 @@ export async function main() {
     // Another process holding the profile (a daemon a moved runtime left
     // behind) would make Chromium die with an unrelated exit code: say so first.
     let relaunched=false;
-    if(plan.relaunch&&input.action!=='close') {
+    if((plan.relaunch||switching)&&input.action!=='close') {
       // The proxy or its login changed: end the profile's browser (the sign-in stays on disk) and start it again.
       if(sessionNames(JSON.parse((await agent(['--session',ident.session,'--json','session','list'],{timeout:10000,maxBuffer:131072})).stdout)).includes(ident.session)){await run(['close']);relaunched=true;}
     }
     if(ident.named&&input.action!=='close'&&(plan.relaunch||!(await readLaunched(sessionDir)))) await writeLaunched(sessionDir,entry);
-    if(input.action!=='close') await assertProfileFree({profile:ident.profile,session:ident.session,label:`the browser profile of ${ident.id}`},
+    if(input.action!=='close') await assertProfileFree({profile,session:ident.session,label:`the browser profile of ${ident.id}`},
       {listSessions:async()=>{const {stdout}=await agent(['--session',ident.session,'--json','session','list'],{timeout:10000,maxBuffer:131072});const r=JSON.parse(stdout);if(!r.success)throw new Error('session list failed');return sessionNames(r);}});
     if(input.action!=='close') await rm(closedFile,{force:true});
+    if(input.action!=='close'&&previous!==engine) await writeFile(engineFile,engine,{mode:0o600});
     if(input.action!=='close') {
       // stream status also proves the named persistent daemon is reachable.
       // Avoid a separate global session enumeration for every agent command.
@@ -358,10 +464,45 @@ export async function main() {
       const path=join(sessionDir,'stream.json');
       if(await readFile(path,'utf8').catch(()=>null)!==descriptor) await writeFile(path,descriptor,{mode:0o600});
     }
-    let result;
+    // The page's own record (PAGE_LOG_SCRIPT) when the browser reported nothing.
+    const recorded=async()=>{try{return pageLog((await run(['eval',PAGE_LOG_READ])).result);}catch{return null;}};
+    // agent-browser writes into the pack's own session folder; only the checked bytes reach the workspace.
+    const capture=async spec=>{
+      const shot=join(sessionDir,'screenshot.png');
+      await rm(shot,{force:true});
+      try { await run(['screenshot',...(spec.full_page?['--full']:[]),shot]); return await saveScreenshot(spec,await readFile(shot)); }
+      finally { await rm(shot,{force:true}); }
+    };
+    let result,shown;
     switch(input.action) {
-      case 'command':result=await run(command(input));break;
-      case 'navigate':result=await run(['open',url()]);break;
+      case 'command': {
+        const list=commandSteps(input);
+        if(input.steps!==undefined) {
+          // A failed step ends the list; the steps before it stay applied and are reported.
+          const done=[];
+          for(const [i,args] of list.entries()) {
+            try {
+              if(args[0]==='screenshot') {const step={path:args[1],full_page:args[2]==='--full'};done.push({step:i+1,command:'screenshot',result:await capture(step)});(shown??=[]).push(step.path);}
+              else done.push({step:i+1,command:args[0],result:await run(args)});
+            }
+            catch(error) {if(!done.length)throw error;result={steps:done,failed:{step:i+1,command:args[0],error:scrub(error.message,entry)}};break;}
+          }
+          result??={steps:done};
+          break;
+        }
+        const args=list[0];
+        result=await run(args);
+        if(args.length===1&&args[0]==='errors'&&Array.isArray(result?.errors)&&!result.errors.length){const log=await recorded();if(log)result={...result,errors:log.errors};}
+        if(args.length===1&&args[0]==='console'&&Array.isArray(result?.messages)&&!result.messages.length){const log=await recorded();if(log)result={...result,messages:log.messages};}
+        break;
+      }
+      case 'navigate': {
+        result=await run(['open',url()]);
+        // Opening the Soot's own page answers whether its scripts ran, without another call.
+        const log=await recorded();
+        if(log?.errors.length) result={...result,page_errors:log.errors};
+        break;
+      }
       case 'tab_new':result=await run(['tab','new',url()]);break;
       case 'tab_select':result=await run(['tab',tab()]);break;
       case 'tab_close':result=await run(['tab','close',tab()]);break;
@@ -381,17 +522,22 @@ export async function main() {
         result={...(await run(['upload',up.selector,up.file])),uploaded:{path:input.path,bytes:up.bytes}};break;
       }
       case 'screenshot': {
-        // agent-browser writes into the pack's own session folder; only the checked bytes reach the workspace.
-        const shot=join(sessionDir,'screenshot.png');
-        await rm(shot,{force:true});
-        try { await run(['screenshot',...(input.full_page?['--full']:[]),shot]); result={screenshot:await saveScreenshot(input,await readFile(shot))}; }
-        finally { await rm(shot,{force:true}); }
+        // url opens the page first: one call to look at a page, not two.
+        let opened;
+        if(input.url!==undefined) {
+          opened=await run(['open',url()]);
+          const log=await recorded();
+          if(log?.errors.length) opened={...opened,page_errors:log.errors};
+        }
+        result={...(opened?{opened}:{}),screenshot:await capture(input)};
+        // The host attaches the picture to this result (soot/v1 "show").
+        shown=[input.path];
         break;
       }
       case 'close':result=running?await run(['close']):{closed:true};await writeFile(closedFile,'closed',{mode:0o600});if(ident.named&&!bound)await rm(link,{force:true});break;
       default:throw new Error('Unknown browser action');
     }
-    process.stdout.write(JSON.stringify({session:ident.id,...(ident.named?{profile:ident.named}:{}),...(relaunched?{relaunched:true}:{}),result,resource:{state:input.action==='close'?'closed':'active'}}));
+    process.stdout.write(JSON.stringify({session:ident.id,...(ident.named?{profile:ident.named}:{}),...(input.action!=='close'?{engine}:{}),...(relaunched?{relaunched:true}:{}),result,...(shown?{show:shown}:{}),resource:{state:input.action==='close'?'closed':'active'}}));
   } finally {await unlock();}
 }
 let secretEntry=null;

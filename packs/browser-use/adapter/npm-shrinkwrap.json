@@ -1,15 +1,15 @@
 {
   "name": "soot-browser",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "soot-browser",
-      "version": "0.2.5",
+      "version": "0.2.6",
       "dependencies": {
-        "agent-browser": "0.38.2",
-        "cloakbrowser": "0.5.10",
+        "agent-browser": "0.43.0",
+        "cloakbrowser": "0.6.5",
         "ws": "8.22.0"
       },
       "bin": {
@@ -18,6 +18,98 @@
       "engines": {
         "node": ">=24"
       }
+    },
+    "node_modules/@agent-browser/cli-darwin-arm64": {
+      "version": "0.43.0",
+      "resolved": "https://registry.npmjs.org/@agent-browser/cli-darwin-arm64/-/cli-darwin-arm64-0.43.0.tgz",
+      "integrity": "sha512-HV6GP59IjNnowlrXR/5rVM8msPWwQDEONt/tWC8STzUfKZQHKZI/Iv9sf2h2ZhwK8xwoqLhxpf+KxcFgJ0sExQ==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "darwin"
+      ]
+    },
+    "node_modules/@agent-browser/cli-darwin-x64": {
+      "version": "0.43.0",
+      "resolved": "https://registry.npmjs.org/@agent-browser/cli-darwin-x64/-/cli-darwin-x64-0.43.0.tgz",
+      "integrity": "sha512-3NKnKFOWLYDYTz4bJxo4jt+GwjM4VtcW5FDrQY35eUrytig65FEDdXmXKuRbZGq9jEEWxh6rmpS4R6xS53XCaw==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "darwin"
+      ]
+    },
+    "node_modules/@agent-browser/cli-linux-arm64-gnu": {
+      "version": "0.43.0",
+      "resolved": "https://registry.npmjs.org/@agent-browser/cli-linux-arm64-gnu/-/cli-linux-arm64-gnu-0.43.0.tgz",
+      "integrity": "sha512-8DC234LGlXCn8A2YXGk6woy1uTjyexvtHd/TOQHLrV2sfUMZD647HTHEJyF+2z1J1oR34LaB5jqHJ9d0REC+Cw==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@agent-browser/cli-linux-arm64-musl": {
+      "version": "0.43.0",
+      "resolved": "https://registry.npmjs.org/@agent-browser/cli-linux-arm64-musl/-/cli-linux-arm64-musl-0.43.0.tgz",
+      "integrity": "sha512-/dYeGX2E1lWZ25q1IZSVs6PaPmr0GmhHU8z/LtCh0anHN4ND50i5fOPbysRBaE8iQCBY74h+1R2kePfEqD7X4Q==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@agent-browser/cli-linux-x64-gnu": {
+      "version": "0.43.0",
+      "resolved": "https://registry.npmjs.org/@agent-browser/cli-linux-x64-gnu/-/cli-linux-x64-gnu-0.43.0.tgz",
+      "integrity": "sha512-WY8vy2Saa3oRt6XEmz4Sae1W5qS9TjYcbX6IE+dxb8s2APfL9XyQjMHC6jBZrhwqDBIvUeTMCT/P2cq3XLPSBw==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@agent-browser/cli-linux-x64-musl": {
+      "version": "0.43.0",
+      "resolved": "https://registry.npmjs.org/@agent-browser/cli-linux-x64-musl/-/cli-linux-x64-musl-0.43.0.tgz",
+      "integrity": "sha512-WpCI0cIaVIVj4trdduDmW90h51BAP5Nhx6lALOqHjUhOOae/TkLL4bK8gJfjPb/nOp2FRjsF1l77f6rVwkpsug==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@agent-browser/cli-win32-x64-msvc": {
+      "version": "0.43.0",
+      "resolved": "https://registry.npmjs.org/@agent-browser/cli-win32-x64-msvc/-/cli-win32-x64-msvc-0.43.0.tgz",
+      "integrity": "sha512-xhk8wnHk3aiBFSR0pd1Ye3ay2jKjgRardgBJLiB9nXJv0ZkbeP/wh3X7jMiKUfUGE1qqJrKdaM5szQ6iz8/8+w==",
+      "cpu": [
+        "x64",
+        "arm64"
+      ],
+      "license": "Apache-2.0",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
     },
     "node_modules/@isaacs/fs-minipass": {
       "version": "4.0.1",
@@ -32,17 +124,25 @@
       }
     },
     "node_modules/agent-browser": {
-      "version": "0.38.2",
-      "resolved": "https://registry.npmjs.org/agent-browser/-/agent-browser-0.38.2.tgz",
-      "integrity": "sha512-b/7hvo2RrqocvybjB9kwpX12kGkxkFvtdJ4XPDoott5TLK2n3aPX+lYg7ALd+2YvPi2LrTKGzQYu/rxZC2Y7ZA==",
+      "version": "0.43.0",
+      "resolved": "https://registry.npmjs.org/agent-browser/-/agent-browser-0.43.0.tgz",
+      "integrity": "sha512-TExwnZAW39fUBDJhUPrw8KKGmcjzBo7FxNqoP2/usHG1ODsjGI2jAWq3+Q6I5JYyBMjePFEsj8KGB68mALtglA==",
       "hasInstallScript": true,
       "license": "Apache-2.0",
       "bin": {
         "agent-browser": "bin/agent-browser.js"
       },
       "engines": {
-        "node": ">=24.0.0",
-        "pnpm": ">=11.0.0"
+        "node": ">=22.0.0"
+      },
+      "optionalDependencies": {
+        "@agent-browser/cli-darwin-arm64": "0.43.0",
+        "@agent-browser/cli-darwin-x64": "0.43.0",
+        "@agent-browser/cli-linux-arm64-gnu": "0.43.0",
+        "@agent-browser/cli-linux-arm64-musl": "0.43.0",
+        "@agent-browser/cli-linux-x64-gnu": "0.43.0",
+        "@agent-browser/cli-linux-x64-musl": "0.43.0",
+        "@agent-browser/cli-win32-x64-msvc": "0.43.0"
       }
     },
     "node_modules/chownr": {
@@ -55,9 +155,9 @@
       }
     },
     "node_modules/cloakbrowser": {
-      "version": "0.5.10",
-      "resolved": "https://registry.npmjs.org/cloakbrowser/-/cloakbrowser-0.5.10.tgz",
-      "integrity": "sha512-Pzfi8WRAuXCk2GUKIpRZrLtQ/EaXfQ2t+N39fVGxxQfowRpyZB7qbsv0dYtmd+wuV/GK2aO1EBCcCV35TFVo2A==",
+      "version": "0.6.5",
+      "resolved": "https://registry.npmjs.org/cloakbrowser/-/cloakbrowser-0.6.5.tgz",
+      "integrity": "sha512-KrzbGEqFMOHsfNXrV68UhtO3PQJ+T25qKZiAP1hgcld8UXgcCUgfkEZEr88bxEtJylEwco2f/GEgbaFK6Jjl2w==",
       "license": "MIT",
       "dependencies": {
         "tar": "^7.0.0"
@@ -66,7 +166,7 @@
         "cloakbrowser": "dist/cli.js"
       },
       "engines": {
-        "node": ">=20.0.0"
+        "node": "^20.19.0 || >=22.12.0"
       },
       "peerDependencies": {
         "mmdb-lib": ">=2.0.0",

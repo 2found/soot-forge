@@ -2,11 +2,13 @@
 
 Standalone executable implementation for the configuration-only browser-use pack.
 Requires Node.js 24+. From the browser-use pack directory, install with `npm install -g --install-links ./adapter`.
-Soot publishes `bundle.mjs` compiled into one executable (`bun build --compile
---external playwright-core`) with the matching pinned `agent-browser` binary
+Soot publishes `bundle.mjs` compiled into one executable (`bun build.mjs`, which
+stubs the `playwright-core` the adapter never launches through, then `bun build
+--compile`) with the matching pinned `agent-browser` binary
 beside it; `soot browser install` (or Nest's button) downloads that pair, so it
-needs neither Node nor this install. `soot-browser prepare` downloads Chromium
-ahead of first use; a host-wide lock keeps it to one download.
+needs neither Node nor this install. `soot-browser prepare` downloads the default
+engine ahead of first use (Chrome for Testing through `agent-browser install`;
+CloakBrowser when `SOOT_BROWSER_ENGINE=cloak`); a host-wide lock keeps it to one download.
 The adapter pins agent-browser and CloakBrowser as its own dependencies. Run `npm test` for isolation and
 command-boundary checks (for source development, first run `npm ci --ignore-scripts` in `adapter/`). No adapter code is imported into the Soot binary.
 
@@ -30,7 +32,13 @@ Do not install dependencies into a configuration snapshot. The host must resolve
 agent-browser binary directly when available, with its official wrapper as a
 platform fallback. Chromium and its daemon persist across calls. Verified launch
 settings are cached per conversation and invalidated by package changes, missing
-executables, or host CloakBrowser overrides.
+executables, or host CloakBrowser overrides, in one file per engine
+(`launch-chromium.json`, `launch-cloak.json`). The engine a conversation last
+used is kept in its session folder; a call naming the other engine closes the
+browser and relaunches it, on a separate profile (`<profile>.chromium`), so
+CloakBrowser's fingerprinted profile is never opened by plain Chromium. Both
+engines launch with `--use-mock-keychain` and `--password-store=basic`: a Soot's
+browser never reads the macOS keychain or the desktop keyring.
 
 Human input is ordered and guarded by the intended active tab. A matching
 WebSocket Pong after input confirms that the peer read those messages; it does

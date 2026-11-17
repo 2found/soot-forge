@@ -2,7 +2,7 @@
 
 Pack `research` gói nghiên cứu web thành một pack riêng, tách khỏi `toolbox`
 để operator có thể cấp `web_search`/`web_fetch` mà không cấp `http_request`,
-`run_shell` hay quyền ghi file.
+`bash` hay quyền ghi file.
 
 | Skill | Tools |
 | --- | --- |

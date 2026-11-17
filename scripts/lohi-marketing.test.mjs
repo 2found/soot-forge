@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { readSkills } from './catalog.mjs';
+import { readSkills, RUNTIME_PACKS } from './catalog.mjs';
 
 const root = new URL('../', import.meta.url);
 const json = async path => JSON.parse(await readFile(new URL(path, root), 'utf8'));
@@ -25,7 +25,7 @@ test('the Lohi recipe: product Lohi, marketing_claim auto (publish_approval none
   const local = { 'lohi-blog': 'examples/lohi-marketing/packs/lohi-blog' };
   const packs = Object.fromEntries(await Promise.all(['marketing', 'lohi-blog', 'browser-use', 'company-loop'].map(async id => [id, await json(`${local[id] ?? `packs/${id}`}/pack.json`)])));
   assert.ok(!catalog.packs.some(p => p.id === 'lohi-blog'), 'lohi-blog stays out of the catalog');
-  const known = id => id in local || catalog.packs.some(p => p.id === id);
+  const known = id => id in local || RUNTIME_PACKS.includes(id) || catalog.packs.some(p => p.id === id);
   assert.equal(host.project, 'Lohi');
   assert.deepEqual(host.grants.approvals, { marketing_claim: 'auto' });
   assert.equal(packs.marketing.tools.find(t => t.name === 'claim').run.approval, 'operator', 'the pack stays guarded; only this host relaxes it');
@@ -170,7 +170,7 @@ test('the Lohi recipe: one video path, the Video Soot runs 2build mvf and the Ed
   const host = await json('examples/lohi-marketing/deployment.example.json');
   const catalog = await json('catalog.json');
   const video = await sootOf('lohi-video');
-  assert.deepEqual(video.packs, ['marketing', '2build', 'toolbox'], 'mvf runs through run_shell; no second video pack');
+  assert.deepEqual(video.packs, ['marketing', '2build', 'toolbox'], 'mvf runs through bash; no second video pack');
   assert.ok(catalog.packs.some(p => p.id === '2build' && p.source.kind === 'github' && /^[0-9a-f]{40}$/.test(p.source.ref)), '2build is the pinned external pack');
   assert.ok(host.soots.includes('soots/lohi-video/soot.json'));
   // FILE_ROOT is the workspace; both Soots must see the same folder, or the Editor uploads nothing.

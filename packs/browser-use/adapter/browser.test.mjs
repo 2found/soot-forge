@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {identity,command,validateInput} from './browser.mjs';
+import {identity,command,validateInput,commandSteps,compact,MAX_STEPS,MAX_SHOTS,localReopen,clearCache} from './browser.mjs';
 const call={api_version:'soot/v1',hook:'tool.call',soot:'fixture',operation:'browser-use_view',event:{source:'conversation',subject:'conversation-1'}};
 test('host conversation selects stable isolated profile and daemon',()=>{
  const a=identity(call,'/nest/packs.d/browser-use');
@@ -13,6 +13,31 @@ test('all browser action inputs are validated before launching or changing a ses
  for(const input of [{action:'unknown'},{action:'resize',width:0,height:240},{action:'click',x:'1',y:1},{action:'key'},{action:'tab_select',tab:'../other'},{action:'scroll',direction:'up',x:-1},{action:'navigate',url:'file:///private/file'},{action:'command',args:['open','javascript:alert(1)']},{action:'command',args:['tab','new','file:///private/file']}])assert.throws(()=>validateInput(input));
  assert.deepEqual(validateInput({action:'navigate',url:'https://example.com'}),{action:'navigate',url:'https://example.com'});
  assert.deepEqual(command({action:'command',args:['tab','new']}),['tab','new']);
+});
+
+test('steps run several checked commands in one call',()=>{
+ assert.deepEqual(commandSteps({action:'command',steps:[['fill','@e2','Lan'],['click','@e9']]}),[['fill','@e2','Lan'],['click','@e9']]);
+ assert.deepEqual(commandSteps({action:'command',args:['snapshot','-i']}),[['snapshot','-i']]);
+ // Every step passes the same check as args: one bad step refuses the whole call before anything runs.
+ for(const steps of [[],[['fill','@e2','x'],['open','file:///etc/passwd']],[['click','@e1','--executable-path']],[['session','list']],Array(MAX_STEPS+1).fill(['snapshot']),'snapshot',[['snapshot'],'click']])
+  assert.throws(()=>validateInput({action:'command',steps}));
+ assert.throws(()=>validateInput({action:'command',args:['snapshot'],steps:[['snapshot']]}),/args or steps/);
+});
+
+test('results drop the daemon launch bookkeeping',()=>{
+ assert.deepEqual(compact({clicked:'@e6',lifecycle:{launched:false,reused:true}}),{clicked:'@e6'});
+ assert.deepEqual(compact({enabled:true,port:9}),{enabled:true,port:9});
+ assert.equal(compact('text'),'text');assert.equal(compact(null),null);
+});
+
+test('engine is chromium or cloak',()=>{
+ assert.deepEqual(validateInput({action:'navigate',url:'https://example.com',engine:'cloak'}).engine,'cloak');
+ assert.throws(()=>validateInput({action:'navigate',url:'https://example.com',engine:'firefox'}),/Invalid engine/);
+});
+
+test('a click without coordinates names the element-level command',()=>{
+ assert.throws(()=>validateInput({action:'click',text:'Travel'}),/Invalid x: .*\["find","text","Sign in","click"\]/);
+ assert.throws(()=>validateInput({action:'click',x:-1,y:0}),/^Error: Invalid x$/);
 });
 
 test('invalid control action does not create state or require browser dependencies',()=>{
@@ -200,14 +225,17 @@ import {screenshotSpec,saveScreenshot} from './browser.mjs';
 import {symlinkSync as linkFile,readFileSync as readBytes,lstatSync as lstatFile} from 'node:fs';
 test('screenshot writes a PNG only to a clean workspace path, never through a symlink',async()=>{
   const root=mkdtempSync(join(tmpdir(),'soot-shot-')), outside=mkdtempSync(join(tmpdir(),'soot-out-'));
-  const png=Buffer.concat([Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]),Buffer.from('pixels')]);
+  const ihdr=Buffer.alloc(16); ihdr.writeUInt32BE(13,0); ihdr.write('IHDR',4); ihdr.writeUInt32BE(2560,8); ihdr.writeUInt32BE(1600,12);
+  const png=Buffer.concat([Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]),ihdr,Buffer.from('pixels')]);
   try {
     assert.deepEqual(validateInput({action:'screenshot',path:'tmp/s.png'}).path,'tmp/s.png');
     for (const path of ['/etc/x.png','../x.png','a/../x.png','.hidden/x.png','tmp/.x.png','x.jpg','x','tmp//x.png','a\\b.png'])
       assert.throws(()=>screenshotSpec({path}),undefined,path);
     assert.throws(()=>screenshotSpec({path:'x.png',full_page:'yes'}));
+    assert.equal(validateInput({action:'screenshot',path:'tmp/s.png',url:'http://127.0.0.1:8000/p.html'}).url,'http://127.0.0.1:8000/p.html');
+    assert.throws(()=>validateInput({action:'screenshot',path:'tmp/s.png',url:'file:///etc/passwd'}));
     const saved=await saveScreenshot({path:'tmp/deep/s.png'},png,root);
-    assert.deepEqual(saved,{path:'tmp/deep/s.png',bytes:png.length});
+    assert.deepEqual(saved,{path:'tmp/deep/s.png',bytes:png.length,width:2560,height:1600,scale:2});
     assert.deepEqual(readBytes(join(root,'tmp/deep/s.png')),png);
     assert.equal(lstatFile(join(root,'tmp/deep/s.png')).mode&0o777,0o600);
     await saveScreenshot({path:'tmp/deep/s.png'},png,root); // replaced in place
@@ -222,4 +250,45 @@ test('screenshot writes a PNG only to a clean workspace path, never through a sy
     assert.equal(readBytes(join(outside,'target.png'),'utf8'),'keep');
     assert.equal(existsSync(join(outside,'s.png')),false);
   } finally { rmSync(root,{recursive:true,force:true}); rmSync(outside,{recursive:true,force:true}); }
+});
+
+import {pageLog,PAGE_LOG_SCRIPT} from './browser.mjs';
+test('the page log shows a loopback page its script errors and console, and records nothing on another site',()=>{
+  const log=pageLog(JSON.stringify([{text:"Uncaught SyntaxError: Unexpected token ';'",url:'http://127.0.0.1:8000/p.html',line:4,column:26},{type:'warn',text:'slow'}]));
+  assert.deepEqual(log.errors,[{text:"Uncaught SyntaxError: Unexpected token ';'",url:'http://127.0.0.1:8000/p.html',line:4,column:26}]);
+  assert.deepEqual(log.messages,[{type:'warn',text:'slow'}]);
+  assert.equal(pageLog('null'),null); assert.equal(pageLog('not json'),null); assert.equal(pageLog(undefined),null);
+  // The script runs in a page; here, a stand-in window per hostname.
+  const run=hostname=>{const listeners={};const w={location:{hostname},addEventListener:(k,f)=>{listeners[k]=f;},console:{log(){},info(){},warn(){},error(){},debug(){}}};
+    new Function('window','location','addEventListener','console','ErrorEvent',PAGE_LOG_SCRIPT)(w,w.location,w.addEventListener,w.console,class{});
+    return {w,listeners};};
+  const other=run('example.com');
+  assert.equal(other.w[Symbol.for('soot.page.log')],undefined); assert.deepEqual(Object.keys(other.listeners),[]);
+  const own=run('127.0.0.1');
+  own.w.console.warn('slow',{a:1});
+  assert.deepEqual(own.w[Symbol.for('soot.page.log')],[{type:'warn',text:'slow {"a":1}'}]);
+});
+test('screenshot steps capture frames between commands, checked and bounded',()=>{
+  const list=commandSteps({action:'command',steps:[['open','http://127.0.0.1:8000/'],['screenshot','tmp/f0.png'],['eval','go()'],['screenshot','tmp/f1.png','--full']]});
+  assert.deepEqual(list[1],['screenshot','tmp/f0.png']);
+  assert.throws(()=>commandSteps({action:'command',steps:[['screenshot','/etc/x.png']]}),/relative/);
+  assert.throws(()=>commandSteps({action:'command',steps:[['screenshot','tmp/a.png','--other']]}),/screenshot step/);
+  assert.throws(()=>commandSteps({action:'command',steps:Array.from({length:MAX_SHOTS+1},(_,i)=>['screenshot',`tmp/${i}.png`])}),/at most/);
+  // A lone args screenshot still goes through action screenshot.
+  assert.throws(()=>command({action:'command',args:['screenshot','x.png']}),/Unsupported/);
+});
+test('only reopening a loopback page clears the cache',()=>{
+  assert.equal(localReopen(['open','http://127.0.0.1:8000/p.html']),true);
+  assert.equal(localReopen(['open','http://localhost:3000/']),true);
+  assert.equal(localReopen(['reload']),true);
+  assert.equal(localReopen(['open','https://example.com/']),false);
+  assert.equal(localReopen(['eval','1']),false);
+});
+test('clearCache speaks to the session endpoint only and never fails the open',async()=>{
+  const sent=[];
+  const fake=url=>{const ws={send:m=>{const r=JSON.parse(m);sent.push(r.method);const result=r.method==='Target.getTargets'?{targetInfos:[{type:'page',targetId:'T'}]}:r.method==='Target.attachToTarget'?{sessionId:'S'}:{};queueMicrotask(()=>ws.onmessage({data:JSON.stringify({id:r.id,result})}));},close(){}};assert.equal(url,'ws://127.0.0.1:9/devtools/browser/x');queueMicrotask(()=>ws.onopen());return ws;};
+  assert.equal(await clearCache(async()=>({cdpUrl:'ws://127.0.0.1:9/devtools/browser/x'}),fake),true);
+  assert.deepEqual(sent,['Target.getTargets','Target.attachToTarget','Network.clearBrowserCache']);
+  assert.equal(await clearCache(async()=>({cdpUrl:'ws://10.0.0.5:9/x'}),()=>{throw new Error('dialed');}),false);
+  assert.equal(await clearCache(async()=>{throw new Error('no daemon');}),false);
 });

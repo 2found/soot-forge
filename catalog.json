@@ -40,18 +40,6 @@
       }
     },
     {
-      "id": "toolbox",
-      "name": "Toolbox",
-      "description": "Select reusable file, shell and web tools from the Soot runtime.",
-      "tags": [
-        "essentials"
-      ],
-      "source": {
-        "kind": "bundled",
-        "path": "packs/toolbox"
-      }
-    },
-    {
       "id": "soot",
       "name": "Soot",
       "description": "Everything about Soot: what it is, how Soots, packs, teams, schedules and approvals work, and a Soot editing its own settings.",

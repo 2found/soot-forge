@@ -2,7 +2,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { archivePack } from './archive.mjs';
-import { safePath } from './catalog.mjs';
+import { safePath, RUNTIME_PACKS } from './catalog.mjs';
 
 export async function readGroups(root) {
   const catalog = JSON.parse(await readFile(join(root, 'groups.json'), 'utf8'));
@@ -55,7 +55,7 @@ export function validateGroup(t) {
   const members = new Set();
   for (const m of t.members) {
     keys(m,['id','name','role','soul','mission','packs','channels']);
-    if (!ident(m.id) || m.id === 'self' || members.has(m.id) || !text(m.name,80) || !text(m.role,300) || !text(m.soul,8192) || !text(m.mission,16384) || !Array.isArray(m.packs) || m.packs.length > 32 || m.packs.some(u => typeof u !== 'string' || !PACK_REF.test(u) || !packs.has(refPack(u))) || new Set(m.packs.map(refPack)).size !== m.packs.length) throw new Error('Invalid group member'); members.add(m.id);
+    if (!ident(m.id) || m.id === 'self' || members.has(m.id) || !text(m.name,80) || !text(m.role,300) || !text(m.soul,8192) || !text(m.mission,16384) || !Array.isArray(m.packs) || m.packs.length > 32 || m.packs.some(u => typeof u !== 'string' || !PACK_REF.test(u) || !(packs.has(refPack(u)) || RUNTIME_PACKS.includes(refPack(u)))) || new Set(m.packs.map(refPack)).size !== m.packs.length) throw new Error('Invalid group member'); members.add(m.id);
     if (m.channels && (!Array.isArray(m.channels) || m.channels.length > 8 || new Set(m.channels.map(c => c.id)).size !== m.channels.length)) throw new Error('Invalid channels');
     for (const c of m.channels ?? []) { keys(c,['id','name']); if (!ident(c.id) || !text(c.name,80)) throw new Error('Invalid channel'); }
   }

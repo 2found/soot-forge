@@ -22,7 +22,7 @@
   "tools": [
     {
       "name": "control",
-      "description": "Control the browser with agent-browser and CloakBrowser. Read browser-use skill first. The host supplies the session: one per conversation, or one kept for the Soot when the host lists it in SOOT_BROWSER_PERSISTENT_SOOTS; never choose a session or a path. profile works in a named sign-in a person granted this Soot (Nest › Cài đặt › Trình duyệt); the conversation then stays in it until close. A task bound to a profile always works in that one (profile is then optional and must match), close included, and a profile with a proxy only ever opens through it. upload sends one workspace file to a page's file input. screenshot saves a PNG of the current tab to a workspace path; look at it with read_file.",
+      "description": "Control a browser with agent-browser: Chromium by default, CloakBrowser on request (engine). Read browser-use skill first. The host supplies the session: one per conversation, or one kept for the Soot when the host lists it in SOOT_BROWSER_PERSISTENT_SOOTS; never choose a session or a path. profile works in a named sign-in a person granted this Soot (Nest › Cài đặt › Trình duyệt); the conversation then stays in it until close. A task bound to a profile always works in that one (profile is then optional and must match), close included, and a profile with a proxy only ever opens through it. command runs one agent-browser command (args), or several in one call (steps): fill a whole form and submit it in one call. upload sends one workspace file to a page's file input. screenshot saves a PNG of the current tab (at 2x CSS pixels) to a workspace path and shows it to you in its result (url opens a page first); do not read it again. close ends the browser (sign-ins stay); do it when you are done unless the person is using it.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -51,9 +51,23 @@
             },
             "maxItems": 32
           },
+          "steps": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 32
+            },
+            "description": "command: several commands run in order in one call, in place of args, e.g. [[\"fill\",\"@e2\",\"Lan\"],[\"check\",\"@e6\"],[\"click\",\"@e9\"]]. It stops at the first that fails and says which; the ones before it stay applied. A step [\"screenshot\",\"tmp/f1.png\"] (add \"--full\" for the whole page) saves a frame and shows it in the result, up to 4 a call: open, wait, screenshot, eval the next state, screenshot."
+          },
           "url": {
             "type": "string",
-            "maxLength": 4096
+            "maxLength": 4096,
+            "description": "navigate and tab_new: the page to open. screenshot: open this page first, then capture it, in one call."
           },
           "width": {
             "type": "integer",
@@ -125,6 +139,14 @@
           "full_page": {
             "type": "boolean",
             "description": "screenshot: capture the whole page, not just the viewport."
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "chromium",
+              "cloak"
+            ],
+            "description": "The browser to run on. chromium (the default) is current Chrome for Testing. cloak is CloakBrowser, a Chromium that hides automation: use it only when the person asks for it or a site blocks the normal browser and the person agrees. Switching closes the browser (the tabs are lost) and reopens it. Sign-in profiles always run on cloak."
           }
         },
         "required": [
@@ -229,6 +251,9 @@
       "aspect_width": 16,
       "aspect_height": 10,
       "resizable": true,
+      "close": {
+        "action": "close"
+      },
       "stream": "websocket",
       "capabilities": {
         "input": "full",
@@ -244,7 +269,7 @@
         "vi": "Trình duyệt Chromium",
         "en": "Chromium browser"
       },
-      "size_mb": 170,
+      "size_mb": 225,
       "check_op": "chromium_check",
       "install_op": "chromium_install"
     }

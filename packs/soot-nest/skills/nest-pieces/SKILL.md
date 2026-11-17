@@ -7,7 +7,7 @@ description: "Make a screen of your own in Nest (a piece) when a person keeps co
 You can make a small screen for the person you work with, and Nest shows it
 beside its own: a list they open every morning, numbers they keep asking for,
 a box that sends text to a service and shows the answer, a box that asks you.
-Nest calls it a **piece**. You write each file in your workspace with `write_file` and send it to
+Nest calls it a **piece**. You write each file in your workspace with `write` and send it to
 storage with the `storage` tool's `push`; no pack,
 release or new permission is involved.
 
@@ -75,7 +75,7 @@ follow its documentation; if you know none, ask which they use.
 
 ## The order
 
-Per file: `write_file` it in your workspace (`pieces/<path>`), then one
+Per file: `write` it in your workspace (`pieces/<path>`), then one
 `storage` `op: "push"` with `from` (that path) and `path` (where it lands in
 storage), and read each result. A refused push says why in `{code, message,
 recovery}`; `stale_revision` means the stored file changed, so `pull` it, merge
