@@ -1,9 +1,12 @@
 #!/bin/sh
 # soot-lohi-character — lohi-character pack tool runner (soot/v1 tool.call,
-# stdin:"context"). Two read tools for the generic `character` Soot:
+# stdin:"context"). Five read tools for the generic `character` Soot:
 #
 #   soot-lohi-character context   GET $LOHI_API_BASE/agent/companions/<id>/context[?q=]
 #   soot-lohi-character remember  GET $LOHI_API_BASE/agent/companions/<id>/memory
+#   soot-lohi-character character GET $LOHI_API_BASE/agent/companions/<id>/character
+#   soot-lohi-character characters GET $LOHI_API_BASE/agent/companions/<id>/characters[?q=]
+#   soot-lohi-character wiki      GET $LOHI_API_BASE/agent/companions/<id>/wiki?q=
 #
 # Reads ONE ToolCall JSON line on stdin; the model's input is .input
 # ({companion_id, q?}). Who asked comes from the host, never from the model:
@@ -12,7 +15,7 @@
 # THAT reader's progress. With no token nothing is sent and the tool answers
 # {"code":"principal_required"}. Neither the key nor the token is ever echoed
 # or put on a command line: headers reach curl through its config on stdin
-# (-K -). Both commands are reads: the runner never writes anything.
+# (-K -). Every command is a read: the runner never writes anything.
 #
 # Deps: POSIX sh, curl, jq. Env: LOHI_API_BASE, LOHI_CHARACTER_API_KEY.
 set -eu
@@ -22,7 +25,7 @@ cmd=${1:-}
 err() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
 command -v curl >/dev/null 2>&1 || err '{"error":"missing_dep","dep":"curl"}'
 command -v jq   >/dev/null 2>&1 || err '{"error":"missing_dep","dep":"jq"}'
-case $cmd in context|remember) ;; *) err '{"error":"unknown_command"}' ;; esac
+case $cmd in context|remember|character|characters|wiki) ;; *) err '{"error":"unknown_command"}' ;; esac
 [ -n "${LOHI_API_BASE:-}" ]          || err '{"error":"missing_env","env":"LOHI_API_BASE"}'
 [ -n "${LOHI_CHARACTER_API_KEY:-}" ] || err '{"error":"missing_env","env":"LOHI_CHARACTER_API_KEY"}'
 case $LOHI_CHARACTER_API_KEY in *[\"\\]*|*'
@@ -51,6 +54,13 @@ if [ "$cmd" = context ]; then
   q=$(printf '%s\n' "$call" | jq -r '(.input.q // "") | tostring | .[0:400]')
   url="$base/agent/companions/$id/context"
   [ -z "$q" ] || url="$url?q=$(jq -rn --arg v "$q" '$v|@uri')"
+elif [ "$cmd" = characters ] || [ "$cmd" = wiki ]; then
+  q=$(printf '%s\n' "$call" | jq -r '(.input.q // "") | tostring | .[0:120]')
+  [ "$cmd" = characters ] || [ -n "$q" ] || err '{"error":"bad_input","field":"q"}'
+  url="$base/agent/companions/$id/$cmd"
+  [ -z "$q" ] || url="$url?q=$(jq -rn --arg v "$q" '$v|@uri')"
+elif [ "$cmd" = character ]; then
+  url="$base/agent/companions/$id/character"
 else
   url="$base/agent/companions/$id/memory"
 fi

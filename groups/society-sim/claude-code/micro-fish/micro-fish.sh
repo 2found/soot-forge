@@ -81,7 +81,9 @@ setup() {
   node -e '
     const fs = require("fs"), [file, port] = process.argv.slice(1);
     const d = JSON.parse(fs.readFileSync(file, "utf8"));
-    d.listen = `127.0.0.1:${port}`; d.run_timeout = "15m"; d.workers = 8;
+    // Soot 0.21+ (config v2) keeps listen, run_timeout and workers under server.
+    delete d.listen; delete d.run_timeout; delete d.workers;
+    d.server = { ...(d.server || {}), listen: `127.0.0.1:${port}`, run_timeout: "15m", workers: 8 };
     fs.writeFileSync(file, JSON.stringify(d, null, 2) + "\n");' "$DEPLOY" "$PORT"
   [[ -f "$(packs_dir)/micro-fish/tools/driver.mjs" ]] || die "the installed micro-fish pack has no driver; this release predates Micro Fish 2 — rerun with --from <soot-forge checkout>"
   soot check --config "$DEPLOY" | tail -1
@@ -121,7 +123,11 @@ run() {
     soot check --config "$DEPLOY" >/dev/null || die "the workspace no longer validates; run: soot check --config $DEPLOY"
     # A runtime that has served before keeps starting from the roster it knew
     # until the edited one is adopted.
-    (cd "$WS" && soot migrate adopt --config "$DEPLOY" >/dev/null) || die "could not adopt the new roster; run: soot migrate adopt --config $DEPLOY"
+    # A workspace that has never served has no state to adopt into (state_identity_missing);
+    # its first start reads the roster as written.
+    local out
+    out=$(cd "$WS" && soot migrate adopt --config "$DEPLOY" 2>&1) || [[ "$out" == *state_identity_missing* ]] \
+      || { echo "$out" >&2; die "could not adopt the new roster; run: soot migrate adopt --config $DEPLOY"; }
     rm -f "$WS/.adopt-pending"
   fi
   running || start >&2

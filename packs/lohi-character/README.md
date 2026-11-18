@@ -5,7 +5,7 @@ The tools and skill of Lohi's one generic `character` Soot, which plays every
 There is no code per character: the api assembles the persona for each question
 and sends it as a `companion.answer` job (`POST /v1/jobs`, principal
 `lohi/<askerId>`, idempotency key `ask:<messageId>`); this pack only adds the
-`character` skill and two read tools.
+`character` skill and five read tools.
 
 ## Tools
 
@@ -13,8 +13,11 @@ and sends it as a `companion.answer` job (`POST /v1/jobs`, principal
 | --- | --- | --- |
 | `context` | `GET /agent/companions/:id/context?q=` | card as of the asker's chapter, top teachings, mood, Tàng Kinh Các passages for `q` |
 | `remember` | `GET /agent/companions/:id/memory` | what the linh thể remembers of the asker |
+| `character` | `GET /agent/companions/:id/character` | the card as of the asker's chapter (with "lúc này"), mood, and sample dialogue: the character's real lines ≤ that chapter. A fallback: the job prompt already carries both |
+| `characters` | `GET /agent/companions/:id/characters?q=` | other characters of the same novel (fuzzy on the name, or the best-loved with no `q`), each with its card as of the asker's chapter; one the asker has not met is never named |
+| `wiki` | `GET /agent/companions/:id/wiki?q=` | Book Bible wiki entries of the same novel the asker may see (fuzzy on the entry name) |
 
-Both are reads (`run.mode: read`). Every read is bounded by the **asker's**
+All five are reads (`run.mode: read`). Every read is bounded by the **asker's**
 progress: the host-signed principal (`SOOT_PRINCIPAL_TOKEN` → `X-Soot-Principal`)
 names the asker, and the api refuses `401 principal_required` /
 `principal_invalid` without it. A note to remember is the job output's

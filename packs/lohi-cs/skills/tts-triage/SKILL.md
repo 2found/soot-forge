@@ -44,7 +44,9 @@ First separate TEXT problems from AUDIO problems.
   not quote `failureReason` to the reader.
 - Chapter has no Pro audio at all: Pro audio is made on request and the team
   works through requests; chapters with more requests are prioritised. Say
-  that, never an ETA. Do not promise to make one.
+  that, never an ETA. The reader can have it made from their own Audio Pass: that is
+  the `audio-pro` skill (`lohi_request_audio_pro`, preview then one confirm), not a
+  handoff.
 
 ## Reporting
 

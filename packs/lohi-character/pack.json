@@ -24,6 +24,40 @@
   },
   "tools": [
     {
+      "name": "character",
+      "title": "Xem hồ sơ và lời thoại mẫu của nhân vật",
+      "description": "Read who this linh thể is for THIS asker: its character card as of the asker's chapter (with \"lúc này\"), its mood, and sample dialogue — the character's real lines from the story, all at or below the asker's chapter (from the host-signed principal). A fallback: the job's input.system already carries the card and the lines (\"Giọng nói trong truyện\"); call it only when they are missing there.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "companion_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F-]{36}$",
+            "description": "the job input's companion_id"
+          }
+        },
+        "required": [
+          "companion_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-character",
+        "args": [
+          "character"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "10s",
+        "max_output_bytes": 32768,
+        "secret_env": {
+          "LOHI_CHARACTER_API_KEY": "{{cred:LOHI_CHARACTER}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CHARACTER_BASE}}"
+        }
+      }
+    },
+    {
       "name": "context",
       "title": "Xem nhân vật và đoạn truyện liên quan",
       "description": "Read what this linh thể may know for THIS asker: its character card as of the asker's chapter, the room's top teachings, its mood, and the passages Tàng Kinh Các finds for q — all bounded by the asker's own reading progress (from the host-signed principal, never a parameter). beyondProgress=true means the question names a chapter the asker has not read: refuse it in character and give no passage. Call it only when the job's prompt lacks a passage you need.",
@@ -90,6 +124,86 @@
         "resource": "lohi_api",
         "timeout": "10s",
         "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CHARACTER_API_KEY": "{{cred:LOHI_CHARACTER}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CHARACTER_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "characters",
+      "title": "Tìm nhân vật cùng truyện",
+      "description": "Look up other characters of THIS linh thể's own novel, by name (fuzzy: typos and missing accents are fine), or with no q the best-loved ones. Each comes with its character card as of the asker's chapter; a character the asker has not met yet is never returned (from the host-signed principal). Call it when the question names a character the job input says nothing about.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "companion_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F-]{36}$",
+            "description": "the job input's companion_id"
+          },
+          "q": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "a character name or part of one, in the asker's words; omit to list the main characters"
+          }
+        },
+        "required": [
+          "companion_id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-character",
+        "args": [
+          "characters"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "10s",
+        "max_output_bytes": 32768,
+        "secret_env": {
+          "LOHI_CHARACTER_API_KEY": "{{cred:LOHI_CHARACTER}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CHARACTER_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "wiki",
+      "title": "Tra wiki của truyện",
+      "description": "Look up the Book Bible wiki of THIS linh thể's own novel: places, sects, artefacts, techniques, events, by name (fuzzy). Only entries the asker may see as of their chapter are returned. Call it when the question names a thing the job input's passages and \"Tư liệu wiki\" say nothing about.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "companion_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F-]{36}$",
+            "description": "the job input's companion_id"
+          },
+          "q": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "the name to look up (a place, sect, artefact, technique…)"
+          }
+        },
+        "required": [
+          "companion_id",
+          "q"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-character",
+        "args": [
+          "wiki"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "10s",
+        "max_output_bytes": 32768,
         "secret_env": {
           "LOHI_CHARACTER_API_KEY": "{{cred:LOHI_CHARACTER}}",
           "LOHI_API_BASE": "{{cred:LOHI_CHARACTER_BASE}}"

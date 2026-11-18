@@ -77,7 +77,7 @@
         "lohi-cs",
         "request"
       ],
-      "description": "A novel request is filed once for the chatting reader and the title is confirmed back.",
+      "description": "A novel request is one tool call: the reader already said yes, so there is no second confirm, and the reply carries the book's hub link and the title.",
       "turns": [
         {
           "send": "Cho mình yêu cầu truyện \"Thiên Đạo Đồ Thư Quán\" nhé.",
@@ -87,7 +87,50 @@
               "lohi-cs_lohi_request_novel"
             ],
             "reply_matches": [
-              "(?i)thiên đạo đồ thư quán"
+              "(?i)thiên đạo đồ thư quán",
+              "(?i)lohi2\\.com/(yeu-cau|truyen)/"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "request-novel-one-confirm",
+      "tags": [
+        "lohi-cs",
+        "request",
+        "hub"
+      ],
+      "description": "'Có bộ X không': Lohi has no such novel, so the Soot asks ONE question and files nothing; after a plain yes it files with one lohi_request_novel and replies with the hub link.",
+      "turns": [
+        {
+          "send": "Lohi có bộ \"Vạn Cổ Thần Đế Phiên Bản Thử\" không bạn?",
+          "expect": {
+            "max_tool_calls": 4,
+            "called": [
+              "lohi-cs_lohi_lookup"
+            ],
+            "not_called": [
+              "lohi-cs_lohi_request_novel"
+            ],
+            "reply_matches": [
+              "(?i)(yêu cầu|tạo|thêm).*(nhé|không|giúp)"
+            ]
+          }
+        },
+        {
+          "send": "ừ yêu cầu đi",
+          "expect": {
+            "max_tool_calls": 3,
+            "called": [
+              "lohi-cs_lohi_request_novel"
+            ],
+            "not_called": [
+              "lohi-cs_lohi_lookup"
+            ],
+            "no_failed_tools": true,
+            "reply_matches": [
+              "(?i)lohi2\\.com/(yeu-cau|truyen)/"
             ]
           }
         }
@@ -99,7 +142,7 @@
         "lohi-cs",
         "request"
       ],
-      "description": "A reader who wants more chapters of a novel Lohi already has files a chapters request for that novel, not a new-novel request.",
+      "description": "Dịch tiếp: a reader who wants more chapters of a novel Lohi already has gets a chapters request for that novel, filed by the Soot itself (no handoff to staff), not a new-novel request.",
       "turns": [
         {
           "send": "Truyện \"Thiên Đạo Đồ Thư Quán\" trên Lohi mới có 50 chương, mình muốn đọc tiếp từ chương 51, nhờ bên mình thêm chương giúp nhé.",
@@ -110,6 +153,118 @@
             ],
             "reply_matches": [
               "(?i)chương"
+            ],
+            "not_called": [
+              "report_blocker",
+              "lohi-cs_lohi_request_novel"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "request-send-source",
+      "tags": [
+        "lohi-cs",
+        "request",
+        "source"
+      ],
+      "description": "A book waiting for a source link (needs_you) gets the reader's link through lohi_send_source after reading the list, and the reply carries the hub link. Needs a fixture request in stage needs_source.",
+      "turns": [
+        {
+          "send": "Truyện mình yêu cầu đang cần link nguồn đúng không? Mình gửi đây: https://example.com/truyen/thien-dao-do-thu-quan",
+          "expect": {
+            "max_tool_calls": 5,
+            "called": [
+              "lohi-cs_lohi_lookup",
+              "lohi-cs_lohi_send_source"
+            ],
+            "order": [
+              "lohi-cs_lohi_lookup",
+              "lohi-cs_lohi_send_source"
+            ],
+            "not_called": [
+              "lohi-cs_lohi_request_novel"
+            ],
+            "reply_matches": [
+              "(?i)lohi2\\.com/(yeu-cau|truyen)/"
+            ],
+            "reply_excludes": [
+              "(?i)sẽ được thêm"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "request-status-shows-stage",
+      "tags": [
+        "lohi-cs",
+        "request",
+        "status"
+      ],
+      "description": "'Truyện mình xin tới đâu rồi' reads lohi_lookup requests and says the stage in plain words for each book, without filing anything.",
+      "turns": [
+        {
+          "send": "Mấy truyện mình xin hoặc ủng hộ tới đâu rồi bạn?",
+          "expect": {
+            "max_tool_calls": 3,
+            "called": [
+              "lohi-cs_lohi_lookup"
+            ],
+            "not_called": [
+              "lohi-cs_lohi_request_novel",
+              "lohi-cs_lohi_request_chapters"
+            ],
+            "no_failed_tools": true,
+            "reply_matches": [
+              "(?i)(gom điểm|chờ|đưa lên|dịch|audio|nguồn|đã lên|sẵn sàng|chưa đưa lên được)"
+            ],
+            "reply_excludes": [
+              "(?i)(ngày mai sẽ có|chắc chắn có)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "audio-pro-preview-then-confirm",
+      "tags": [
+        "lohi-cs",
+        "request",
+        "audio-pro"
+      ],
+      "description": "Audio Pro is created from the reader's own pass: the first call is a preview whose numbers the Soot repeats and asks once about; only after the yes does a second call confirm. The Soot never states a price of its own. Runs dry (the tool previews on a dry run) unless the deployment sets effects live.",
+      "turns": [
+        {
+          "send": "Tạo giúp mình Audio Pro truyện Thiên Đạo Đồ Thư Quán từ chương 21 đến 40 nhé.",
+          "expect": {
+            "max_tool_calls": 5,
+            "called": [
+              "lohi-cs_lohi_lookup",
+              "lohi-cs_lohi_request_audio_pro"
+            ],
+            "order": [
+              "lohi-cs_lohi_lookup",
+              "lohi-cs_lohi_request_audio_pro"
+            ],
+            "reply_matches": [
+              "(?i)(lượt|Audio Pass)"
+            ],
+            "reply_excludes": [
+              "(?i)(đã tạo xong|đã xong)"
+            ]
+          }
+        },
+        {
+          "send": "ừ tạo đi",
+          "expect": {
+            "max_tool_calls": 3,
+            "called": [
+              "lohi-cs_lohi_request_audio_pro"
+            ],
+            "reply_excludes": [
+              "(?i)(sẽ xong lúc|xong trong)"
             ]
           }
         }

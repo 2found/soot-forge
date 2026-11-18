@@ -14,7 +14,14 @@
 #   soot-lohi-api lookup         kind→GET $LOHI_API_BASE/agent/support/lookup/…
 #                                (the reader's own data: /lookup/me/<kind>)
 #   soot-lohi-api history        GET /agent/support/lookup/me/history
-#   soot-lohi-api request-novel  POST /agent/support/requests (idempotent)
+#   soot-lohi-api request-novel  POST /agent/support/requests (idempotent); the answer
+#                                carries hub_url, the book's one place on Lohi
+#   soot-lohi-api send-source    POST /agent/support/requests/:id/source (a source link
+#                                for a book waiting on one; idempotent on id+url)
+#   soot-lohi-api audio-pro      step=preview POST /agent/support/audio-pro/preview, then
+#                                step=confirm POST /agent/support/audio-pro/confirm with
+#                                the previewed effect as expect{from,to,cost}; the
+#                                reader's own pass pays, no price is ever sent
 #   soot-lohi-api request-chapters POST /agent/support/requests with type chapters|quality
 #                                (more chapters of a novel already on Lohi, or a
 #                                translation-quality complaint; idempotent)
@@ -63,7 +70,7 @@ hook=$(printf '%s\n' "$call" | jq -r '.hook')
 # Only the approval-gated tools know the preflight hook; any other tool must
 # never run its effect for one.
 case $hook:$cmd in
-  tool.preflight:recover-topup|tool.preflight:fix-chapter|tool.call:*) ;;
+  tool.preflight:recover-topup|tool.preflight:fix-chapter|tool.preflight:audio-pro|tool.call:*) ;;
   *) err '{"error":"bad_toolcall","detail":"preflight not supported"}' ;;
 esac
 # Product gate. One runtime may serve several projects (products), and this
@@ -352,6 +359,40 @@ case $cmd in
         [ -n "$nid" ] || err '{"error":"missing_param","param":"novelId"}'
         req GET "$base/agent/support/lookup/novels/$(enc "$nid")/chapters"
         ;;
+      ranks)
+        # Public standings: BXH Lohi (novels), nguyệt phiếu Qidian (yuepiao), …
+        board=$(printf '%s\n' "$input" | jq -r '.board // "novels"')
+        case $board in
+          ''|*[!a-z0-9-]*) err '{"error":"bad_param","param":"board"}' ;;
+        esac
+        url="$base/agent/support/lookup/ranks/$board?limit=$limit"
+        period=$(printf '%s\n' "$input" | jq -r '.period // empty')
+        case $period in
+          ''|week|month|all) ;;
+          *) err '{"error":"bad_param","param":"period"}' ;;
+        esac
+        [ -n "$period" ] && url="$url&period=$period"
+        month=$(printf '%s\n' "$input" | jq -r '.month // empty')
+        if [ -n "$month" ]; then
+          printf '%s' "$month" | grep -Eq '^[0-9]{4}-(0[1-9]|1[0-2])$' || err '{"error":"bad_param","param":"month"}'
+          url="$url&month=$month"
+        fi
+        req GET "$url"
+        ;;
+      characters|wiki)
+        # Character sheets / wiki entries of one novel in one call: the novel as
+        # the reader named it (title, link or id; novelId still works), or none
+        # = the reader's recent reading. The api resolves it.
+        novel=$(printf '%s\n' "$input" | jq -r '.novel // .novelId // empty')
+        q=$(printf '%s\n' "$input" | jq -r '.q // empty')
+        [ "$kind" = wiki ] && [ -z "$q" ] && err '{"error":"missing_param","param":"q"}'
+        qs=""
+        [ -n "$novel" ] && qs="novel=$(enc "$novel")"
+        [ -n "$q" ] && qs="${qs:+$qs&}q=$(enc "$q")"
+        url="$base/agent/support/lookup/story/$kind"
+        [ -n "$qs" ] && url="$url?$qs"
+        req GET "$url"
+        ;;
       chapter_tts)
         chid=$(printf '%s\n' "$input" | jq -r '.chapterId // empty')
         [ -n "$chid" ] || err '{"error":"missing_param","param":"chapterId"}'
@@ -414,6 +455,63 @@ case $cmd in
       title: .title, novelId: .novelId, fromChapter: (.fromChapter // null),
       description: (.description // null)} | with_entries(select(.value != null))')
     req POST "$base/agent/support/requests" "$body" && printf '%s' "$rid" >"$rid_file"
+    ;;
+  send-source)
+    need_principal
+    # The book's id comes from lohi_request_novel / lohi_lookup requests; the
+    # api's SSRF guard judges the link. No state: the api is idempotent on
+    # (request, url), so a retry is safe.
+    rid=$(printf '%s\n' "$input" | jq -r '.id // empty')
+    printf '%s' "$rid" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+      || err '{"code":"invalid_input","detail":"id must be the request id"}'
+    url=$(printf '%s\n' "$input" | jq -r '.url // empty')
+    case $url in
+      http://?*|https://?*) ;;
+      *) err '{"code":"invalid_source_url","details":{"reason":"not_http"}}' ;;
+    esac
+    body=$(jq -cn --arg c "$cid" --arg u "$url" '{conversationId: $c, url: $u}')
+    req POST "$base/agent/support/requests/$rid/source" "$body"
+    ;;
+  audio-pro)
+    need_principal
+    # Preview first (nothing is reserved), then confirm with the previewed
+    # effect: the api re-previews and refuses 409 preview_changed when it
+    # differs. The reader's own Pro-voice pass pays; no price travels. On the
+    # preflight hook (dry run) the step is always the preview.
+    step=$(printf '%s\n' "$input" | jq -r '.step // "preview"')
+    slug=$(printf '%s\n' "$input" | jq -r '.novelSlug // empty')
+    printf '%s' "$slug" | grep -qE '^[a-z0-9-]{1,100}$' || err '{"code":"invalid_input","detail":"novelSlug"}'
+    printf '%s\n' "$input" | jq -e '(.fromChapter | type == "number")' >/dev/null 2>&1 \
+      || err '{"code":"invalid_input","detail":"fromChapter"}'
+    if [ "$hook" = tool.preflight ] || [ "$step" = preview ]; then
+      body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" '{
+        conversationId: $c, novel_slug: .novelSlug, from_chapter: .fromChapter,
+        to_chapter: (.toChapter // null)} | with_entries(select(.value != null))')
+      if [ "$hook" = tool.preflight ]; then
+        resp=$(req POST "$base/agent/support/audio-pro/preview" "$body") || { printf '%s\n' "$resp"; exit 1; }
+        printf '%s\n' "$resp" | jq -c '
+          if (.range | type) != "object" then error("no range") else . end
+          | {preview: ([
+              "Audio Pro chương \(.range.from)–\(.range.to) (\(.range.chapters) chương đã đăng)",
+              "Mới: \(.breakdown.fresh), đẩy lên hàng chờ: \(.breakdown.boosted), đã có: \(.breakdown.voiced)",
+              "Tốn \(.cost) lượt Audio Pro của bạn đọc, còn \(.quota.remainingAfter) sau khi tạo",
+              (.blocker.label // empty)] | join("\n"))}' 2>/dev/null || { jq -cn '{code: "bad_response"}'; exit 1; }
+      else
+        req POST "$base/agent/support/audio-pro/preview" "$body"
+      fi
+    else
+      [ "$step" = confirm ] || err '{"code":"invalid_input","detail":"step must be preview or confirm"}'
+      printf '%s\n' "$input" | jq -e '
+        (.toChapter | type == "number") and (.expect | type == "object")
+        and (.expect.from | type == "number") and (.expect.to | type == "number") and (.expect.cost | type == "number")' \
+        >/dev/null 2>&1 || err '{"code":"invalid_input","detail":"confirm needs toChapter and expect {from,to,cost} copied from the preview"}'
+      body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" '{
+        conversationId: $c, novel_slug: .novelSlug, from_chapter: .fromChapter,
+        to_chapter: .toChapter, voice_id: (.voiceId // null),
+        expect: {from: .expect.from, to: .expect.to, cost: .expect.cost}} | with_entries(select(.value != null))')
+      sent=1
+      req POST "$base/agent/support/audio-pro/confirm" "$body"
+    fi
     ;;
   report-content)
     # No reader is proven here (the api verifies the defect itself), so the

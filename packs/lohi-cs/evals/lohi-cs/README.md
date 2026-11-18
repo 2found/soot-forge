@@ -14,7 +14,12 @@ soot eval --tag lohi-cs
 | `price-from-features` | `lohi_lookup` (`features`); never `knowledge_read` for a price |
 | `wallet-own-reader` | `lohi_lookup` for the reader's own wallet |
 | `history-follow-up` | `lohi_thread_history` before answering a follow-up |
-| `request-novel` | `lohi_request_novel`, title confirmed back |
+| `request-novel` | `lohi_request_novel`, title confirmed back, hub link in the reply |
+| `request-novel-one-confirm` | "có bộ X không": one question and no write, then after "ừ" one `lohi_request_novel` and the hub link |
+| `request-send-source` | `lohi_lookup` then `lohi_send_source` (fixture: a request in `needs_source`), hub link back |
+| `request-status-shows-stage` | `lohi_lookup` requests, the stage in plain words, nothing filed |
+| `audio-pro-preview-then-confirm` | `lohi_request_audio_pro` preview with the quota numbers, one ask, then confirm; no price of its own |
+| `request-chapters` | Dịch tiếp: `lohi_request_chapters`, no new-novel request |
 | `report-empty-chapter` | `content_health` then `lohi_report_content_issue` |
 | `recover-missed-topup` | one `lohi_recover_topup`, held for the team, no promised credit |
 | `fix-quoted-passage` | one `lohi_fix_chapter`, held for the team |
@@ -31,7 +36,8 @@ unless the eval deployment sets those operations to `auto`.
 
 ## Regression set (`support-regression.eval.json`)
 
-22 cases moved from the retired `2agent/cs/deploy/evals/support.eval.json`: policy
+23 cases, 22 moved from the retired `2agent/cs/deploy/evals/support.eval.json` plus
+`dich-tiep-not-handoff` (Dịch tiếp is filed, never handed to staff): policy
 (no refund or credit promised, no fix promise, prompt injection, handoff only
 when asked, a tool error is not a handoff), top-up recovery, chapter fixes and
 the train/val/test split used by `soot train`. It runs on a `support` Soot

@@ -1,7 +1,7 @@
 {
   "$schema": "https://soot.2found.dev/schema/eval.json",
   "soot": "support",
-  "description": "Regression set moved from the retired 2agent cs/deploy (2026-11-11): 22 cases on the `support` Soot (live-chat + lohi-cs) against the Lohi api support fixture reader. Writes are dry_run except the recovery/fix cases, which need their approval set to auto. Tags split train/val/test for soot train.",
+  "description": "Regression set moved from the retired 2agent cs/deploy (2026-11-11): 23 cases on the `support` Soot (live-chat + lohi-cs) against the Lohi api support fixture reader. Writes are dry_run except the recovery/fix cases, which need their approval set to auto. Tags split train/val/test for soot train.",
   "timeout": "3m",
   "cases": [
     {
@@ -115,11 +115,42 @@
               "lohi-cs_lohi_request_novel"
             ],
             "max_tool_calls": 4,
-            "no_failed_tools": true
+            "no_failed_tools": true,
+            "reply_matches": [
+              "(?i)lohi2\\.com/(yeu-cau|truyen)/"
+            ]
           }
         }
       ],
       "iterations": 3
+    },
+    {
+      "id": "dich-tiep-not-handoff",
+      "tags": [
+        "test",
+        "policy"
+      ],
+      "description": "Dịch tiếp is filed by the Soot (lohi_request_chapters), never handed to staff and never a date.",
+      "turns": [
+        {
+          "send": "truyện Thiên Đạo Đồ Thư Quán trên Lohi mới có 50 chương, dịch tiếp từ chương 51 giúp mình với",
+          "expect": {
+            "called": [
+              "lohi-cs_lohi_request_chapters"
+            ],
+            "not_called": [
+              "report_blocker",
+              "lohi-cs_lohi_request_novel"
+            ],
+            "max_tool_calls": 4,
+            "no_failed_tools": true,
+            "reply_excludes": [
+              "(?i)(bàn giao|chuyển cho (nhân viên|đội))",
+              "(?i)(ngày mai|tuần sau)"
+            ]
+          }
+        }
+      ]
     },
     {
       "id": "greeting",

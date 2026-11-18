@@ -139,11 +139,17 @@ function populate(w, brief, flags) {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'SOUL.md'), t.soul(row, name).filter(Boolean).join('\n\n') + '\n');
     writeFileSync(join(dir, 'MISSION.md'), t.mission + '\n');
-    writeFileSync(join(dir, 'soot.json'), JSON.stringify({ channels: null, conversation: { publish: 'final' }, description: `${name}, ${row.age}, ${row.occupation}`.slice(0, 200), id, mission: 'MISSION.md', name, packs: ['micro-fish:tools=timeline,act,answer'], soul: 'SOUL.md' }, null, 2) + '\n');
+    writeFileSync(join(dir, 'soot.json'), JSON.stringify({ name, description: `${name}, ${row.age}, ${row.occupation}`.slice(0, 200), packs: ['micro-fish:tools=timeline,act,answer'], chat: { publish: 'final' } }, null, 2) + '\n');
     w.d.soots.push(`soots/${id}/soot.json`); added++;
   }
   const workers = Number(flags.workers || 8);
-  if (added || w.d.workers !== workers) { w.d.workers = workers; w.d.run_timeout = '15m'; writeFileSync(w.deploy, JSON.stringify(w.d, null, 2) + '\n'); }
+  // Soot 0.21+ (config v2) keeps workers and run_timeout under server; drop the v1 top-level keys.
+  const srv = w.d.server || (w.d.server = {});
+  if (added || srv.workers !== workers || 'workers' in w.d || 'run_timeout' in w.d) {
+    delete w.d.workers; delete w.d.run_timeout;
+    srv.workers = workers; srv.run_timeout = '15m';
+    writeFileSync(w.deploy, JSON.stringify(w.d, null, 2) + '\n');
+  }
   return { added, personas: w.d.soots.filter(s => s.startsWith('soots/p-')).length, selected: rows.length };
 }
 
@@ -181,7 +187,7 @@ function hold(phase, done, total, sim) {
 }
 
 async function run(w, brief, flags) {
-  const t = words(brief.language), parallel = Number(flags.parallel || w.d.workers || 4), started = Date.now();
+  const t = words(brief.language), parallel = Number(flags.parallel || w.d.server?.workers || w.d.workers || 4), started = Date.now();
   const rows = select(brief), missing = rows.filter(r => !w.d.soots.includes(`soots/${personaId(r)}/soot.json`));
   if (missing.length) die(`${missing.length} personas are not in the workspace; run populate first`);
   let world = await load(w.state, brief.sim);

@@ -60,9 +60,12 @@ One call per report, held for the team's approval like a recovery.
   wrong (default 1; "cả chương đều sai" without a count → ask how many). Only
   when the reader gave the exact wording; never reconstruct a passage you have
   not seen.
-- **Missing, empty or garbled chapter** that `content_health` confirmed:
-  `mode: "recrawl"` for that chapter. For a defect run of several chapters use
-  `lohi_report_content_issue` instead. Never recrawl on the reader's word alone.
+- **Missing, empty or garbled chapter** that `content_health` confirmed: file it
+  with `lohi_report_content_issue` (`kind: "content"`) like every other confirmed
+  defect — the approval-gated `recrawl` waits on a person, the report does not.
+  Reach for `mode: "recrawl"` only when a person asks for the re-fetch directly
+  or `report_content_issue` refused. Never
+  recrawl on the reader's word alone.
 - Always a one-line `reason` for the approver.
 
 Answers:
@@ -108,6 +111,12 @@ Answers:
   `name-triage` — it can count the spellings and open a review. Other
   mistranslation without an exact quote: hand off with the chapter and the
   wrong/right wording.
+
+## Beyond the defect
+
+The chapter is fine but the novel stops at `maxPublished` and the reader wants more:
+that is Dịch tiếp (`lohi_request_chapters`, see `novel-request`), not a defect and not a
+handoff. A reader who wants Pro audio for chapters that exist: `audio-pro`.
 
 ## Never
 

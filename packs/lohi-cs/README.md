@@ -40,9 +40,24 @@ conversation that carries no project at all.
 `lohi_recover_topup` credits LT and `lohi_fix_chapter` changes a chapter: both
 are `approval: "operator"` with a dry-run `preflight` that renders the approval
 card. `lohi_request_novel`, `lohi_request_chapters` (a `chapters` or `quality` request for a novel
-already on Lohi) and `lohi_report_content_issue` credit and change
-nothing and run without approval (the api re-checks and staff approve a
-report).
+already on Lohi), `lohi_send_source` (a source link for a book that waits on one) and
+`lohi_report_content_issue` credit and change nothing and run without approval (the api
+re-checks and staff approve a report). `lohi_request_audio_pro` is no staff approval
+either: the reader's yes in the chat is the approval. It takes two calls, `step: preview`
+(reserves nothing) and `step: confirm`, whose `expect {from,to,cost}` is copied from the
+preview; the api re-previews and refuses `preview_changed` if the effect moved, and the
+reader's own Audio Pass pays (no LT, no price on the wire). The hook `tool.preflight`
+(dry run) of that tool is the preview.
+
+## One book, three asks
+
+The pack follows the product's model: a requested novel is one book with one page
+(`hub_url`), and the reader asks three things of it: Dịch tiếp
+(`lohi_request_chapters`), Audio Pro (`lohi_request_audio_pro`) and Báo lỗi
+(`lohi_report_content_issue`), plus a source link (`lohi_send_source`). Requesting a
+novel is one confirm and one call (`lohi_request_novel`, answer with `hub_url`).
+`lohi_lookup` `requests` lists every book the reader requested or backed with `stage`,
+`progress`, `needs_you` and `hub_url`. None of the four is a handoff to staff.
 
 ## Credentials
 

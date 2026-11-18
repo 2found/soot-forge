@@ -56,6 +56,37 @@ test('context reads the companion with the key, the principal and the encoded qu
   assert.equal(seen[0].url, `/novel/agent/companions/${ID}/context`);
 });
 
+test('character reads the card and sample dialogue with the key and the principal', async () => {
+  answer = () => [200, { companion: { id: ID }, progress: 24, card: ['Tên: Ninh Diêu'], dialogue: [{ chapter: 20, text: 'Kiếm đâu?' }] }];
+  const r = await run('character', { companion_id: ID });
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].url, `/novel/agent/companions/${ID}/character`);
+  assert.equal(seen[0].headers['x-api-key'], KEY);
+  assert.equal(seen[0].headers['x-soot-principal'], TOKEN);
+  assert.equal(JSON.parse(r.stdout).dialogue[0].text, 'Kiếm đâu?');
+  const anon = await run('character', { companion_id: ID }, { token: null });
+  assert.equal(anon.code, 1);
+  assert.equal(seen.length, 0);
+});
+
+test('characters and wiki search the same novel with an encoded query; wiki needs q', async () => {
+  answer = () => [200, { progress: 24, characters: [], entries: [] }];
+  const c = await run('characters', { companion_id: ID, q: 'Trần Bình An' });
+  assert.equal(c.code, 0, c.stderr);
+  assert.equal(seen[0].url, `/novel/agent/companions/${ID}/characters?q=Tr%E1%BA%A7n%20B%C3%ACnh%20An`);
+  assert.equal(seen[0].headers['x-soot-principal'], TOKEN);
+  const all = await run('characters', { companion_id: ID });
+  assert.equal(all.code, 0);
+  assert.equal(seen[0].url, `/novel/agent/companions/${ID}/characters`);
+  const w = await run('wiki', { companion_id: ID, q: 'Kiếm Khí Trường Thành' });
+  assert.equal(w.code, 0, w.stderr);
+  assert.equal(seen[0].url, `/novel/agent/companions/${ID}/wiki?q=Ki%E1%BA%BFm%20Kh%C3%AD%20Tr%C6%B0%E1%BB%9Dng%20Th%C3%A0nh`);
+  const bare = await run('wiki', { companion_id: ID });
+  assert.equal(bare.code, 1);
+  assert.equal(seen.length, 0);
+});
+
 test('remember reads the memory route; the stdin token is used when the env has none', async () => {
   answer = () => [200, { notes: ['thích Trần Bình An'], bond: 3 }];
   const r = await run('remember', { companion_id: ID }, { token: '', stdinToken: TOKEN });
@@ -100,7 +131,7 @@ test('an api refusal passes through as a decided failure; the key and token are 
 test('the manifest declares two read tools and uses every credential it declares', async () => {
   const pack = JSON.parse(await readFile(new URL('../pack.json', import.meta.url), 'utf8'));
   assert.equal(pack.id, undefined, 'the folder is the id');
-  assert.deepEqual(pack.tools.map(t => [t.name, t.run.mode]), [['context', 'read'], ['remember', 'read']]);
+  assert.deepEqual(pack.tools.map(t => [t.name, t.run.mode]), [['character', 'read'], ['context', 'read'], ['remember', 'read'], ['characters', 'read'], ['wiki', 'read']]);
   const used = new Set(pack.tools.flatMap(t => Object.values(t.run.secret_env).map(v => v.match(/\{\{cred:([A-Z_]+)\}\}/)[1])));
   assert.deepEqual([...used].sort(), Object.keys(pack.needs.credentials).sort());
   const skill = await readFile(new URL('../skills/character/SKILL.md', import.meta.url), 'utf8');
