@@ -3,6 +3,7 @@
 // receipt_id and batched acks.
 import {EXIT_OK, ExitError, PlatformError, backoff, sleep} from './errors.mjs';
 import {renderItem} from './render.mjs';
+import {wordItem} from './words.mjs';
 
 const KNOWN = new Set(['reply', 'attention', 'attention_resolved', 'brief', 'notice']);
 const IN_PLACE = new Set(['question', 'decision']);
@@ -125,7 +126,7 @@ export class Outbox {
     const journaled = this.journal.delivered(receipt);
     if (journaled) return {receipt_id: receipt, status: 'delivered', platform_message_ids: journaled};
     let rendered;
-    try { rendered = renderItem(item, {platform: this.platform.name, copy: this.getSession()?.copy}); }
+    try { rendered = renderItem(wordItem(item, this.getSession()), {platform: this.platform.name, copy: this.getSession()?.copy}); }
     catch (error) {
       // A malformed item would crash the adapter on every redelivery: give it up.
       this.log('outbox_render_failed', {receipt_id: receipt, kind: item.kind, name: error?.name});

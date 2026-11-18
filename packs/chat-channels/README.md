@@ -67,3 +67,17 @@ environment, exit codes and guarantees.
 
 Outbound connections only: no webhook, no public URL. Real Telegram/Discord
 runs need an owner's bot token; CI uses fake runtime and platform servers.
+
+**Pictures** (channel-adapter v1.5 §13.3). When the binding has "Nhận ảnh" on
+(`images: true`, the session says `binding.images`), a photo or an image file
+(PNG, JPEG, GIF, WebP) a linked person sends the bot in a DM goes to the Soot
+with its caption; the adapter downloads it (Telegram `getFile`, Discord's
+attachment URL) and refuses one over 2 MB itself. No count bound: the host and
+the model's provider decide. Pictures in a group, with the setting off, and
+any other file (PDF, voice, sticker) are still refused with the host's sentence.
+
+**Language** (channel-adapter v1.6 §14). Owner-DM Cần bạn items, their
+buttons, the toast after a press, the settled edit and the DM pointer are
+worded by the adapter from the host's codes (`core/words.mjs`), in the
+binding's `language` (Nest: Cài đặt bot › Ngôn ngữ của bot): `vi` (default) or
+`en`. A host before v1.6 sends no codes; the adapter then shows its text.

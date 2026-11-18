@@ -1,14 +1,18 @@
 // Platform-neutral inbound pipeline (channel-adapter.v1 §4.3–4.6, §4.10, §6.1, §6.6,
 // v1.2 §10.2, §10.6–10.8, §10.11).
 //
-// An event is {requestID, sender, chat, addressed, messageID, text, attachment,
+// An event is {requestID, sender, chat, addressed, messageID, text, attachment, pictures,
 // command: null|'new'|'start', payload, button, replyToMessageID}, or
 // {requestID, chat, left: true} when the bot left or was removed from a chat. The
 // platform supplies `ops`: say(chat, formatted, {replyTo}), sayPrivately(event, formatted),
 // deleteMessage(chat, messageID) → boolean, toast(event, text|null),
-// memberCount(chat) → integer|null.
+// memberCount(chat) → integer|null. The platform downloads a picture with
+// ops.picture({ref, mime, name, size}) → {name, mime, data} (core/pictures.mjs).
 import {detectSecret} from './secrets.mjs';
 import {plainText} from './render.mjs';
+import {say} from './copy.mjs';
+import {wordToast} from './words.mjs';
+import {PictureError} from './pictures.mjs';
 
 // v1.2 refusals whose one notice is posted in a group too, threaded (§10.2).
 const GROUP_NOTICES = new Set(['rate_limited', 'guest_budget']);
@@ -95,6 +99,12 @@ export class Inbound {
       await this.reply(event, this.copy.attachment_refused);
       return 'attachment_refused';
     }
+    // v1.5 §13.3: pictures go on only from a DM on a binding with images on.
+    const pictures = event.command ? [] : (event.pictures ?? []);
+    if (pictures.length && (this.getSession()?.binding?.images !== true || event.chat.kind !== 'dm')) {
+      await this.reply(event, this.copy.attachment_refused);
+      return 'images_refused';
+    }
     if (event.command) {
       const {status, body} = await this.client.post('/v1/channel/conversations/resolve', {
         request_id: event.requestID, sender: event.sender, chat: event.chat, new: event.command === 'new',
@@ -103,22 +113,42 @@ export class Inbound {
       return status === 200 ? `resolved_${event.command}` : body.code || `resolve_${status}`;
     }
     const text = (event.text ?? '').trim();
-    if (!text) return 'empty';
-    if (detectSecret(text)) return this.secret(event);
+    if (!text && !pictures.length) return 'empty';
+    if (text && detectSecret(text)) return this.secret(event);
     const maxBytes = this.getSession()?.limits?.text_bytes ?? 16384;
     if (Buffer.byteLength(text) > maxBytes) {
       await this.reply(event, this.copy.too_long);
       return 'too_long';
     }
+    const images = [];
+    for (const picture of pictures) {
+      try { images.push(await this.ops.picture(picture)); }
+      catch (error) {
+        if (!(error instanceof PictureError)) throw error;
+        await this.reply(event, say(this.getSession(), error.code));
+        return error.code;
+      }
+    }
     const body = {
       request_id: event.requestID, sender: event.sender, chat: event.chat,
       platform_message_id: String(event.messageID), text,
     };
+    if (images.length) {
+      body.images = images;
+      // The body bound the session states (§13.1); JSON and text add a little.
+      const bound = this.getSession()?.limits?.message_bytes;
+      if (bound && images.reduce((n, im) => n + im.data.length, 0) + Buffer.byteLength(text) + 4096 > bound) {
+        await this.reply(event, say(this.getSession(), 'images_too_many'));
+        return 'images_too_many';
+      }
+    }
     const receipt = event.replyToMessageID ? this.journal.receiptFor(event.chat.id, event.replyToMessageID) : null;
     if (receipt) body.reply_to = {receipt_id: receipt};
     const result = await this.client.post('/v1/channel/messages', body);
     if (result.status === 200 || result.status === 202) return result.body.duplicate ? 'message_duplicate' : 'message_accepted';
-    if (result.status === 413) await this.reply(event, this.copy.too_long);
+    if (result.status === 413) await this.reply(event, images.length ? say(this.getSession(), 'images_too_many') : this.copy.too_long);
+    else if (result.status === 422 && result.body.code === 'images_refused') await this.reply(event, this.copy.attachment_refused);
+    else if (result.status === 422 && result.body.code === 'invalid_request' && images.length) await this.reply(event, say(this.getSession(), 'image_unreadable'));
     else if (result.status === 422) return this.secret(event);
     else await this.reply(event, result.body.reply ?? result.body.notice);
     return result.body.code || `message_${result.status}`;
@@ -152,7 +182,7 @@ export class Inbound {
     const {status, body} = await this.client.post('/v1/channel/answers', {
       request_id: event.requestID, sender: event.sender, chat: event.chat, token: event.button,
     });
-    await this.ops.toast(event, body.toast ?? null).catch(error => this.log('toast_failed', {code: error?.code}));
+    await this.ops.toast(event, wordToast(status, body, this.getSession())).catch(error => this.log('toast_failed', {code: error?.code}));
     return status === 200 ? (body.duplicate ? 'answer_duplicate' : 'answered') : body.code || `answer_${status}`;
   }
 

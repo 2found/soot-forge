@@ -1,6 +1,7 @@
 // Discord side: Gateway (identify, resume, heartbeat, reconnect) for inbound, REST for
 // messages and interaction responses.
 import {PlatformError, backoff, sleep} from '../core/errors.mjs';
+import {PICTURE_MIME, download} from '../core/pictures.mjs';
 
 // GUILDS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT
 export const INTENTS = (1 << 0) | (1 << 9) | (1 << 12) | (1 << 15);
@@ -85,10 +86,17 @@ export class Discord {
       sender: sender(message.author), chat,
       addressed: chat.kind === 'dm' || mentioned || Boolean(replied),
       messageID: String(message.id), text,
-      attachment: Boolean(message.attachments?.length || message.sticker_items?.length),
+      // §13.3: an image attachment is a picture; any other file or a sticker is refused.
+      pictures: (message.attachments ?? []).filter(isPicture).map(a => ({ref: a.url, mime: mimeOf(a), name: a.filename || `image-${a.id}`, size: a.size})),
+      attachment: Boolean((message.attachments ?? []).some(a => !isPicture(a)) || message.sticker_items?.length),
       command, payload,
       replyToMessageID: message.message_reference?.message_id ? String(message.message_reference.message_id) : null,
     };
+  }
+
+  // §13.3: Discord attachment URLs are signed CDN links; no bot token is sent.
+  async picture(picture) {
+    return download(picture, ref => this.fetch(ref));
   }
 
   // Gateway INTERACTION_CREATE (message component) → inbound event, or null.
@@ -299,6 +307,7 @@ export class Discord {
       deleteMessage: (chat, id) => this.deleteMessage(chat, id),
       toast: (event, text) => this.toast(event, text),
       memberCount: chat => this.memberCount(chat),
+      picture: picture => this.picture(picture),
     };
   }
 
@@ -318,3 +327,6 @@ function sender(user = {}) {
   const name = user.global_name ?? user.username;
   return {id: String(user.id), ...(name ? {name} : {}), ...(user.username ? {username: user.username} : {})};
 }
+
+const mimeOf = attachment => String(attachment.content_type ?? '').split(';')[0].trim().toLowerCase();
+const isPicture = attachment => PICTURE_MIME.has(mimeOf(attachment));

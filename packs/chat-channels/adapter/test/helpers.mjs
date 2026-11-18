@@ -117,7 +117,15 @@ export class FakeTelegram {
     this.nextMessageID = 8811;
     this.memberCounts = {};   // chat id → getChatMemberCount result
     this.fail = {};           // method → {error_code, description, parameters?} (once per entry)
+    this.files = {};          // file_path → Buffer (getFile + the file URL, §13.3)
     this.server = createServer(async (req, res) => {
+      const file = req.url.match(/^\/file\/bot([^/]+)\/(.+)$/);
+      if (file) {
+        this.calls.push({method: 'file', params: {path: file[2]}});
+        if (file[1] !== this.token || !this.files[file[2]]) { res.writeHead(404); return res.end(); }
+        res.writeHead(200, {'content-type': 'application/octet-stream'});
+        return res.end(this.files[file[2]]);
+      }
       const [, botToken, method] = req.url.match(/^\/bot([^/]+)\/(\w+)$/) ?? [];
       const params = (await readBody(req)) ?? {};
       if (botToken !== this.token) return reply(res, {status: 401, body: {ok: false, error_code: 401, description: 'Unauthorized'}});
@@ -142,6 +150,7 @@ export class FakeTelegram {
       }
       case 'sendMessage': return {message_id: this.nextMessageID++, chat: {id: params.chat_id}};
       case 'getChatMemberCount': return this.memberCounts[String(params.chat_id)] ?? null;
+      case 'getFile': return {file_id: params.file_id, file_path: `photos/${params.file_id}.jpg`};
       default: return true;
     }
   }
@@ -170,7 +179,14 @@ export class FakeDiscord {
     this.nextMessageID = 1400000000000000001n;
     this.fail = {};
     this.onPayload = null;
+    this.files = {};          // CDN path → Buffer (attachment URLs need no token)
     this.server = createServer(async (req, res) => {
+      if (req.url.startsWith('/cdn/')) {
+        this.calls.push({method: 'CDN', path: req.url});
+        if (!this.files[req.url]) { res.writeHead(404); return res.end(); }
+        res.writeHead(200, {'content-type': 'image/png'});
+        return res.end(this.files[req.url]);
+      }
       const body = await readBody(req);
       const path = req.url.replace(/^\/api\/v10/, '');
       if (req.headers.authorization !== `Bot ${this.token}`) return reply(res, {status: 401, body: {message: '401: Unauthorized', code: 0}});
@@ -190,6 +206,7 @@ export class FakeDiscord {
 
   async start() {
     const base = await listen(this.server);
+    this.base = base;
     this.apiBase = `${base}/api/v10`;
     this.gatewayUrl = base.replace('http', 'ws') + '/gateway';
     return this;

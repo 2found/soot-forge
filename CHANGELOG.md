@@ -3,8 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.23.0 — 2026-11-18
 
+Baseline: v0.22.0. Pairs with the Soot runtime 0.23.0 (channel contract v1.5/v1.6): `chat-channels` takes pictures in DMs and words Cần bạn items in the binding's language. Needs a runtime ≥ 0.23.0 for the new behavior; an older host works as before.
+
+- **`chat-channels`: pictures in a DM reach the Soot.** On a binding with images on (Nest: Kênh chat › Nhận ảnh; channel contract v1.5), a photo or image file a linked person sends the Telegram or Discord bot in a DM is downloaded and sent with its caption as `images`; one over 2 MB is refused by the adapter. Groups, the setting off and other files are refused as before. Needs the Soot runtime with channel contract v1.5; an older host never says `binding.images`, so the adapter keeps refusing.
+- **`chat-channels`: Cần bạn items in the bot's language.** With a runtime on channel contract v1.6, the adapter words owner-DM items, their buttons, the toast after a press, the settled edit and the DM pointer itself, in Vietnamese or English (the binding's `language`, chosen in Nest; Vietnamese by default), as are its own picture refusals. With an older runtime it shows the host's text as before.
 - **`lohi-cs`, `lohi-character`, `lohi-ops` and `lohi-brand` are deprecated here.** They are Lohi's own packs: their source moved to the kiem-lai repository (`2found/soot/packs/`) and Lohi's server runs those copies as local packs, so the Forge updater no longer touches them. The catalog entries stay (name "(deprecated)", the description says where the source lives) for installs that still reference them, and the packs here are no longer updated. They do not use `stability: "deprecated"`, which means a pack the runtime provides.
 
 ## 0.22.0 — 2026-11-18

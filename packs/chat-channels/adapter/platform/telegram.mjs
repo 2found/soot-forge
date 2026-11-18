@@ -1,5 +1,6 @@
 // Telegram Bot API side: getUpdates long polling, HTML messages, inline keyboards.
 import {PlatformError, backoff, sleep} from '../core/errors.mjs';
+import {PICTURE_BYTES, PICTURE_MIME, download} from '../core/pictures.mjs';
 
 const CONFLICT_BACKOFF_MAX = 5 * 60_000;
 const MEMBER_COUNT_TTL_MS = 10 * 60_000;
@@ -105,10 +106,23 @@ export class Telegram {
       sender: sender(message.from), chat, addressed,
       messageID: String(message.message_id),
       text: text.trim(),
-      attachment: ATTACHMENTS.some(kind => message[kind] !== undefined),
+      // A photo, or a document sent as a file that is a picture, is a picture
+      // (§13.3); anything else is an attachment the adapter refuses.
+      pictures: picturesOf(message),
+      attachment: ATTACHMENTS.some(kind => message[kind] !== undefined && !(kind === 'photo' || (kind === 'document' && PICTURE_MIME.has(message.document.mime_type)))),
       command, payload,
       replyToMessageID: message.reply_to_message ? String(message.reply_to_message.message_id) : null,
     };
+  }
+
+  // §13.3: getFile, then the file URL. The token is in the URL, so the
+  // download error never carries it.
+  async picture(picture) {
+    return download(picture, async ref => {
+      const file = await this.call('getFile', {file_id: ref});
+      if (!file?.file_path) return null;
+      return this.fetch(`${this.apiBase}/file/bot${this.token}/${file.file_path}`);
+    });
   }
 
   // Long polling. The offset moves past an update only after the inbound pipeline
@@ -203,6 +217,7 @@ export class Telegram {
       deleteMessage: (chat, id) => this.deleteMessage(chat, id),
       toast: (event, text) => this.toast(event, text),
       memberCount: chat => this.memberCount(chat),
+      picture: picture => this.picture(picture),
     };
   }
 }
@@ -216,4 +231,19 @@ function chatOf(chat) {
 function sender(user = {}) {
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
   return {id: String(user.id), ...(name ? {name} : {}), ...(user.username ? {username: user.username} : {})};
+}
+
+// The largest photo size within the host's per-picture bound (the sizes grow;
+// a size without file_size is taken as fitting and checked on download).
+function picturesOf(message) {
+  const out = [];
+  if (Array.isArray(message.photo) && message.photo.length) {
+    const fits = message.photo.filter(p => !(p.file_size > PICTURE_BYTES));
+    const best = (fits.length ? fits : message.photo).at(-1);
+    out.push({ref: best.file_id, mime: 'image/jpeg', name: `photo-${message.message_id}.jpg`, size: best.file_size});
+  }
+  const doc = message.document;
+  if (doc && PICTURE_MIME.has(doc.mime_type))
+    out.push({ref: doc.file_id, mime: doc.mime_type, name: doc.file_name || `image-${message.message_id}`, size: doc.file_size});
+  return out;
 }
