@@ -33,7 +33,7 @@ async function workspace(t) {
   const root = await mkdtemp(join(tmpdir(), 'micro-fish-driver-')); t.after(() => rm(root, { recursive: true, force: true }));
   const ws = join(root, 'ws'), bin = join(root, 'bin');
   await mkdir(join(ws, 'soots'), { recursive: true }); await mkdir(bin);
-  await writeFile(join(ws, 'deployment.json'), JSON.stringify({ data_dir: 'data', packs_dir: 'packs', workers: 1, soots: ['soots/sim-analyst/soot.json', 'soots/sim-expert/soot.json'] }));
+  await writeFile(join(ws, 'deployment.json'), JSON.stringify({ data_dir: 'data', packs_dir: 'packs', server: { workers: 1 }, soots: ['soots/sim-analyst/soot.json', 'soots/sim-expert/soot.json'] }));
   await writeFile(join(bin, 'soot'), FAKE_SOOT); await chmod(join(bin, 'soot'), 0o755);
   await writeFile(join(bin, 'package.json'), '{"type":"module"}');
   const brief = join(root, 'brief.json');
@@ -49,7 +49,7 @@ test('populate turns the audience into persona Soots once, each with only its ow
   assert.deepEqual(first, { added: 12, personas: 12, selected: 12 });
   assert.equal(JSON.parse(f.drive(['populate', f.brief]).stdout).added, 0, 'the same brief meets the same people');
   const deployment = JSON.parse(await readFile(join(f.ws, 'deployment.json'), 'utf8'));
-  assert.equal(deployment.soots.length, 14); assert.equal(deployment.workers, 8);
+  assert.equal(deployment.soots.length, 14); assert.equal(deployment.server.workers, 8); assert.equal(deployment.server.run_timeout, '15m'); assert.equal('workers' in deployment, false);
   const id = (await readdir(join(f.ws, 'soots')))[0], soot = JSON.parse(await readFile(join(f.ws, 'soots', id, 'soot.json'), 'utf8'));
   assert.deepEqual(soot.packs, ['micro-fish:tools=timeline,act,answer']);
   assert.match(soot.name, /^\p{Lu}\p{Ll}+ \p{Lu}/u, 'a person\'s name, not an id');
