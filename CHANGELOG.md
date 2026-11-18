@@ -3,7 +3,17 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.22.0 — 2026-11-18
+
+Baseline: v0.21.0. Pairs with the Soot runtime 0.22.0: it provides `soot`, `nest-lead`, `soot-nest` and `coordinator-mail` itself, so the Forge copies below are deprecated, kept for older runtimes. Release the runtime first; a runtime before 0.22.0 reads this catalog as before.
+
+- **`lohi-cs`: the reader asks three things of one requested book, and the pack serves them.** New tools `lohi_send_source` (a source link for a book that waits on one) and `lohi_request_audio_pro` (Audio Pro paid with the reader's own Audio Pass: `step: preview` reserves nothing, `step: confirm` carries the previewed `expect {from,to,cost}` and the api refuses `preview_changed` if it moved; the reader's yes in the chat is the approval, no staff step, no LT or price on the wire). `lohi_lookup` `requests` lists each requested book with `stage`, `progress`, `needs_you` and `hub_url`; requesting a novel is one confirm and one call that answers with `hub_url`. The `novel-request`, `audio-pro`, `chapter-triage`, `lohi-triage` and `tts-triage` skills, two knowledge pages and the two support evals follow that model, with new cases.
+- **`lohi-character`: three more read tools, five in all.** `character` (the card as of the asker's chapter, mood and sample lines at or below it), `characters` (other characters of the same novel by fuzzy name, never one the asker has not met) and `wiki` (Book Bible entries the asker may see). All bounded by the asker's chapter from the host-signed principal; the `character` skill says when to call each.
+- **`micro-fish`:** the driver writes config v2 (`server.workers`, `server.run_timeout`; the v1 top-level keys are removed) and its generated `soot.json` uses the v2 shape.
+- **`lohi-ops`:** the Catalog Exec fixture carries the raised run budget (`max_run_tokens` 150000).
+
+### Moved into the runtime, and skills that describe their tools
+
 
 - **`soot`, `nest-lead`, `soot-nest` and team-rhythm's `coordinator-mail` move into the Soot runtime (≥ 0.22.0); kept here, deprecated, for older runtimes.** What explains or operates a runtime feature now ships with the runtime, so it no longer needs a paired Forge release. The three catalog entries carry `stability: "deprecated"` and `runtime_provides: "0.22.0"`, and team-rhythm `runtime_skills: {"coordinator-mail": "0.22.0"}` (new optional catalog fields; `validateCatalog` checks them, `validate.mjs` checks the named skill exists and skips the `--soot` install probe for a deprecated pack, which a runtime that provides it refuses). Nothing else changes in the packs, General or the team templates: the preset still installs the three for runtimes before 0.22.0, and 0.22.0 skips a pack it provides in `install`, ignores a leftover `packs/<id>` folder and replaces a pack skill of a runtime skill's name, noting each in `soot check`. A runtime reads only the catalog fields it knows, so older runtimes list the entries as before (with "(deprecated)" in the name). Ship with or after the runtime release; the order does not matter for older runtimes. Remove the entries once no supported runtime predates 0.22.0.
 - **Skills describe their tools; they stop limiting how a Soot works.** browser-use no longer says a screenshot needs no second look, never to build a zoomed copy, not to re-check a complete result, one `eval` and never a turn per page, or to submit a whole form in one call; research no longer caps queries at 2-5 and fetches at about 12; image-gen no longer fixes a 512×512 draft, forbids re-checking or retrying a generation; retries are no longer limited to one. The facts about each tool stay.
