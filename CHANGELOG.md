@@ -3,6 +3,10 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+- **`lohi-cs`, `lohi-character`, `lohi-ops` and `lohi-brand` are deprecated here.** They are Lohi's own packs: their source moved to the kiem-lai repository (`2found/soot/packs/`) and Lohi's server runs those copies as local packs, so the Forge updater no longer touches them. The catalog entries stay (name "(deprecated)", the description says where the source lives) for installs that still reference them, and the packs here are no longer updated. They do not use `stability: "deprecated"`, which means a pack the runtime provides.
+
 ## 0.22.0 — 2026-11-18
 
 Baseline: v0.21.0. Pairs with the Soot runtime 0.22.0: it provides `soot`, `nest-lead`, `soot-nest` and `coordinator-mail` itself, so the Forge copies below are deprecated, kept for older runtimes. Release the runtime first; a runtime before 0.22.0 reads this catalog as before.

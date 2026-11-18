@@ -274,8 +274,8 @@
     },
     {
       "id": "lohi-cs",
-      "name": "Lohi CS",
-      "description": "Lohi's customer care tools and skills on team-cs: the reader's own wallet, plan, top-ups, chapters and audio through the host-signed principal; top-up recovery and chapter fixes wait for an operator.",
+      "name": "Lohi CS (deprecated)",
+      "description": "Moved to Lohi's own config (kiem-lai 2found/soot/packs) on 2026-11-18; not updated here. Lohi's customer care tools and skills on team-cs: the reader's own wallet, plan, top-ups, chapters and audio through the host-signed principal.",
       "tags": [
         "communication",
         "support"
@@ -287,8 +287,8 @@
     },
     {
       "id": "lohi-character",
-      "name": "Lohi Character",
-      "description": "The generic character Soot that plays a Lohi novel room's linh thể: the character as of the asker's own chapter, read through two tools bounded by the host-signed principal, always honest that it is an AI.",
+      "name": "Lohi Character (deprecated)",
+      "description": "Moved to Lohi's own config (kiem-lai 2found/soot/packs) on 2026-11-18; not updated here. The generic character Soot that plays a Lohi novel room's linh thể, bounded by the asker's own chapter, always honest that it is an AI.",
       "tags": [
         "communication"
       ],
@@ -506,8 +506,8 @@
     },
     {
       "id": "lohi-ops",
-      "name": "Lohi ops",
-      "description": "Lohi operations tools and skills: catalog health and quality, duplicate novels, request/edit/violation queues, enrichment, Litrans jobs, comments, App Store reviews, SEO and pricing.",
+      "name": "Lohi ops (deprecated)",
+      "description": "Moved to Lohi's own config (kiem-lai 2found/soot/packs) on 2026-11-18; not updated here. Lohi operations tools and skills: catalog health and quality, request/edit/violation queues, enrichment, Litrans, comments, App Store reviews, SEO, pricing.",
       "tags": [
         "operations"
       ],
@@ -531,8 +531,8 @@
     },
     {
       "id": "lohi-brand",
-      "name": "Lohi brand",
-      "description": "The Lohi brand skill for the marketing team: scope and hub site, readers and language, voice, claims, signal sources, cadence caps and channels.",
+      "name": "Lohi brand (deprecated)",
+      "description": "Moved to Lohi's own config (kiem-lai 2found/soot/packs) on 2026-11-18; not updated here. The Lohi brand skill for the marketing team: scope and hub site, readers and language, voice, claims, signal sources, cadence caps and channels.",
       "tags": [
         "marketing"
       ],

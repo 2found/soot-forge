@@ -1,5 +1,7 @@
 # Lohi CS
 
+> **Deprecated in Soot Forge (2026-11-18).** This is Lohi's own pack. Its source of truth moved to the kiem-lai repository (`2found/soot/packs/lohi-cs/`) and Lohi's server runs that copy as a local pack. This Forge copy stays for installs that still reference it and is no longer updated.
+
 Lohi's customer care tools and skills, layered on [`team-cs`](../team-cs/). The
 two `team-cs` role Soots (`cs-triage`, `cs-escalation`) add `lohi-cs` to their
 `packs`; `team-cs` keeps the path (triage, handoff, tone, memory) and this pack

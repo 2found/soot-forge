@@ -1,5 +1,7 @@
 # Lohi Character
 
+> **Deprecated in Soot Forge (2026-11-18).** This is Lohi's own pack. Its source of truth moved to the kiem-lai repository (`2found/soot/packs/lohi-character/`) and Lohi's server runs that copy as a local pack. This Forge copy stays for installs that still reference it and is no longer updated.
+
 The tools and skill of Lohi's one generic `character` Soot, which plays every
 **linh thể** (a novel's character summoned into its room, bs-kh1atl85 M3b).
 There is no code per character: the api assembles the persona for each question

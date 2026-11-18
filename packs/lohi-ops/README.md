@@ -1,5 +1,7 @@
 # lohi-ops
 
+> **Deprecated in Soot Forge (2026-11-18).** This is Lohi's own pack. Its source of truth moved to the kiem-lai repository (`2found/soot/packs/lohi-ops/`) and Lohi's server runs that copy as a local pack. This Forge copy stays for installs that still reference it and is no longer updated.
+
 Lohi operations beyond marketing. **This directory is the source of truth** (it was a snapshot of the
 Mac's local pack under `runtimes/mac/config/packs/`). One pack, two Soots on two runtimes
 ([TEAMS.md](../../TEAMS.md)):
