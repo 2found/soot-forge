@@ -1,5 +1,7 @@
 # Soot Nest
 
+> **Deprecated.** This pack now ships with the Soot runtime ≥ 0.22.0 (`builtin/corepacks/soot-nest/` in 2found/2agent); kept for older runtimes. A runtime from 0.22.0 on ignores an installed `packs/soot-nest/` folder and uses its own copy, and `soot check` notes the leftover. Change the runtime's copy; this one is frozen and removed in a later Forge release.
+
 Platform skill pack for Nest. It has three skills and no tools.
 
 `side-bar` describes the shared right tool area; it grants no browser access and

@@ -1,5 +1,7 @@
 # Soot domain pack
 
+> **Deprecated.** This pack now ships with the Soot runtime ≥ 0.22.0 (`builtin/corepacks/soot/` in 2found/2agent; its `soot-domain` skill is now a runtime skill every Soot has); kept for older runtimes. A runtime from 0.22.0 on ignores an installed `packs/soot/` folder and uses its own copy, and `soot check` notes the leftover. Change the runtime's copy; this one is frozen and removed in a later Forge release.
+
 Pack `soot` chứa kiến thức về chính sản phẩm Soot và công cụ cấu hình chính Soot đang chạy.
 
 | Thành phần | Nội dung |

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, symlink, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateCatalog, validatePack, readSkills, checkPackModel, checkPieceBundles, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget } from './catalog.mjs';
+import { validateCatalog, validatePack, readSkills, checkPackModel, checkPieceBundles, materialize, sourceLink, installCommand, readCatalog, tagCommit, checkRetiredTarget, checkRuntimeSkills } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -334,4 +334,26 @@ test('a pack tab sorts after Nest\'s own tabs (goals 10, support 20) and before 
   }
   const marketing = JSON.parse(await readFile(join(dir, 'marketing', 'pack.json'), 'utf8')).interface.pieces.filter(p => p.slot === 'project.tab');
   assert.deepEqual([...marketing].sort((a, b) => a.order - b.order).map(p => p.id), ['posts', 'queue', 'campaigns']);
+});
+
+test('a pack the Soot runtime now provides stays listed, deprecated with the runtime version that carries it', async () => {
+  const moved = { ...entry, stability: 'deprecated', runtime_provides: '0.22.0' };
+  validateCatalog(catalog(moved));
+  validateCatalog(catalog({ ...entry, runtime_skills: { 'coordinator-mail': '0.22.0' } }));
+  for (const bad of [
+    { ...entry, stability: 'deprecated' }, { ...entry, runtime_provides: '0.22.0' }, { ...moved, stability: 'experimental' },
+    { ...moved, runtime_provides: 'v0.22.0' }, { ...moved, runtime_provides: '0.22' },
+    { ...moved, runtime_skills: { skill: '0.22.0' } }, { ...entry, runtime_skills: {} }, { ...entry, runtime_skills: ['skill'] },
+    { ...entry, runtime_skills: { 'Bad Name': '0.22.0' } }, { ...entry, runtime_skills: { skill: 'latest' } },
+  ]) assert.throws(() => validateCatalog(catalog(bad)), JSON.stringify(bad));
+  const directory = await mkdtemp(join(tmpdir(), 'runtime-skills-'));
+  try {
+    await mkdir(join(directory, 'skills', 'kept'), { recursive: true });
+    await writeFile(join(directory, 'skills', 'kept', 'SKILL.md'), '---\nname: kept\ndescription: Kept\n---\n');
+    checkRuntimeSkills({ ...entry, runtime_skills: { kept: '0.22.0' } }, directory);
+    assert.throws(() => checkRuntimeSkills({ ...entry, runtime_skills: { missing: '0.22.0' } }, directory), /no skills\/missing/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+  const real = await readCatalog(join(import.meta.dirname, '..'));
+  const marked = Object.fromEntries(real.packs.filter(p => p.stability || p.runtime_skills).map(p => [p.id, p.runtime_provides ?? p.runtime_skills]));
+  assert.deepEqual(marked, { soot: '0.22.0', 'soot-nest': '0.22.0', 'nest-lead': '0.22.0', 'team-rhythm': { 'coordinator-mail': '0.22.0' } });
 });

@@ -39,9 +39,10 @@ export function validateCatalog(catalog) {
       !Array.isArray(catalog.packs) || catalog.packs.length > 256) throw new Error('Invalid catalog version/repository/packs');
   const ids = new Set();
   for (const pack of catalog.packs) {
-    keys(pack, ['id', 'name', 'description', 'tags', 'source'], 'pack entry');
+    keys(pack, ['id', 'name', 'description', 'tags', 'source', 'stability', 'runtime_provides', 'runtime_skills'], 'pack entry');
     if (typeof pack.id !== 'string' || !identifier.test(pack.id) || ids.has(pack.id)) throw new Error(`Invalid or duplicate pack id: ${pack.id}`);
     ids.add(pack.id);
+    validateRuntimeHandoff(pack);
     text(pack.name, 80, 'name'); text(pack.description, 300, 'description');
     if (!Array.isArray(pack.tags) || pack.tags.length > 8 || new Set(pack.tags).size !== pack.tags.length ||
         pack.tags.some(tag => typeof tag !== 'string' || !identifier.test(tag))) throw new Error(`Invalid tags for ${pack.id}`);
@@ -62,6 +63,33 @@ export function validateCatalog(catalog) {
   }
   validateRetired(catalog.retired ?? [], ids);
   return catalog;
+}
+
+// What explains or operates a Soot runtime feature ships with the runtime. A pack
+// the runtime now provides stays listed and installable for older runtimes, marked
+// `stability: "deprecated"` with `runtime_provides`, the first runtime version that
+// carries it (a runtime from then on ignores the installed copy). A pack that keeps
+// its other skills names the moved ones in `runtime_skills` (skill → that version).
+function validateRuntimeHandoff(pack) {
+  if (pack.stability !== undefined && pack.stability !== 'deprecated') throw new Error(`Pack ${pack.id}: stability is only "deprecated"`);
+  if ((pack.stability === 'deprecated') !== (pack.runtime_provides !== undefined))
+    throw new Error(`Pack ${pack.id}: runtime_provides goes with stability deprecated`);
+  if (pack.runtime_provides !== undefined && (typeof pack.runtime_provides !== 'string' || !stableVersion.test(pack.runtime_provides)))
+    throw new Error(`Pack ${pack.id}: runtime_provides must be a stable Soot runtime version such as 0.22.0`);
+  if (pack.runtime_skills === undefined) return;
+  const skills = pack.runtime_skills;
+  if (pack.stability === 'deprecated' || !skills || typeof skills !== 'object' || Array.isArray(skills) ||
+      !Object.keys(skills).length || Object.keys(skills).length > 16 ||
+      Object.entries(skills).some(([name, version]) => !identifier.test(name) || typeof version !== 'string' || !stableVersion.test(version)))
+    throw new Error(`Pack ${pack.id}: runtime_skills maps a skill to the Soot runtime version that provides it, on a pack that is not deprecated`);
+}
+
+// The skills runtime_skills names are the pack's own.
+export function checkRuntimeSkills(pack, directory) {
+  for (const name of Object.keys(pack.runtime_skills ?? {})) {
+    try { readFileSync(join(directory, 'skills', name, 'SKILL.md')); }
+    catch { throw new Error(`Pack ${pack.id}: runtime_skills names ${name}, which it has no skills/${name}/SKILL.md for`); }
+  }
 }
 
 // A retired pack was merged into a listed one. Installers move every grant of

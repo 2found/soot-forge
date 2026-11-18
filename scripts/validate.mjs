@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { readCatalog, materialize, run, checkRetiredTarget } from './catalog.mjs';
+import { readCatalog, materialize, run, checkRetiredTarget, checkRuntimeSkills } from './catalog.mjs';
 import { archivePack } from './archive.mjs';
 import { readGroups } from './groups.mjs';
 import { readFileSync } from 'node:fs';
@@ -28,7 +28,9 @@ try {
   for (const pack of catalog.packs) {
     if (pack.source.kind === 'github' && !remote) continue;
     const directory = await materialize(pack, root, work);
-    if (soot) {
+    checkRuntimeSkills(pack, directory);
+    // A runtime that provides a deprecated pack refuses to install it; only an older runtime would.
+    if (soot && pack.stability !== 'deprecated') {
       const archive = join(work, `${pack.id}.tar.gz`);
       await archivePack(directory, archive, pack.id);
       const deployment = join(work, 'deployment.json');
@@ -38,7 +40,7 @@ try {
       await writeFile(deployment, JSON.stringify({ packs_dir: `library-${pack.id}`, soots: ['soots/probe/soot.json'] }));
       await run(soot, ['add', archive, '--config', deployment, '--json'], { timeout: 30_000, maxBuffer: 1024 * 1024 });
     }
-    console.log(`Validated ${pack.id} (${pack.source.kind})`);
+    console.log(`Validated ${pack.id} (${pack.source.kind})${pack.stability === 'deprecated' ? `, deprecated: ships with the Soot runtime ≥ ${pack.runtime_provides}` : ''}`);
   }
   for (const entry of catalog.retired ?? []) {
     // The loop above materialized every pack it checked; an unchecked external target is skipped with it.

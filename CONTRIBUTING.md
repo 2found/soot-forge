@@ -56,6 +56,24 @@ release the commit belongs to; the repository must have a tag `v<version>` at
 exactly that commit, which CI checks. The 2build entry in `catalog.json` is a real example.
 The installer uses `https://github.com/owner/repo/tree/<commit>/packs/my-pack`.
 
+## A pack that moved into the Soot runtime
+
+What explains or operates a Soot runtime feature ships with the runtime, so it
+cannot drift from the binary; business and domain knowledge stays here. When a
+pack moves into the runtime, its entry stays listed and installable for older
+runtimes, marked:
+
+```json
+{ "id": "soot-nest", "name": "Nest (deprecated)", "stability": "deprecated", "runtime_provides": "0.22.0", … }
+```
+
+`runtime_provides` is the first Soot runtime version that carries the pack; that
+runtime ignores an installed copy, and a preset or team template that still lists
+it gets the runtime's. When only some skills move, the pack stays live and names
+them: `"runtime_skills": {"coordinator-mail": "0.22.0"}` (each must be one of its
+own skills). Do not change a deprecated copy: change the runtime's. Remove the
+entry once no supported runtime predates `runtime_provides`.
+
 ## Review and checks
 
 Run `node --test scripts/*.test.mjs` and `node scripts/validate.mjs` locally.

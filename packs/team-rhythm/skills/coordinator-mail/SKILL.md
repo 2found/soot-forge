@@ -55,6 +55,15 @@ their skill): hand it to that member **inside this run** with
 wait for the result, check it, and put it in your reply. The `team` tool
 (`op members`) lists who does what.
 
+- Hand it out early. When the mail or your brief already names the owner, call
+  `spawn_subagent` in your first turns; do not list tasks, read the goal or
+  tables, or load the member's tools first. The member's spend counts toward
+  your run's budget, so every turn before the hand-out is budget it cannot use.
+- Ask for the result, not for proof. Ask the member for its outcome and what
+  its tools answered; never for extra evidence it must look up (ids, quoted
+  text, screenshots). That lookup can run it out of tool calls after the work
+  is done, and its answer is already your evidence.
+
 - Do not end your turn on a teammate's mail. `task op send` to `soot:<id>`
   starts their run and returns at once; this run then ends, and the sender gets
   "it is with X" as the final reply. Send to a teammate only work the sender is

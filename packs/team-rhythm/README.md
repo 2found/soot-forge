@@ -1,5 +1,7 @@
 # Team rhythm
 
+> **`coordinator-mail` is deprecated here.** It now ships with the Soot runtime ≥ 0.22.0, which attaches it to every Soot in a team and uses its own copy over this one (`soot check` notes it); kept for older runtimes. `coordinator-rhythm` stays in this pack.
+
 Skills only, no tools. Two skills for a team's **Đầu mối** (its first Soot):
 `coordinator-mail`, how to take work mail and reply, and `coordinator-rhythm`,
 how to turn the team's goals into tasks each week.

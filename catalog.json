@@ -41,15 +41,17 @@
     },
     {
       "id": "soot",
-      "name": "Soot",
-      "description": "Everything about Soot: what it is, how Soots, packs, teams, schedules and approvals work, and a Soot editing its own settings.",
+      "name": "Soot (deprecated)",
+      "description": "Now ships with the Soot runtime ≥ 0.22.0; kept for older runtimes. Everything about Soot: what it is, how Soots, packs, teams, schedules and approvals work, and a Soot editing its own settings.",
       "tags": [
         "essentials"
       ],
       "source": {
         "kind": "bundled",
         "path": "packs/soot"
-      }
+      },
+      "stability": "deprecated",
+      "runtime_provides": "0.22.0"
     },
     {
       "id": "browser-use",
@@ -77,27 +79,31 @@
     },
     {
       "id": "soot-nest",
-      "name": "Nest",
-      "description": "Skills for working in Nest: make a screen of your own (a piece), use the side tool area, and write nest:// links to Soots, teams, screens and drafts.",
+      "name": "Nest (deprecated)",
+      "description": "Now ships with the Soot runtime ≥ 0.22.0; kept for older runtimes. Skills for working in Nest: make a screen of your own (a piece), use the side tool area, and write nest:// links to Soots, teams, screens and drafts.",
       "tags": [
         "essentials"
       ],
       "source": {
         "kind": "bundled",
         "path": "packs/soot-nest"
-      }
+      },
+      "stability": "deprecated",
+      "runtime_provides": "0.22.0"
     },
     {
       "id": "nest-lead",
-      "name": "Nest lead",
-      "description": "The Lead's authority over this Nest: Soots, teams, schedules, approvals, data access, model tiers and updates, with the person approving what only they decide. Only the host's Lead may select it.",
+      "name": "Nest lead (deprecated)",
+      "description": "Now ships with the Soot runtime ≥ 0.22.0; kept for older runtimes. The Lead's authority over this Nest: Soots, teams, schedules, approvals, data access, model tiers and updates, with the person approving what only they decide. Only the host's Lead may select it.",
       "tags": [
         "essentials"
       ],
       "source": {
         "kind": "bundled",
         "path": "packs/nest-lead"
-      }
+      },
+      "stability": "deprecated",
+      "runtime_provides": "0.22.0"
     },
     {
       "id": "cs-console",
@@ -254,13 +260,16 @@
     {
       "id": "team-rhythm",
       "name": "Team rhythm",
-      "description": "How a team's Đầu mối runs the team: take work mail and reply well, and turn the team's goals into tasks each week (Monday commitments, a Friday check-in, an end-of-cycle review). Skills only; tied to no company or product.",
+      "description": "How a team's Đầu mối runs the team: take work mail and reply well, and turn the team's goals into tasks each week (Monday commitments, a Friday check-in, an end-of-cycle review). Skills only. Its coordinator-mail skill ships with the Soot runtime ≥ 0.22.0; kept for older runtimes.",
       "tags": [
         "essentials"
       ],
       "source": {
         "kind": "bundled",
         "path": "packs/team-rhythm"
+      },
+      "runtime_skills": {
+        "coordinator-mail": "0.22.0"
       }
     },
     {

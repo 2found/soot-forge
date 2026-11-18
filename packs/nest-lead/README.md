@@ -1,5 +1,7 @@
 # Nest lead
 
+> **Deprecated.** This pack now ships with the Soot runtime ≥ 0.22.0 (`builtin/corepacks/nest-lead/` in 2found/2agent); kept for older runtimes. A runtime from 0.22.0 on ignores an installed `packs/nest-lead/` folder and uses its own copy, and `soot check` notes the leftover. Change the runtime's copy; this one is frozen and removed in a later Forge release.
+
 The Lead's pack for Nest. It gives the Lead, the person's own assistant (in
 no team), two tools, `manage` and
 `manage_gated`, that run `soot manage` to change the host's Soots, schedules,
