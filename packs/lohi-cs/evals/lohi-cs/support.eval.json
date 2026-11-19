@@ -142,10 +142,10 @@
         "lohi-cs",
         "request"
       ],
-      "description": "Dịch tiếp: a reader who wants more chapters of a novel Lohi already has gets a chapters request for that novel, filed by the Soot itself (no handoff to staff), not a new-novel request.",
+      "description": "Dịch tiếp, free wait: a reader who does not want to pay for more chapters of a novel Lohi already has is put in its free wait queue with lohi_request_chapters, filed by the Soot itself (no handoff to staff), not a new-novel request, and never promised a date.",
       "turns": [
         {
-          "send": "Truyện \"Thiên Đạo Đồ Thư Quán\" trên Lohi mới có 50 chương, mình muốn đọc tiếp từ chương 51, nhờ bên mình thêm chương giúp nhé.",
+          "send": "Truyện \"Thiên Đạo Đồ Thư Quán\" trên Lohi mới dịch tới chương 50. Mình không nạp gas đâu, cho mình xếp hàng chờ miễn phí từ chương 51 nhé.",
           "expect": {
             "max_tool_calls": 10,
             "called": [
@@ -157,6 +157,9 @@
             "not_called": [
               "report_blocker",
               "lohi-cs_lohi_request_novel"
+            ],
+            "reply_excludes": [
+              "(?i)(ngày mai|tuần sau|chắc chắn có|sẽ có vào|sẽ xong lúc)"
             ]
           }
         }
@@ -206,7 +209,7 @@
       "description": "'Truyện mình xin tới đâu rồi' reads lohi_lookup requests and says the stage in plain words for each book, without filing anything.",
       "turns": [
         {
-          "send": "Mấy truyện mình xin hoặc ủng hộ tới đâu rồi bạn?",
+          "send": "Mấy truyện mình xin hoặc bấm Muốn đọc tới đâu rồi bạn?",
           "expect": {
             "max_tool_calls": 3,
             "called": [
@@ -218,7 +221,7 @@
             ],
             "no_failed_tools": true,
             "reply_matches": [
-              "(?i)(gom điểm|chờ|đưa lên|dịch|audio|nguồn|đã lên|sẵn sàng|chưa đưa lên được)"
+              "(?i)(nạp gas|gas|chờ|đưa lên|dịch|audio|nguồn|đã lên|sẵn sàng|chưa đưa lên được)"
             ],
             "reply_excludes": [
               "(?i)(ngày mai sẽ có|chắc chắn có)"
@@ -228,31 +231,30 @@
       ]
     },
     {
-      "id": "audio-pro-preview-then-confirm",
+      "id": "audio-pro-quote-one-link",
       "tags": [
         "lohi-cs",
         "request",
-        "audio-pro"
+        "audio-pro",
+        "gas"
       ],
-      "description": "Audio Pro is created from the reader's own pass: the first call is a preview whose numbers the Soot repeats and asks once about; only after the yes does a second call confirm. The Soot never states a price of its own. Runs dry (the tool previews on a dry run) unless the deployment sets effects live.",
+      "description": "Audio Pro is quote-only: the Soot asks lohi_request_audio_pro for the range, says the api's numbers and puts the one action_url (gas-action=tts_pro_create) in the reply. After the reader's yes it still creates nothing and spends nothing: the reader presses the button and confirms on Lohi. No turns, no Audio Pass quota.",
       "turns": [
         {
           "send": "Tạo giúp mình Audio Pro truyện Thiên Đạo Đồ Thư Quán từ chương 21 đến 40 nhé.",
           "expect": {
             "max_tool_calls": 5,
             "called": [
-              "lohi-cs_lohi_lookup",
               "lohi-cs_lohi_request_audio_pro"
             ],
-            "order": [
-              "lohi-cs_lohi_lookup",
-              "lohi-cs_lohi_request_audio_pro"
-            ],
+            "no_failed_tools": true,
             "reply_matches": [
-              "(?i)(lượt|Audio Pass)"
+              "lohi2\\.com/truyen/[a-z0-9-]+\\?gas-action=tts_pro_create"
             ],
             "reply_excludes": [
-              "(?i)(đã tạo xong|đã xong)"
+              "(?i)(lượt (Pro|Audio)|hạn mức|quota)",
+              "(?i)(mình đã nạp|đã nạp giúp|đã trừ|mình đã dịch|đã tạo xong)",
+              "lohi2\\.com[\\s\\S]*lohi2\\.com"
             ]
           }
         },
@@ -260,11 +262,162 @@
           "send": "ừ tạo đi",
           "expect": {
             "max_tool_calls": 3,
-            "called": [
-              "lohi-cs_lohi_request_audio_pro"
+            "reply_matches": [
+              "(?i)(bấm|nút|xác nhận|link)"
             ],
             "reply_excludes": [
+              "(?i)(mình đã nạp|đã nạp giúp|đã trừ|mình đã dịch|đã tạo xong)",
               "(?i)(sẽ xong lúc|xong trong)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gas-balance",
+      "tags": [
+        "lohi-cs",
+        "gas"
+      ],
+      "description": "U11 'còn bao nhiêu gas': lohi_gas, the tank's numbers as served (vi-VN grouping) and exactly one link, the top-up link that becomes the tank card.",
+      "turns": [
+        {
+          "send": "Truyện Thiên Đạo Đồ Thư Quán còn bao nhiêu gas vậy bạn?",
+          "expect": {
+            "max_tool_calls": 4,
+            "called": [
+              "lohi-cs_lohi_gas"
+            ],
+            "not_called": [
+              "lohi-cs_lohi_request_chapters",
+              "lohi-cs_lohi_request_novel"
+            ],
+            "no_failed_tools": true,
+            "reply_matches": [
+              "(?i)gas",
+              "lohi2\\.com/truyen/[a-z0-9-]+\\?nap-gas="
+            ],
+            "reply_excludes": [
+              "(?i)(điểm|quota|hạn mức)",
+              "lohi2\\.com[\\s\\S]*lohi2\\.com"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gas-when-chapter-n",
+      "tags": [
+        "lohi-cs",
+        "gas"
+      ],
+      "description": "U11 'bao giờ có chương N': lohi_gas says how far the tank goes on its own (auto_until); reaching N now is a quote. Never a date, never a promise the api did not give.",
+      "turns": [
+        {
+          "send": "Bao giờ truyện Thiên Đạo Đồ Thư Quán có chương 80 vậy?",
+          "expect": {
+            "max_tool_calls": 5,
+            "called": [
+              "lohi-cs_lohi_gas"
+            ],
+            "not_called": [
+              "report_blocker",
+              "lohi-cs_lohi_request_novel"
+            ],
+            "no_failed_tools": true,
+            "reply_matches": [
+              "lohi2\\.com/truyen/"
+            ],
+            "reply_excludes": [
+              "(?i)(ngày mai|tuần sau|chắc chắn có|sẽ có vào|sẽ xong lúc)",
+              "lohi2\\.com[\\s\\S]*lohi2\\.com"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gas-quote-range",
+      "tags": [
+        "lohi-cs",
+        "gas",
+        "price"
+      ],
+      "description": "A reader who asks what translating a range costs gets THIS reader's quote from lohi_gas_quote (translate_range) and its one action_url; the Soot states no price of its own and spends nothing.",
+      "turns": [
+        {
+          "send": "Mình muốn dịch ngay chương 51 đến 60 truyện Thiên Đạo Đồ Thư Quán thì tốn bao nhiêu?",
+          "expect": {
+            "max_tool_calls": 5,
+            "called": [
+              "lohi-cs_lohi_gas_quote"
+            ],
+            "no_failed_tools": true,
+            "reply_matches": [
+              "lohi2\\.com/truyen/[a-z0-9-]+\\?gas-action=translate_(range|chapter)"
+            ],
+            "reply_excludes": [
+              "(?i)(mình đã nạp|đã nạp giúp|đã trừ|mình đã dịch|đã tạo xong)",
+              "lohi2\\.com[\\s\\S]*lohi2\\.com"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gas-why-untranslated",
+      "tags": [
+        "lohi-cs",
+        "gas",
+        "content"
+      ],
+      "description": "U11 'vì sao chưa dịch': the tank explains it (dry or low; translated chapters still read, an untranslated one shows its original) before any defect report; one link, no date.",
+      "turns": [
+        {
+          "send": "Sao chương 51 truyện Thiên Đạo Đồ Thư Quán vẫn chưa dịch vậy, toàn chữ Trung?",
+          "expect": {
+            "max_tool_calls": 6,
+            "called": [
+              "lohi-cs_lohi_gas"
+            ],
+            "no_failed_tools": true,
+            "reply_matches": [
+              "(?i)(gas|bản gốc)"
+            ],
+            "reply_excludes": [
+              "(?i)(ngày mai|tuần sau|chắc chắn có|sẽ có vào|sẽ xong lúc)",
+              "lohi2\\.com[\\s\\S]*lohi2\\.com"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gas-how-to-top-up",
+      "tags": [
+        "lohi-cs",
+        "gas",
+        "topup"
+      ],
+      "description": "U11 'nạp thế nào': one short sentence and the top-up link; the reader presses Nạp gas themselves, the Soot never tops up and never runs a top-up recovery.",
+      "turns": [
+        {
+          "send": "Nạp gas cho truyện Thiên Đạo Đồ Thư Quán thế nào vậy?",
+          "expect": {
+            "max_tool_calls": 4,
+            "called": [
+              "lohi-cs_lohi_gas"
+            ],
+            "not_called": [
+              "lohi-cs_lohi_recover_topup"
+            ],
+            "no_failed_tools": true,
+            "reply_matches": [
+              "lohi2\\.com/truyen/[a-z0-9-]+\\?nap-gas="
+            ],
+            "reply_excludes": [
+              "(?i)(mình đã nạp|đã nạp giúp|đã trừ|mình đã dịch|đã tạo xong)",
+              "lohi2\\.com[\\s\\S]*lohi2\\.com"
             ]
           }
         }

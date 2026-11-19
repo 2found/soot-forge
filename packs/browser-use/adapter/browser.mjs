@@ -123,12 +123,11 @@ export function command(input) {
 }
 // steps runs several commands in one call (fill a form, then submit) instead
 // of one model turn each; every step passes the same check as args.
-export const MAX_STEPS=16;
+export const MAX_STEPS=32;
 export function commandSteps(input) {
   if(input.steps===undefined) return [command(input)];
   if(input.args!==undefined) throw new Error('Pass args or steps, not both');
   if(!Array.isArray(input.steps)||!input.steps.length||input.steps.length>MAX_STEPS) throw new Error(`steps takes 1 to ${MAX_STEPS} commands`);
-  let shots=0;
   const list=input.steps.map(args=>{
     // A viewport change between frames, as action resize does.
     if(Array.isArray(args)&&args[0]==='resize') {
@@ -137,16 +136,16 @@ export function commandSteps(input) {
       return ['resize',String(Number(args[1])),String(Number(args[2]))];
     }
     if(!Array.isArray(args)||args[0]!=='screenshot') return command({action:'command',args,step:true});
-    // A frame between steps: written by the adapter like action screenshot, at most MAX_SHOTS a call.
+    // A frame between steps, written by the adapter like action screenshot.
+    // Frames are not counted: the host bounds what one result shows by size,
+    // and the model's provider decides how many pictures it reads.
     const full=args[2]==='--full';
     if(args.length>(full?3:2)) throw new Error('A screenshot step is ["screenshot", "<path>.png"] or ["screenshot", "<path>.png", "--full"]');
     screenshotSpec({path:args[1]});
-    if(++shots>MAX_SHOTS) throw new Error(`steps takes at most ${MAX_SHOTS} screenshots`);
     return args;
   });
   return list;
 }
-export const MAX_SHOTS=4;
 // agent-browser reports its daemon's launch bookkeeping on every result; the
 // model never acts on it and it rides every later turn, so it is dropped.
 export function compact(data) {

@@ -1,77 +1,44 @@
 ---
 name: audio-pro
-description: "Audio Pro: create it for the reader from their own pass (preview, one confirm, then confirm with the previewed effect), and answer quota and plan questions."
+description: "Audio Pro: tell the reader what Pro voice for a range costs from the api quote and give them the one link to create it; answer plan-gas questions. Never creates audio, never spends."
 ---
-# Audio Pro — create it, and read the quota
+# Audio Pro — a quote and one link
 
-Read this skill before answering "tạo audio pro chương 21 đến 40", "sao audio pro
-dừng", "còn bao nhiêu lượt", "mình đang ở gói nào". Reply in the reader's language
-(usually Vietnamese). Audio Pro is one of the three asks on a book (Dịch tiếp, Audio
-Pro, Báo lỗi); `novel-request` has the whole model and the hub link.
+Read this skill before answering "tạo audio pro chương 21 đến 40", "sao chưa có giọng
+Pro", "gói của mình còn bao nhiêu gas". Reply in the reader's language (usually
+Vietnamese). Audio Pro is one of the three asks on a book (Dịch tiếp, Audio Pro, Báo
+lỗi); `novel-request` has the whole model and the hub link.
 
-## Create Audio Pro (`lohi_request_audio_pro`)
+## Goals
 
-The reader's own Audio Pass pays, from its quota. You never pay, quote or compute a
-price. The api serves every number.
+- **The reader knows the cost of their range, from the api.** Pro voice is made with
+  gas: the novel's tank pays first, then the plan's gas, then the reader's LT. Ask
+  `lohi_request_audio_pro {novelSlug, fromChapter, toChapter?}` (or `lohi_gas_quote`
+  `kind: tts_pro_create`). Say `quote.range` and what the reader would pay
+  (`quote.price` LT, or that the tank or plan covers it, from `funding[].label`) in one
+  sentence.
+- **One button, pressed by the reader.** Put `action_url` in the reply. Their thread shows
+  a quote card; the button re-quotes and the reader confirms on Lohi. You never create
+  audio, never confirm, never spend: there is no tool for it.
+- **No dead end.** `reason` `nothing_to_do` = these chapters already have Pro voice;
+  `in_flight` = it is being made; a blocked reason about untranslated chapters = translate
+  first (`lohi_gas_quote translate_range`, see `novel-request`); `insufficient_balance` =
+  the wallet is short by `shortfall` LT and the card offers buying LT. Say it as served.
+- **Listening is not counted.** Anyone with listening rights (a premium plan, or the
+  chapter opened with LT) hears Pro voice once it exists. Never speak of turns or a
+  monthly Pro allowance.
 
-1. Find the novel: `lohi_lookup find_novel` → `slug` (the novel must already be on Lohi).
-   Get the range from the reader ("chương 21 đến 40"); a start alone is fine.
-2. Preview: `lohi_request_audio_pro {"step":"preview","novelSlug","fromChapter","toChapter"?}`.
-   Nothing is reserved. Read the answer and tell the reader exactly its numbers:
-   `range` (from–to, `chapters`), `cost` (turns of their quota), `quota.remaining` and
-   `quota.remainingAfter`, `breakdown.voiced` (already has Pro audio, free).
-3. If `canSubmit` is false, say the `blocker.label` and stop: `quota_empty` → used up
-   until `quota.resetsAt`; `quota_exceeded` → a shorter range (`limits.maxTo`);
-   `nothing_to_do` → every chapter already has or is waiting for Pro audio;
-   `convert_only` → these chapters cannot get Pro audio yet; `no_chapters` → not
-   published yet.
-4. Ask ONCE: "Tạo Audio Pro chương 21–40, tốn 20 lượt, bạn còn 40 lượt sau đó. Mình tạo
-   nhé?" Only a clear yes goes on (a reader who already gave the exact range and said to
-   create it has said yes: still show the preview numbers in the reply).
-5. Confirm: `lohi_request_audio_pro {"step":"confirm", "novelSlug","fromChapter",
-   "toChapter": range.to, "expect": {"from": range.from, "to": range.to, "cost": cost}}`.
-   Copy `expect` from the preview exactly; never compute it. `voiceId` is not needed.
-6. Say it is queued, how many chapters (`accepted`), and that the reader is told when it
-   is ready; the hub link for the book. Never a time.
+## Plan questions (read-only)
 
-Answers:
-
-- `preview_changed` → the numbers moved since the preview: tell the reader the new
-  numbers (the answer holds a new `preview`) and ask again. Do not confirm on the old yes.
-- `cannot_submit` → read its `blocker` as in step 3.
-- `voice_pro_pass_required` (402) → Audio Pro needs an Audio Pass. Say the reader has none
-  and read what the pass is and costs from `lohi_lookup features` (`q: "audio pro"`);
-  never quote from memory, never offer another way to pay.
-- `no_voice_available` → handoff with the novel and range.
-- `principal_required` → the reader must sign in to Lohi.
-
-Pro audio for the ranges that Dịch tiếp translates follows the same path: ask after the
-chapters exist.
-
-## Quota and plan questions (read-only)
-
-Call `lohi_lookup`, scoped to the signed-in reader by the host; never pass a userId:
-
-- `{"kind":"subscription"}` — active plan, status, period end, TTS and Audio Pro quota
-  counters (used, monthly limit).
-- `{"kind":"profile"}` — tier and wallet balance for context; a failed renewal → also
-  `wallet` / `orders`.
-
-Reading the result:
-
-- `used` ≥ `limit` → the quota is used up and resets at the period end; give that date if
-  present. Never promise extra quota.
-- `used` < `limit` but the feature fails → quota is not the cause; run `tts-triage` on the
-  failing chapter.
-- Two counters exist: Pro audio LISTENING chapters and Pro audio REQUEST count. Quote each
-  from the lookup, do not merge them.
-- No active subscription → say which plan gates it from `lohi_lookup features`; handoff if
-  the reader disputes amounts. Billing complaints → `topup-triage`.
+`lohi_lookup {"kind":"subscription"}` (scoped by the host; never pass a userId): active
+plan, period end, `premiumGas {monthly, remaining, resetsAt}` (the plan's gas this
+month) and `dailyFree` (the free voice's daily chapters). Prices and what each plan gives:
+`lohi_lookup features` (`plans[].gasMonthly`). A feature that fails while the plan is
+active is not a plan problem: run `tts-triage`. Billing complaints → `topup-triage`.
 
 ## Never
 
-- Never quote a price, quota or cost from memory, the collection or your own sum; only the
-  preview and `features` say them.
-- Never grant, extend or "fix" quota; there is no tool for it.
-- Never confirm without a preview and a yes from this conversation, and never with an
-  `expect` you did not copy from the preview.
+- Never quote a price or a gas number from memory or your own sum; only the quote and
+  `features` say them.
+- Never promise when the audio is ready; the reader is told when it is.
+- Never grant gas or "fix" a plan; there is no tool for it.

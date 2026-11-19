@@ -63,7 +63,7 @@ soot group inspect groups.d/marketing-team
 Source templates use zero placeholder digests; only the release build pins the
 real pack archives. Never install the source JSON as a verified release.
 
-**Why it stays three roles.** A group schedule is a text task for the team's Đầu mối and cannot carry tool-only chains, so this template keeps the classic radar / writer / editor flow and only leans its budgets (Radar on lite, Writer on flash). The job-split team (Ops, Writer, Analyst, Radar) is the [company team](../company-team/README.md).
+**Why it stays three roles.** A group schedule is a text task for the team's Đầu mối and cannot carry tool-only chains, so this template keeps the classic radar / writer / editor flow and only leans its budgets (Radar on lite, Writer on flash). The job-split workspace (Ops, Writer, Analyst, Radar) is the [Lohi example](../../examples/lohi-marketing/workspace.lohi.json).
 
 For a team that lives in your own repository (git-reviewed, with product packs),
 start from [examples/marketing-team](../../examples/marketing-team/README.md).

@@ -1,19 +1,22 @@
 ---
 name: feature-guide
-description: "Hỏi về tính năng web/iOS/Android và gói thành viên: tra lookup features (giá, hạn mức, nền tảng, gói nào mở khóa), giải thích vì sao tính năng bị khóa."
+description: "Hỏi về tính năng web/iOS/Android và gói thành viên: tra lookup features (giá, gas, giới hạn, nền tảng, gói nào mở khóa), giải thích vì sao tính năng bị khóa."
 ---
 # Feature guide — tính năng, nền tảng và gói thành viên
 
 Đọc skill này khi khách hỏi "app có … không", "tính năng … ở đâu", "gói nào
-được …", "giá/hạn mức bao nhiêu", "sao iPhone không có …", "sao nút … bị khóa".
+được …", "giá bao nhiêu", "gói được bao nhiêu gas", "sao iPhone không có …", "sao nút … bị khóa".
 Trả lời theo ngôn ngữ của khách (thường là tiếng Việt).
 
 ## Quy tắc cứng
 
 1. **Luôn tra trước**: `lohi_lookup {"kind":"features","q":"<từ khóa khách dùng>"}`.
-   Không có `q` thì nhận cả bảng. Không nêu giá, hạn mức, số chương offline,
-   số lượt nghe hay tên gói từ trí nhớ — chỉ lấy từ kết quả (`plans`, `free`,
-   `costsLt`, `features`). Số liệu thay đổi theo catalog của hệ thống.
+   Không có `q` thì nhận cả bảng. Không nêu giá, số gas, số chương offline
+   hay tên gói từ trí nhớ — chỉ lấy từ kết quả (`plans` với `gasMonthly`, `free`,
+   `costsLt`, `gas`, `features`). Số liệu thay đổi theo catalog của hệ thống.
+   Khối `gas` cho biết: giá dịch một chương (`prices`), mỗi lần "Muốn đọc" góp bao
+   nhiêu gas theo gói (`wantGasByTier`), bình của truyện yêu cầu cần bao nhiêu gas
+   để Lohi tự đưa lên (`onboardThreshold`). 1 LT = 1 gas.
 2. **Tách ba nền tảng**: mỗi tính năng có `platforms.web|ios|android` =
    `yes|partial|no` và `platformNote`. Hỏi khách đang dùng nền tảng nào nếu
    chưa rõ; không suy từ nền tảng này sang nền tảng khác. iOS cố ý không có
@@ -37,8 +40,9 @@ nói thẳng là chưa thấy tính năng đó và chuyển nhân viên. Không 
 
 ## Quan hệ với skill khác
 
-- Khách hỏi về hạn mức ĐÃ DÙNG của chính họ (còn bao nhiêu lượt audio Pro) →
-  `audio-pro` (`subscription`), vì đó là dữ liệu tài khoản, không phải bảng
-  tính năng.
+- Khách hỏi gas của gói mình còn bao nhiêu → `audio-pro` (`subscription`,
+  `premiumGas`), vì đó là dữ liệu tài khoản, không phải bảng tính năng.
+- Khách hỏi gas của một truyện, bao giờ có chương, vì sao chưa dịch → `novel-request`
+  § Gas (`lohi_gas`).
 - Khách muốn nâng gói/nạp tiền gặp lỗi → `topup-triage`.
 - Khách hỏi nên đọc truyện gì → `novel-recommend`.

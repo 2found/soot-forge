@@ -145,15 +145,5 @@
       "audience": "internal",
       "replaced_by": "insight"
     }
-  ],
-  "companies": [
-    {
-      "id": "company-team",
-      "name": "Company (teams with contracts)",
-      "description": "Internal and experimental: teams with data contracts between them, compiled to the runtime's company template. Not offered publicly.",
-      "source": "groups/company-team/company.source.json",
-      "stability": "experimental",
-      "audience": "internal"
-    }
   ]
 }

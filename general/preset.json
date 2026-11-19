@@ -1,7 +1,6 @@
 {
   "version": 1,
   "install": [
-    "2build",
     "soot",
     "vibe_cf",
     "browser-use",
@@ -29,9 +28,6 @@
     "nest-lead": {
       "github_latest": "2found/soot-forge"
     },
-    "2build": {
-      "github_latest": "2found/soot-forge"
-    },
     "office": {
       "github_latest": "2found/soot-forge"
     },
@@ -51,7 +47,6 @@
   "packs": [
     "common",
     "toolbox",
-    "2build",
     "browser-use",
     "research",
     "writing:read",

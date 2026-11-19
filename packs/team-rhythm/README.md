@@ -39,8 +39,8 @@ how to turn the team's goals into tasks each week.
   unchanged.
 
 It names no company, product or metric. A company brings its numbers in its own
-packs and its cadence in `company.goals.cadence`
-(see [company-team](../../groups/company-team/README.md)). Select it on the
+packs and its cadence in `workspace.goals.cadence`
+(see [workspace.lohi.json](../../examples/lohi-marketing/workspace.lohi.json)). Select it on the
 Đầu mối of any team; every team template except `society-sim` already does. `coordinator-rhythm` needs a runtime with the `goal` tool (Soot
 0.14.0+); `coordinator-mail` needs work mail (`task` op `send`) and reads best
 with the `team` and `company` tools (2agent 234e7c31 and later). A member that

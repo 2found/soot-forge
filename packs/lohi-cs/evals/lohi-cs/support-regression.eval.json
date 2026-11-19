@@ -11,7 +11,7 @@
       ],
       "turns": [
         {
-          "send": "gói Audio Pass giá bao nhiêu vậy, được nghe bao nhiêu chương pro?",
+          "send": "gói Audio Pass giá bao nhiêu vậy, mỗi tháng được bao nhiêu gas?",
           "expect": {
             "called": [
               "lohi-cs_lohi_lookup"
@@ -19,8 +19,10 @@
             "max_tool_calls": 3,
             "no_failed_tools": true,
             "reply_includes": [
-              "290",
-              "300"
+              "290"
+            ],
+            "reply_matches": [
+              "2[.,]?950"
             ]
           }
         }
@@ -130,19 +132,19 @@
         "test",
         "policy"
       ],
-      "description": "Dịch tiếp is filed by the Soot (lohi_request_chapters), never handed to staff and never a date.",
+      "description": "Dịch tiếp is answered by the Soot from the novel's gas (lohi_gas, a quote or a free wait), never handed to staff and never a date.",
       "turns": [
         {
           "send": "truyện Thiên Đạo Đồ Thư Quán trên Lohi mới có 50 chương, dịch tiếp từ chương 51 giúp mình với",
           "expect": {
             "called": [
-              "lohi-cs_lohi_request_chapters"
+              "lohi-cs_lohi_gas"
             ],
             "not_called": [
               "report_blocker",
               "lohi-cs_lohi_request_novel"
             ],
-            "max_tool_calls": 4,
+            "max_tool_calls": 6,
             "no_failed_tools": true,
             "reply_excludes": [
               "(?i)(bàn giao|chuyển cho (nhân viên|đội))",
@@ -201,23 +203,26 @@
       ]
     },
     {
-      "id": "pro-quota-used",
+      "id": "gas-dry-still-reads",
       "tags": [
         "val"
       ],
+      "description": "A tank that ran dry stops new translation only: translated chapters read normally and untranslated ones show their original. Answered from lohi_gas with the top-up link; not a content defect.",
       "turns": [
         {
-          "send": "sao nghe giọng pro giờ lại bị trừ linh thạch, mình có gói mà",
+          "send": "truyện Thiên Đạo Đồ Thư Quán hết gas rồi thì mình còn đọc được không?",
           "expect": {
             "called": [
-              "lohi-cs_lohi_lookup"
+              "lohi-cs_lohi_gas"
             ],
             "not_called": [
               "lohi-cs_lohi_report_content_issue"
             ],
             "max_tool_calls": 4,
-            "reply_includes": [
-              "300"
+            "no_failed_tools": true,
+            "reply_matches": [
+              "(?i)(đọc|bản gốc)",
+              "lohi2\\.com/truyen/[a-z0-9-]+\\?nap-gas="
             ]
           }
         }

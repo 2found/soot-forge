@@ -1,7 +1,0 @@
-{
-  "cs-server": {
-    "url": "https://soot.lohi2.com",
-    "token_env": "CS_RUNTIME_TOKEN",
-    "group": "support"
-  }
-}

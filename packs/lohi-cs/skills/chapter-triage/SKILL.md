@@ -21,9 +21,11 @@ gives a TITLE or a lohi2.com LINK, almost never an id. Resolve it yourself.
    - Several matches → ask which title (quote the titles back), do not guess.
    - None → ask for the novel link once. If it is not on Lohi, offer a novel
      request (`novel-request`). Never invent an id.
-2. **Pick the window.** The complained chapter ±10; for "từ chương X trở đi"
-   use X..X+60; for a stated range use it (max 200 chapters per call). If the
-   reader gave no number at all, ask for one before scanning.
+2. **Locate it yourself.** Scan where the reader is, from what they said: a
+   chapter (±10), "từ chương X trở đi" (X..X+60), a range, or a volume. A volume
+   is 100 chapters, as the app shows them: Quyển N = chương (N−1)×100+1 to N×100.
+   Max 200 chapters per call. Ask only when nothing in the conversation locates
+   it.
 3. **Scan.** `lohi_lookup {"kind":"content_health","novelId":"…","from":N,"to":M}`.
    You get `runs` (contiguous defects) and `items` (per chapter). Never claim a
    chapter is broken or fine before this call.
@@ -89,8 +91,12 @@ Answers:
 - `empty` / `placeholder` — the chapter row exists but has no text (the
   crawler's "Chương này chưa có nội dung." counts). A content-side gap, not the
   reader's fault. Apologise, report it, name the chapter numbers.
-- `untranslated` — the body is still Chinese. Report it; say the translation is
-  being queued by the team, never when it lands.
+- `untranslated` — the body is still Chinese. First ask `lohi_gas` for the novel: a
+  chapter at or after `reach.first_waiting` is waiting for gas, not broken. The reader
+  can read its original ("Xem bản gốc") now; say why it waits (the tank's numbers) and
+  give `top_up_url`, as `novel-request` § Gas. Report it only when the tank says it is
+  not waiting (an edited novel, or a chapter before `first_waiting`); never say when
+  it lands.
 - `missing` — no row at all below the newest published chapter: the number is
   skipped (11 → 13). Report it.
 - `unpublished` — the chapter exists but is still being prepared (raw /
@@ -115,8 +121,9 @@ Answers:
 ## Beyond the defect
 
 The chapter is fine but the novel stops at `maxPublished` and the reader wants more:
-that is Dịch tiếp (`lohi_request_chapters`, see `novel-request`), not a defect and not a
-handoff. A reader who wants Pro audio for chapters that exist: `audio-pro`.
+that is Dịch tiếp (`novel-request` § Gas: the tank's numbers, a quote, or a free wait with
+`lohi_request_chapters`), not a defect and not a handoff. A reader who wants Pro audio for
+chapters that exist: `audio-pro`.
 
 ## Never
 

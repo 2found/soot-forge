@@ -53,7 +53,7 @@
           },
           "steps": {
             "type": "array",
-            "maxItems": 16,
+            "maxItems": 32,
             "items": {
               "type": "array",
               "items": {
@@ -62,7 +62,7 @@
               "minItems": 1,
               "maxItems": 32
             },
-            "description": "command: several commands run in order in one call, in place of args, e.g. [[\"fill\",\"@e2\",\"Lan\"],[\"check\",\"@e6\"],[\"click\",\"@e9\"]]. It stops at the first that fails and says which; the ones before it stay applied. A step [\"screenshot\",\"tmp/f1.png\"] (add \"--full\" for the whole page) saves a frame and shows it in the result, up to 4 a call: open, wait, screenshot, eval the next state, screenshot. A step [\"resize\",\"900\",\"700\"] changes the viewport between frames."
+            "description": "command: several commands run in order in one call, in place of args, e.g. [[\"fill\",\"@e2\",\"Lan\"],[\"check\",\"@e6\"],[\"click\",\"@e9\"]]. It stops at the first that fails and says which; the ones before it stay applied. A step [\"screenshot\",\"tmp/f1.png\"] (add \"--full\" for the whole page) saves a frame and shows it in the result: open, screenshot, eval the next state, screenshot, as many states as the check needs. A step [\"resize\",\"900\",\"700\"] changes the viewport between frames."
           },
           "url": {
             "type": "string",

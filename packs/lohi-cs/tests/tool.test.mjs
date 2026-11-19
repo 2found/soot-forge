@@ -404,63 +404,136 @@ test('send-source posts the link as the bound reader; a bad id or link is refuse
   } finally { answer = () => [200, { ok: true }]; }
 });
 
-test('audio-pro: preview reserves nothing; confirm sends the previewed effect and never a price', async () => {
-  const preview = { range: { from: 21, to: 40, chapters: 20 }, breakdown: { fresh: 18, boosted: 2, voiced: 0, ineligible: 0 }, cost: 20, quota: { remaining: 60, remainingAfter: 40 }, canSubmit: true, blocker: null };
-  answer = () => [200, preview];
+test('audio-pro is a quote: one GET for tts_pro_create, never a POST, never a price', async () => {
+  const quote = { novel: { slug: 'kiem-lai', title: 'Kiếm Lai' }, kind: 'tts_pro_create', quote: { price: 0, priceGas: 100, range: { from: 21, to: 40, chapters: 20 } }, action_url: 'https://lohi2.com/truyen/kiem-lai?gas-action=tts_pro_create&from=21&to=40' };
+  answer = () => [200, quote];
   try {
-    const p = await run('audio-pro', { novelSlug: 'kiem-lai', fromChapter: 21 });
-    assert.equal(p.code, 0, p.stdout + p.stderr);
-    assert.equal(seen[0].url, '/agent/support/audio-pro/preview');
-    assert.deepEqual(seen[0].body, { conversationId: 'conv-1', novel_slug: 'kiem-lai', from_chapter: 21 });
-    assert.equal(JSON.parse(p.stdout).cost, 20);
+    const r = await run('audio-pro', { novelSlug: 'kiem-lai', fromChapter: 21, toChapter: 40, step: 'confirm', expect: { from: 21, to: 40, cost: 20 }, price: 1 });
+    assert.equal(r.code, 0, r.stdout + r.stderr);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].method, 'GET');
+    assert.equal(seen[0].url, '/agent/support/gas/kiem-lai/quote?kind=tts_pro_create&from=21&to=40');
+    assert.equal(seen[0].headers['x-soot-principal'], TOKEN);
+    assert.equal(JSON.parse(r.stdout).action_url, quote.action_url);
 
-    answer = () => [202, { id: 'v1', accepted: 20 }];
-    const c = await run('audio-pro', { step: 'confirm', novelSlug: 'kiem-lai', fromChapter: 21, toChapter: 40, expect: { from: 21, to: 40, cost: 20 }, price: 1 });
-    assert.equal(c.code, 0, c.stdout + c.stderr);
-    assert.equal(seen[0].url, '/agent/support/audio-pro/confirm');
-    assert.deepEqual(seen[0].body.expect, { from: 21, to: 40, cost: 20 });
-    assert.equal(seen[0].body.to_chapter, 40);
-    assert.equal('price' in seen[0].body, false);
+    const one = await run('audio-pro', { novelSlug: 'https://lohi2.com/truyen/kiem-lai/chuong-21', fromChapter: 21 });
+    assert.equal(one.code, 0, one.stdout + one.stderr);
+    assert.equal(seen[0].url, '/agent/support/gas/kiem-lai/quote?kind=tts_pro_create&chapter=21', 'slug from a link, one chapter');
 
-    const noExpect = await run('audio-pro', { step: 'confirm', novelSlug: 'kiem-lai', fromChapter: 21, toChapter: 40 });
-    assert.equal(noExpect.code, 1);
-    assert.equal(seen.length, 0, 'a confirm without the previewed effect sends nothing');
-
-    // the dry-run hook previews, whatever the step, and renders the card text
-    answer = () => [200, preview];
-    const pre = await run('audio-pro', { step: 'confirm', novelSlug: 'kiem-lai', fromChapter: 21, toChapter: 40, expect: { from: 21, to: 40, cost: 20 } }, { hook: 'tool.preflight' });
-    assert.equal(pre.code, 0, pre.stdout + pre.stderr);
-    assert.equal(seen[0].url, '/agent/support/audio-pro/preview');
-    assert.match(JSON.parse(pre.stdout).preview, /chương 21–40/);
-
-    // no Audio Pass / changed effect: the api's refusal is passed on, exit 1
-    answer = () => [409, { error: 'preview_changed', preview }];
-    const changed = await run('audio-pro', { step: 'confirm', novelSlug: 'kiem-lai', fromChapter: 21, toChapter: 40, expect: { from: 21, to: 40, cost: 19 } });
-    assert.equal(changed.code, 1);
-    assert.equal(JSON.parse(changed.stdout).error, 'preview_changed');
-    answer = () => [402, { error: 'voice_pro_pass_required' }];
-    const nopass = await run('audio-pro', { novelSlug: 'kiem-lai', fromChapter: 21 });
-    assert.equal(nopass.code, 1);
-    assert.equal(JSON.parse(nopass.stdout).error, 'voice_pro_pass_required');
+    // the api's refusal is passed on as it said it
+    answer = () => [422, { error: 'not_eligible', message: 'Truyện này dịch trong Studio' }];
+    const refused = await run('audio-pro', { novelSlug: 'kiem-lai', fromChapter: 21 });
+    assert.equal(refused.code, 1);
+    assert.equal(JSON.parse(refused.stdout).error, 'not_eligible');
 
     const anon = await run('audio-pro', { novelSlug: 'kiem-lai', fromChapter: 21 }, { token: '' });
     assert.equal(JSON.parse(anon.stdout).code, 'principal_required');
     assert.equal(seen.length, 0);
-    const badSlug = await run('audio-pro', { novelSlug: '../x', fromChapter: 1 });
-    assert.equal(badSlug.code, 1);
+    for (const bad of [{ novelSlug: '../x', fromChapter: 1 }, { novelSlug: 'kiem-lai' }, { novelSlug: 'kiem-lai', fromChapter: 40, toChapter: 21 }]) {
+      const r2 = await run('audio-pro', bad);
+      assert.equal(r2.code, 1, JSON.stringify(bad));
+      assert.equal(seen.length, 0, `${JSON.stringify(bad)}: nothing sent`);
+    }
+    // the dry-run hook is no longer answered: nothing is ever held for approval
+    const pre = await run('audio-pro', { novelSlug: 'kiem-lai', fromChapter: 21 }, { hook: 'tool.preflight' });
+    assert.equal(pre.code, 1);
     assert.equal(seen.length, 0);
   } finally { answer = () => [200, { ok: true }]; }
 });
 
-test('pack.json: the new tools are declared, audio-pro answers the preflight hook, and no tool takes a price', async () => {
+test('gas reads the novel tank (principal optional); a named amount also asks for the top-up link', async () => {
+  const card = { novel: { slug: 'kiem-lai', title: 'Kiếm Lai' }, gas: { phase: 'running', balanceLt: 340, chaptersLeft: 12, chaptersWaiting: 330 }, reach: { first_waiting: 1201, auto_until: 1212, last_chapter: 1530 }, top_up_url: 'https://lohi2.com/truyen/kiem-lai?nap-gas=1' };
+  answer = (req) => req.url.includes('/top-up-link') ? [200, { url: 'https://lohi2.com/truyen/kiem-lai?nap-gas=500', gas: 500 }] : [200, card];
+  try {
+    const r = await run('gas', { novel: 'kiem-lai' });
+    assert.equal(r.code, 0, r.stdout + r.stderr);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].method, 'GET');
+    assert.equal(seen[0].url, '/agent/support/gas/kiem-lai');
+    assert.equal(seen[0].headers['x-soot-principal'], TOKEN);
+    assert.deepEqual(JSON.parse(r.stdout), card);
+
+    const anon = await run('gas', { novel: 'https://lohi2.com/truyen/kiem-lai?ref=x' }, { token: '' });
+    assert.equal(anon.code, 0, 'the tank reads without a reader');
+    assert.equal(seen[0].url, '/agent/support/gas/kiem-lai');
+    assert.equal(seen[0].headers['x-soot-principal'], undefined);
+
+    const amt = await run('gas', { novel: 'kiem-lai', gas: 500 });
+    assert.equal(amt.code, 0, amt.stdout + amt.stderr);
+    assert.deepEqual(seen.map(x => x.url), ['/agent/support/gas/kiem-lai', '/agent/support/gas/kiem-lai/top-up-link?gas=500']);
+    const out = JSON.parse(amt.stdout);
+    assert.equal(out.top_up_url, 'https://lohi2.com/truyen/kiem-lai?nap-gas=500');
+    assert.equal(out.top_up_gas, 500);
+    assert.equal(out.gas.balanceLt, 340);
+    assert.ok(seen.every(x => x.method === 'GET'), 'gas never writes');
+
+    answer = (req) => req.url.includes('/top-up-link') ? [409, { error: 'top_up_refused', message: 'Truyện đã dừng, không dịch thêm' }] : [200, card];
+    const refused = await run('gas', { novel: 'kiem-lai', gas: 100 });
+    assert.equal(refused.code, 1);
+    assert.equal(JSON.parse(refused.stdout).error, 'top_up_refused');
+
+    for (const bad of [{ novel: '../me/wallet' }, { novel: 'https://example.com/books/1' }, { novel: 'kiem-lai', gas: 0 }, { novel: 'kiem-lai', gas: '1;rm' }, {}]) {
+      const b = await run('gas', bad);
+      assert.equal(b.code, 1, JSON.stringify(bad));
+      assert.equal(seen.length, 0, `${JSON.stringify(bad)}: nothing sent`);
+    }
+  } finally { answer = () => [200, { ok: true }]; }
+});
+
+test('gas-quote asks the api for THIS reader\'s quote (principal header, kind + range in the query, no price)', async () => {
+  answer = () => [200, { kind: 'translate_range', quote: { price: 120, priceGas: 1500 }, action_url: 'https://lohi2.com/truyen/kiem-lai?gas-action=translate_range&from=1201&to=1250' }];
+  try {
+    const r = await run('gas-quote', { novel: 'kiem-lai', kind: 'translate_range', from: 1201, to: 1250, price: 1 });
+    assert.equal(r.code, 0, r.stdout + r.stderr);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].method, 'GET');
+    assert.equal(seen[0].url, '/agent/support/gas/kiem-lai/quote?kind=translate_range&from=1201&to=1250');
+    assert.equal(seen[0].headers['x-soot-principal'], TOKEN);
+    assert.equal(seen[0].body, null);
+    assert.match(JSON.parse(r.stdout).action_url, /gas-action=translate_range/);
+
+    await run('gas-quote', { novel: 'https://lohi2.com/truyen/kiem-lai/chuong-1201', kind: 'translate_chapter', chapter: 1201 });
+    assert.equal(seen[0].url, '/agent/support/gas/kiem-lai/quote?kind=translate_chapter&chapter=1201');
+
+    // legacy scope: no principal, the bound conversation names the reader
+    await run('gas-quote', { novel: 'kiem-lai', kind: 'translate_chapter', chapter: 3 }, { token: '', env: { LOHI_CS_LEGACY_SCOPE: '1' } });
+    assert.equal(seen[0].url, '/agent/support/gas/kiem-lai/quote?kind=translate_chapter&chapter=3&conversationId=conv-1');
+
+    const anon = await run('gas-quote', { novel: 'kiem-lai', kind: 'translate_chapter', chapter: 3 }, { token: '' });
+    assert.equal(JSON.parse(anon.stdout).code, 'principal_required');
+    assert.equal(seen.length, 0);
+    for (const bad of [
+      { novel: 'kiem-lai', kind: 'unlock', chapter: 3 },
+      { novel: 'kiem-lai', kind: 'translate_range', from: 50, to: 10 },
+      { novel: 'kiem-lai', kind: 'translate_range', from: 1.5, to: 10 },
+      { novel: 'kiem-lai', kind: 'translate_range' },
+      { novel: 'Kiếm Lai', kind: 'translate_chapter', chapter: 3 },
+    ]) {
+      const b = await run('gas-quote', bad);
+      assert.equal(b.code, 1, JSON.stringify(bad));
+      assert.equal(seen.length, 0, `${JSON.stringify(bad)}: nothing sent`);
+    }
+  } finally { answer = () => [200, { ok: true }]; }
+});
+
+test('pack.json: the gas tools are read-only, audio-pro is a quote with no preflight, and no tool takes a price', async () => {
   const pack = JSON.parse(await readFile(new URL('../pack.json', import.meta.url), 'utf8'));
   const tools = Object.fromEntries(pack.tools.map(t => [t.name, t]));
   assert.deepEqual(tools.lohi_send_source.run.args, ['send-source']);
+  assert.deepEqual(tools.lohi_gas.run.args, ['gas']);
+  assert.deepEqual(tools.lohi_gas_quote.run.args, ['gas-quote']);
   assert.deepEqual(tools.lohi_request_audio_pro.run.args, ['audio-pro']);
-  assert.equal(tools.lohi_request_audio_pro.run.preflight, true);
-  assert.equal(tools.lohi_request_audio_pro.run.approval, undefined, 'the reader\'s yes is the approval, not a staff one');
-  assert.deepEqual(tools.lohi_request_audio_pro.parameters.properties.expect.required, ['from', 'to', 'cost']);
+  for (const name of ['lohi_gas', 'lohi_gas_quote', 'lohi_request_audio_pro']) {
+    assert.equal(tools[name].run.mode, 'read', `${name} is read-only`);
+    assert.equal(tools[name].run.preflight, undefined, `${name} holds nothing for approval`);
+    assert.equal(tools[name].run.approval, undefined);
+  }
+  assert.deepEqual(Object.keys(tools.lohi_request_audio_pro.parameters.properties).sort(), ['fromChapter', 'novelSlug', 'toChapter']);
   for (const t of pack.tools) assert.ok(!('price' in (t.parameters.properties ?? {})), `${t.name} takes no price`);
+  // the reader's words: no points, no Pro quota in any tool prompt
+  for (const t of pack.tools) assert.doesNotMatch(t.description, /quota|điểm|hạn mức|score\/threshold/i, t.name);
   assert.match(tools.lohi_request_novel.description, /hub_url/);
   assert.match(tools.lohi_lookup.description, /needs_you/);
+  assert.match(tools.lohi_gas.description, /top_up_url/);
+  assert.match(tools.lohi_gas_quote.description, /action_url/);
 });

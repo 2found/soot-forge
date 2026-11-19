@@ -1,6 +1,7 @@
 ---
 name: writing_export
 description: "Export a finished draft artifact or bounded text to a sanitized MD or HTML artifact."
+requires-tools: [writing_export]
 ---
 Use `writing_export` to turn a finished draft into a stored Markdown or
 HTML artifact. The tool validates, sanitizes and stores — it does not

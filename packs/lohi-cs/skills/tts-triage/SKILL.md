@@ -30,7 +30,9 @@ First separate TEXT problems from AUDIO problems.
 - `on_empty_text` — audio exists but the chapter text is empty/placeholder.
   This is a TEXT defect first: report `kind:"content"` (see `chapter-triage`).
   Tell the reader the text is fetched again first and the audio is redone after.
-  A `kind:"audio"` report here is turned into the same text re-fetch by the api.
+  The goal is that every chapter the reader is hit by gets fixed: a report must
+  not leave one out. When the report's answer names `uncovered` chapters, their
+  text is broken: report them as `kind:"content"` too.
 - `placeholder` — the stored audio narrated only the placeholder sentence while
   the text is now fine: stale audio. Report `kind:"audio"`.
 - `too_short` — audio far shorter than the chapter text (e.g. 2 seconds for a
@@ -42,11 +44,10 @@ First separate TEXT problems from AUDIO problems.
 - `ttsJob.status` `pending` → still being generated ("đang tạo", no ETA).
   `failed` / `undelivered` → name the `failureCode` to the team on handoff; do
   not quote `failureReason` to the reader.
-- Chapter has no Pro audio at all: Pro audio is made on request and the team
-  works through requests; chapters with more requests are prioritised. Say
-  that, never an ETA. The reader can have it made from their own Audio Pass: that is
-  the `audio-pro` skill (`lohi_request_audio_pro`, preview then one confirm), not a
-  handoff.
+- Chapter has no Pro audio at all: Pro voice is made with gas when someone asks
+  for it. Say that, never an ETA. The reader can have it made themselves: the
+  `audio-pro` skill gives the quote and its one link (`lohi_request_audio_pro`); you
+  never create it. Not a handoff.
 
 ## Reporting
 

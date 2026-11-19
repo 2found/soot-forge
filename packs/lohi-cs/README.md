@@ -65,7 +65,7 @@ novel is one confirm and one call (`lohi_request_novel`, answer with `hub_url`).
 
 Named only, bound on the host: `LOHI_CS` (read key), `LOHI_CS_EXEC` (the key of
 the two approval-held routes) and `LOHI_CS_BASE` (api base URL). No key or
-token is in this pack. Prices, plans and quotas come only from
+token is in this pack. Prices, plans and gas numbers come only from
 `lohi_lookup` `features` (X9), never from a skill or the collection.
 
 ## Knowledge

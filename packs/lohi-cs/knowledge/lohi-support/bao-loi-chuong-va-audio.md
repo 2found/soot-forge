@@ -19,11 +19,11 @@ hoặc audio không phát.
 
 ## Không phải lỗi
 
-- Chương vượt số chương đã đăng: truyện chưa dịch tới đó. Bạn đọc có thể xin Dịch tiếp, Soot
-  gửi yêu cầu giúp. Không cần báo lỗi.
-- Chương chưa có audio Pro: audio Pro được tạo theo yêu cầu. Bạn đọc có Audio Pass thì nhờ
-  Soot tạo, Soot cho xem trước số chương và số lượt dùng rồi hỏi một lần. Chưa có Audio Pass
-  thì Soot nói gói này cần Audio Pass, xem chi tiết ở phần gói và tính năng.
+- Chương vượt số chương đã đăng, hoặc chương chưa dịch (còn tiếng Trung) nằm sau chỗ bình
+  gas dịch tới: chương đang chờ gas, không phải lỗi. Bạn đọc vẫn mở được bản gốc ("Xem bản
+  gốc"). Soot cho biết bình gas còn bao nhiêu và gửi link "Nạp gas"; không cần báo lỗi.
+- Chương chưa có audio Pro: giọng Pro được làm bằng gas khi có người yêu cầu. Soot báo giá
+  khoảng chương và gửi một link, bạn đọc tự bấm và xác nhận trên Lohi.
 - Audio nghe bình thường nhưng giọng chưa hay: đó là góp ý, Soot ghi lại và chuyển cho đội.
 
 Không hứa thời gian sửa xong, không hứa thời gian audio xong.

@@ -1,0 +1,60 @@
+{
+  "api_version": "soot/workspace-template/v1",
+  "id": "lohi",
+  "name": "Lohi",
+  "description": "The Lohi marketing workspace as teams: insight (lead), marketing, financial, op-catalog and the support team remote on the CS server. Adopt ids keep the live Mac Nest's names; add \"lohi-video\" to marketing's members on a --video workspace.",
+  "workspace": {
+    "name": "Lohi",
+    "lead_team": "insight",
+    "daily_token_ceiling": 5000000
+  },
+  "remotes": {
+    "cs": {
+      "url": "https://soot.lohi2.com",
+      "token_env": "CS_RUNTIME_TOKEN"
+    }
+  },
+  "teams": [
+    {
+      "id": "insight",
+      "name": "Insight",
+      "members": [
+        "lohi-analyst",
+        "lohi-radar"
+      ]
+    },
+    {
+      "id": "marketing",
+      "name": "Growth",
+      "members": [
+        "lohi-writer",
+        "lohi-editor"
+      ],
+      "entries": [
+        "lohi-editor"
+      ]
+    },
+    {
+      "id": "financial",
+      "name": "Finance",
+      "members": [
+        "lohi-finance"
+      ]
+    },
+    {
+      "id": "op-catalog",
+      "name": "Operations",
+      "members": [
+        "lohi-catalog"
+      ]
+    },
+    {
+      "id": "cs",
+      "name": "Support",
+      "remote": {
+        "runtime": "cs",
+        "group": "support"
+      }
+    }
+  ]
+}

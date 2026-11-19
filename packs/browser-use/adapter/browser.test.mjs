@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {identity,command,validateInput,commandSteps,compact,MAX_STEPS,MAX_SHOTS,localReopen,clearCache} from './browser.mjs';
+import {identity,command,validateInput,commandSteps,compact,MAX_STEPS,localReopen,clearCache} from './browser.mjs';
 const call={api_version:'soot/v1',hook:'tool.call',soot:'fixture',operation:'browser-use_view',event:{source:'conversation',subject:'conversation-1'}};
 test('host conversation selects stable isolated profile and daemon',()=>{
  const a=identity(call,'/nest/packs.d/browser-use');
@@ -273,7 +273,11 @@ test('screenshot steps capture frames between commands, checked and bounded',()=
   assert.deepEqual(list[1],['screenshot','tmp/f0.png']);
   assert.throws(()=>commandSteps({action:'command',steps:[['screenshot','/etc/x.png']]}),/relative/);
   assert.throws(()=>commandSteps({action:'command',steps:[['screenshot','tmp/a.png','--other']]}),/screenshot step/);
-  assert.throws(()=>commandSteps({action:'command',steps:Array.from({length:MAX_SHOTS+1},(_,i)=>['screenshot',`tmp/${i}.png`])}),/at most/);
+  // Ten states and the moments between them in one call: frames are not counted, only steps.
+  const states=[['open','http://127.0.0.1:8000/']];
+  for(let i=0;i<10;i++) states.push(['eval',`setTime(${i})`],['screenshot',`tmp/s${i}.png`]);
+  assert.equal(commandSteps({action:'command',steps:states}).filter(s=>s[0]==='screenshot').length,10);
+  assert.throws(()=>commandSteps({action:'command',steps:Array.from({length:MAX_STEPS+1},(_,i)=>['screenshot',`tmp/${i}.png`])}),/1 to 32 commands/);
   // A viewport change between frames; a bad size or an unknown verb says what is allowed.
   assert.deepEqual(commandSteps({action:'command',steps:[['screenshot','tmp/a.png'],['resize','900','700'],['screenshot','tmp/b.png']]})[1],['resize','900','700']);
   assert.throws(()=>commandSteps({action:'command',steps:[['resize','9000','700']]}),/Invalid width/);

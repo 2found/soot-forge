@@ -1,6 +1,7 @@
 ---
 name: micro-fish-analyze
 description: "Turn a simulation tally into a decision report with evidence, segment differences and caveats."
+requires-tools: [micro-fish_tally, micro-fish_brief, micro-fish_profile]
 ---
 # Analyse and report
 

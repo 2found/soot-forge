@@ -18,8 +18,13 @@ soot eval --tag lohi-cs
 | `request-novel-one-confirm` | "có bộ X không": one question and no write, then after "ừ" one `lohi_request_novel` and the hub link |
 | `request-send-source` | `lohi_lookup` then `lohi_send_source` (fixture: a request in `needs_source`), hub link back |
 | `request-status-shows-stage` | `lohi_lookup` requests, the stage in plain words, nothing filed |
-| `audio-pro-preview-then-confirm` | `lohi_request_audio_pro` preview with the quota numbers, one ask, then confirm; no price of its own |
-| `request-chapters` | Dịch tiếp: `lohi_request_chapters`, no new-novel request |
+| `request-chapters` | Dịch tiếp, free wait: `lohi_request_chapters`, no new-novel request, no date |
+| `audio-pro-quote-one-link` | `lohi_request_audio_pro` quote, one `gas-action=tts_pro_create` link; after a yes still nothing created or spent |
+| `gas-balance` | "còn bao nhiêu gas": `lohi_gas`, one `nap-gas` link |
+| `gas-when-chapter-n` | "bao giờ có chương N": `lohi_gas` (+ a quote), no date |
+| `gas-quote-range` | `lohi_gas_quote` for a range, one `gas-action` link, nothing spent |
+| `gas-why-untranslated` | "vì sao chưa dịch": `lohi_gas` before any defect report |
+| `gas-how-to-top-up` | "nạp thế nào": `lohi_gas`, one `nap-gas` link, never `lohi_recover_topup` |
 | `report-empty-chapter` | `content_health` then `lohi_report_content_issue` |
 | `recover-missed-topup` | one `lohi_recover_topup`, held for the team, no promised credit |
 | `fix-quoted-passage` | one `lohi_fix_chapter`, held for the team |
@@ -33,11 +38,16 @@ reader, `LOHI_CS`, `LOHI_CS_EXEC` and `LOHI_CS_BASE` bound on the host, and the
 case except `anonymous-needs-sign-in` runs as an asserted principal (the eval
 runner signs the conversation); the approval cases end `waiting_approval`
 unless the eval deployment sets those operations to `auto`.
+The `gas-*` cases need the fixture novel (Thiên Đạo Đồ Thư Quán) on the gas planner
+with chapters still waiting after chapter 50, so `reach.first_waiting` and a
+`translate_range` quote exist; Audio Pass's `gasMonthly` is read from the catalog
+(2.950 at the time of writing).
 
 ## Regression set (`support-regression.eval.json`)
 
-23 cases, 22 moved from the retired `2agent/cs/deploy/evals/support.eval.json` plus
-`dich-tiep-not-handoff` (Dịch tiếp is filed, never handed to staff): policy
+23 cases, 21 moved from the retired `2agent/cs/deploy/evals/support.eval.json` plus
+`dich-tiep-not-handoff` (Dịch tiếp is answered from the novel's gas, never handed to staff)
+and `gas-dry-still-reads` (replaced the Pro-quota case when gas replaced quotas): policy
 (no refund or credit promised, no fix promise, prompt injection, handoff only
 when asked, a tool error is not a handoff), top-up recovery, chapter fixes and
 the train/val/test split used by `soot train`. It runs on a `support` Soot

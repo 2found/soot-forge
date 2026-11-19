@@ -6,7 +6,7 @@ import { safePath, RUNTIME_PACKS } from './catalog.mjs';
 
 export async function readGroups(root) {
   const catalog = JSON.parse(await readFile(join(root, 'groups.json'), 'utf8'));
-  if (catalog.version !== 1 || catalog.repository !== '2found/soot-forge' || !Array.isArray(catalog.groups) || catalog.groups.length > 64 || Object.keys(catalog).some(k => !['version', 'repository', 'groups', 'companies'].includes(k))) throw new Error('Invalid group catalog');
+  if (catalog.version !== 1 || catalog.repository !== '2found/soot-forge' || !Array.isArray(catalog.groups) || catalog.groups.length > 64 || Object.keys(catalog).some(k => !['version', 'repository', 'groups'].includes(k))) throw new Error('Invalid group catalog');
   const ids = new Set();
   for (const entry of catalog.groups) {
     if (!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(entry.id) || ids.has(entry.id) || Object.keys(entry).some(k => !['id','name','description','source','stability','audience','parts','entries','replaced_by'].includes(k)) || !stability(entry)) throw new Error('Invalid group entry'); ids.add(entry.id);
@@ -22,14 +22,6 @@ export async function readGroups(root) {
   for (const entry of catalog.groups) {
     if ((entry.stability === 'deprecated') !== (entry.replaced_by !== undefined)) throw new Error(`Group ${entry.id}: replaced_by goes with stability deprecated`);
     if (entry.replaced_by !== undefined && !catalog.groups.some(g => g.id === entry.replaced_by && g.stability !== 'deprecated')) throw new Error(`Group ${entry.id} is replaced by an unknown or deprecated group`);
-  }
-  // Company templates are listed apart from groups, and a catalog entry never offers one publicly: they are internal and
-  // experimental until a founder decides otherwise (Soot's branding has no "company OS").
-  for (const c of catalog.companies ?? []) {
-    if (!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(c.id) || ids.has(c.id) || Object.keys(c).some(k => !['id','name','description','source','stability','audience'].includes(k)) || c.source !== `groups/${c.id}/company.source.json` || c.stability !== 'experimental' || c.audience !== 'internal') throw new Error('Invalid company entry');
-    const template = JSON.parse(await readFile(join(root, safePath(c.source)), 'utf8'));
-    if (template.id !== c.id) throw new Error('Company catalog metadata mismatch');
-    ids.add(c.id);
   }
   return catalog;
 }

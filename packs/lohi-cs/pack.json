@@ -28,7 +28,7 @@
     {
       "name": "lohi_lookup",
       "title": "Xem tài khoản của bạn đọc",
-      "description": "Read the chatting user's own account data (profile, wallet, top-ups, orders, subscription+quota, requests, chapter unlocks), reading suggestions (kind=recommend: REQUIRED first step whenever the reader asks what to read or for novel suggestions — returns their taste + ranked unread candidates; optional like (\"giống X\")/about (story content)/q/genres/tags/status; never name novels from memory) or public novel/chapter data. Broken content / audio reports: kind=find_novel (q = the title or the lohi2.com link the reader gave → novelId, slug, chapterFromLink) plus closed[] = Lohi titles that exist but are closed, each with state restricted (đã bị thiên phạt, not public) or archived (không còn trên Lohi), viewer_can_open (this signed-in reader can still open it: the reader-page gate, e.g. a paid plan or reading history; archived never) and url (only when viewer_can_open). viewer_can_open true → say they can still read/listen and give url; false → say the state, never suggest a plan or payment opens it. Never 'Lohi chưa có', never a request for it; offer similar novels with recommend like=<title> (its `like` then carries state, viewer_can_open, url) THEN kind=content_health (novelId + from[/to] chapter numbers → per-chapter body verdict missing|empty|placeholder|untranslated|unpublished and Pro-audio verdict on_empty_text|placeholder|too_short, plus defect runs). REQUIRED before saying anything about a chapter or audio being broken. The reader's own data is scoped by the host's signed principal, never by a parameter; an anonymous conversation gets principal_required. Wrong character names: kind=name_check (novelId + name[+other] + from[/to], max 60 chapters) → how many chapters use each spelling and whether the Book Bible knows either; counts only, no chapter text. Product/plan questions: kind=features (optional q) → plans with CURRENT price/quota/offline limit, free limits, LT costs, and per feature web/iOS/Android availability + which plans unlock it. REQUIRED before answering any 'tính năng X có không / gói nào / giá / hạn mức / trên iOS có không' question; never quote prices or quotas from memory. Requests (kind=requests): every book the reader requested OR backed, one row each with type (novel|chapters|quality), role (requester|supporter), stage (scoring|queued|needs_source|onboarding|translating|quality|audio|released|failed|…), stage_cause, progress {done,total} (translating/audio only, else null), needs_you (true = the reader's own source link is awaited), hub_url (the book's one page: /yeu-cau/<id>, or /truyen/<slug> once released). Say the stage and one number from this row, never a guess. Rankings (kind=ranks, board = novels (BXH Lohi: lượt đọc, period week|month) | yuepiao (BXH nguyệt phiếu Qidian, optional month YYYY-MM, rows are chart positions 1 = top) | donors | editors | hoa-than | voice-pro): REQUIRED before naming what ranks where. Each novel row carries state open (url to read) | restricted (bị thiên phạt; viewer_can_open + url when this reader can still open it) | archived (không còn trên Lohi) | missing (Lohi chưa có: offer a novel request); `boards` lists every board. Story characters and lore (any question about who a character is, their realm/role/relations, or what a place/sect/item/technique is): ONE call, no find_novel first. kind=characters (novel = the title, lohi2.com link or novelId as the reader gave it, or omit it when they did not name one: the api then searches the novels this reader read most recently; q = the name as the reader wrote it, typos/no accents fine; no q = the novel's best-loved characters) → novel, novel_source (asked | recent_reading: say which novel you mean), viewer_progress and each character's public sheet (role, personality, appearance, summary, realm, faction, first_chapter, url); or kind=wiki (same novel, q required) → matching wiki entries (type, text, first_chapter). REQUIRED before describing a character or story term; never from memory. Rows with spoiler_for_viewer=true are past this reader's chapter: say there are spoilers and ask before telling them. Empty with searched[] = not in the novels they read: ask which novel. 409 novel_ambiguous → choices[] (title, url): ask which one. 400 novel_required / 404 no_recent_reading → ask which novel. 404 novel_not_found → that title is not on Lohi. 403 novel_closed (title, state) → the title is closed to this reader.",
+      "description": "Read the chatting user's own account data (profile, wallet, top-ups, orders, subscription + the plan's monthly gas, requests, chapter unlocks), reading suggestions (kind=recommend: REQUIRED first step whenever the reader asks what to read or for novel suggestions — returns their taste + ranked unread candidates; optional like (\"giống X\")/about (story content)/q/genres/tags/status; never name novels from memory) or public novel/chapter data. Broken content / audio reports: kind=find_novel (q = the title or the lohi2.com link the reader gave → novelId, slug, chapterFromLink) plus closed[] = Lohi titles that exist but are closed, each with state restricted (đã bị thiên phạt, not public) or archived (không còn trên Lohi), viewer_can_open (this signed-in reader can still open it: the reader-page gate, e.g. a paid plan or reading history; archived never) and url (only when viewer_can_open). viewer_can_open true → say they can still read/listen and give url; false → say the state, never suggest a plan or payment opens it. Never 'Lohi chưa có', never a request for it; offer similar novels with recommend like=<title> (its `like` then carries state, viewer_can_open, url) THEN kind=content_health (novelId + from[/to] chapter numbers → per-chapter body verdict missing|empty|placeholder|untranslated|unpublished and Pro-audio verdict on_empty_text|placeholder|too_short, plus defect runs). REQUIRED before saying anything about a chapter or audio being broken. The reader's own data is scoped by the host's signed principal, never by a parameter; an anonymous conversation gets principal_required. Wrong character names: kind=name_check (novelId + name[+other] + from[/to], max 60 chapters) → how many chapters use each spelling and whether the Book Bible knows either; counts only, no chapter text. Product/plan questions: kind=features (optional q) → plans with CURRENT price, monthly gas (plans[].gasMonthly) and offline limit, free limits, LT costs, the gas block (price per chapter, gas a 'Muốn đọc' adds per plan, onboard threshold), and per feature web/iOS/Android availability + which plans unlock it. REQUIRED before answering any 'tính năng X có không / gói nào / giá / gas / trên iOS có không' question; never quote prices or gas numbers from memory. Requests (kind=requests): every book the reader requested OR backed, one row each with type (novel|chapters|quality), role (requester|supporter), stage (scoring|queued|needs_source|onboarding|translating|quality|audio|released|failed|…), stage_cause, progress {done,total} (translating/audio only, else null), needs_you (true = the reader's own source link is awaited), hub_url (the book's one page: /yeu-cau/<id>, or /truyen/<slug> once released). Say the stage and one number from this row, never a guess. Rankings (kind=ranks, board = novels (BXH Lohi: lượt đọc, period week|month) | yuepiao (BXH nguyệt phiếu Qidian, optional month YYYY-MM, rows are chart positions 1 = top) | donors | editors | hoa-than | voice-pro): REQUIRED before naming what ranks where. Each novel row carries state open (url to read) | restricted (bị thiên phạt; viewer_can_open + url when this reader can still open it) | archived (không còn trên Lohi) | missing (Lohi chưa có: offer a novel request); `boards` lists every board. Story characters and lore (any question about who a character is, their realm/role/relations, or what a place/sect/item/technique is): ONE call, no find_novel first. kind=characters (novel = the title, lohi2.com link or novelId as the reader gave it, or omit it when they did not name one: the api then searches the novels this reader read most recently; q = the name as the reader wrote it, typos/no accents fine; no q = the novel's best-loved characters) → novel, novel_source (asked | recent_reading: say which novel you mean), viewer_progress and each character's public sheet (role, personality, appearance, summary, realm, faction, first_chapter, url); or kind=wiki (same novel, q required) → matching wiki entries (type, text, first_chapter). REQUIRED before describing a character or story term; never from memory. Rows with spoiler_for_viewer=true are past this reader's chapter: say there are spoilers and ask before telling them. Empty with searched[] = not in the novels they read: ask which novel. 409 novel_ambiguous → choices[] (title, url): ask which one. 400 novel_required / 404 no_recent_reading → ask which novel. 404 novel_not_found → that title is not on Lohi. 403 novel_closed (title, state) → the title is closed to this reader.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -204,7 +204,7 @@
     {
       "name": "lohi_subject_card",
       "title": "Thẻ bạn đọc cho bàn hỗ trợ",
-      "description": "The reader card for a support console (interface.subject, subject.v1): who the signed-in reader is — name, email, user id, plan, LT balance, join date and latest top-up, with the 'Mở trên Lohi' admin link. Run by the host for the conversation's principal; not for answering the reader (use lohi_lookup for balances, prices and quotas).",
+      "description": "The reader card for a support console (interface.subject, subject.v1): who the signed-in reader is — name, email, user id, plan, LT balance, join date and latest top-up, with the 'Mở trên Lohi' admin link. Run by the host for the conversation's principal; not for answering the reader (use lohi_lookup for balances and prices, lohi_gas for a novel's gas).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -234,7 +234,7 @@
     {
       "name": "lohi_request_novel",
       "title": "Gửi yêu cầu thêm truyện",
-      "description": "Create a novel request on behalf of the chatting user (type novel only, idempotent) after ONE confirm. The answer carries hub_url (the book's page: relative, prefix https://lohi2.com) plus score/threshold and stage; reply with that link. A duplicate returns the existing request (deduped:true) and the reader's vote is counted on it. If the reader pasted a source link, pass sourceUrl; a later link goes through lohi_send_source.",
+      "description": "Create a novel request on behalf of the chatting user (type novel only, idempotent) after ONE confirm. The answer carries hub_url (the book's page: relative, prefix https://lohi2.com) plus gas {current, target, remaining} (the request's own gas tank) and stage; reply with that link. A duplicate returns the existing request (deduped:true) and the reader's 'Muốn đọc' is counted on it. If the reader pasted a source link, pass sourceUrl; a later link goes through lohi_send_source.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -284,8 +284,8 @@
     },
     {
       "name": "lohi_request_chapters",
-      "title": "Gửi yêu cầu thêm chương / sửa chất lượng dịch",
-      "description": "Create a request on behalf of the chatting user for a novel ALREADY on Lohi (novelId from find_novel): type chapters = the reader wants more chapters or further translation, i.e. Dịch tiếp (optional fromChapter); type quality = a translation-quality complaint (description required: what is wrong and where). Idempotent. Several readers asking for more chapters of one novel join ONE request (merged:true). Use this, not report_blocker, for 'translate more' and 'more chapters'. Never promise a date; a quality complaint about names or a defect you can reproduce goes through lohi_report_content_issue first. The answer carries hub_url when the api serves one.",
+      "title": "Xin dịch tiếp (hàng chờ miễn phí) / báo chất lượng dịch",
+      "description": "For a novel ALREADY on Lohi (novelId from find_novel). type chapters = the reader wants more chapters translated (Dịch tiếp, optional fromChapter): it files the ask and gives the reader a FREE place in the novel's wait queue (no LT is taken); chapters come when the novel's gas tank pays for them, in queue order. Then answer from lohi_gas / lohi_gas_quote numbers and offer their one link; never promise a chapter or a date. type quality = a translation-quality complaint (description required: what is wrong and where); a defect you can reproduce goes through lohi_report_content_issue first. Idempotent; several readers asking for one novel join ONE request (merged:true). Use this, not report_blocker, for 'translate more' and 'more chapters'. The answer carries hub_url when the api serves one.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -342,6 +342,104 @@
       }
     },
     {
+      "name": "lohi_gas",
+      "title": "Xem bình gas của một truyện",
+      "description": "The gas tank of ONE novel on Lohi (1 LT = 1 gas; each novel has its own tank and Lohi translates its waiting chapters from it). REQUIRED before saying anything about a novel's gas, why chapters are not translated yet, when a chapter will come, or how to top up. Returns novel {slug,title}; gas {phase filling|running|low|dry|idle, balanceLt (gas in the tank), chaptersLeft (chapters the tank still pays for), chaptersWaiting (chapters not translated yet), queue {count, mine}, contributors, canTopUp, refusal {label}, topUp {presets, min, max}}; reach {first_waiting (first chapter not translated yet), auto_until (the last chapter Lohi translates on its own with this tank; null = nothing waits or the tank is dry), last_chapter}; top_up_url. Put top_up_url in the reply as the one button: the reader's thread shows it as the tank card with 'Nạp gas'. Optional gas = an amount the reader named (topUp.min..max): the link then opens on that amount (top_up_url, top_up_gas); 409 top_up_refused = the tank takes no gas now (say the served message). Read-only: you never top up and never spend. 404 novel_not_found = not on Lohi; 422 not_eligible = a Studio work (its gas is in Studio).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "novel": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "the novel's slug (lohi_lookup find_novel) or the lohi2.com link the reader gave"
+          },
+          "gas": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "optional: the top-up amount the reader named, in gas"
+          }
+        },
+        "required": [
+          "novel"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-api",
+        "args": [
+          "gas"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "15s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
+      "name": "lohi_gas_quote",
+      "title": "Báo giá dịch / giọng Pro cho bạn đọc",
+      "description": "What ONE gas action would cost THIS reader right now, computed by the api for the signed-in reader. Read-only: you never pay, never confirm. kind = translate_chapter (chapter) | translate_range (from,to; for 'muốn có tới chương N ngay': from = lohi_gas reach.first_waiting, to = N; the api clamps a long range and says so in quote.range) | tts_pro_create (Pro voice for chapters already translated). Returns novel, kind, quote {price (LT the reader's wallet would pay), priceGas (the whole price in gas), funding[] each with a served label (from the novel's tank, from the plan's gas, paid by the reader), reason {code}, shortfall, balance, canWait, range {from,to,chapters}}, resource, action_url, quoted_at. Say the range and the price in one sentence and put action_url in the reply: the reader's thread shows a quote card whose button re-quotes and lets the reader confirm. reason nothing_to_do = already translated/voiced; in_flight = already being done; insufficient_balance = the wallet is short by shortfall LT (the card offers buying LT); canWait = they can also wait for free (lohi_request_chapters). principal_required = the reader is not signed in.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "novel": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "the novel's slug (lohi_lookup find_novel) or the lohi2.com link the reader gave"
+          },
+          "kind": {
+            "enum": [
+              "translate_chapter",
+              "translate_range",
+              "tts_pro_create"
+            ]
+          },
+          "chapter": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999,
+            "description": "one chapter (translate_chapter, or a single Pro chapter)"
+          },
+          "from": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          }
+        },
+        "required": [
+          "novel",
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "tools/soot-lohi-api",
+        "args": [
+          "gas-quote"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "resource": "lohi_api",
+        "timeout": "15s",
+        "max_output_bytes": 16384,
+        "secret_env": {
+          "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
+          "LOHI_API_BASE": "{{cred:LOHI_CS_BASE}}"
+        }
+      }
+    },
+    {
       "name": "lohi_send_source",
       "title": "Gửi link nguồn cho truyện đã yêu cầu",
       "description": "Send a source link for a book the reader requested that is waiting on one (lohi_lookup requests row with needs_you:true, stage needs_source, or stage failed with stage_cause no_source; failed(no_source) is reopened). id = that row's id (from lohi_request_novel or lohi_lookup requests), url = the link the reader gave, exactly. Idempotent on (id, url). The api validates the link: invalid_source_url (details.reason) → ask for another link; wrong_stage → the book is not waiting for one; source_conflict → a different link is already waiting; not_open → the request is done or merged; forbidden → not the reader's book. Answer with hub_url. Never fetch or open the link yourself.",
@@ -383,21 +481,15 @@
     },
     {
       "name": "lohi_request_audio_pro",
-      "title": "Tạo Audio Pro bằng lượt của bạn đọc",
-      "description": "Ask for Pro-voice audio of a published range of a novel already on Lohi, paid from the reader's OWN Audio Pass quota (never LT, never a price from you). TWO calls: step=preview (default; nothing is reserved) returns range {from,to,chapters}, breakdown, cost (quota turns), quota {remaining, remainingAfter, resetsAt}, canSubmit and blocker {code,label} (quota_empty, quota_exceeded, nothing_to_do, convert_only, no_chapters); tell the reader exactly those numbers and ask once. step=confirm (only after the reader's yes) must copy expect {from: range.from, to: range.to, cost} from that preview and toChapter = range.to; the api re-previews and answers 409 preview_changed (with the new preview: show it, ask again) or cannot_submit. A reader without an Audio Pass gets an error (402 voice_pro_pass_required): say the pass is needed (lohi_lookup features for what it costs), never offer another way to pay. Returns 202 with accepted/boosted counts: say it was queued, never a time.",
+      "title": "Báo giá Audio Pro cho bạn đọc",
+      "description": "Pro-voice audio for chapters of a novel already on Lohi: a QUOTE only (the api's tts_pro_create quote for the signed-in reader). It never creates audio and never spends; the reader creates it from the link. Returns quote {price (LT their wallet would pay), priceGas, funding[] each with a served label (from the novel's gas tank, from the plan's gas, paid by the reader), reason {code, label}, shortfall, range {from,to,chapters}} and action_url. Say the range and the price from it in one sentence and put action_url in the reply: the reader's thread shows a quote card whose button re-quotes and lets them confirm. reason nothing_to_do = already voiced; in_flight = already being made; a blocked reason (e.g. chapters not translated yet) is said as served, then lohi_gas_quote translate_range.",
       "parameters": {
         "type": "object",
         "properties": {
-          "step": {
-            "enum": [
-              "preview",
-              "confirm"
-            ]
-          },
           "novelSlug": {
             "type": "string",
-            "maxLength": 100,
-            "description": "slug from lohi_lookup find_novel"
+            "maxLength": 300,
+            "description": "slug from lohi_lookup find_novel, or the lohi2.com link the reader gave"
           },
           "fromChapter": {
             "type": "integer",
@@ -408,36 +500,7 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 999999,
-            "description": "preview: optional, the api suggests one; confirm: required, = preview range.to"
-          },
-          "voiceId": {
-            "type": "string",
-            "maxLength": 100,
-            "description": "confirm only, optional; the api picks the first available voice"
-          },
-          "expect": {
-            "type": "object",
-            "properties": {
-              "from": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "to": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "cost": {
-                "type": "integer",
-                "minimum": 0
-              }
-            },
-            "required": [
-              "from",
-              "to",
-              "cost"
-            ],
-            "additionalProperties": false,
-            "description": "confirm only: the previewed effect, copied, never computed"
+            "description": "optional; omitted = only fromChapter. The api clamps a long range."
           }
         },
         "required": [
@@ -452,10 +515,9 @@
           "audio-pro"
         ],
         "stdin": "context",
-        "mode": "write",
-        "preflight": true,
+        "mode": "read",
         "resource": "lohi_api",
-        "timeout": "30s",
+        "timeout": "15s",
         "max_output_bytes": 16384,
         "secret_env": {
           "LOHI_CS_API_KEY": "{{cred:LOHI_CS}}",
@@ -466,7 +528,7 @@
     {
       "name": "lohi_report_content_issue",
       "title": "Báo lỗi nội dung cho đội hỗ trợ",
-      "description": "Ask the support team to fix a broken novel/chapter/audio defect that kind=content_health has ALREADY shown for this window. kind=content (chapters missing/empty/placeholder/untranslated) or kind=audio (Pro audio too short/placeholder on good text). The server re-checks the defect itself and refuses a healthy window; nothing is changed until a member approves it. Max 3 pending per conversation. Tell the reader it is queued for the team, never that it is fixed or when. kind=name (wrong character name): needs wrongName (+ rightName) and requires that kind=name_check showed the wrong spelling in the text; it opens a REVIEW for staff, who decide — never promise a rename. kind=text (a wrong passage in ONE chapter that the reader quoted or that you found): find = the passage copied verbatim from the chapter (the server refuses a quote that is not there), replace = the corrected text, short, expectOccurrences = how many places (1-3), summary = one line in your words (never the reader's message). A reviewer (Catalog Exec) checks it against the chapter and fixes it; the reader hears back from Lạc Phong when it is done.",
+      "description": "Ask the support team to fix a broken novel/chapter/audio defect that kind=content_health has ALREADY shown for this window. kind=content (chapters missing/empty/placeholder/untranslated) or kind=audio (Pro audio too short/placeholder on good text). The server re-checks the defect itself and refuses a healthy window; nothing is changed until a member approves it. Max 3 pending per conversation. Tell the reader it is queued for the team, never that it is fixed or when. An answer with `uncovered` names chapters whose TEXT is broken inside an audio report: file kind=content for that span too. kind=name (wrong character name): needs wrongName (+ rightName) and requires that kind=name_check showed the wrong spelling in the text; it opens a REVIEW for staff, who decide — never promise a rename. kind=text (a wrong passage in ONE chapter that the reader quoted or that you found): find = the passage copied verbatim from the chapter (the server refuses a quote that is not there), replace = the corrected text, short, expectOccurrences = how many places (1-3), summary = one line in your words (never the reader's message). A reviewer (Catalog Exec) checks it against the chapter and fixes it; the reader hears back from Lạc Phong when it is done.",
       "parameters": {
         "type": "object",
         "properties": {

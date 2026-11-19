@@ -62,7 +62,7 @@ and shown scaled to fit; to check a detail, `read` the same file with
 `region` [x, y, width, height] in its pixels. Several states (animation frames, before and after a click) come
 back in one call as `screenshot` steps: `"steps": [["open","http://127.0.0.1:8000/"],
 ["screenshot","tmp/f0.png"],["eval","setTime(0.5)"],["screenshot","tmp/f1.png"]]`,
-up to 4 frames. Opening or reloading a `127.0.0.1`/`localhost` page always
+up to 32 steps. Opening or reloading a `127.0.0.1`/`localhost` page always
 loads your latest files, never a cached copy. To check a page you built in the
 workspace, open it at the preview URL your working guidance names (the runtime
 serves your workspace there, read-only, nothing to start); without one, serve

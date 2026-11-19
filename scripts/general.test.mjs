@@ -41,7 +41,7 @@ test('the release integer grows with the Forge version and refuses what it canno
     assert.throws(() => deriveVersion(bad), /General/, String(bad));
 });
 
-test('General is the 2agent template, with 2build fetched from Forge', async () => {
+test('General is the 2agent template, every pack fetched from Forge and no 2build', async () => {
   // Digests of general/* (the General Soot definition).
   const sources = { 'soot.json': '45ca491b47f5eaebb7ef7af5fcebe39d919cd8ba389ba08b1a249d24b8e85017',
     'SOUL.md': 'afbce105c77a47dbb08a98ce7992a5d16c126bddbbdfe3e36c1a03846997c324',
@@ -49,16 +49,17 @@ test('General is the 2agent template, with 2build fetched from Forge', async () 
   for (const [name, digest] of Object.entries(sources)) assert.equal(sha256(await readFile(join(root, 'general', name))), digest, name);
   const { preset } = await readGeneral(root, catalog);
   assert.deepEqual(Object.values(preset.sources).map(source => source.github_latest), Array(preset.install.length).fill('2found/soot-forge'));
-  assert.deepEqual(preset.sources['2build'], { github_latest: '2found/soot-forge' });
-  assert.ok(preset.install.includes('2build') && preset.packs.includes('2build'));
+  // 2build's engineering workflows (autopilot, qa, browse via its own CLI) are
+  // not General's: 25 skills in every prompt's index, read for the wrong job.
+  assert.ok(!preset.install.includes('2build') && !preset.packs.includes('2build') && !preset.sources['2build']);
   assert.ok(preset.nest.packs.includes('nest-lead') && !preset.packs.includes('nest-lead'));
 });
 
 test('the creation preset must resolve from this repository alone', async () => {
   const { preset } = await readGeneral(root, catalog);
   const mutations = [
-    p => { p.sources['2build'].github_latest = '2found/2build'; },
-    p => { delete p.sources['2build']; },
+    p => { p.sources.soot.github_latest = '2found/2build'; },
+    p => { delete p.sources.soot; },
     p => { p.sources.extra = { github_latest: '2found/soot-forge' }; },
     p => { p.install.push('not-in-the-catalog'); },
     p => { p.packs.push('not-installed'); },

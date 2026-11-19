@@ -18,13 +18,18 @@
 #                                carries hub_url, the book's one place on Lohi
 #   soot-lohi-api send-source    POST /agent/support/requests/:id/source (a source link
 #                                for a book waiting on one; idempotent on id+url)
-#   soot-lohi-api audio-pro      step=preview POST /agent/support/audio-pro/preview, then
-#                                step=confirm POST /agent/support/audio-pro/confirm with
-#                                the previewed effect as expect{from,to,cost}; the
-#                                reader's own pass pays, no price is ever sent
+#   soot-lohi-api gas            GET /agent/support/gas/:slug (the novel's gas tank,
+#                                reach, top_up_url); with input.gas also GET
+#                                …/top-up-link?gas=N. Read-only.
+#   soot-lohi-api gas-quote      GET /agent/support/gas/:slug/quote?kind&from&to|chapter
+#                                (what the action costs THIS reader; action_url).
+#                                Read-only: the reader confirms on Lohi, never the Soot.
+#   soot-lohi-api audio-pro      the same quote with kind=tts_pro_create. Quote only:
+#                                it never creates audio and never spends
 #   soot-lohi-api request-chapters POST /agent/support/requests with type chapters|quality
-#                                (more chapters of a novel already on Lohi, or a
-#                                translation-quality complaint; idempotent)
+#                                (more chapters of a novel already on Lohi = a free
+#                                place in its wait queue, or a translation-quality
+#                                complaint; idempotent)
 #   soot-lohi-api report-content POST /agent/support/content-reports (idempotent;
 #                                the api re-verifies the defect, staff approve)
 #   soot-lohi-api recover-topup  POST /agent/support/topups/recover
@@ -70,7 +75,7 @@ hook=$(printf '%s\n' "$call" | jq -r '.hook')
 # Only the approval-gated tools know the preflight hook; any other tool must
 # never run its effect for one.
 case $hook:$cmd in
-  tool.preflight:recover-topup|tool.preflight:fix-chapter|tool.preflight:audio-pro|tool.call:*) ;;
+  tool.preflight:recover-topup|tool.preflight:fix-chapter|tool.call:*) ;;
   *) err '{"error":"bad_toolcall","detail":"preflight not supported"}' ;;
 esac
 # Product gate. One runtime may serve several projects (products), and this
@@ -175,6 +180,16 @@ req() {
   fi
   rm -f "$out"
   exit 1
+}
+
+# Reader words for a book's stage: every object with a `stage` code gains
+# `stage_words`, which the reply uses; the code itself never reaches a reader.
+STAGE_WORDS='def w: {scoring: "đang nạp gas", queued: "đủ gas, đang chờ tới lượt đưa lên", needs_source: "cần link nguồn từ bạn", onboarding: "đang đưa truyện lên Lohi", translating: "đang dịch", quality: "đang kiểm tra bản dịch", audio: "đang làm audio", released: "đã lên Lohi, đọc được rồi", failed: "chưa đưa lên được"}; walk(if type == "object" and (.stage | type) == "string" and w[.stage] != null then . + {stage_words: w[.stage]} else . end)'
+# Run a request helper ($@) and add stage_words (plus $EXTRA, a jq object) to its answer.
+worded() {
+  resp=$("$@") || { printf '%s\n' "$resp"; exit 1; }
+  extra=${EXTRA:-}; [ -n "$extra" ] || extra='{}'
+  printf '%s\n' "$resp" | jq -c "$STAGE_WORDS | . + $extra" 2>/dev/null || printf '%s\n' "$resp"
 }
 
 # exec helper for the approval-gated routes: $1=path $2=JSON body (dryRun is
@@ -294,6 +309,18 @@ me() {
   req GET "$base/agent/support/lookup/users/$(enc "$uid")/$path?$scope${q:+&$q}"
 }
 
+# The novel as a slug, or a link to its page (…/truyen/<slug>[/…]) as the
+# reader pasted it. Anything else never reaches a URL path.
+slug_of() {
+  v=$(printf '%s\n' "$input" | jq -r --arg f "$1" '.[$f] // empty')
+  case $v in
+    http://*|https://*) v=$(printf '%s' "$v" | sed -E 's#^https?://[^/]+/truyen/([^/?#]+).*$#\1#') ;;
+  esac
+  printf '%s' "$v" | grep -qE '^[a-z0-9-]{1,100}$' \
+    || err "{\"code\":\"invalid_input\",\"detail\":\"$1 must be a slug or a lohi2.com/truyen/<slug> link\"}"
+  printf '%s' "$v"
+}
+
 case $cmd in
   lookup)
     kind=$(printf '%s\n' "$input" | jq -r '.kind // empty')
@@ -302,7 +329,10 @@ case $cmd in
       me)
         me
         ;;
-      profile|wallet|topups|orders|subscription|requests|unlocks)
+      requests)
+        worded me requests "?limit=$limit"
+        ;;
+      profile|wallet|topups|orders|subscription|unlocks)
         # The api scopes the read to the principal's sub (403
         # principal_mismatch when the conversation is someone else's).
         me "$kind" "?limit=$limit"
@@ -434,7 +464,8 @@ case $cmd in
       conversationId: $c, requestId: $r, title: .title,
       sourceUrl: (.sourceUrl // null), genre: (.genre // null),
       description: (.description // null)}')
-    req POST "$base/agent/support/requests" "$body" && printf '%s' "$rid" >"$rid_file"
+    EXTRA='{remind: "Truyện đã xuất bản nổi tiếng, có thể còn bản quyền (Kim Dung, Cổ Long, Quỳnh Dao, sách đã cấp phép cho nơi khác)? Nói thêm một câu: truyện vẫn được đưa lên, nhưng ở chế độ hạn chế, không hiện công khai trên Lohi."}' \
+      worded req POST "$base/agent/support/requests" "$body" && printf '%s' "$rid" >"$rid_file"
     ;;
   request-chapters)
     need_principal
@@ -470,48 +501,52 @@ case $cmd in
       *) err '{"code":"invalid_source_url","details":{"reason":"not_http"}}' ;;
     esac
     body=$(jq -cn --arg c "$cid" --arg u "$url" '{conversationId: $c, url: $u}')
-    req POST "$base/agent/support/requests/$rid/source" "$body"
+    worded req POST "$base/agent/support/requests/$rid/source" "$body"
     ;;
-  audio-pro)
-    need_principal
-    # Preview first (nothing is reserved), then confirm with the previewed
-    # effect: the api re-previews and refuses 409 preview_changed when it
-    # differs. The reader's own Pro-voice pass pays; no price travels. On the
-    # preflight hook (dry run) the step is always the preview.
-    step=$(printf '%s\n' "$input" | jq -r '.step // "preview"')
-    slug=$(printf '%s\n' "$input" | jq -r '.novelSlug // empty')
-    printf '%s' "$slug" | grep -qE '^[a-z0-9-]{1,100}$' || err '{"code":"invalid_input","detail":"novelSlug"}'
-    printf '%s\n' "$input" | jq -e '(.fromChapter | type == "number")' >/dev/null 2>&1 \
-      || err '{"code":"invalid_input","detail":"fromChapter"}'
-    if [ "$hook" = tool.preflight ] || [ "$step" = preview ]; then
-      body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" '{
-        conversationId: $c, novel_slug: .novelSlug, from_chapter: .fromChapter,
-        to_chapter: (.toChapter // null)} | with_entries(select(.value != null))')
-      if [ "$hook" = tool.preflight ]; then
-        resp=$(req POST "$base/agent/support/audio-pro/preview" "$body") || { printf '%s\n' "$resp"; exit 1; }
-        printf '%s\n' "$resp" | jq -c '
-          if (.range | type) != "object" then error("no range") else . end
-          | {preview: ([
-              "Audio Pro chương \(.range.from)–\(.range.to) (\(.range.chapters) chương đã đăng)",
-              "Mới: \(.breakdown.fresh), đẩy lên hàng chờ: \(.breakdown.boosted), đã có: \(.breakdown.voiced)",
-              "Tốn \(.cost) lượt Audio Pro của bạn đọc, còn \(.quota.remainingAfter) sau khi tạo",
-              (.blocker.label // empty)] | join("\n"))}' 2>/dev/null || { jq -cn '{code: "bad_response"}'; exit 1; }
-      else
-        req POST "$base/agent/support/audio-pro/preview" "$body"
-      fi
+  gas)
+    # The novel's gas tank. The principal (when there is one) only fills
+    # gas.queue.mine; the numbers are the same for every reader.
+    slug=$(slug_of novel)
+    gas=$(printf '%s\n' "$input" | jq -r '.gas // empty')
+    [ -z "$gas" ] || printf '%s' "$gas" | grep -qE '^[1-9][0-9]{0,6}$' || err '{"code":"invalid_input","detail":"gas must be a whole number of gas"}'
+    card=$(req GET "$base/agent/support/gas/$slug") || { printf '%s\n' "$card"; exit 1; }
+    if [ -n "$gas" ]; then
+      # A top-up amount the reader named: the link opens the sheet on it. The
+      # api refuses (409 top_up_refused) a tank that takes no gas.
+      link=$(req GET "$base/agent/support/gas/$slug/top-up-link?gas=$gas") || { printf '%s\n' "$link"; exit 1; }
+      printf '%s\n' "$card" | jq -c --argjson l "$link" '. + {top_up_url: ($l.url // .top_up_url), top_up_gas: $l.gas}'
     else
-      [ "$step" = confirm ] || err '{"code":"invalid_input","detail":"step must be preview or confirm"}'
-      printf '%s\n' "$input" | jq -e '
-        (.toChapter | type == "number") and (.expect | type == "object")
-        and (.expect.from | type == "number") and (.expect.to | type == "number") and (.expect.cost | type == "number")' \
-        >/dev/null 2>&1 || err '{"code":"invalid_input","detail":"confirm needs toChapter and expect {from,to,cost} copied from the preview"}'
-      body=$(printf '%s\n' "$input" | jq -c --arg c "$cid" '{
-        conversationId: $c, novel_slug: .novelSlug, from_chapter: .fromChapter,
-        to_chapter: .toChapter, voice_id: (.voiceId // null),
-        expect: {from: .expect.from, to: .expect.to, cost: .expect.cost}} | with_entries(select(.value != null))')
-      sent=1
-      req POST "$base/agent/support/audio-pro/confirm" "$body"
+      printf '%s\n' "$card"
     fi
+    ;;
+  gas-quote|audio-pro)
+    # What one gas action costs THIS reader, as the api quotes it for the
+    # principal. Read-only: no price is ever sent, nothing is reserved or paid;
+    # the reader confirms from action_url. audio-pro is the Pro-voice quote.
+    need_principal
+    if [ "$cmd" = audio-pro ]; then
+      slug=$(slug_of novelSlug)
+      kind=tts_pro_create
+      range=$(printf '%s\n' "$input" | jq -c '{from: .fromChapter, to: (.toChapter // null)}')
+    else
+      slug=$(slug_of novel)
+      kind=$(printf '%s\n' "$input" | jq -r '.kind // empty')
+      case $kind in
+        translate_chapter|translate_range|tts_pro_create) ;;
+        *) err '{"code":"invalid_input","detail":"kind must be translate_chapter, translate_range or tts_pro_create"}' ;;
+      esac
+      range=$(printf '%s\n' "$input" | jq -c '{chapter: (.chapter // null), from: (.from // null), to: (.to // null)}')
+    fi
+    qs=$(printf '%s\n' "$range" | jq -r '
+      def ch: type == "number" and . == floor and . >= 1 and . <= 999999;
+      if (.chapter != null) then (if (.chapter | ch) then "chapter=\(.chapter)" else error("chapter") end)
+      elif (.from | ch) and .to == null then "chapter=\(.from)"
+      elif (.from | ch) and (.to | ch) and .to >= .from then "from=\(.from)&to=\(.to)"
+      else error("range") end' 2>/dev/null) \
+      || err '{"code":"invalid_input","detail":"give chapter, or from and to (whole chapter numbers, from <= to)"}'
+    scope=""
+    [ -n "$principal" ] || scope="&conversationId=$(enc "$cid")"
+    req GET "$base/agent/support/gas/$slug/quote?kind=$kind&$qs$scope"
     ;;
   report-content)
     # No reader is proven here (the api verifies the defect itself), so the

@@ -1,6 +1,7 @@
 ---
 name: micro-fish-expert
 description: "Review a simulation's subjects through one named expert lens and record severity-ranked findings."
+requires-tools: [micro-fish_brief, micro-fish_expert]
 ---
 # Expert review
 
