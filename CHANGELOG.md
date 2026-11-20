@@ -3,6 +3,12 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## Unreleased
+
+## 0.25.1 — 2026-11-21
+
+- **General's prompt no longer locks it out of what it can do.** The mission forbade a chat model in place of OCR and any substitute for image generation, so a General Soot without an OCR binding could not read a photo it was shown, and one asked for a chart refused instead of drawing it. It now uses `ocr_recognize` to transcribe scans and many pages and looks at a picture with `read` to understand it; image generation is for pictures and photo edits, while charts, diagrams and icons are drawn with code or SVG, and an unavailable generator is reported, never claimed. "Stay inside this chat’s workspace" is dropped (the runtime enforces it). The soul no longer says `read` lists folders (`glob` does) or that the shell is "not OS isolation" (the runtime's sandbox guide states what it is).
+
 ## 0.24.0 — 2026-11-19
 - **`micro-fish`: each skill names the tools it needs.** `micro-fish-analyze` declares `requires-tools: [micro-fish_tally, micro-fish_brief, micro-fish_profile]` and `micro-fish-expert` `[micro-fish_brief, micro-fish_expert]`, so a persona Soot that holds only `micro-fish:tools=timeline,act,answer` is no longer offered skills it cannot follow (Soot 0.23.1+; an older runtime ignores the key). Compatible with the workspace rename: the driver already writes config v2 (`server.workers`, `server.run_timeout`), `soot run --soot --stdin --conversation` and `chat.publish` are unchanged.
 - **The Lohi example moves to `soot workspace`.** `company.lohi.json` + `remotes.lohi.json` are replaced by `workspace.lohi.json`, a `soot/workspace-template/v1` adopt file (insight lead, marketing, financial, op-catalog, cs remote at `https://soot.lohi2.com`): `soot company adopt` is gone, so adopt is `soot workspace adopt workspace.lohi.json --config <ws>/deployment.json`. `scripts/company.mjs` and the `company-team` group template are removed (their runtime commands no longer exist); group contracts compile to `ontology.json` now. Needs a runtime with `soot workspace` (0.23.2+); the live Mac Nest's team ids (`marketing`, `financial`, `op-catalog`, `cs`) are kept.

@@ -44,8 +44,8 @@ test('the release integer grows with the Forge version and refuses what it canno
 test('General is the 2agent template, every pack fetched from Forge and no 2build', async () => {
   // Digests of general/* (the General Soot definition).
   const sources = { 'soot.json': '45ca491b47f5eaebb7ef7af5fcebe39d919cd8ba389ba08b1a249d24b8e85017',
-    'SOUL.md': 'afbce105c77a47dbb08a98ce7992a5d16c126bddbbdfe3e36c1a03846997c324',
-    'MISSION.md': '8d117b67719b82bc1e60fa7c64e2acfc783198c6d0c5b2ccb4fc4d96ac3b62cb' };
+    'SOUL.md': 'cdbdeaae9aa49c64fd0db16de9d847e906853b0ed2c8f9f1c822fabf29d9bb1c',
+    'MISSION.md': '43665113df8d6d90b568504d7e638c281dcfac26b41af05c137e56db8908a911' };
   for (const [name, digest] of Object.entries(sources)) assert.equal(sha256(await readFile(join(root, 'general', name))), digest, name);
   const { preset } = await readGeneral(root, catalog);
   assert.deepEqual(Object.values(preset.sources).map(source => source.github_latest), Array(preset.install.length).fill('2found/soot-forge'));
