@@ -4,7 +4,7 @@
 // interviews them, runs the expert lenses and asks for the report. It decides
 // nothing about the content: every judgment is a persona Soot's own run.
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { active, advance, create, load, status, tally, unit } from './world.mjs';
 
@@ -130,9 +130,12 @@ const words = language => TEXT[String(language).slice(0, 2)] || TEXT.en;
 
 // Adds the brief's personas the workspace does not have yet, each as its own
 // Soot. The runtime reads its roster at start, so a caller restarts it when
-// `added` is not zero.
+// `added` is not zero. The roster is capped: personas from earlier runs stay
+// forever otherwise, so the oldest ones not in this brief are evicted (their
+// sims are history; the state files under data/pack-state keep their record).
+const ROSTER = 64;  // the runtime refuses a deployment listing more soot files
 function populate(w, brief, flags) {
-  const rows = select(brief), t = words(brief.language); let added = 0;
+  const rows = select(brief), t = words(brief.language), keep = new Set(rows.map(personaId)); let added = 0;
   for (const row of rows) {
     const id = personaId(row), dir = join(w.ws, 'soots', id), name = nameOf(row);
     if (existsSync(join(dir, 'soot.json'))) continue;
@@ -142,15 +145,30 @@ function populate(w, brief, flags) {
     writeFileSync(join(dir, 'soot.json'), JSON.stringify({ name, description: `${name}, ${row.age}, ${row.occupation}`.slice(0, 200), packs: ['micro-fish:tools=timeline,act,answer'], chat: { publish: 'final' } }, null, 2) + '\n');
     w.d.soots.push(`soots/${id}/soot.json`); added++;
   }
+  // Canonicalize the roster: drop entries whose files are gone, refuse an
+  // audience that cannot fit even an empty roster, evict oldest unselected.
+  const non = w.d.soots.filter(s => !s.startsWith('soots/p-'));
+  if (rows.length + non.length > ROSTER)
+    die(`the audience needs ${rows.length} personas but the roster holds ${ROSTER - non.length} (64-file limit); narrow the panel or lower the size`);
+  let roster = w.d.soots.filter(s => s.startsWith('soots/p-') && existsSync(join(w.ws, s)));
+  let evicted = w.d.soots.filter(s => s.startsWith('soots/p-')).length - roster.length;
+  const aged = roster.map(s => [s, keep.has(s.split('/')[1]) ? Infinity : statSync(join(w.ws, s)).mtimeMs])
+                     .sort((a, b) => a[1] - b[1]).map(([s]) => s);
+  for (const s of aged) {
+    if (non.length + roster.length <= ROSTER) break;
+    rmSync(dirname(join(w.ws, s)), { recursive: true, force: true });
+    roster = roster.filter(x => x !== s); evicted++;
+  }
+  w.d.soots = [...non, ...roster];
   const workers = Number(flags.workers || 8);
   // Soot 0.21+ (config v2) keeps workers and run_timeout under server; drop the v1 top-level keys.
   const srv = w.d.server || (w.d.server = {});
-  if (added || srv.workers !== workers || 'workers' in w.d || 'run_timeout' in w.d) {
+  if (added || evicted || srv.workers !== workers || 'workers' in w.d || 'run_timeout' in w.d) {
     delete w.d.workers; delete w.d.run_timeout;
     srv.workers = workers; srv.run_timeout = '15m';
     writeFileSync(w.deploy, JSON.stringify(w.d, null, 2) + '\n');
   }
-  return { added, personas: w.d.soots.filter(s => s.startsWith('soots/p-')).length, selected: rows.length };
+  return { added, evicted, personas: roster.length, selected: rows.length };
 }
 
 // ---------- the run ----------

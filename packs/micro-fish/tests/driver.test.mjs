@@ -46,7 +46,7 @@ async function workspace(t) {
 test('populate turns the audience into persona Soots once, each with only its own tools', async t => {
   const f = await workspace(t);
   const first = JSON.parse(f.drive(['populate', f.brief]).stdout);
-  assert.deepEqual(first, { added: 12, personas: 12, selected: 12 });
+  assert.deepEqual(first, { added: 12, evicted: 0, personas: 12, selected: 12 });
   assert.equal(JSON.parse(f.drive(['populate', f.brief]).stdout).added, 0, 'the same brief meets the same people');
   const deployment = JSON.parse(await readFile(join(f.ws, 'deployment.json'), 'utf8'));
   assert.equal(deployment.soots.length, 14); assert.equal(deployment.server.workers, 8); assert.equal(deployment.server.run_timeout, '15m'); assert.equal('workers' in deployment, false);
@@ -102,4 +102,29 @@ test('a persona the runtime never loaded stops the run at once, with the fix', a
   const f = await workspace(t); f.drive(['populate', f.brief]);
   const out = f.drive(['run', f.brief, '--no-report'], { FAKE_UNLOADED: '1', MICRO_FISH_RETRY_WAITS: '600' });
   assert.equal(out.status, 1); assert.match(out.stderr, /soot migrate adopt/);
+});
+
+test('populate evicts the oldest unselected personas once the roster hits 64 files', async t => {
+  const f = await workspace(t);
+  // 70 stale personas from earlier runs: 60 files on disk, 10 stale list entries.
+  const sootsDir = join(f.ws, 'soots');
+  for (let i = 0; i < 60; i++) {
+    const d = join(sootsDir, `p-old${String(i).padStart(3, '0')}`);
+    await mkdir(d, { recursive: true });
+    await writeFile(join(d, 'soot.json'), '{}');
+    const past = new Date(Date.now() - (i + 1) * 60000);  // p-old000 is the newest stale persona
+    const { utimes } = await import('node:fs/promises');
+    await utimes(join(d, 'soot.json'), past, past);
+  }
+  const d = JSON.parse(await readFile(join(f.ws, 'deployment.json'), 'utf8'));
+  d.soots.push(...Array.from({ length: 60 }, (_, i) => `soots/p-old${String(i).padStart(3, '0')}/soot.json`));
+  d.soots.push('soots/p-gone/soot.json');  // listed, file gone: pruned, counts as evicted
+  await writeFile(join(f.ws, 'deployment.json'), JSON.stringify(d));
+  const out = JSON.parse(f.drive(['populate', f.brief]).stdout);
+  // 2 non-persona + 72 persona files (60 stale + 12 selected) = 74 -> evict 10 files; +1 stale entry = 11
+  assert.equal(out.added, 12); assert.equal(out.evicted, 11); assert.equal(out.personas, 62);
+  const left = await readdir(sootsDir);
+  assert.equal(left.length, 62);
+  assert.equal(JSON.parse(await readFile(join(f.ws, 'deployment.json'), 'utf8')).soots.length, 64);
+  assert.deepEqual(left.filter(x => x.startsWith('p-old')).sort(), Array.from({ length: 50 }, (_, i) => `p-old${String(i).padStart(3, '0')}`).sort());
 });
