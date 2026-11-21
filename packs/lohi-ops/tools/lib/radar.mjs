@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { skippedFor, getState, setState, lohiApi, eq, inList, ictDay, iso, short } from './base.mjs';
 import { insertItem, jobDir, launch } from './jobs.mjs';
 import { openCatalog, maxChapter } from './resolve.mjs';
-import { radarArgv } from './runner.mjs';
+import { radarArgv, sweepable } from './runner.mjs';
 
 /** The knobs of the policy, all of them cheap to change here (and mirrored in deployment.fragment.json). */
 export const RADAR = {
@@ -29,13 +29,13 @@ export const RADAR = {
 export const isRadarEvent = e => e?.state === 'radar' && typeof e.job_id === 'string' && e.job_id.startsWith('radar:');
 const KEY = /^([a-z0-9][a-z0-9-]{0,63})\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})$/;
 const PROD_SLUG = /^[a-z0-9-]{1,100}$/;
-const COMPLETED = /^(completed|complete|finished|full|done|hoan|hoàn)/i;
+const COMPLETED = /^(completed|complete|finished|full|done|hoan|hoàn|完本|完结|已完结|全本)/i;
 
 // ---------- builder (Mac) ----------
 /** Novels this Mac keeps current: synced to prod, no copyright flag, not finished, on a source that has radar. */
 export function carried(db) {
   return db.prepare("SELECT source_slug AS source, novel_slug AS novel, status FROM source_catalog WHERE is_prd_sync = 1 AND COALESCE(copyright_issue, 0) = 0 AND source_slug <> 'metruyenchuvn' ORDER BY source_slug, novel_slug").all()
-    .filter(r => !COMPLETED.test(String(r.status ?? '').trim()));
+    .filter(r => !COMPLETED.test(String(r.status ?? '').trim()) && sweepable(r));
 }
 
 /** The plan of one sweep: one radar command per source (at most `novelsPerStep` novels each); a refused source does not stop the rest. */

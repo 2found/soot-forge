@@ -42,18 +42,18 @@ test('radar_read keeps each new item once, reads the oldest due source first, an
   // The same call again: sources are not due, nothing new, no second wake.
   const again = await w.call('radar_read', { sources: SRC, schedule: true, wake_at: 8 });
   assert.deepEqual([again.read, again.notify], [[], false]);
-  // The triage Soot reads, keeps few, dismisses the rest.
+  // The triage Soot reads, keeps few, dismisses the rest: the mark answers the wake (signals_list is read-only).
   const list = await w.call('signals_list', {});
-  // Later the feeds repeat the same items: stored once, no wake for the answered batch.
-  w.now += 7 * H;
-  const later = await w.call('radar_read', { schedule: true, wake_at: 8 });
-  assert.deepEqual([later.new_total, later.waiting, later.notify], [0, 8, false]);
   assert.equal(list.signals.length, 8);
   assert.match(list.signals[0].ref, /^RS-[0-9A-F]{8}$/);
   const [first, second, ...rest] = list.signals;
   await w.call('signals_mark', { items: [{ ref: first.ref, state: 'kept', note: 'Người đọc hỏi nguồn truyện dịch: viết so sánh' }, { ref: second.ref, state: 'dismissed' }, ...rest.map(s => ({ ref: s.ref, state: 'dismissed' }))] });
   assert.equal((await w.call('signals_list', { state: 'kept' })).signals[0].note.startsWith('Người đọc'), true);
   assert.equal((await w.call('signals_list', {})).signals.length, 0);
+  // Later the feeds repeat the same items: stored once, no wake for the answered batch.
+  w.now += 7 * H;
+  const later = await w.call('radar_read', { schedule: true, wake_at: 8 });
+  assert.deepEqual([later.new_total, later.waiting, later.notify], [0, 0, false]);
 });
 
 test('radar non-happy: a failing source is recorded and does not stop the others; bad input and a half-valid mark change nothing', async () => {
@@ -170,8 +170,9 @@ test('radar wake: at most 15 of the best new items, the surplus dismissed, one w
   w.feeds[NEWS.url] = rss(Array.from({ length: 30 }, (_, i) => [`Đọc truyện dịch số ${i}${i < 5 ? ' webnovel truyện chữ' : ''}`, `https://n.example/${i}`, 'nội dung']));
   const a = await w.call('radar_read', { sources: [NEWS], schedule: true, wake_at: 6, keywords: KW, lang: 'vi' });
   assert.deepEqual([a.wake, a.wake_items, a.waiting, a.dropped], [true, 15, 15, 15]);
-  const shown = (await w.call('signals_list', { limit: 40 })).signals; // the triage Soot answers the wake
+  const shown = (await w.call('signals_list', { limit: 40 })).signals;
   assert.equal(shown.length, 15, 'the list is capped too');
+  await w.call('signals_mark', { items: shown.map(s => ({ ref: s.ref, state: 'dismissed' })) }); // the triage Soot answers the wake
   assert.ok(['https://n.example/0', 'https://n.example/4'].every(u => shown.some(s => s.url === u)), 'the best-matching items are the ones kept');
   assert.equal(w.store.data.signals.filter(s => s.note === 'tự bỏ: vượt giới hạn mỗi lần').length, 15);
   // New items the same day do not wake again before the gap.

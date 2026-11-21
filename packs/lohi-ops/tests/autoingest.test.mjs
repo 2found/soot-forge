@@ -150,6 +150,15 @@ test('carried / sweepPlan: prod-synced, unfinished, no copyright flag, no metruy
   assert.equal(many.steps.length, 3);
 });
 
+test('carried: a row the radar cannot take (a slug with a slash) and a finished Chinese novel are skipped, never the whole sweep', async () => {
+  const db = await fakeCatalog([...CATALOG,
+    { source: 'piaotia-com', novel: '15/15701', title: 'Gạch chéo', prd: 1 },
+    { source: 'ixdzs-hk', novel: 'xong', title: 'Đã xong', prd: 1, status: '完本' },
+  ], CHAPTERS);
+  assert.deepEqual(carried(db).map(r => `${r.source}/${r.novel}`), ['ixdzs-hk/568746', 'piaotia-com/quiet']);
+  assert.doesNotThrow(() => sweepPlan(carried(db)));
+});
+
 test('radar_scan: starts one detached sweep, harvests finds as radar events, remembers baselines, waits between sweeps', async () => {
   const b = await build([]);
   const first = await b.call('radar_scan');

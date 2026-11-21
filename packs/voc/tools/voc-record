@@ -1,0 +1,40 @@
+#!/bin/sh
+# voc-record — voc pack tool (soot/v1 tool.call, stdin:"context").
+# Inserts ONE aggregate row {product, kind, summary, created} into the pack's
+# voc table. The row never holds who said it: the conversation id
+# (.event.subject) is not read, and the summary is scrubbed of emails,
+# phone-like digit runs, long ids and links before it is stored.
+# product: .input.product, else the run's project (.project / SOOT_PROJECT),
+# else "chung". Deps: POSIX sh, curl, jq.
+set -eu
+err() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
+command -v curl >/dev/null 2>&1 || err '{"error":"missing_dep","dep":"curl"}'
+command -v jq   >/dev/null 2>&1 || err '{"error":"missing_dep","dep":"jq"}'
+call=$(cat)
+[ -n "$call" ] || err '{"error":"empty_stdin"}'
+printf '%s\n' "$call" | jq -e '.api_version == "soot/v1" and .hook == "tool.call"' >/dev/null 2>&1 \
+  || err '{"error":"bad_toolcall","detail":"api_version/hook"}'
+row=$(printf '%s\n' "$call" | jq -c --arg envp "${SOOT_PROJECT:-}" '
+  def scrub:
+      gsub("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+"; "")
+    | gsub("https?://[^ ]+"; "")
+    | gsub("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"; "")
+    | gsub("[0-9][0-9 .()+-]{6,}[0-9]"; "")
+    | gsub("[A-Za-z0-9_-]{24,}"; "")
+    | gsub("\\s+"; " ")
+    | sub("^ "; "") | sub(" $"; "");
+  (.input.kind // "") as $k
+  | ((.input.product // .project // (if $envp == "" then null else $envp end) // "chung") | tostring | ascii_downcase) as $p
+  | ((.input.summary // "") | tostring | scrub | .[0:300]) as $s
+  | if ($k | IN("feedback","bug","feature_request","question","lead","complaint"))
+       and ($s | length) >= 3 and ($p | test("^[a-z0-9][a-z0-9-]{0,31}$"))
+    then {row: {product: $p, kind: $k, summary: $s, created: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}}
+    else empty end') || true
+[ -n "$row" ] || err '{"error":"invalid_input","detail":"kind, a summary and a valid product id are required"}'
+[ -n "${SOOT_STORAGE_URL:-}" ]   || err '{"error":"missing_env","env":"SOOT_STORAGE_URL"}'
+[ -n "${SOOT_STORAGE_TOKEN:-}" ] || err '{"error":"missing_env","env":"SOOT_STORAGE_TOKEN"}'
+out=$(printf '%s' "$row" | curl -sS -m 10 -X POST "${SOOT_STORAGE_URL%/}/voc/insert" \
+  -H "Authorization: Bearer $SOOT_STORAGE_TOKEN" -H 'Content-Type: application/json' --data-binary @-) \
+  || err '{"error":"storage_unreachable"}'
+printf '%s\n' "$out" | jq -e '.id' >/dev/null 2>&1 || err "$(printf '%s' "$out" | head -c 300)"
+printf '{"recorded":true,"product":%s}\n' "$(printf '%s' "$row" | jq '.row.product')"

@@ -143,8 +143,9 @@ async function answeredWake(store) {
   if (woke?.pending_at) await setSetting(store, 'radar_woke', { at: woke.pending_at });
 }
 
+/** signals_list is a read tool (the host gives it a read-only storage token): it never answers the wake;
+ * signals_mark, which the triage Soot calls on every batch, does. */
 export async function signals_list(input, { store }) {
-  if (!SIGNAL_STATES.includes(input.state) || input.state === 'new') await answeredWake(store);
   const state = SIGNAL_STATES.includes(input.state) ? input.state : 'new';
   const rows = await store.query('signals', [eq('state', state)], { order: 'found_at', desc: true, limit: Math.min(Number(input.limit) || (state === 'new' ? MAX_WAKE_ITEMS : 20), state === 'new' ? MAX_WAKE_ITEMS : 40) });
   return { state, signals: rows.map(r => ({ ref: r.ref, source: r.source, title: r.title, url: r.url, summary: short(r.summary, 220), ...(r.note ? { note: r.note } : {}) })), more: Math.max(0, (await store.query('signals', [eq('state', state)], { limit: 500 })).length - rows.length) };

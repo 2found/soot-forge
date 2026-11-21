@@ -5,6 +5,12 @@ Release notes for Soot Forge pack releases. The version is `package.json`'s;
 
 ## Unreleased
 
+## 0.25.2 — 2026-11-21
+
+- **voc: `voc_record` runs again.** Its program pointed at `bin/voc-record`, a folder the repository ignores, so the archive shipped without it and every call failed to start. The tool now lives at `tools/voc-record` and its test runs that path.
+- **marketing: reading the radar no longer counts as answering it.** `signals_list` answered the wake, but the host gives a read tool a read-only storage grant, so the write failed and the list broke. It is read-only now; `signals_mark`, which the triage Soot calls on every batch, answers the wake.
+- **lohi-ops: one bad catalog row no longer fails the radar sweep.** A slug the crawler refuses (piaotia's `15/15701`) made the radar command throw for its whole source; `carried()` now leaves such rows out. A novel marked completed in Chinese (`完本`, `完结`, `已完结`, `全本`) is no longer swept, like one marked `hoàn thành`.
+
 ## 0.25.1 — 2026-11-21
 
 - **General's prompt no longer locks it out of what it can do.** The mission forbade a chat model in place of OCR and any substitute for image generation, so a General Soot without an OCR binding could not read a photo it was shown, and one asked for a chart refused instead of drawing it. It now uses `ocr_recognize` to transcribe scans and many pages and looks at a picture with `read` to understand it; image generation is for pictures and photo edits, while charts, diagrams and icons are drawn with code or SVG, and an unavailable generator is reported, never claimed. "Stay inside this chat’s workspace" is dropped (the runtime enforces it). The soul no longer says `read` lists folders (`glob` does) or that the shell is "not OS isolation" (the runtime's sandbox guide states what it is).

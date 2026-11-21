@@ -14,6 +14,8 @@ const tail = (text, n) => String(text ?? '').replace(ANSI, '').trim().split('\n'
 /** `crawl catalog run` for a novel, or radar for the novels of one source. */
 export const crawlArgv = ({ source, novel }, { from, to } = {}) => [...CLI, 'crawl', 'catalog', 'run', '--source', check(SRC, source, 'source'), '--novel', check(SLUG, novel, 'novel'),
   ...(from ? ['--from', String(from), '--to', String(to)] : []), '--concurrency', '1', '--chapter-concurrency', '3'];
+/** Whether a catalog row can be swept at all (piaotia's `15/15701` cannot): carried() skips it, so one bad row never fails a sweep. */
+export const sweepable = ({ source, novel }) => SRC.test(String(source)) && SLUG.test(String(novel));
 export const radarArgv = (source, novels) => [...CLI, 'crawl', 'catalog', 'radar', '--source', check(SRC, source, 'source'), ...novels.flatMap(n => ['--novel', check(SLUG, n, 'novel')])];
 
 /**

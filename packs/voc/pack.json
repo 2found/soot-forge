@@ -56,7 +56,7 @@
       "run": {
         "max_output_bytes": 4096,
         "mode": "write",
-        "program": "bin/voc-record",
+        "program": "tools/voc-record",
         "stdin": "context",
         "timeout": "15s"
       }

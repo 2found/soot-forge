@@ -8,7 +8,7 @@ cat > "$tmp/bin/curl" <<'C'
 cat > "$CAPTURE"; printf '{"id":"r1"}'
 C
 chmod +x "$tmp/bin/curl"
-run() { CAPTURE="$tmp/row.json" PATH="$tmp/bin:$PATH" SOOT_STORAGE_URL=http://x SOOT_STORAGE_TOKEN=t SOOT_PROJECT="${SP:-}" "$here/bin/voc-record"; }
+run() { CAPTURE="$tmp/row.json" PATH="$tmp/bin:$PATH" SOOT_STORAGE_URL=http://x SOOT_STORAGE_TOKEN=t SOOT_PROJECT="${SP:-}" "$here/tools/voc-record"; }
 call() { printf '{"api_version":"soot/v1","hook":"tool.call","input":%s}' "$1"; }
 # 1. explicit product, PII scrubbed
 call '{"product":"2novel","kind":"bug","summary":"Lỗi xuất bản, mail a@b.com gọi 0912 345 678"}' | run >/dev/null
