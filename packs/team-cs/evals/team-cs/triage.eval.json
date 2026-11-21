@@ -21,7 +21,6 @@
             ],
             "not_called": [
               "report_blocker",
-              "run_operation",
               "product_lookup"
             ],
             "max_tool_calls": 9,
@@ -72,8 +71,7 @@
             "state": "completed",
             "not_called": [
               "report_blocker",
-              "knowledge_search",
-              "run_operation"
+              "knowledge_search"
             ],
             "max_tool_calls": 6,
             "reply_matches": [

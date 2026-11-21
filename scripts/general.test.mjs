@@ -44,8 +44,8 @@ test('the release integer grows with the Forge version and refuses what it canno
 test('General is the 2agent template, every pack fetched from Forge and no 2build', async () => {
   // Digests of general/* (the General Soot definition).
   const sources = { 'soot.json': '45ca491b47f5eaebb7ef7af5fcebe39d919cd8ba389ba08b1a249d24b8e85017',
-    'SOUL.md': 'cdbdeaae9aa49c64fd0db16de9d847e906853b0ed2c8f9f1c822fabf29d9bb1c',
-    'MISSION.md': '43665113df8d6d90b568504d7e638c281dcfac26b41af05c137e56db8908a911' };
+    'SOUL.md': '6de82b1f293c93a51ea1c93d7acde732041ffd2e81b638cc1d9b7f1be076b60f',
+    'MISSION.md': '987e66b6d1295d404d69efdf11a20e9b76d991add888d196613958c3abdc083a' };
   for (const [name, digest] of Object.entries(sources)) assert.equal(sha256(await readFile(join(root, 'general', name))), digest, name);
   const { preset } = await readGeneral(root, catalog);
   assert.deepEqual(Object.values(preset.sources).map(source => source.github_latest), Array(preset.install.length).fill('2found/soot-forge'));
@@ -53,6 +53,9 @@ test('General is the 2agent template, every pack fetched from Forge and no 2buil
   // not General's: 25 skills in every prompt's index, read for the wrong job.
   assert.ok(!preset.install.includes('2build') && !preset.packs.includes('2build') && !preset.sources['2build']);
   assert.ok(preset.nest.packs.includes('nest-lead') && !preset.packs.includes('nest-lead'));
+  // Image generation needs a local diffusion model many hosts (a server
+  // above all) cannot run: installed for an owner to turn on, never selected.
+  assert.ok(preset.install.includes('image-gen') && !preset.packs.includes('image-gen'));
 });
 
 test('the creation preset must resolve from this repository alone', async () => {

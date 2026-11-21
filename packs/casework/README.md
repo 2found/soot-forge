@@ -11,8 +11,8 @@ Build từ thư mục Soot Forge:
 ```
 
 Copy pack kèm binary vào packs_dir, gắn `casework` vào Soot. Agent được cấp các
-operation `casework_read`, `casework_upsert`, `casework_handoff` qua run_operation.
-Đọc skill để biết input JSON. Model demo không thực thi chúng tự động.
+tool `casework_read`, `casework_upsert`, `casework_handoff`, gọi thẳng bằng tên.
+Đọc skill để biết tham số. Model demo không thực thi chúng tự động.
 
 Record scope là conversation ID opaque do host cấp, không lấy từ `input` model.
 Store JSON nằm ở `data/` cạnh pack, tối đa 256 hồ sơ trong ví dụ; đổi implementation

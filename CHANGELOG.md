@@ -5,6 +5,9 @@ Release notes for Soot Forge pack releases. The version is `package.json`'s;
 
 ## Unreleased
 
+- **General installs `image-gen` but no longer turns it on.** Image generation runs a local diffusion model that many hosts, a server above all, cannot run, yet General selected it everywhere and its mission carried about 1 KB of image guidance on every request. The pack is still installed, so an owner turns it on by adding `image-gen` to the Soot's `packs`; its guidance (draft size, reference paths, verified file properties, honesty on failure) now lives in the `image_gen_generate` skill, whose description says when to read it. General's mission drops from 1562 to 425 bytes.
+- **Skills call operations by name.** `health`, `server-care`, `casework` and `team-cs` sent the model through `run_operation`, which Soot no longer has: every granted operation is a tool under its own id, and one without parameters takes `{}`. General's soul no longer names `edit_lines`, which Soot no longer has either; `edit` covers it.
+
 ## 0.25.2 — 2026-11-21
 
 - **voc: `voc_record` runs again.** Its program pointed at `bin/voc-record`, a folder the repository ignores, so the archive shipped without it and every call failed to start. The tool now lives at `tools/voc-record` and its test runs that path.

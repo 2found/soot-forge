@@ -163,7 +163,7 @@
           "expect": {
             "state": "blocked",
             "called": [
-              "run_operation"
+              "health_probe"
             ],
             "max_tool_calls": 3
           }

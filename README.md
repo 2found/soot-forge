@@ -115,7 +115,9 @@ Keep a Forge release containing `soot`, `browser-use`, `soot-nest`,
 `nest-lead`, `vibe_cf`, `office`, `ocr`, `image-gen`, `research` and `writing` available before releasing that Soot
 default (`toolbox` is not one of them: the Soot runtime provides it, so a preset selects it and never installs it). Source on `main` alone does not make those archives available to a
 fresh Nest installation: the installer resolves the latest published stable
-release. The browser pack also needs the host preparation in
+release. `image-gen` is installed but not selected: it needs a local diffusion
+model many hosts, servers above all, cannot run, so an owner turns it on by
+adding it to the Soot's `packs`. The browser pack also needs the host preparation in
 [Browser use](packs/browser-use/README.md): Node.js 24+ and the standalone
 `soot-browser` executable on the Soot host's PATH. Pack installation does not
 install that executable or its browser dependencies.

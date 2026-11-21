@@ -32,7 +32,7 @@ Cả danh sách được kiểm tra trước khi gọi địa chỉ nào.
 
 ## Chọn pack
 
-Trong Soot definition dùng `"packs": ["health"]`; model gọi `run_operation` với operation `health_probe`. Chạy
+Trong Soot definition dùng `"packs": ["health"]`; model gọi tool `health_probe` với `{}`. Chạy
 `soot check --show` để xem pack đã được cấp `HEALTH_TARGETS` chưa. Validation
 không gọi địa chỉ nào.
 

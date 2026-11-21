@@ -4,7 +4,7 @@ description: "Inspect readiness of the configured HTTP endpoints"
 ---
 # Inspect readiness
 
-Call `run_operation` with operation `health_probe`. It checks every endpoint the
+Call `health_probe` with `{}`. It checks every endpoint the
 operator configured and returns one line per endpoint: its name, the HTTP
 status and the latency, or `unreachable`. You cannot choose the address; the
 operator sets it.

@@ -14,8 +14,7 @@ Check the paths in this order and take the first that fits.
 
 1. **Facts about this person's account or about the product's terms.** Price, plan,
    quota, limit, balance, order, payment or entitlement. Use the product tool the
-   team's product pack provides, or the host operation it names through
-   `run_operation`. Never answer these from the collection, even when a document
+   team's product pack provides, or the host operation it names. Never answer these from the collection, even when a document
    mentions a number: collections are edited by hand and go stale, the product tool
    is the source of truth. Call the product tool first, and do not call
    `knowledge_search` or `knowledge_read` for these facts at all. With no product

@@ -1,16 +1,19 @@
 ---
 name: image_gen_generate
-description: "Generate one new PNG with the pinned Turbo Q4_K_M model, CFG=1 and its exact 8-step schedule. Never download or install dependencies."
+description: "Make a picture or edit an attached photo: one new PNG from the pinned Qwen Image Turbo model. Not for charts, diagrams or icons."
 ---
 # Generate an image
 
-Use `image-gen_generate` when image creation or editing is authorized. Use the
-user’s prompt and attached image directly. `generate` accepts prompt, new output PNG, dimensions in
+Use `image-gen_generate` when image creation or editing is authorized, and call
+it directly. Charts, diagrams and icons are better drawn with code or SVG. Use the
+user’s prompt and attached image directly. Default to one 512×512 draft. `generate` accepts prompt, new output PNG, dimensions in
 multiples of 32, seed and optional transparent/reference. The host can restrict pixels
 further. Keep prompts within 4000 characters. Output parents must already exist.
 
-For image edits, pass the exact workspace-relative attachment path as `reference`
-(PNG/JPEG, single frame, at most 2 MiB). Describe the requested change in `prompt`;
+Attached images appear in the input's attachments list with workspace-relative
+paths. For an edit or an image used as a reference, pass that exact path as
+`reference` (PNG/JPEG, single frame, at most 2 MiB); do not run OCR on it first,
+rewrite it with shell, or ask for an upload that is already attached. Describe the requested change in `prompt`;
 keep details the user asked to preserve. Do not ask the user to attach an image already listed in the current input. The host
 must prepare the pinned `llm_vision` projector; missing vision weights are an
 explicit failure, never a silent text-only generation. Source images remain
@@ -31,8 +34,14 @@ nonopaque alpha pixels before publishing. It does not promise a perfect mask.
 Ordinary requests publish opaque RGB PNGs; the runner removes the VAE's
 unrequested nearly-opaque alpha while preserving RGB pixels and provenance.
 The receipt already verifies dimensions, decoding, hashes and alpha policy.
-Use `inspect` when additional file-property inspection is needed. Keep visual
-quality claims separate from these verified file properties.
+Use `inspect` only when additional file-property inspection is needed; do not
+repeat verified checks or re-encode the PNG with shell. Keep visual quality
+claims separate from these verified file properties, and leave quality you did
+not observe for review.
+
+Preserve the content, composition and transparency the user asked for. When
+generation is unavailable or fails, say so and never claim success; offer a
+drawn alternative only when it suits the request.
 
 Never overwrite a completed generation: a revision goes to a new output
 path. A busy runtime means another inference is

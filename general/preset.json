@@ -52,8 +52,7 @@
     "writing:read",
     "soot",
     "office",
-    "ocr",
-    "image-gen"
+    "ocr"
   ],
   "nest": {
     "packs": [
