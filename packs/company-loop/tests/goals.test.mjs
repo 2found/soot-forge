@@ -69,7 +69,27 @@ test('a 2Novel goal is checked in from the 2Novel scoreboard; the note names the
   await again.call('scoreboard_sync');
   const out2 = await again.call('goals_checkin');
   assert.deepEqual(out2.skipped.map(s => s.why), ['already_checked_in']);
+  assert.equal(out2.done, true, 'a period already written is nothing to do');
+  assert.match(out2.summary, /^ghi số 0 mục tiêu; bỏ qua 1 \(already_checked_in 1\)$/);
   assert.equal(cli2.checkins().length, 0);
+});
+
+test('a board that stopped arriving is a skip with its reason, not a quiet "already checked in"', async () => {
+  const cli = stubSoot([goal('g_a', '2novel:activated_new'), goal('g_b', '2novel:signups')]);
+  const w = mk(cli);
+  await w.call('scoreboard_sync');
+  // Eleven days on, nobody synced the board again: the newest period is the same one.
+  w.now = w.now + 11 * 86_400_000;
+  const out = await w.call('goals_checkin');
+  assert.equal(out.skipped, true, 'the runtime reads skipped:true as a skip');
+  assert.equal(out.reason_code, 'board_stale');
+  assert.deepEqual(out.skipped_goals.map(s => s.why), ['board_stale', 'board_stale']);
+  assert.match(out.summary, /board_stale 2/);
+  assert.equal(out.wake, false);
+  assert.equal(cli.checkins().length, 0);
+  // A goal whose product has no numbers at all reads the same way.
+  const none = await mk(stubSoot([goal('g_none', 'nobody:signups')])).call('goals_checkin');
+  assert.equal(none.reason_code, 'no_numbers_for_product');
 });
 
 test('non-happy paths: unknown product, a key the board lacks, not started yet, a plain-text ref, a refused check-in', async () => {

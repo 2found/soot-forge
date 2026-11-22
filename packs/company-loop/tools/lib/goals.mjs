@@ -18,6 +18,11 @@ const REF = /^([a-z0-9][a-z0-9_-]{0,63}):([a-z][a-z0-9_]{0,47})$/;
 /** A measurement is not a forecast; the Đầu mối or a person overrides the confidence at the Friday check-in. */
 const AUTO_CONFIDENCE = 5;
 const PAGE = 200, MAX_PAGES = 5;
+/** A weekly board whose newest period ended more than this many days ago is stale: whatever feeds it stopped. */
+export const STALE_BOARD_DAYS = 8;
+/** Skips that mean the numbers are not arriving (a person or a feeder must act), as opposed to nothing new to do. */
+const NOT_ARRIVING = ['no_numbers_for_product', 'metric_not_in_board', 'board_stale'];
+const DAY_MS = 86_400_000;
 
 /** `{product, key}` of a ref, or null when it is not a scoreboard ref. */
 export function parseRef(ref, goalProduct, host) {
@@ -33,14 +38,14 @@ const fmt = n => String(Math.round(n * 100) / 100);
 export async function goals_checkin(input, deps) {
   const { store, env, now } = deps;
   const bin = findSoot(env), call = { url: env.SOOT_RUNTIME_URL, token: env.SOOT_RUNTIME_TOKEN };
-  if (!call.url || !call.token) return { ok: true, skipped: true, reason_code: 'goals_unreadable', reason: 'no_runtime_token', notify: false, wake: false };
+  if (!call.url || !call.token) return { ok: true, skipped: true, reason_code: 'goals_unreadable', reason: 'no_runtime_token', summary: 'không đọc được mục tiêu: runtime không cấp token', notify: false, wake: false };
   if (!bin) return { ...skippedFor('LOOP_SOOT_BIN'), reason: 'no_soot' };
   const host = await hostProduct(store, null);
   const want = scopeProduct(input, env);
   const goals = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const got = await cli(bin, call, ['goals', 'list', '--status', 'active', '--limit', String(PAGE), '--cursor', String(page * PAGE)]);
-    if (!got.ok || !Array.isArray(got.json?.goals)) return page === 0 ? { ok: true, skipped: true, reason_code: 'goals_unreadable', reason: 'soot_failed', ...(got.why ? { detail: got.why } : {}), notify: false, wake: false } : { ok: false, reason_code: 'goals_unreadable', message: 'Không đọc hết danh sách mục tiêu.' };
+    if (!got.ok || !Array.isArray(got.json?.goals)) return page === 0 ? { ok: true, skipped: true, reason_code: 'goals_unreadable', reason: 'soot_failed', summary: 'không đọc được mục tiêu: lệnh soot lỗi', ...(got.why ? { detail: got.why } : {}), notify: false, wake: false } : { ok: false, reason_code: 'goals_unreadable', message: 'Không đọc hết danh sách mục tiêu.' };
     goals.push(...got.json.goals.filter(g => !want || (productId(g.product) ?? host) === want));
     if (got.json.goals.length < PAGE) break;
   }
@@ -74,6 +79,8 @@ export async function goals_checkin(input, deps) {
     if (!m.board) { skipped.push({ goal: g.id, ref: g.metric.ref, why: 'no_numbers_for_product' }); continue; }
     if (m.value === null) { skipped.push({ goal: g.id, ref: g.metric.ref, why: 'metric_not_in_board' }); continue; }
     if (g.start && m.board.to < g.start) { skipped.push({ goal: g.id, ref: g.metric.ref, why: 'period_before_start' }); continue; }
+    // The newest period is old: the board stopped arriving, so "already checked in" would hide that nothing is measured.
+    if (Number(now) - Date.parse(`${m.board.to}T00:00:00+07:00`) > STALE_BOARD_DAYS * DAY_MS) { skipped.push({ goal: g.id, ref: g.metric.ref, why: 'board_stale', period: `${m.board.from}..${m.board.to}` }); continue; }
     const mark = marker(m.product, m.board);
     if (typeof g.last_checkin?.note === 'string' && g.last_checkin.note.startsWith(mark)) { skipped.push({ goal: g.id, ref: g.metric.ref, why: 'already_checked_in' }); continue; }
     const tile = m.board.tiles.find(t => t.key === m.key);
@@ -86,7 +93,23 @@ export async function goals_checkin(input, deps) {
   // A schedule wakes its Soot only on `notify` (wake_when.notify) and never on `done: true`, so a run with
   // something to act on (a refused check-in, a guardrail newly breached this period) drops `done` and says notify.
   const loud = failed.length > 0 || woke;
-  return { ...(loud ? {} : { done: true }), at: iso(now), checked, skipped, failed, guardrails, ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}), notify: loud, wake: loud };
+  const summary = summaryOf(checked, skipped, failed);
+  const cards = { ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}) };
+  // Nothing measured and numbers not arriving: the fire is a skip with its reason, never a quiet ok. The goal list is
+  // then `skipped_goals` (`skipped` is the runtime's flag).
+  const missing = skipped.find(x => NOT_ARRIVING.includes(x.why));
+  if (!loud && !checked.length && missing) return { ok: true, skipped: true, reason_code: missing.why, summary, at: iso(now), checked, skipped_goals: skipped, failed, guardrails, ...cards, notify: false, wake: false };
+  return { ...(loud ? {} : { done: true }), summary, at: iso(now), checked, skipped, failed, guardrails, ...cards, notify: loud, wake: loud };
+}
+
+/** One line for the schedule's last result: how many goals got a number, and why the rest did not. */
+function summaryOf(checked, skipped, failed) {
+  const why = {};
+  for (const x of skipped) why[x.why] = (why[x.why] ?? 0) + 1;
+  const parts = [`ghi số ${checked.length} mục tiêu`];
+  if (skipped.length) parts.push(`bỏ qua ${skipped.length} (${Object.entries(why).map(([k, n]) => `${k} ${n}`).join(', ')})`);
+  if (failed.length) parts.push(`lỗi ${failed.length}`);
+  return parts.join('; ');
 }
 
 /** A breached guardrail is the one reading a person must see: one card per goal, ref and period, settled when the
