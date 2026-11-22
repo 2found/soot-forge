@@ -22,6 +22,15 @@ test('no key or no address: a quiet skipped (never a failure), and nothing is se
   assert.equal(api.calls.length, 0);
 });
 
+test('for_digest without a board or key goes on: the digest is written from the signals, not skipped', async () => {
+  reset();
+  const noUrl = await world({ env: { PRODUCT_ADMIN_KEY: KEY, SOOT_PROJECT: 'trysoot' } }).call('scoreboard_sync', { for_digest: true });
+  assert.deepEqual([noUrl.ok, noUrl.synced, noUrl.skipped, noUrl.key, noUrl.reason], [true, false, undefined, 'SCOREBOARD_URL', 'no_source_for_product']);
+  const noKey = await world({ env: { SCOREBOARD_URL: api.url } }).call('scoreboard_sync', { for_digest: true });
+  assert.deepEqual([noKey.ok, noKey.synced, noKey.skipped, noKey.key], [true, false, undefined, 'PRODUCT_ADMIN_KEY']);
+  assert.equal(api.calls.length, 0);
+});
+
 test('a sync stores one row per period, sends the key only as X-API-Key, asks for the last 7 full days and answers {done}', async () => {
   reset();
   const bbs = fakeBbs();

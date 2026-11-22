@@ -273,8 +273,11 @@ export async function scoreboard_sync(input, deps) {
   const host = want ? await hostProduct(store, null) : null;
   const mapped = want && all.some(s => s.product === want);
   const sources = want ? all.filter(s => (s.legacy ? host === want || (!host && !mapped) : s.product === want)) : all;
-  if (!env.PRODUCT_ADMIN_KEY && !keys.size) return skippedFor('PRODUCT_ADMIN_KEY');
-  if (!sources.length) return { ...skippedFor('SCOREBOARD_URL'), ...(want ? { product: want, reason: 'no_source_for_product' } : {}) };
+  // A digest is written from the signals whatever the numbers: a product with no board (or no key yet) feeds it
+  // nothing and the chain goes on, instead of a skip that drops the whole weekly digest.
+  const noBoard = (key, extra = {}) => (input.for_digest ? { ok: true, synced: false, reason_code: 'optional_credential', key, ...extra } : { ...skippedFor(key), ...extra });
+  if (!env.PRODUCT_ADMIN_KEY && !keys.size) return noBoard('PRODUCT_ADMIN_KEY');
+  if (!sources.length) return noBoard('SCOREBOARD_URL', want ? { product: want, reason: 'no_source_for_product' } : {});
   const results = [];
   // A source with no key of its own sends none (the product answers 401/403 and the refusal names it).
   for (const source of sources) results.push({ source, ...(await syncSource(deps, source, keyFor(source, env, keys))) });

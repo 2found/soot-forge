@@ -6,6 +6,7 @@ Release notes for Soot Forge pack releases. The version is `package.json`'s;
 ## Unreleased
 
 - **General installs `image-gen` but no longer turns it on.** Image generation runs a local diffusion model that many hosts, a server above all, cannot run, yet General selected it everywhere and its mission carried about 1 KB of image guidance on every request. The pack is still installed, so an owner turns it on by adding `image-gen` to the Soot's `packs`; its guidance (draft size, reference paths, verified file properties, honesty on failure) now lives in the `image_gen_generate` skill, whose description says when to read it. General's mission drops from 1562 to 425 bytes.
+- **company-loop: a weekly digest no longer drops when its product has no scoreboard.** A digest's first step, `scoreboard_sync {for_digest: true}`, skipped for a product with no board (no `SCOREBOARD_URLS` entry) or no key, and a skipped first step ends the whole chain, so trysoot's and 2found's weekly digests never ran. With `for_digest` it now answers `{ok: true, synced: false, key, reason_code: "optional_credential"}` and the digest goes on from the signals; without `for_digest` it is still the quiet skip.
 - **Skills call operations by name.** `health`, `server-care`, `casework` and `team-cs` sent the model through `run_operation`, which Soot no longer has: every granted operation is a tool under its own id, and one without parameters takes `{}`. General's soul no longer names `edit_lines`, which Soot no longer has either; `edit` covers it.
 
 ## 0.25.2 — 2026-11-21
