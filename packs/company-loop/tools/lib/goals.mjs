@@ -24,6 +24,9 @@ export const STALE_BOARD_DAYS = 8;
 const NOT_ARRIVING = ['no_numbers_for_product', 'metric_not_in_board', 'board_stale'];
 const DAY_MS = 86_400_000;
 
+/** The product a goal belongs to: Soot names it `project` (it said `product` before 0.21). */
+const goalProduct = g => g.project ?? g.product;
+
 /** `{product, key}` of a ref, or null when it is not a scoreboard ref. */
 export function parseRef(ref, goalProduct, host) {
   const m = REF.exec(String(ref ?? ''));
@@ -46,7 +49,7 @@ export async function goals_checkin(input, deps) {
   for (let page = 0; page < MAX_PAGES; page++) {
     const got = await cli(bin, call, ['goals', 'list', '--status', 'active', '--limit', String(PAGE), '--cursor', String(page * PAGE)]);
     if (!got.ok || !Array.isArray(got.json?.goals)) return page === 0 ? { ok: true, skipped: true, reason_code: 'goals_unreadable', reason: 'soot_failed', summary: 'không đọc được mục tiêu: lệnh soot lỗi', ...(got.why ? { detail: got.why } : {}), notify: false, wake: false } : { ok: false, reason_code: 'goals_unreadable', message: 'Không đọc hết danh sách mục tiêu.' };
-    goals.push(...got.json.goals.filter(g => !want || (productId(g.product) ?? host) === want));
+    goals.push(...got.json.goals.filter(g => !want || (productId(goalProduct(g)) ?? host) === want));
     if (got.json.goals.length < PAGE) break;
   }
   const boards = new Map();
@@ -62,7 +65,7 @@ export async function goals_checkin(input, deps) {
   let woke = false;
   for (const g of goals) {
     for (const r of g.guardrails ?? []) {
-      const gm = await reading(r.ref, g.product);
+      const gm = await reading(r.ref, goalProduct(g));
       if (gm?.value === null || !gm) continue;
       const worse = Number.isFinite(r.limit) && (r.good === 'down' ? gm.value > r.limit : gm.value < r.limit);
       guardrails.push({ goal: g.id, ref: r.ref, value: gm.value, limit: Number.isFinite(r.limit) ? r.limit : null, breached: worse });
@@ -74,7 +77,7 @@ export async function goals_checkin(input, deps) {
       // The card is filed once per period by the runtime; the Đầu mối is woken once per period too.
       if (await getState(store, group) !== period) { await setState(store, group, period); woke = true; }
     }
-    const m = await reading(g.metric?.ref, g.product);
+    const m = await reading(g.metric?.ref, goalProduct(g));
     if (!m) { skipped.push({ goal: g.id, why: 'not_scoreboard_ref' }); continue; }
     if (!m.board) { skipped.push({ goal: g.id, ref: g.metric.ref, why: 'no_numbers_for_product' }); continue; }
     if (m.value === null) { skipped.push({ goal: g.id, ref: g.metric.ref, why: 'metric_not_in_board' }); continue; }

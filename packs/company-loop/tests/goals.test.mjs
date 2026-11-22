@@ -39,7 +39,7 @@ exit 1
   const calls = () => (existsSync(join(dir, 'log')) ? readFileSync(join(dir, 'log'), 'utf8').trim().split('\n') : []);
   return { bin, dir, envs, checkins: () => calls().filter(l => l.startsWith('goals checkin')) };
 }
-const goal = (id, ref, extra = {}) => ({ id, product: '2novel', level: 'cycle', status: 'active', start: '2026-11-02', end: '2026-12-27', metric: { ref, good: 'up', baseline: 22, target: 35 }, guardrails: [], last_checkin: null, ...extra });
+const goal = (id, ref, extra = {}) => ({ id, project: '2novel', level: 'cycle', status: 'active', start: '2026-11-02', end: '2026-12-27', metric: { ref, good: 'up', baseline: 22, target: 35 }, guardrails: [], last_checkin: null, ...extra });
 const mk = (cli, extra = {}) => world({ env: { SCOREBOARD_URL: lohi.url, SCOREBOARD_URLS: `2novel=${novel.url}`, SCOREBOARD_KEYS: `2novel=${KEY}`, PRODUCT_ADMIN_KEY: KEY, LOOP_SOOT_BIN: cli.bin, SOOT_RUNTIME_URL: RUNTIME, SOOT_RUNTIME_TOKEN: TOKEN, ...extra } });
 
 test('parseRef: <product>:<key>, company-loop:<key> takes the goal product then the host, anything else is not ours', () => {
@@ -109,11 +109,22 @@ test('non-happy paths: unknown product, a key the board lacks, not started yet, 
 });
 
 test('a Soot that records the numbers (metrics_record) feeds goals the same way, with no scoreboard address', async () => {
-  const cli = stubSoot([goal('g_m', 'acme:mrr_usd', { product: 'acme' }), goal('g_c', 'company-loop:churn_pct', { product: 'acme' })]);
+  const cli = stubSoot([goal('g_m', 'acme:mrr_usd', { project: 'acme' }), goal('g_c', 'company-loop:churn_pct', { project: 'acme' })]);
   const w = mk(cli, { SCOREBOARD_URL: '', SCOREBOARD_URLS: '' });
   await w.call('metrics_record', { product: 'acme', period: { from: '2026-11-02', to: '2026-11-08' }, metrics: [{ key: 'mrr_usd', value: 9900 }, { key: 'churn_pct', value: 2.9, previous: 3, good: 'down' }] });
   const out = await w.call('goals_checkin');
   assert.deepEqual(out.checked.map(c => [c.goal, c.value, c.period]), [['g_m', 9900, '2026-11-02..2026-11-08'], ['g_c', 2.9, '2026-11-02..2026-11-08']]);
+});
+
+test('a goal of another product reads that product\'s board by its project (and by product on an older Soot)', async () => {
+  for (const field of ['project', 'product']) {
+    const { project: _, ...g } = goal('g_p', 'company-loop:mrr_usd');
+    g[field] = 'acme';
+    const w = mk(stubSoot([g]), { SCOREBOARD_URL: '', SCOREBOARD_URLS: '' });
+    await w.call('metrics_record', { product: 'acme', period: { from: '2026-11-02', to: '2026-11-08' }, metrics: [{ key: 'mrr_usd', value: 9900 }] });
+    const out = await w.call('goals_checkin');
+    assert.deepEqual(out.checked.map(c => [c.goal, c.value]), [['g_p', 9900]], field);
+  }
 });
 
 test('guardrails are reported against their limit, not recorded; dry_run writes nothing', async () => {
