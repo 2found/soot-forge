@@ -34,20 +34,41 @@ export function wrap(call) {
   return {
     call,
     async query(table, where = [], { order = 'created_at', desc = true, limit = 500 } = {}) {
-      return (await call(table, 'query', { where, order, desc, limit })).rows ?? [];
+      if (matchesNothing(where)) return [];
+      const big = where.findIndex(w => w.op === 'in' && w.values.length > IN_MAX);
+      if (big < 0) return (await call(table, 'query', { where, order, desc, limit })).rows ?? [];
+      // The host takes at most IN_MAX values in one `in`: ask per slice, then order and cut the union here.
+      const rows = [];
+      for (const part of slices(where[big].values)) {
+        const w = where.map((x, i) => (i === big ? { ...x, values: part } : x));
+        rows.push(...((await call(table, 'query', { where: w, order, desc, limit })).rows ?? []));
+      }
+      const key = r => r?.[order] ?? '';
+      return rows.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) * (desc ? -1 : 1)).slice(0, limit);
     },
-    async one(table, where) { return (await call(table, 'query', { where, limit: 1 })).rows?.[0] ?? null; },
+    async one(table, where) {
+      if (matchesNothing(where)) return null;
+      return (await call(table, 'query', { where, limit: 1 })).rows?.[0] ?? null;
+    },
     async insert(table, row) { return (await call(table, 'insert', { row })).id; },
     async update(table, target, set) {
+      if (typeof target !== 'string' && matchesNothing(target)) return 0;
       const body = typeof target === 'string' ? { id: target, set } : { where: target, set };
       return (await call(table, 'update', body)).affected ?? 0;
     },
     async remove(table, target) {
+      if (typeof target !== 'string' && matchesNothing(target)) return 0;
       return (await call(table, 'delete', typeof target === 'string' ? { id: target } : { where: target })).affected ?? 0;
     },
     async search(table, query, where = [], limit = 50) { return (await call(table, 'search', { query, where, limit })).rows ?? []; },
   };
 }
+
+/** The host's limit on one `in` filter: 1 to 100 values. */
+export const IN_MAX = 100;
+/** An `in` over no values matches no row; the host refuses to be asked it, so the answer is given here. */
+const matchesNothing = where => Array.isArray(where) && where.some(w => w?.op === 'in' && Array.isArray(w.values) && w.values.length === 0);
+const slices = values => Array.from({ length: Math.ceil(values.length / IN_MAX) }, (_, i) => values.slice(i * IN_MAX, (i + 1) * IN_MAX));
 
 export const eq = (column, value) => ({ column, op: 'eq', value });
 export const gte = (column, value) => ({ column, op: 'gte', value });

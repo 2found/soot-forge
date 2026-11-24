@@ -258,7 +258,7 @@ test('campaign_verify: one read-only GET says ok, wrong key, key without the rol
   const noRole = await world({ env: { PRODUCT_API_URL: limited.url, PRODUCT_ADMIN_KEY: 'reader-key' } }).call('campaign_verify', {});
   await limited.close();
   assert.equal(noRole.state, 'no_role');
-  assert.match(noRole.message, /thiếu quyền.*agent_mod/);
+  assert.match(noRole.message, /thiếu quyền.*agent_marketing/);
   api.mode = 'error';
   const down = await w.call('campaign_verify', {});
   assert.equal(down.state, 'unreachable');
@@ -274,4 +274,19 @@ test('PRODUCT_AGENT_KEY is the marketing key; the deprecated PRODUCT_ADMIN_KEY s
   const out = await w.call('campaign_verify', {}, { page: { page: 'campaigns' } });
   assert.notEqual(out.state, 'no_key');
   assert.equal(api.calls.length > 0, true);
+  // The check itself sends the Soot's own key, not the old shared one.
+  api.reset();
+  const check = await w.call('campaign_verify', {});
+  assert.deepEqual([check.state, api.calls.map(c => c.key)], ['ok', [KEY]]);
+});
+
+test('a TikTok channel gets its own campaign link and can never be scheduled', async () => {
+  api.reset();
+  const w = world();
+  const out = await w.call('campaign_save', { ...CAMPAIGN, name: 'Lohi: nghe truyện audio', channels: ['blog-lohi', 'tiktok'] });
+  assert.deepEqual(out.links.map(l => l.channel), ['blog-lohi', 'tiktok']);
+  assert.equal(api.calls.find(c => c.body.channel === 'tiktok').body.target, 'https://lohi2.com/?utm_source=tiktok&utm_medium=social&utm_campaign=lohi-nghe-truyen-audio');
+  const ch = await w.store.one('channels', [{ column: 'key', op: 'eq', value: 'tiktok' }]);
+  assert.equal(ch.publisher, 'hand');
+  assert.equal(ch.paused, false);
 });

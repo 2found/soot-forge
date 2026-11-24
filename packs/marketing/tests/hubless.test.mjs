@@ -535,3 +535,9 @@ test('spacing holds even when a log row has no parseable time', () => {
   const log = [{ action: 'publish', status: 'published', at: new Date(now - H).toISOString() }, { action: 'publish', status: 'intent', at: null }];
   assert.equal(claimWindow({ settings: {}, channel: ch, log, now })?.code, 'spacing');
 });
+
+test('a post on the TikTok hand-off channel is never scheduled', async () => {
+  const w = world();
+  const d = await readyPost(w, { kind: 'social', channel: 'tiktok', body: 'Nghe thử một cảnh trên LoHi: https://lohi2.com/novel/tien-hiep', brief: undefined });
+  await assert.rejects(w.call('schedule', { id: d.id }), e => e.code === 'handoff_channel' || /handoff_channel|tự đăng/.test(String(e.message)));
+});

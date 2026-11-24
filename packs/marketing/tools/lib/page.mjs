@@ -23,7 +23,7 @@ export const TABS = {
   refused: ['refused'],
   removed: ['pulled', 'removed'],
 };
-const CHANNEL_LABEL = { 'blog-lohi': 'Blog', x: 'X', facebook: 'Facebook', reddit: 'Reddit', hub: 'Hub' };
+const CHANNEL_LABEL = { 'blog-lohi': 'Blog', x: 'X', facebook: 'Facebook', reddit: 'Reddit', tiktok: 'TikTok', hub: 'Hub' };
 export const PAUSED_LABEL = { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha', person: 'bạn dừng', signed_in: 'đã đăng nhập, chờ Bật' };
 const channelLabel = key => CHANNEL_LABEL[key] ?? CHANNEL_LABEL[platformOf(key)] ?? key;
 const URL_RE = /https?:\/\/\S+/g;

@@ -31,7 +31,8 @@ export function fakeStore({ clock = () => Date.now() } = {}) {
       case 'lte': return v !== null && v <= c.value;
       case 'gt': return v !== null && v > c.value;
       case 'gte': return v !== null && v >= c.value;
-      case 'in': return c.values.includes(v);
+      // As strict as the host's pack storage: an `in` takes 1 to 100 values.
+      case 'in': return c.values.length >= 1 && c.values.length <= 100 ? c.values.includes(v) : no('invalid', 'invalid request: in takes 1 to 100 values');
       case 'is_null': return v === null;
       case 'not_null': return v !== null;
     }

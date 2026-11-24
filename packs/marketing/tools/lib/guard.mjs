@@ -13,6 +13,8 @@ export const CHANNEL_DEFAULTS = {
   x: { kind: 'social', publisher: 'browser', cap_per_day: 4, spacing_min: 180, reply_cap_per_day: 10, rules: { max_chars: 280, link_chars: 23, reply_links: false, reply_spacing_min: 10 } },
   facebook: { kind: 'social', publisher: 'browser', cap_per_day: 2, spacing_min: 360, reply_cap_per_day: 10, rules: { page_only: true, reply_spacing_min: 10 } },
   reddit: { kind: 'social', publisher: 'browser', cap_per_day: 1, spacing_min: 24 * 60, reply_cap_per_day: 5, rules: { per_sub_per_week: 1, promo_ratio: 0.1, reply_spacing_min: 30 } },
+  // TikTok is always the founder's upload: a campaign gets its own link for it, and no post is ever scheduled or claimed on it.
+  tiktok: { kind: 'video', publisher: 'hand', cap_per_day: 0, spacing_min: 0, reply_cap_per_day: 0, rules: {} },
 };
 export const SOCIAL_PLATFORMS = ['x', 'facebook', 'reddit'];
 

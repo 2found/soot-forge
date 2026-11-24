@@ -202,6 +202,7 @@ export async function schedule(input, { store, now }) {
     if (!last || last.verdict !== 'pass' || last.content_hash !== p.content_hash) fail('not_ready', 'Bài cần Editor kiểm tra lại.');
   }
   const ch = await channel(store, p.channel);
+  if (ch.publisher === 'hand') fail('handoff_channel', `Kênh ${ch.key} do người sáng lập tự đăng: để bài ở bàn Marketing làm việc giao tay, không xếp lịch.`);
   const settings = await getSettings(store);
   const action = p.kind === 'reply' ? 'reply' : 'publish';
   const { mine, times } = await takenTimes(store, ch.key, now, p.ref, action);
