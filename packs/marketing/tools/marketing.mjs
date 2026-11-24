@@ -13,6 +13,8 @@ import { report } from './lib/report.mjs';
 import { radar_read, signals_list, signals_mark } from './lib/radar.mjs';
 import { video_stats } from './lib/stats.mjs';
 import { inputs_health } from './lib/health.mjs';
+import { library_scan, item_save, file_read } from './lib/library.mjs';
+import { publish_bundle, release_due } from './lib/bundle.mjs';
 
 export const TOOLS = {
   draft_save: ops.draft_save, items: ops.items, check: ops.check, schedule: ops.schedule, due: ops.due,
@@ -21,6 +23,7 @@ export const TOOLS = {
   channels_setup: ops.channels_setup, raised: ops.raised, answer, replies_sync: ops.replies_sync, reply_save: ops.reply_save,
   video_import, campaign_save, campaign_report, campaign_verify, plan, channels_probe, report,
   radar_read, signals_list, signals_mark, video_stats, inputs_health,
+  library_scan, item_save, file_read, publish_bundle, release_due,
 };
 
 /** Run one tool; `deps` overrides the store, clock and fetch in tests. */
@@ -28,7 +31,9 @@ export async function run(name, ctx, { env = process.env, store, now = Date.now(
   const tool = TOOLS[name];
   if (!tool) throw new MarketingError('invalid_request', `Unknown tool ${name}.`);
   const input = ctx?.input ?? {};
-  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, exec, soot: ctx?.soot ?? ctx?.piece?.soot ?? ctx?.page?.soot ?? null, page: ctx?.piece?.piece ?? ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id });
+  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, exec, soot: ctx?.soot ?? ctx?.piece?.soot ?? ctx?.page?.soot ?? null, page: ctx?.piece?.piece ?? ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id, hook: ctx?.hook ?? 'tool.call', viewer: ctx?.viewer ?? null,
+    // The team the piece belongs to and the packs that team has (Micro Fish, email): the host passes them on the piece.
+    teams: Array.isArray(ctx?.piece?.teams) ? ctx.piece.teams : null, packs: Array.isArray(ctx?.piece?.packs) ? ctx.piece.packs : null });
 }
 
 async function readStdin() {
@@ -48,12 +53,16 @@ async function readStdin() {
 export const signInExit = out => typeof out?.needs_person?.credential === 'string';
 
 export async function main(name) {
+  let ctx = {};
   try {
-    const out = await run(name, await readStdin());
+    ctx = await readStdin();
+    const out = await run(name, ctx);
     process.stdout.write(JSON.stringify(out) + '\n');
     if (signInExit(out)) process.exitCode = 1;
   } catch (e) {
     const known = e instanceof MarketingError;
+    // A preflight refusal is the exit status: the host shows no approval card and tells the Soot why.
+    if (ctx?.hook === 'tool.preflight') { process.stderr.write((known ? e.message : 'The preview could not be built.') + '\n'); process.exitCode = 1; return; }
     process.stdout.write(JSON.stringify({ error: { code: known ? e.code : 'failed', message: known ? e.message : 'The marketing tool could not complete the request.' } }) + '\n');
     if (!known) process.exitCode = 1;
   }

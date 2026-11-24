@@ -138,6 +138,12 @@
                     "additionalProperties": {
                       "additionalProperties": false,
                       "properties": {
+                        "ref_field": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "source": {
                           "type": [
                             "string",
@@ -658,6 +664,13 @@
                   "null"
                 ]
               },
+              "default": {
+                "description": "What the host binds while the operator has set no value. team_folder (from operator only): a durable folder the host keeps for the Soot's team, created on first use and shared by every member and conversation of that team; a folder the operator chooses in Nest replaces it.",
+                "enum": [
+                  "team_folder"
+                ],
+                "type": "string"
+              },
               "description": {
                 "maxLength": 500,
                 "type": "string"
@@ -725,6 +738,35 @@
           "maxItems": 32,
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "env_info": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "maxLength": 500,
+                "type": "string"
+              },
+              "title": {
+                "description": "What the person is asked for in Nest, e.g. \"Địa chỉ API sản phẩm\".",
+                "maxLength": 80,
+                "type": "string"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "description": "How Nest names a needs.env variable for the person who fills it in: {title, description} keyed by a name needs.env lists. Optional; without it the name is shown in words.",
+          "maxProperties": 32,
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+          },
+          "type": [
+            "object",
             "null"
           ]
         },
@@ -964,7 +1006,7 @@
                 ]
               },
               "background": {
-                "description": "The tool can be slow (a crawl, a build, a long upload): offer the Soot async, to start it as a background job and collect it with job_wait. Omitted: every call runs inline, and the Soot is not shown the option.",
+                "description": "The tool can be slow (a crawl, a build, a long upload): offer the Soot async, to start it as a background job and collect it with the job tool. Omitted: every call runs inline, and the Soot is not shown the option.",
                 "type": "boolean"
               },
               "description": {

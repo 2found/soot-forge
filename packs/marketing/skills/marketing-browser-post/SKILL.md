@@ -14,6 +14,10 @@ it lists the Soot in `SOOT_BROWSER_PERSISTENT_SOOTS`. The person signs in once,
 in Nest's docked browser panel, on the login page you opened. You never sign in, type a password or a 2FA code, solve a
 captcha or switch accounts.
 
+A community post from the Marketing desk (Reddit, Hacker News, dev.to) is the
+founder's to post: it never has a claim, and you never post it, even when asked
+in a chat.
+
 Every action starts from a signed claim from `marketing_claim`. The claim
 carries `platform`, `account`, `body`, `title`, `link`, `subreddit`, for
 a reply `reply_url`, and for a video `assets` (the file to upload).
@@ -110,8 +114,8 @@ post of the week; a rule against the post is `fail failed` with the rule.
 4. Never upload twice for one claim: a second file input after an upload is
    the same claim's composer, not a new post.
 
-TikTok is never posted by the Soot: its files stay in Hàng đợi for the person
-to upload (TikTok is a handoff).
+TikTok is never posted by the Soot: its files wait on the Marketing desk as a
+hand-off for the person to upload, who pastes the link there.
 
 ## Find (crash recovery)
 

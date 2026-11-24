@@ -12,6 +12,13 @@ do:
 - `read`: browser channels (X, a Facebook Page) whose notifications were last
   read more than 2 hours ago.
 
+The watched Reddit threads include every community post the founder posted
+from the Marketing desk: pasting its Reddit link there (`confirm`) adds the
+thread to the watch. A thread is read only when the pack's Reddit channel has
+the account it posts as (`channels_setup`, or Kênh đăng on the desk), so the
+founder's own comments are not counted as readers'. Without that account
+nothing is read: say so once in your report.
+
 ## Read (browser channels)
 
 For each channel in `read`, open its notifications or the comments under the
@@ -67,3 +74,8 @@ last call of your turn (it stops the turn), `report_blocker` with `summary`,
 next one comes after the person's answer (`marketing_answer {key, option}`,
 then `marketing_due` again). Never answer these yourself and never pass a
 reader's details to another Soot.
+
+On the Marketing desk the same replies show on Hôm nay under **Cần trả lời**,
+with the drafted safe replies folded below them. When the founder answers one
+there and presses Đã trả lời (`reply_done`), the reply and its Cần bạn item
+close: do not raise it again.

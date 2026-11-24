@@ -8,7 +8,7 @@ You turn one published post, or one chapter highlight, into one short video
 and queue it on X and Facebook. The video itself is made by the 2build
 `marketing-video` skill and its `mvf` tool: read that skill and follow its
 stages. Do not write your own script, hook or pretest steps; this skill only
-says where a team run differs and how the files reach Hàng đợi.
+says where a team run differs and how the files reach the desk.
 
 ## 1. Start
 - Pick the source: `marketing_items {state:"published"}`; its id is `parent`.
@@ -23,11 +23,12 @@ mvf names three owner touchpoints. Here:
   `x` and `facebook` (add `tiktok` only as a handoff file), language `vi`.
 - **Script approval:** after the Micro Fish pretest (`mvf judge scripts`) has
   written `decision.json`, run
-  `mvf approve <sid> --verdict delegated --note "publish guard + Micro Fish pretest; founder previews in Hàng đợi"`.
+  `mvf approve <sid> --verdict delegated --note "publish guard + Micro Fish pretest; founder previews on the Marketing desk"`.
   The publish guard (`marketing_check`, again at `marketing_claim`) judges the
   words that go out. When the deployment keeps `publish_approval: required`,
   the claim's approval in Cần bạn is the founder's word; never wait here.
-- **The cut:** the founder previews in Hàng đợi and may pull it. Do not ask.
+- **The cut:** the founder previews it on the Marketing desk (Nội dung) and
+  may stop it. Do not ask.
 Loop on `mvf next` until `08-delivery/` has the files. A FAIL you cannot fix
 in two tries ends the run (step 3 with `error`).
 
@@ -44,6 +45,12 @@ captions, poster and copy, and saves one video draft per channel.
   draft and `marketing_schedule {id}`; caps, spacing and quiet hours apply as
   for any post. The Publisher uploads it (marketing-browser-post).
 Re-importing the same campaign after a fix updates the same drafts.
+
+TikTok is always the founder's to post. On the desk a finished video waits on
+Hôm nay as a hand-off; the founder posts it and pastes the TikTok link there
+(**Dán link đã đăng**), which records it. Never `social_record` a TikTok link
+yourself; a link the founder sends in the chat goes through `page_action {op:
+"confirm", ref, outcome: "posted", url}`.
 
 ## Report
 One line per draft: channel, id, state, and the reason when held.

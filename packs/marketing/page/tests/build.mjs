@@ -1,4 +1,4 @@
-// Builds page/app.js, one classic script, from the ES modules in page/src/.
+// Builds page/app.js (the Marketing desk piece), one classic script, from the ES modules in page/src/.
 // A sandboxed (opaque-origin) frame fetches module scripts in CORS mode, which
 // the bundle route does not answer, so the page ships a classic script. Each
 // module keeps its own function scope; imports become destructuring of the
@@ -8,7 +8,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 const src = new URL('../src/', import.meta.url);
 const out = new URL('../app.js', import.meta.url);
-const order = ['bridge', 'model', 'app'];
+const order = ['icons', 'model', 'app'];
 
 export async function build() {
   const parts = [];

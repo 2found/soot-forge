@@ -19,7 +19,7 @@
     {
       "id": "growth",
       "name": "Growth",
-      "description": "Marketing cho bốn sản phẩm qua hub 2found.dev: Writer đọc radar và viết, Editor duyệt, đăng blog và là Đầu mối. Bài mạng xã hội đã duyệt do poster trên máy người sáng lập đăng.",
+      "description": "Marketing cho sản phẩm của bạn. Người viết soạn bài; Biên tập là Đầu mối, xem bài rồi xin bạn duyệt mỗi gói đăng qua thẻ duyệt trong Cần bạn. Blog lên qua thư mục site; bài mạng xã hội qua Máy đăng, hoặc bạn đăng tay rồi dán link. Mở bàn Marketing để thêm sản phẩm đầu tiên.",
       "source": "groups/growth/group.source.json",
       "parts": [
         "marketing",
@@ -34,6 +34,8 @@
       "name": "Support",
       "description": "Trả lời khách của mọi sản phẩm: độc giả Lohi (app, Discord, Telegram) và khách trên 2found.dev, trysoot.com, 2novel.app; bàn ghi nhận lưu sổ, ghi chủ đề không danh tính và viết tổng kết hằng ngày.",
       "source": "groups/support/group.source.json",
+      "stability": "experimental",
+      "audience": "internal",
       "parts": [
         "delivery"
       ],

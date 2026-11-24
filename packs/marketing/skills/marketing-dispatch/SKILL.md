@@ -10,6 +10,11 @@ step failed (its output is attached): if it carries an `intent_id` and the
 post is not live, `marketing_fail {intent_id, status:"failed", reason}`;
 otherwise nothing. This skill is for the rest (X, Facebook, Reddit, unpublish).
 
+Items of the Marketing desk (`MK-…`) never pass through this queue: their
+posts go out through `release_due` or as the founder's hand-offs (the
+`marketing-publish` skill), and a desk community post is never claimed or
+posted by a Soot.
+
 The tool-only dispatch schedule ran `marketing_due` and woke you. Act on its
 answer with few calls: never call `marketing_items` (the claim carries the
 text) or `update_plan`, never snapshot a page twice when once tells you,

@@ -1,23 +1,64 @@
 ---
 name: marketing-write
-description: "Turn a signal into grounded article and social drafts in the hub; never publish."
+description: "Turn a signal, a topic or a release into grounded drafts (blog, social, community post, newsletter, launch pack) on the Marketing desk or in the hub; never publish."
 ---
 # Writing
 
-You turn a signal into drafts: blog articles in the hub's CMS and posts for the
-social channels. Drafts are private. An editor reviews them and takes them
-live; you never publish.
+You turn a signal into drafts: blog articles, posts for the social channels,
+community posts, newsletters and launch packs. Drafts are private. An editor
+reviews them and asks the founder; you never publish.
+
+## On the Marketing desk: save with `item_save`
+
+When the team keeps a marketing library (`MARKETING_ROOT` is set) or a task
+names a desk item (`MK-…`), every piece of content you make is saved with
+`item_save`, once per change, and never with `cms_save`, `social_queue` or
+`social_update` directly. One call writes the item's folder in the library
+(`content/<product>/<day>-<slug>/`) and the hub drafts that go with it:
+
+- `ref`: the `MK-…` the task gave you (the founder's "Tạo nội dung"); leave it
+  out for work you start yourself and the tool makes one.
+- `product`, `slug`, `format` (`blog`, `social`, `video`, `community`,
+  `newsletter` or `launch`), `title`. A save that names no format keeps the
+  item's own.
+- `langs`: the article, one entry per language (`lang`, `title`, `summary`,
+  `body` in Markdown, `slug`).
+- `posts`: each social post (`channel`, `lang`, `text`, `link` when it promotes
+  the article). The length rules in "A social post" below still hold.
+- `community` and `newsletter`: the parts of the kinds below.
+- `waiting`: the one question you asked the founder about this item (the same
+  words as your `report_blocker`), so the desk shows it as "Chờ bạn trả lời"
+  instead of a draft. Save it right after the ask, alone if nothing else
+  changed (it keeps the item where it is), and save `waiting: null` once the
+  answer came back and you carry on.
+
+The answer gives the item's `revision` and, per part, the `site`, `slug`, hub
+`id` and `revision` the Editor copies into the bundle. Without a hub
+(`MARKETING_HUB` unbound) the parts are saved as files only (`local: true`) and
+the item's revision is the one the founder approves; the same rules hold.
+
+Saving the same text again changes nothing. A changed text moves the hub
+revision, so a waiting approval no longer covers it: tell the Editor, who asks
+again. A stopped item stays stopped; `reopen: true` is only for the Editor,
+when the founder asked to reopen it. You never ask for approval and never
+publish; the Editor does both.
 
 ## Before you write
 
 1. Read the team's brief (`team.brief` in team memory) and the product's own
    skill when the team has one: audience, voice, what may be claimed, which
    sites and channels. `social_channels` lists the sites this team writes for
-   (`sites`) and the channels it may queue.
+   (`sites`) and the channels it may queue. The products are in the marketing
+   folder: `marketing_file_read {path: "products.json"}` (name, site,
+   languages, accounts, community targets). No product skill: read
+   `marketing_file_read {path: "<product>/brand.md"}` (see "A product with
+   only brand.md" below). The tool reads only inside the marketing folder and
+   never writes.
 2. Read the team memory the editor and lead left: voice rules and lessons from
    earlier posts. A lesson there beats a habit of yours.
-3. `cms_list` the site. If a post on the topic exists, update it (`cms_read`,
-   edit, `cms_save` with its revision) instead of starting another.
+3. With a hub, `cms_list` the site. If a post on the topic exists, update it
+   (`cms_read`, edit, `cms_save` with its revision, or `item_save` on the desk)
+   instead of starting another.
 4. Work from evidence: the signal rows behind the task, release notes, a fact
    the product states. Every claim about a product must be true today. When
    you are unsure whether something shipped, leave it out or call it planned.
@@ -58,6 +99,99 @@ posts for. Each channel gets its own angle; never paste the summary everywhere.
 - Same facts as the source; no new claims, no invented numbers or users. Fix a
   rejected length by rewriting, not by cutting mid-sentence.
 
+## A product with only brand.md
+
+A product added from the desk ("Bắt đầu marketing") has no brand skill yet,
+only `<product>/brand.md` in the marketing folder: a title, one paragraph on
+what the product does and for whom, and two lists, `## Giọng` and `## Không
+nói`. Read it with `marketing_file_read {path: "<product>/brand.md"}` before
+the first draft for that product, and follow it like a brand skill.
+
+When the file is still the stub (the lists hold only `- `, or the paragraph is
+"Sản phẩm này làm gì, cho ai."), write plainly: short sentences, only what the
+product page or the task states, no superlatives, no promises, no prices. Then,
+as the last call of your turn and after your save, raise one ask with
+`report_blocker`: `summary` "Cần vài dòng giọng văn cho <tên sản phẩm>",
+`missing` "Mở Marketing › Thư viện › <tên sản phẩm> rồi sửa file brand.md: vài
+câu về người đọc, giọng văn và những điều không bao giờ nói. Chưa có thì Người
+viết viết giản dị, không quảng cáo." Ask once per product: `learn` one
+team fact ("brand.md of <product> is a stub; asked <date>") and do not ask
+again while that fact stands. A file you cannot read counts as a stub; say so
+on the task.
+
+## Kinds on the desk
+
+The desk's "Tạo nội dung" asks for one of six kinds. Blog, social and video are
+as above. The other three:
+
+### Community post (`community`)
+
+A post the founder makes by hand in a community: a subreddit, Hacker News,
+dev.to, or a place the founder named. Soot never posts it; after the
+approval the founder copies it, posts it and pastes the link on the desk.
+
+- Save: `item_save {ref, product, format: "community", slug, community:
+  {target, title, body, lang?}}`. `target` is the id the task gave (one of the
+  product's `targets` in `products.json`, such as `reddit:selfhosted`, `hn`,
+  `devto`) or `{kind: "other", name}`. `lang` is the community's language,
+  not the product's.
+- Title limits: Reddit 300 characters, Hacker News 80, dev.to 128. The tool
+  refuses a longer one; rewrite it, never cut it mid-word.
+- Follow the target's rules (the task quotes `rules`; on Reddit also read the
+  sub's own rules when you can). A sub that bans self-promotion gets no link
+  and no product pitch, or no post: say so on the task instead of saving.
+- Write as the maker, and say so in the first lines ("I build X", "Mình làm
+  X"). Lead with the problem, what you tried or learned, and real details: a
+  command, a number, a screenshot description, a limit. At most one link. No
+  sales words, no emoji, no hashtags, no asking for votes or stars.
+- Hacker News: `Show HN: <name> – <what it does>` only for something people
+  can try now; otherwise a plain title. The body is plain text (HN does not
+  render Markdown): who you are, what it does, what is new, how to try it,
+  what feedback you want. dev.to takes a Markdown article.
+
+### Newsletter (`newsletter`)
+
+One mail to the product's subscribers. The founder approves the words; after
+that the Editor sends it through email (Nest asks the founder again for the
+send) or the founder exports it and sends it with their own tool.
+
+- Save: `item_save {ref, product, format: "newsletter", slug, newsletter:
+  {subject, preheader, body, lang?}}`. Never set `sending`: that is the
+  Editor's note.
+- Source: "the week" is what went live for the product in the last 7 days.
+  The Editor's task lists those posts with their links; with a hub,
+  `content_stats {days: 7}` gives them too. A task that names a topic instead
+  is a newsletter about that topic.
+- `subject`: what is inside, at most about 60 characters, no clickbait.
+  `preheader`: one line that adds to the subject, not repeats it.
+- `body` in Markdown, using only headings, short paragraphs, bold and plain
+  `https://` links (the export renders those; tables and images are lost). Two
+  to four short parts, each one thing that went out, why it matters to this
+  reader and its link. End with one ask, such as "trả lời thư này nếu …".
+- Never write a subscriber's name or address, and no tracking links other than
+  the campaign links the task gave.
+
+### Launch pack (`launch`)
+
+One item and one approval for a release: a blog post, an X post and a Show HN
+post, from the release's CHANGELOG.
+
+- Source: the release notes at the end of the task ("Ghi chú phát hành"). The
+  desk copied them from the newest section of the product's CHANGELOG, or the
+  founder pasted them. Every claim comes from those notes; leave out what they
+  do not say. No notes in the task: ask the Editor on the task, do not guess.
+- Save everything in one call: `item_save {ref, product, format: "launch",
+  slug, langs: [the blog per language], posts: [{channel: "x", lang, text,
+  link?}], community: {title, body}}`. The community part defaults to target
+  `hn` and language `en`.
+- Blog: the two to four changes that matter to a user, each with what it lets
+  them do, then how to get the new version. X: one post, the most useful
+  change as the first line, the blog link in `link` once it is live (leave it
+  out until then). Show HN: as in "Community post" above, written for HN
+  readers, not a copy of the blog.
+- After the approval the Show HN part becomes its own community item that the
+  founder posts when ready; the blog and X go out on their slots.
+
 ## Saving
 
 - New post: `expected_revision: 0`; an edit uses the revision you read.
@@ -82,9 +216,11 @@ When the drafts are saved, comment on your task with each draft's site, slug or
 links, numbers). Move the task to `review`: no draft goes live without an
 editor's review. Mark the signal `used` with `used_in`.
 
-## Without a hub
+## Without a hub, outside the desk (the older queue)
 
-Drafts live in this pack's own storage; there is no `content` table to keep.
+When the team has neither a hub nor a marketing folder, drafts live in this
+pack's own storage; there is no `content` table to keep. On the desk without a
+hub, use `item_save` as above instead.
 
 - `marketing_items {query}` first: update an existing post on the topic.
 - `marketing_draft_save {request_id, kind, channel, brief, body, link?}`; an

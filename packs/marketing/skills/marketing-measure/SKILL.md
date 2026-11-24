@@ -41,6 +41,34 @@ read yet: say "no data yet", never 0. Search Console data comes from the
 daily `marketing_gsc_sync` schedule; a `needs_person` answer means the Google
 sign-in must be renewed in Nest.
 
+## On the Marketing desk: Tuần này và tuần sau
+
+Hôm nay's learning block (`page_view {view: "today"}`, `learn`) is built from
+the same inputs: Search Console rows (`gsc_sync`), campaign clicks
+(`campaign_report`) and the plan's next topic. Read it before a review:
+`top` are the week's best posts by clicks, `queries` the searches worth a post
+(`covered: false` means no item answers it yet), `next` what the plan writes
+next. `inputs` names what is missing, at most two, most useful first:
+
+| code | means | what you do |
+|---|---|---|
+| `gsc_not_connected` | nobody signed Google in for Search Console | nothing by yourself; the desk offers the founder "Nhờ Biên tập nối" |
+| `gsc_sign_in` | the sign-in expired or was revoked | Nest already shows "Đăng nhập Google lại" in Cần bạn; point to it, do not raise another |
+| `gsc_stale` | no successful read for 3 days | check that the daily `gsc_sync` schedule runs; say so in the review |
+| `no_signals` | neither Search Console nor campaign clicks have numbers | say "chưa có số liệu người đọc", never 0 |
+| `video_links` | posted TikTok videos have no link yet | the founder pastes them on the desk; mention the count once |
+
+When the desk asks "Nối Search Console cho các trang blog của bàn Marketing
+(gsc_sync), rồi cho tôi biết cần làm gì." (request id `ask-gsc-connect`), call
+`gsc_sync {site, days: 3}` once for each product's Search Console property
+(`sc-domain:<domain>` of its site). Then answer in one or two plain lines:
+read (how many rows), skipped because Google was never signed in (the founder
+signs in once in Nest, on this Soot's Quyền hạn › Đăng nhập Google, with the
+account that owns the property), `needs_person` (the sign-in card is in Cần bạn) or
+`no_access` (that Google account cannot read the property: add it as a user in
+Search Console). Keep the daily `gsc_sync` schedule; one read does not keep the
+numbers fresh.
+
 ## Campaigns
 
 A campaign (`marketing_campaign_save {name, goal{metric,target}, channels,

@@ -1,284 +1,399 @@
-// Bài viết / Hàng đợi bundle: bodies that pass the page tools' parameters,
-// "no data" never shown as 0, links through the bridge, and a bundle that never
-// fetches and is the current build. tests/ is not shipped in the pack archive.
+// The Marketing desk piece: bodies the page tools accept, "—" and a reason
+// for anything not measured, approving only through Nest's own card, writes
+// from a press with a request id kept across a lost answer, a bundle that
+// never fetches, sets text only and is the current build, and every tab and
+// sheet drawn from real page_view answers. tests/ is not shipped.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import Ajv2020 from 'ajv/dist/2020.js';
-import { createBridge, parseNestMessage, randomID, REQUEST_ID } from '../src/bridge.js';
 import * as M from '../src/model.js';
+import { ICONS } from '../src/icons.js';
 import { build } from './build.mjs';
+import { mount, text } from './fake-dom.mjs';
+import { world, saved, T0 } from '../../tests/desk-world.mjs';
 
 const page = new URL('../', import.meta.url);
 const pack = JSON.parse(await readFile(new URL('../../pack.json', import.meta.url), 'utf8'));
-const tool = name => pack.tools.find(t => t.name === name);
+const tool = (name) => pack.tools.find(t => t.name === name);
+const ajv = new Ajv2020({ strict: false });
+const viewOK = ajv.compile(tool('page_view').parameters);
+const actionOK = ajv.compile(tool('page_action').parameters);
+const H = 3600_000;
 
-test('every body the page builds passes the page tool parameters; writes carry a stable request id', () => {
-  const ajv = new Ajv2020({ strict: false });
-  const view = ajv.compile(tool('page_view').parameters), action = ajv.compile(tool('page_action').parameters);
-  for (const body of [M.viewBody(), M.viewBody('published'), M.viewBody('all', 'P-0123456789')]) assert.ok(view(body), JSON.stringify(view.errors));
-  const id = randomID('mk', 12);
-  assert.match(id, REQUEST_ID);
-  for (const [op, rest] of [['pull', { id: 'P-0123456789' }], ['restore', { id: 'P-0123456789' }], ['unpublish', { id: 'P-0123456789' }], ['pause', {}], ['resume', {}], ['pause', { channel: 'blog-lohi' }]]) {
-    const body = M.actionBody(id, op, rest);
-    assert.ok(action(body), JSON.stringify(action.errors));
-    assert.equal(body.request_id, id);
+test('every view body the page builds passes page_view, approvals included; extra approval keys are dropped', () => {
+  const approvals = M.compactApprovals({ approvals: [
+    { id: 'ap-1', state: 'pending', tool: 'publish_bundle', ref: 'MK-ABC123', created_at: '2026-11-24T00:00:00Z', expires_at: '2026-11-25T00:00:00Z', extra: 'x' },
+    { id: 'ap-2', state: 'pending', tool: 'publish_bundle', created_at: '2026-11-24T00:00:00Z' },
+    { id: 'ap-3', state: 'rejected', tool: 'publish_bundle', ref: 'MK-ABC124', reason: 'r'.repeat(900), decided_at: '2026-11-24T01:00:00Z' },
+  ], total: 3 });
+  assert.deepEqual(approvals.map(a => a.id), ['ap-1', 'ap-3'], 'a row with no ref names no item');
+  assert.equal(approvals[0].extra, undefined);
+  assert.equal(approvals[1].reason.length, 500);
+  assert.equal(M.compactApprovals({ approvals: Array.from({ length: 140 }, (_, i) => ({ id: `a${i}`, state: 'pending', ref: 'MK-ABC123' })) }).length, 100);
+  const bodies = [
+    M.viewBody('summary', {}, approvals), M.viewBody('today', { product: 'acme' }, approvals), M.viewBody('content', { stage: 'approval', cursor: '30' }, null),
+    M.viewBody('item', { ref: 'MK-ABC123' }), M.viewBody('item', { ref: 'P-0123456789' }), M.viewBody('channels'), M.viewBody('channel', { key: 'acme:x' }),
+    M.viewBody('library', { node: 'radar:acme-video/2026-11-23' }), M.viewBody('library', { node: 'other' }), M.viewBody('numbers', { week: '2026-W47' }),
+  ];
+  for (const b of bodies) assert.ok(viewOK(b), `${JSON.stringify(b)} ${JSON.stringify(viewOK.errors)}`);
+  assert.equal(M.viewBody('content', { stage: undefined, product: null }).stage, undefined);
+});
+
+test('every action body passes page_action and carries the request id the call is sent under', () => {
+  const rid = M.requestId('mk');
+  assert.match(rid, M.REQUEST_ID);
+  const ops = [
+    ['stop', { ref: 'MK-ABC123' }], ['pause', { scope: 'all' }], ['resume', { scope: 'channel', channel: 'acme:x' }],
+    ['rules', { channel: 'acme:x', cap_per_day: 3, spacing_min: 90, quiet: { from: '23:00', to: '07:00' }, max_len: 280 }],
+    ['rules', { channel: 'acme:blog', cap_per_day: 1, spacing_min: 0, quiet: null }],
+    ['confirm', { ref: 'MK-ABC123', outcome: 'posted', url: 'https://x.com/acmehq/status/123', channel: 'x', lang: 'vi' }],
+    ['confirm', { ref: 'MK-ABC123', outcome: 'not_posted', channel: 'x', lang: 'vi' }],
+    ['mark', { file: 'channels/acme-video/radar/2026-11-23.md', row: 2, onboard: null }],
+    ['create', { product: 'acme', format: 'video', topic: 'Vì sao bộ này hay', channels: ['tiktok'], series: 'hay' }],
+  ];
+  for (const [op, f] of ops) {
+    const body = M.actionBody(op, { ...f, unused: undefined }, rid);
+    assert.ok(actionOK(body), `${op} ${JSON.stringify(actionOK.errors)}`);
+    assert.equal(body.request_id, rid);
+    assert.equal('unused' in body, false);
+  }
+  assert.equal(M.intentKey('stop', { ref: 'MK-ABC123' }), M.intentKey('stop', { ref: 'MK-ABC123' }));
+  assert.notEqual(M.intentKey('stop', { ref: 'MK-ABC123' }), M.intentKey('stop', { ref: 'MK-ABC124' }));
+});
+
+test('nothing measured reads "—" with a reason, never 0; a real zero stays 0', () => {
+  assert.equal(M.num(null), '—');
+  assert.equal(M.num(undefined), '—');
+  assert.equal(M.num(0), '0');
+  assert.equal(M.num(12345), '12.345');
+  for (const why of ['hub', 'hubless', 'approvals_unread', 'search_console_not_connected', 'something_new']) {
+    const t = M.tileText({ id: 'reads', value: null, why }, { now: T0, products: {}, product: null });
+    assert.equal(t.tone, 'blind');
+    assert.doesNotMatch(t.value, /\d/, `${why}: a blind tile shows no number`);
+    assert.ok(t.sub, `${why}: a blind tile says why`);
+  }
+  for (const why of ['hubless', 'hub', 'search_console_not_connected', 'signed_out', 'not_read_yet', 'no_metrics_file']) assert.ok(M.whyText(why, {}), why);
+  assert.match(M.whyText('no_posted_links', { n: 2 }), /2/);
+});
+
+test('a tool error is thrown with its code; a lost answer keeps the request id; every code has words', () => {
+  assert.throws(() => M.output({ error: { code: 'bad_url', message: 'x' } }), e => e.code === 'bad_url');
+  assert.deepEqual(M.output({ ok: true }), { ok: true });
+  for (const code of ['timeout', 'result_unknown', 'request_in_flight', 'no_response']) assert.ok(M.unknownOutcome({ code }), code);
+  for (const code of ['request_id_reused', 'bad_url', 'gesture_required', 'not_found']) assert.equal(M.unknownOutcome({ code }), false, code);
+  for (const code of ['invalid_request', 'not_found', 'conflict', 'bad_url', 'needs_credential', 'hub_refused', 'approval_required', 'gesture_required', 'unsupported', 'no_host', 'timeout']) {
+    assert.notEqual(M.errorText({ code }), M.errorText({ code: 'never-heard-of-it' }), code);
   }
 });
 
-test('no Search Console data reads "Chưa có số liệu", never 0; numbers use vi-VN', () => {
-  const t = M.strings('vi');
-  assert.equal(M.metricLine(null, t), 'Chưa có số liệu');
-  assert.equal(M.num(null), null);
-  assert.equal(M.num(0), '0', 'a real zero after a read stays 0');
-  assert.match(M.metricLine({ impressions: 1200, clicks: 8, position: 8.25 }, t), /^1\.200 lượt hiển thị · 8 lượt bấm · vị trí 8,3/);
-  assert.equal(M.strings('en').noData, 'No data yet');
+test('links: only https leaves the page; a posted link must be the channel\'s own address', () => {
+  assert.equal(M.safeLink('https://acme.example/a'), 'https://acme.example/a');
+  for (const bad of ['http://acme.example', 'javascript:alert(1)', 'nest://browser', 'https://', null, 42]) assert.equal(M.safeLink(bad), null, String(bad));
+  assert.ok(M.validUrl('x', 'https://x.com/acmehq/status/1234567890'));
+  assert.ok(M.validUrl('tiktok', 'https://www.tiktok.com/@acme/video/7707307745841581332'));
+  assert.equal(M.validUrl('x', 'https://x.com/acmehq'), false);
+  assert.equal(M.validUrl('tiktok', 'https://evil.example/@acme/video/1'), false);
+  assert.equal(M.profileUrl('x', '@acmehq'), 'https://x.com/acmehq');
 });
 
-test('a tool error in the output is thrown with its code; a lost answer reads as unknown', () => {
-  assert.throws(() => M.output({ ok: true, output: { error: { code: 'not_found', message: 'x' } } }), e => e.code === 'not_found');
-  assert.deepEqual(M.output({ ok: true, output: { page: 'queue' } }), { page: 'queue' });
-  const t = M.strings('vi');
-  assert.equal(M.errorText(t, { code: 'no_response' }), t.unknown);
-  assert.equal(M.errorText(t, { code: 'x', message: 'Không có bài này.' }), t.failed + 'Không có bài này.');
+test('every icon the page names exists; markdown is shown as text blocks', async () => {
+  const src = (await readFile(new URL('src/app.js', page), 'utf8')) + (await readFile(new URL('src/model.js', page), 'utf8'));
+  const names = new Set([...src.matchAll(/\b(?:ic|icon)\(\s*'(\w+)'/g), ...src.matchAll(/\bicon: '(\w+)'/g), ...src.matchAll(/\bsq\([^,()]+, '(\w+)'\)/g)].map(m => m[1]));
+  for (const n of Object.values(M.NODE_ICON)) names.add(n);
+  for (const n of names) assert.ok(ICONS.includes(n), `icon ${n}`);
+  const b = M.blocks('# Tiêu đề\n\nĐoạn **đậm** có [link](https://a.example).\n\n- một\n- hai\n\n<script>x</script>', 10);
+  assert.deepEqual(b.map(x => x.kind), ['h', 'p', 'li', 'li', 'p']);
+  assert.ok(b.every(x => !/[*[\]]/.test(x.text)), JSON.stringify(b));
 });
 
-test('links open through the bridge; the frame never navigates and drops anything but https', () => {
-  const posted = [];
-  const bridge = createBridge({ post: m => posted.push(m), listen: () => {}, parent: {} });
-  bridge.open('https://blog.lohi2.com/truyen-hay/a/vi/');
-  bridge.open('javascript:alert(1)');
-  bridge.open('http://example.com');
-  assert.deepEqual(posted.filter(m => m.type === 'open'), [{ v: 2, type: 'open', link: 'https://blog.lohi2.com/truyen-hay/a/vi/' }]);
-});
-
-test('the bundle makes no network call, sets text only and has no inline script, form or modal', async () => {
-  const files = [...(await readdir(page)), ...(await readdir(new URL('src/', page))).map(n => 'src/' + n)];
+test('the bundle never fetches, sets text only, has no inline script, style attribute, form or anchor, and links the kit', async () => {
+  const files = [...(await readdir(page)), ...(await readdir(new URL('src/', page))).map(n => 'src/' + n)].filter(n => /\.(js|html|css)$/.test(n));
+  assert.deepEqual(files.sort(), ['app.js', 'desk.css', 'index.html', 'src/app.js', 'src/icons.js', 'src/model.js']);
   for (const name of files) {
-    if (!/\.(js|html|css)$/.test(name)) continue;
-    const text = await readFile(new URL(name, page), 'utf8');
-    assert.doesNotMatch(text, /\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts|import\s*\(\s*['"]https?:/, name);
-    assert.doesNotMatch(text, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/, name);
-    assert.doesNotMatch(text, /h\('form'|<form|<a\b|h\('a'|\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/, name);
-    if (name.endsWith('.html')) assert.doesNotMatch(text, /<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/i, name);
+    const t = await readFile(new URL(name, page), 'utf8');
+    assert.doesNotMatch(t, /\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts|import\s*\(/, name);
+    assert.doesNotMatch(t, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\s*\(|new Function/, name);
+    assert.doesNotMatch(t, /h\('form'|<form|<a\b|h\('a'|\b(?:window\.)?(?:alert|confirm|prompt)\s*\(|\.style\./, name);
+    assert.doesNotMatch(t, /nest:\/\/browser\b/, `${name}: browser sign-in opens nest://settings/browser`);
+    assert.doesNotMatch(t, /2found|2novel|lohi|trysoot/i, `${name}: the page is product-neutral`);
   }
+  const html = await readFile(new URL('index.html', page), 'utf8');
+  assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/i);
+  for (const f of ['_kit/piece.css', 'desk.css', '_kit/piece.js', 'app.js']) assert.match(html, new RegExp(`"${f.replace('.', '\\.')}"`), f);
+  assert.ok(html.indexOf('_kit/piece.js') < html.indexOf('"app.js"'), 'the kit loads before the app');
+  const css = await readFile(new URL('desk.css', page), 'utf8');
+  const bare = css.replace(/var\(--[\w-]+, #[0-9a-f]{3,8}\)/gi, '').replace(/#000 85%/g, '');
+  assert.deepEqual(bare.match(/#[0-9a-f]{3,8}\b/gi), null, 'colours come from tokens; a hex is only a var() fallback (and the #000 of a mask)');
+  const links = new Set([...(await readFile(new URL('src/app.js', page), 'utf8')).matchAll(/['`](nest:\/\/[^'`$]*)/g)].map(m => m[1]));
+  // Phase 2 adds the Lead composer (a draft, never sent), the team's Quyền sheet and a pre-test's report.
+  assert.deepEqual([...links].sort(), ['nest://conversation/', 'nest://needs', 'nest://needs/approve/', 'nest://new?text=', 'nest://settings/browser', 'nest://settings/setup?key=MARKETING_HUB', 'nest://settings/setup?key=MARKETING_ROOT', 'nest://team/'].sort());
 });
 
-test('the shipped classic app.js is the current build of src/ and parses as a classic script', async () => {
+test('the shipped app.js is the current build of src/ and parses as a classic script', async () => {
   const built = await build();
   assert.equal(await readFile(new URL('app.js', page), 'utf8'), built, 'run node packs/marketing/page/tests/build.mjs');
   assert.doesNotThrow(() => new Function(built));
 });
 
-test('Chiến dịch: the sheet sends a campaign_save body the tool accepts, and says what is missing first', () => {
-  const ajv = new Ajv2020({ strict: false });
-  const action = ajv.compile(tool('page_action').parameters), save = ajv.compile(tool('campaign_save').parameters), view = ajv.compile(tool('page_view').parameters);
-  const f = M.newCampaign([{ id: 'blog-lohi' }, { id: 'x-lohi' }]);
-  assert.equal(M.campaignProblem(f), 'Điền tên và ngày để tạo.');
-  Object.assign(f, { name: 'Lohi tháng 12: truyện mới', starts: '2026-12-01', ends: '2026-12-31', target: '300', budget: '2.000.000' });
-  assert.equal(M.slugOf(f.name), 'lohi-thang-12-truyen-moi');
-  assert.equal(M.campaignProblem(f), null);
-  assert.equal(M.campaignProblem({ ...f, ends: '2026-11-30' }), 'Ngày kết thúc phải từ ngày bắt đầu trở đi.');
-  assert.equal(M.campaignProblem({ ...f, channels: [] }), 'Chọn ít nhất một kênh.');
-  assert.equal(M.campaignProblem({ ...f, target: '0' }), 'Mục tiêu là một số lớn hơn 0.');
-  const body = M.campaignBody(f);
-  assert.deepEqual(body, { name: 'Lohi tháng 12: truyện mới', goal: { metric: 'signups', target: 300 }, channels: ['blog-lohi', 'x-lohi'], starts: '2026-12-01', ends: '2026-12-31', token_budget: 2_000_000 });
-  assert.ok(save(body), JSON.stringify(save.errors));
-  assert.ok(action(M.actionBody(randomID('mk', 12), 'campaign_save', { campaign: body })), JSON.stringify(action.errors));
-  assert.ok(action(M.actionBody(randomID('mk', 12), 'campaign_refresh', { campaign_id: 'lohi-thang-12-truyen-moi' })));
-  assert.ok(view(M.viewBody('all', '', 'lohi-thang-12-truyen-moi')));
-  assert.deepEqual(M.viewBody('all', '', 'c-1'), { campaign: 'c-1' });
-});
+// ---------- drawn from real answers ----------
 
-test('Chiến dịch numbers: unread is —, never 0; the failure line keeps the Soot numbers', () => {
-  assert.equal(M.goalLine({ metric: 'signups', target: 300, value: 126 }), '126 / 300 người đăng ký');
-  assert.equal(M.goalLine({ metric: 'signups', target: 300, value: null }), '— / 300 người đăng ký');
-  assert.equal(M.goalPct({ target: 300, value: 126 }), 42);
-  assert.equal(M.goalPct({ target: 300, value: null }), null);
-  assert.equal(M.tokenLine(820000, 2000000), 'Token đã dùng: 820.000 / 2.000.000 (41%).');
-  assert.equal(M.dayRange('2026-11-30T17:00:00.000Z', '2026-12-31T16:59:59.000Z'), '1/12 – 31/12');
-  assert.equal(M.readFailLine({ at: '2026-12-05T00:00:00Z', error: { message: 'api.lohi2.com không trả lời.' } }),
-    'api.lohi2.com không trả lời lúc 07:00. Số bài, tiếp cận dưới đây là của Soot; đăng ký và lượt bấm sẽ cập nhật ở lần đọc tới.');
-});
+const script = await readFile(new URL('app.js', page), 'utf8');
+const BAD_TEXT = /undefined|NaN|\[object|null\b|Invalid Date/;
+/** A desk over a desk world: views and actions run page_view / page_action; approvals come from `approvals`. */
+async function desk(w, { approvals = [], approvalsFail = null } = {}) {
+  const d = mount(script, async ({ mode, input, opts }) => {
+    if (mode === 'view' && input === 'approvals') {
+      if (approvalsFail) throw Object.assign(new Error('x'), { code: approvalsFail });
+      return { approvals, total: approvals.length };
+    }
+    if (mode === 'view') { assert.ok(viewOK(input), `${JSON.stringify(input)} ${JSON.stringify(viewOK.errors)}`); return w.view(input); }
+    if (mode === 'action') {
+      assert.ok(actionOK(input), `${JSON.stringify(input)} ${JSON.stringify(actionOK.errors)}`);
+      assert.equal(opts.request_id, input.request_id, 'the call is sent under the body\'s request id');
+      return { output: await w.call('page_action', input) };
+    }
+    if (mode === 'ask') return { text: 'ok' };
+    throw new Error(mode);
+  });
+  await d.flush();
+  return d;
+}
+const press = async (d, el) => { assert.ok(el, 'element to press'); el.click(); await d.flush(); };
+const tab = (d, id) => press(d, d.find(`[data-k="tab:${id}"]`));
+const main = (d) => text(d.app.children[0]);
+const sheet = (d) => text(d.app.children[1]);
 
-test('a campaign re-read says it read again, and a failed one leaves the page its notice', () => {
-  const t = M.strings('vi');
-  assert.deepEqual(M.doneNotice(t, 'campaign_refresh', { read: { ok: true } }), { kind: 'success', text: 'Đã đọc lại số.' });
-  assert.equal(M.doneNotice(t, 'campaign_refresh', { read: { ok: false, error: { code: 'api_unreachable' } } }), null);
-  assert.equal(M.doneNotice(t, 'wat', {}).text, 'Đã lưu.');
-  assert.match(M.doneNotice(t, 'pause', {}).text, /^Đã dừng\./);
-});
-
-test('every next-step code reads as one plain sentence; a quiet one has no button, a blocked one has the button that fixes it', () => {
-  const quiet = ['draft', 'unpublishing', 'in_flight', 'waiting', 'scheduled', 'channel_held'];
-  const fix = { refused: 'ask_writer', ready: 'schedule', pulled: 'restore', removed: 'restore', uncertain: 'confirm', failed_retry: 'retry', failed: 'retry', late: 'post_now', paused_all: 'resume_all', signed_out: 'sign_in', signed_in: 'resume_channel', person_paused: 'resume_channel', draft_stale: 'ask_writer' };
-  const at = '2026-11-10T03:00:00Z';
-  for (const code of [...quiet, ...Object.keys(fix)]) {
-    const l = M.nextLine({ code, at, channel: 'X', reason: 'lý do', channel_id: 'x-lohi' }, {});
-    assert.ok(l.text.length > 10, code);
-    assert.doesNotMatch(l.text, /[{}_]|undefined|null|Kamaji|PRODUCT_/, code);
-    if (quiet.includes(code)) assert.equal(l.button, undefined, code); else assert.equal(l.button.do, fix[code], code);
+test('a hubless desk with nothing made yet: empty state, no notice (hubless is a mode), every tab drawn, no stray words', async () => {
+  const w = await world({ hub: false });
+  const d = await desk(w);
+  assert.match(main(d), /Chưa có nội dung nào/);
+  assert.doesNotMatch(main(d), /Chưa nối marketing hub|Không đọc được máy chủ/, 'no notice under the tabs');
+  assert.equal(d.all('.mk-partial').length, 0);
+  assert.match(main(d), /Chưa đo được/);
+  for (const id of ['content', 'channels', 'library', 'numbers', 'today']) {
+    await tab(d, id);
+    assert.doesNotMatch(main(d), BAD_TEXT, `${id}: ${main(d).match(BAD_TEXT)?.[0]}`);
+    assert.equal(d.find('[role="tab"][aria-selected="true"]')?.getAttribute('data-k'), `tab:${id}`);
   }
-  assert.equal(M.nextLine({ code: 'published' }, { url: 'https://lohi2.com/x' }).button.do, 'open');
-  assert.equal(M.nextLine({ code: 'published' }, {}).button, undefined, 'no link: it says so, no dead button');
-  assert.equal(M.nextLine(null), null);
+  await tab(d, 'channels');
+  assert.match(main(d), /Máy chủ đăng bài/);
+  assert.equal(d.find('[data-k="pause:all"]'), null, 'nothing posts by itself, so nothing to pause');
+  await press(d, d.find('[data-k="hub:connect2"]'));
+  assert.deepEqual(d.opened, ['nest://settings/setup?key=MARKETING_HUB']);
 });
 
-test('Hàng đợi headline: the one blocker wins, otherwise "Không cần làm gì" with what is next', () => {
-  const ch = [{ id: 'x-lohi', label: 'X', paused: true, paused_reason: 'signed_out', waiting: 2 }];
-  assert.equal(M.queueHeadline({ paused_all: true, items: [{}], channels: [] }).button.do, 'resume_all');
-  assert.match(M.queueHeadline({ items: [{ state: 'uncertain' }], channels: [] }).text, /Đã lên hoặc Chưa lên/);
-  assert.match(M.queueHeadline({ items: [{ late: true }], channels: [] }).text, /lỡ giờ/);
-  const so = M.queueHeadline({ items: [], channels: ch });
-  assert.deepEqual([so.button.do, so.button.channel], ['sign_in', 'x-lohi']);
-  const ok = M.queueHeadline({ items: [{ action: 'publish', channel: 'Blog', scheduled_at: '2026-11-10T03:00:00Z' }], channels: [] });
-  assert.match(ok.text, /^Không cần làm gì, Soot đang tự chạy/);
-  assert.equal(M.queueHeadline({ items: [], channels: [], writer: 'lohi-writer' }).button.do, 'ask_writer');
-  // Blog posts on its own but X waits for a login with nothing queued yet: the login is the headline, not "Không cần làm gì".
-  const part = M.queueHeadline({ items: [{ action: 'publish', channel: 'Blog', scheduled_at: '2026-11-10T03:00:00Z' }], channels: [{ ...ch[0], waiting: 0 }, { id: 'fb', label: 'Facebook', paused: true, paused_reason: 'signed_out', waiting: 0 }] });
-  assert.equal(part.tone, 'warn');
-  assert.match(part.text, /^Bài kế tiếp: Blog .*X, Facebook chưa đăng nhập/);
-  assert.doesNotMatch(part.text, /Không cần làm gì/);
-  assert.deepEqual([part.button.do, part.button.channel], ['sign_in', 'x-lohi']);
+test('an item waiting for approval: Chờ duyệt everywhere, Duyệt… opens Nest\'s approval card, the desk never approves', async () => {
+  const w = await world();
+  const s = await saved(w);
+  const approvals = [{ id: 'ap-7', state: 'pending', tool: 'publish_bundle', ref: s.ref, created_at: new Date(T0 - 7 * H).toISOString(), expires_at: new Date(T0 + 17 * H).toISOString() }];
+  const d = await desk(w, { approvals });
+  assert.match(main(d), /Vì sao bài chưa lên/);
+  assert.match(main(d), /Chín bộ tiên hiệp nên đọc/);
+  // One read carries the header and the tab (with_summary), so a refresh spends the hub budget once.
+  const reads = d.calls.filter(c => c.mode === 'view' && c.input?.view);
+  assert.ok(reads.length && reads.every(c => c.input.view !== 'summary'), 'no separate summary read');
+  assert.equal(reads[0].input.with_summary, true);
+  assert.deepEqual(reads[0].input.approvals.map(a => a.id), ['ap-7'], 'the approvals are passed back to the views');
+  await tab(d, 'content');
+  assert.match(main(d), /Chờ duyệt/);
+  const row = d.all('.mk-row.click').find(r => /Chín bộ tiên hiệp/.test(text(r)));
+  await press(d, row);
+  assert.match(sheet(d), /Đây là nguyên văn sẽ lên/);
+  assert.doesNotMatch(sheet(d), BAD_TEXT, sheet(d).match(BAD_TEXT)?.[0]);
+  await press(d, d.find('[data-k="approve"]'));
+  assert.deepEqual(d.opened, ['nest://needs/approve/ap-7']);
+  assert.equal(d.calls.filter(c => c.mode === 'action').length, 0, 'approving is Nest\'s card, not a desk action');
+  assert.equal(w.publishes(), 0);
 });
 
-test('a channel row names its state and carries its button; a signed-out channel is never just a switch', () => {
-  const c = { id: 'x-lohi', label: 'X', paused: true, paused_reason: 'signed_out', waiting: 1, posts_today: 0, cap_per_day: 4, reply_cap_per_day: 10, replies_today: 0 };
-  const l = M.channelLine(c, {});
-  assert.equal(l.button.do, 'sign_in');
-  assert.match(l.text, /Chưa đăng nhập X, 1 bài đang chờ/);
-  assert.equal(M.channelLine({ ...c, paused: false }, {}).tone, 'ok');
-  assert.equal(M.channelLine({ ...c, paused_reason: 'person' }, {}).button.do, 'resume_channel');
-  assert.match(M.channelLine({ ...c, paused: false }, { paused_all: true }).text, /dừng mọi kênh/);
-  assert.equal(M.signInLink('lohi-editor'), 'nest://browser/lohi-editor');
-  assert.equal(M.signInLink('lohi-editor', 'x-lohi'), 'nest://browser/lohi-editor?url=' + encodeURIComponent('https://x.com/i/flow/login') + '&label=X');
-  assert.equal(M.signInLink(null), 'nest://settings/setup');
+test('stop needs a second press; one press sends nothing, the second stops it once', async () => {
+  const w = await world();
+  const s = await saved(w);
+  const d = await desk(w);
+  await tab(d, 'content');
+  await press(d, d.all('.mk-row.click').find(r => /Chín bộ tiên hiệp/.test(text(r))));
+  const stop = d.find(`[data-k="stop:${s.ref}"]`);
+  await press(d, stop);
+  assert.equal(d.calls.filter(c => c.mode === 'action').length, 0);
+  assert.match(text(stop), /Bấm lần nữa/);
+  await press(d, stop);
+  const acts = d.calls.filter(c => c.mode === 'action');
+  assert.deepEqual(acts.map(a => [a.input.op, a.input.ref]), [['stop', s.ref]]);
+  assert.equal(d.app.children[1].childNodes.length, 0, 'the sheet closes');
+  assert.match(text(d.app.children[2]), /Đã dừng/);
 });
 
-test('limits: a form body only carries what changed, refuses out-of-range in Vietnamese, and the confirm line says from → to; the body passes set_limits', () => {
-  const ajv = new Ajv2020({ strict: false });
-  const action = ajv.compile(tool('page_action').parameters);
-  const c = { label: 'X', cap_per_day: 4, spacing_min: 180, reply_cap_per_day: 10 };
-  const body = M.limitsBody(c, { cap: '6', gap: '3', rep: '10' });
-  assert.deepEqual(body, { cap_per_day: 6 });
-  assert.match(M.limitsAsk(c, body), /bài mỗi ngày 4 → 6/);
-  assert.ok(action(M.actionBody('mk-123456789012', 'set_limits', { channel: 'x-lohi', ...body })), JSON.stringify(action.errors));
-  assert.match(M.limitsBody(c, { cap: '99', gap: '3', rep: '1' }), /từ 0 đến 50/);
-  assert.match(M.limitsBody(c, { cap: '1', gap: '999', rep: '1' }), /từ 0 đến 168/);
-  assert.deepEqual(M.limitsBody(c, { cap: '4', gap: '3', rep: '10' }), {});
+test('a lost answer: the retry sends the same request id, and a refusal frees it for a new one', async () => {
+  const w = await world();
+  let lose = true;
+  const seen = [];
+  const d = mount(script, async ({ mode, input, opts }) => {
+    if (mode === 'view' && input === 'approvals') return { approvals: [], total: 0 };
+    if (mode === 'view') return w.view(input);
+    if (mode === 'action') {
+      seen.push(opts.request_id);
+      if (lose) { lose = false; throw Object.assign(new Error('lost'), { code: 'timeout' }); }
+      return { output: await w.call('page_action', input) };
+    }
+  });
+  await d.flush();
+  await tab(d, 'channels');
+  const pause = d.find('[data-k="pause:all"]');
+  await press(d, pause);
+  assert.match(text(d.app.children[2]), /Nest chưa trả lời/);
+  await press(d, d.find('[data-k="pause:all"]'));
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0], seen[1], 'the same intent after an unknown outcome reuses its request id');
+  await d.flush();
+  assert.match(main(d), /Bật lại mọi lượt đăng/);
 });
 
-test('a failing action shows its inline fix: needs_credential becomes a message with the Thiết lập link, not a raw error', () => {
-  const r = { ok: true, output: { ok: false, reason_code: 'needs_credential', key: 'PRODUCT_ADMIN_KEY', link: 'nest://settings/setup', error: { code: 'needs_credential', message: 'Chiến dịch cần khoá API của Lohi để tạo liên kết. Mở Thiết lập để nhập PRODUCT_ADMIN_KEY (nest://settings/setup).' } } };
-  let err; try { M.output(r); } catch (e) { err = e; }
-  assert.ok(err, 'throws');
-  assert.equal(err.link, 'nest://settings/setup');
-  const text = M.errorText(M.strings('vi'), err);
-  assert.match(text, /^Chiến dịch cần khoá API của Lohi để tạo liên kết\. Bấm Mở Thiết lập, điền "Khoá quản trị Lohi" rồi Thử lại\.$/);
-  assert.doesNotMatch(text, /PRODUCT_ADMIN_KEY|nest:\/\//, 'no env key or raw link in the founder text');
+test('create: one press writes the item and hands it to the Editor under ask-<ref>; a refused ask leaves a button to send it', async () => {
+  const w = await world();
+  let refuse = 'unsupported'; // a host with no ask first, then a lost gesture, then it goes through
+  const d = mount(script, async ({ mode, input }) => {
+    if (mode === 'view' && input === 'approvals') return { approvals: [], total: 0 };
+    if (mode === 'view') return w.view(input);
+    if (mode === 'action') { assert.ok(actionOK(input), JSON.stringify(actionOK.errors)); return { output: await w.call('page_action', input) }; }
+    if (mode === 'ask') { if (refuse) { const code = refuse; refuse = refuse === 'unsupported' ? 'gesture_required' : false; throw Object.assign(new Error('x'), { code }); } return { text: 'ok' }; }
+  });
+  await d.flush();
+  await press(d, d.find('[data-k="create"]'));
+  assert.match(sheet(d), /Tạo nội dung/);
+  await press(d, d.find('[data-k="cf:send"]'));
+  assert.equal(d.calls.filter(c => c.mode === 'action').length, 0, 'no topic, nothing sent');
+  const topic = d.find('#f-topic');
+  topic.value = 'Vì sao bộ này đang được đọc nhiều';
+  topic.dispatch('input');
+  await press(d, d.find('[data-k="cf:send"]'));
+  const create = d.calls.find(c => c.mode === 'action');
+  assert.equal(create.input.op, 'create');
+  assert.equal(create.input.topic, 'Vì sao bộ này đang được đọc nhiều');
+  const asks = () => d.calls.filter(c => c.mode === 'ask');
+  assert.equal(asks().length, 1);
+  const ref = asks()[0].opts.request_id.replace(/^ask-/, '');
+  assert.match(ref, M.ITEM_REF);
+  assert.match(sheet(d), /Biên tập chưa nhận tin/);
+  const toastText = () => text(d.find('.mk-toast') ?? d.doc.body);
+  assert.match(toastText(), /Mở bàn Marketing trong Nest/, 'a host with no ask says where it works');
+  await press(d, d.find('[data-k="cf:ask"]'));
+  assert.match(toastText(), /Bấm nút thêm lần nữa/);
+  await press(d, d.find('[data-k="cf:ask"]'));
+  assert.equal(asks().length, 3);
+  assert.ok(asks().every(a => a.opts.request_id === `ask-${ref}`), 'the same item is asked under the same id');
+  assert.equal(d.app.children[1].childNodes.length, 0, 'the sheet closes once the Editor has it');
+  assert.equal(d.find('[role="tab"][aria-selected="true"]')?.getAttribute('data-k'), 'tab:content');
+  // Later, from the item: the same words under the same id, so Nest keeps one request.
+  assert.match(main(d), /Vì sao bộ này đang được đọc nhiều/, 'the new item is on the desk at once');
+  assert.doesNotMatch(main(d), /Chưa có nội dung nào/);
+  await press(d, d.find('.mk-row.click', /Vì sao bộ này đang được đọc nhiều/));
+  assert.match(sheet(d), /Đã giao cho Người viết/);
+  await press(d, d.find('[data-k="reask"]'));
+  assert.equal(asks().length, 4);
+  assert.equal(asks()[3].opts.request_id, `ask-${ref}`);
+  assert.equal(asks()[3].input, asks()[0].input, 'the resend says what the first ask said');
+  assert.equal(w.publishes(), 0);
 });
 
-test('markdown body: headings, lists, bold and https links become blocks; no HTML survives', () => {
-  const b = M.mdBlocks('# Tiêu đề\n\nĐoạn **đậm** và [liên kết](https://lohi2.com/x).\n\n- một\n- hai <script>alert(1)</script>');
-  assert.deepEqual(b.map(x => x.t), ['h', 'p', 'li', 'li']);
-  assert.deepEqual(b[1].parts.map(p => p.href ?? p.b ?? null), [null, true, null, 'https://lohi2.com/x', null]);
-  assert.equal(M.mdBlocks('[x](javascript:alert(1))')[0].parts.every(p => !p.href), true);
+test('channels, a channel sheet, the library radar and a video hand-off draw from real answers', async () => {
+  const w = await world();
+  await saved(w);
+  const d = await desk(w);
+  await tab(d, 'channels');
+  assert.match(main(d), /Ai đưa bài lên/);
+  await press(d, d.find('[data-k="cell:acme:x"]'));
+  assert.match(sheet(d), /Nhịp đăng/);
+  assert.doesNotMatch(sheet(d), BAD_TEXT, sheet(d).match(BAD_TEXT)?.[0]);
+  await press(d, d.find('[data-k="rules:edit"]'));
+  const cap = d.find('#r-cap');
+  cap.value = '99';
+  cap.dispatch('input');
+  await press(d, d.find('[data-k="rules:save"]'));
+  assert.equal(d.calls.filter(c => c.mode === 'action').length, 0, 'out of range is caught before a call');
+  cap.value = '2';
+  cap.dispatch('input');
+  await press(d, d.find('[data-k="rules:save"]'));
+  assert.deepEqual(d.calls.filter(c => c.mode === 'action').map(c => [c.input.op, c.input.cap_per_day]), [['rules', 2]]);
+  d.doc.listeners.keydown.forEach(fn => fn({ key: 'Escape', target: d.doc.body, preventDefault() {} }));
+  assert.equal(d.app.children[1].childNodes.length, 0, 'Esc closes the sheet');
+
+  await tab(d, 'library');
+  assert.equal(d.find('[data-k="node:radar:acme-video/2026-11-23"]'), null, 'nothing indexed yet');
+  await press(d, d.find('[data-k="lib:scan"]'));
+  assert.match(text(d.app.children[2]), /Đã quét/);
+  const radar = d.find('[data-k="node:radar:acme-video/2026-11-23"]');
+  await press(d, radar);
+  assert.match(main(d), /Bộ A/);
+  await press(d, d.find('[data-k="mark:1:yes"]'));
+  const { request_id: _rid, ...mark } = JSON.parse(JSON.stringify(d.calls.filter(c => c.mode === 'action').at(-1).input));
+  assert.deepEqual(mark, { op: 'mark', file: 'channels/acme-video/radar/2026-11-23.md', row: 1, onboard: 'yes' });
+  assert.equal(d.find('[data-k="mark:1:yes"]').getAttribute('aria-pressed'), 'true');
+  assert.match(await readFile(`${w.root}/channels/acme-video/radar/2026-11-23.md`, 'utf8'), /\| 1 \| \[Bộ A\]\(https:\/\/a\.example\) \| tiên hiệp \| 12k \| Có \|/);
+  await press(d, d.find('[data-k="node:campaigns:acme-video"]'));
+  assert.match(main(d), /Ep 1/);
+
+  await tab(d, 'content');
+  await press(d, d.find('[data-k="stage:scheduled"]'));
+  const video = d.all('.mk-row.click').find(r => /Ep 1/i.test(text(r)));
+  await press(d, video);
+  assert.match(sheet(d), /TikTok luôn do bạn đăng/);
+  const url = d.find('#f-url');
+  url.value = 'https://evil.example/x';
+  url.dispatch('input');
+  await press(d, d.find('[data-k="save-video"]'));
+  assert.equal(d.calls.filter(c => c.mode === 'action' && c.input.op === 'confirm').length, 0, 'a wrong link is caught before a call');
+  url.value = 'https://www.tiktok.com/@acme/video/7707307745841581332';
+  url.dispatch('input');
+  await press(d, d.find('[data-k="save-video"]'));
+  assert.equal(d.calls.filter(c => c.mode === 'action' && c.input.op === 'confirm').length, 1);
+  assert.match(await readFile(`${w.root}/channels/acme-video/metrics/videos.csv`, 'utf8'), /7707307745841581332/);
 });
 
-test('a runtime refusal in English reads as one Vietnamese sentence with the way out', () => {
-  const text = M.errorText(M.strings('vi'), { code: 'tool_refused', message: "input does not match operation parameters: at '/id': bad (refused)" });
-  assert.match(text, /^Trang gửi một yêu cầu không hợp lệ/);
-  assert.doesNotMatch(text, /operation parameters/);
+test('numbers and failures: "—" for no source, a failed summary offers Thử lại, approvals that cannot be read say so', async () => {
+  const w = await world({ hub: false });
+  await saved(w);
+  const d = await desk(w, { approvalsFail: 'not_authorized' });
+  assert.match(main(d), /Chưa đọc được/, 'the approval tile says it could not read approvals');
+  await tab(d, 'numbers');
+  assert.match(main(d), /“—” là chưa đo được, không phải 0/);
+  assert.match(main(d), /—/);
+
+  const broken = mount(script, async ({ mode, input }) => {
+    if (mode === 'view' && input === 'approvals') return { approvals: [], total: 0 };
+    throw Object.assign(new Error('x'), { code: 'busy' });
+  });
+  await broken.flush();
+  assert.match(main(broken), /Không mở được bàn Marketing/);
+  assert.match(main(broken), /Bàn đang bận/);
+  assert.ok(broken.find('[data-k="retry"]'));
 });
 
-test('a dialog sits above its scrim, or every click on its buttons only closes it', async () => {
-  const css = await readFile(new URL('app.css', page), 'utf8');
-  const z = sel => Number(new RegExp(`${sel.replace('.', '\\.')} \\{[^}]*z-index: (\\d+)`).exec(css)?.[1] ?? 0);
-  assert.ok(z('.dialog') > z('.scrim'), `dialog ${z('.dialog')} vs scrim ${z('.scrim')}`);
-  assert.ok(z('.sheet') > z('.scrim'), 'the campaign sheet sits above its scrim too');
+test('a hub out of its minute budget says so and waits, not "down"; Thử lại is one read for the header and the tab', async () => {
+  const w = await world();
+  await saved(w);
+  w.hub.limited = true;
+  const d = await desk(w);
+  assert.match(main(d), /hết lượt đọc trong phút này/);
+  assert.doesNotMatch(main(d), /Hub không trả lời|Không đọc được marketing hub/);
+  assert.equal(d.all('.mk-partial').length, 0, 'a spent budget is a wait, not an alert');
+  assert.ok(viewOK(M.viewBody('numbers', { with_summary: true })), 'with_summary is part of page_view');
+  w.hub.limited = false;
+  const before = d.calls.filter(c => c.mode === 'view' && c.input?.view).length;
+  const hubBefore = w.hub.calls.length;
+  await press(d, d.find('[data-k="hub:retry"]'));
+  const reads = d.calls.filter(c => c.mode === 'view' && c.input?.view).slice(before);
+  assert.equal(reads.length, 1, 'one page_view per refresh');
+  assert.equal(reads[0].input.with_summary, true);
+  assert.equal(w.hub.calls.slice(hubBefore).filter(c => c[0] === 'social_channels').length, 1, 'the hub is read once per refresh');
+  assert.doesNotMatch(main(d), /hết lượt đọc/);
+  assert.match(main(d), /Chín bộ tiên hiệp nên đọc/);
 });
 
-test('every campaign row says what Soot does next', () => {
-  assert.match(M.campaignNextLine({ phase: 'planned', starts: '2026-11-30T17:00:00.000000Z' }), /^Soot bắt đầu theo dõi từ .* Không cần làm gì\.$/);
-  assert.match(M.campaignNextLine({ phase: 'running' }), /07:00/);
-  assert.match(M.campaignNextLine({ phase: 'ended' }), /kết thúc/);
-  assert.ok(M.campaignNextLine({}).length > 10);
-});
-
-test('a failed publish reads in words, never the publisher code', () => {
-  assert.match(M.failWhy("git_failed: git fetch: fatal: couldn't find remote ref main"), /chưa có nhánh main/);
-  assert.match(M.failWhy('deploy_failed: x'), /blog chưa lên bài/);
-  assert.equal(M.failWhy('Bạn đã bỏ bài.'), 'Bạn đã bỏ bài.');
-  assert.doesNotMatch(M.failWhy('zzz_unknown'), /zzz/);
-  const line = M.nextLine({ code: 'failed_retry', at: '2026-11-08T16:40:00Z', channel: 'Blog', reason: 'git_failed: git fetch: fatal: x' }, {});
-  assert.doesNotMatch(line.text, /git_failed|fatal/);
-});
-
-test('a paused channel is the headline, not "Soot đang tự chạy"', () => {
-  const d = { channels: [{ id: 'blog-lohi', label: 'Blog', paused: true, paused_reason: 'person' }], items: [{ id: 'p1', channel_id: 'blog-lohi', channel: 'Blog', action: 'publish', state: 'scheduled', scheduled_at: '2026-11-09T01:00:00Z' }] };
-  const h = M.queueHeadline(d);
-  assert.equal(h.button.do, 'resume_channel');
-  assert.match(h.text, /Blog đang dừng/);
-  assert.doesNotMatch(h.text, /Không cần làm gì/);
-});
-
-test('bridge v2: posts carry v 2; init carries viewer and project; v1 messages and product contexts are dropped', () => {
-  const posted = [], listeners = [], parent = {}, seen = [];
-  const bridge = createBridge({ post: m => posted.push(m), listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project]), onContext: p => seen.push(['context', p]) });
-  bridge.ready();
-  assert.deepEqual(posted[0], { v: 2, type: 'ready' });
-  const project = { id: 'lohi', name: 'Lohi', teams: ['marketing'] };
-  const deliver = m => listeners.forEach(h => h(m, parent));
-  deliver({ v: 1, type: 'init', theme: 'light', locale: 'vi', tokens: {} });
-  deliver({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: {}, project: null }); // no viewer
-  deliver({ v: 2, type: 'context', product: null, products: [] });
-  deliver({ v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: { '--background': '#fff' }, viewer: { kind: 'operator' }, project });
-  deliver({ v: 2, type: 'context', project: null });
-  assert.deepEqual(seen, [['init', project], ['context', null]]);
-  void bridge.call('view', {});
-  assert.equal(posted[1].v, 2);
-});
-
-test('a later host: keys the page does not know are ignored, so the page never waits for an init it was sent', () => {
-  const listeners = [], parent = {}, seen = [];
-  createBridge({ post: () => {}, listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project?.id ?? null]), onContext: p => seen.push(['context', p?.id ?? null]) });
-  const project = { id: 'acme', name: 'Acme', teams: ['team-a'] };
-  const deliver = m => listeners.forEach(h => h(m, parent));
-  // Nest 0.18.0's init: `level`, and from level 2 `visible` and `cached`.
-  deliver({ v: 2, type: 'init', level: 1, visible: true, cached: [], theme: 'light', locale: 'vi', tokens: {}, viewer: { kind: 'operator', later: 1 }, project, projects: [{ ...project, later: 1 }] });
-  deliver({ v: 2, type: 'context', project: null, projects: [], later: 1 });
-  assert.deepEqual(seen, [['init', 'acme'], ['context', null]]);
-  assert.equal(parseNestMessage({ v: 2, type: 'theme', theme: 'dark', tokens: {}, later: 1 })?.type, 'theme');
-  assert.equal(parseNestMessage({ v: 2, type: 'result', id: 'c-1', ok: true, output: {}, later: 1 })?.ok, true);
-  assert.equal(parseNestMessage({ v: 2, type: 'result', id: 'c-1', ok: false, error: { code: 'busy', message: 'm', later: 1 } })?.ok, false);
-});
-
-test('bridge v2: a host that also sends projects (the projects the viewer can see) is still heard; a malformed list is dropped', () => {
-  const listeners = [], parent = {}, seen = [];
-  createBridge({ post: () => {}, listen: h => listeners.push(h), parent, timeoutMs: 10, onInit: i => seen.push(['init', i.project]), onContext: p => seen.push(['context', p]) });
-  const project = { id: 'acme', name: 'Acme', teams: ['team-a'] };
-  const deliver = m => listeners.forEach(h => h(m, parent));
-  const init = { v: 2, type: 'init', theme: 'light', locale: 'vi', tokens: {}, viewer: { kind: 'operator' }, project };
-  deliver({ ...init, projects: project });
-  deliver({ ...init, projects: [null] });
-  deliver({ ...init, projects: [{ id: 'acme', name: 'Acme' }] });
-  deliver({ ...init, projects: Array.from({ length: 65 }, () => project) });
-  deliver({ ...init, projects: [project, { id: 'beta', name: 'Beta', teams: [] }] });
-  deliver({ v: 2, type: 'context', project: null, projects: 'x' });
-  deliver({ v: 2, type: 'context', project: null, projects: [] });
-  assert.deepEqual(seen, [['init', project], ['context', null]]);
-});
-
-test('N12 (audit 2026-11-14): Vietnamese text names no English role, the status filter is no third tab row, and the page fills Nest\'s frame', async () => {
-  const src = (await Promise.all(['src/model.js', 'src/app.js'].map(f => readFile(new URL(f, page), 'utf8')))).join('\n');
-  const vi = [...src.matchAll(/'([^'\n]*)'|`([^`\n]*)`/g)].map(m => m[1] ?? m[2]).filter(t => /[àáạảãâăèéẹẻẽêìíịỉĩòóọỏõôơùúụủũưỳýỵỷỹđ]/i.test(t));
-  assert.ok(vi.length > 100, 'the Vietnamese strings were found');
-  for (const t of vi) assert.doesNotMatch(t, /\b(Writer|Editor)\b/, t);
-  for (const code of ['draft', 'draft_stale', 'refused', 'unpublishing']) assert.doesNotMatch(JSON.stringify(M.nextLine({ code }, {})), /Writer|Editor/, code);
-  assert.doesNotMatch(src, /role: 'tablist'/, 'the post filter is a select, not tabs');
-  assert.match(src, /h\('select', \{ class: 'input sm', onchange/);
-  assert.equal(M.strings('vi').show, 'Hiện');
-  const css = await readFile(new URL('app.css', page), 'utf8');
-  assert.match(css, /:root\[data-embedded\] main \{ max-width: none; margin: 0; padding: 12px 16px 40px; \}/);
-  assert.doesNotMatch(css, /\.seg\b/);
+test('an item Nest approved that the Editor has not scheduled yet reads as approved, not waiting for the founder', () => {
+  const s = M.itemState({ state: 'granted' }, T0);
+  assert.deepEqual([s.tag, s.tone], ['Đã duyệt, Biên tập đang xếp lịch', 'run']);
+  assert.ok(ICONS.includes(s.icon), s.icon);
+  const row = M.planText({ channel: 'x', state: 'after_approval' }, { now: T0 }, 'granted');
+  assert.deepEqual([row.tag, row.line], ['Đã duyệt', 'Bạn đã duyệt; Biên tập đang xếp giờ lên'], 'its plan rows do not say Nháp under the approved banner');
 });

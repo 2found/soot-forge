@@ -332,8 +332,10 @@ test('a pack tab sorts after Nest\'s own tabs (goals 10, support 20) and before 
     const tabs = (pack.interface?.pieces ?? []).filter(p => p.slot === 'project.tab');
     for (const p of tabs) { const order = p.order ?? 500; assert.ok(order > 20 && order < 900, `${id}/${p.id}: order ${order} sorts its tab among Nest's own`); }
   }
-  const marketing = JSON.parse(await readFile(join(dir, 'marketing', 'pack.json'), 'utf8')).interface.pieces.filter(p => p.slot === 'project.tab');
-  assert.deepEqual([...marketing].sort((a, b) => a.order - b.order).map(p => p.id), ['posts', 'queue', 'campaigns']);
+  // Marketing keeps one project tab (Chiến dịch); its desk is a rail piece, not a tab.
+  const pieces = JSON.parse(await readFile(join(dir, 'marketing', 'pack.json'), 'utf8')).interface.pieces;
+  assert.deepEqual(pieces.filter(p => p.slot === 'project.tab').map(p => p.id), ['campaigns']);
+  assert.deepEqual(pieces.filter(p => p.slot === 'rail').map(p => [p.id, p.order]), [['desk', 400]]);
 });
 
 test('a pack the Soot runtime now provides stays listed, deprecated with the runtime version that carries it', async () => {
@@ -356,4 +358,28 @@ test('a pack the Soot runtime now provides stays listed, deprecated with the run
   const real = await readCatalog(join(import.meta.dirname, '..'));
   const marked = Object.fromEntries(real.packs.filter(p => p.stability || p.runtime_skills).map(p => [p.id, p.runtime_provides ?? p.runtime_skills]));
   assert.deepEqual(marked, { soot: '0.22.0', 'soot-nest': '0.22.0', 'nest-lead': '0.22.0', 'team-rhythm': { 'coordinator-mail': '0.22.0' } });
+});
+
+// Kho khóa shows a key by its title and description: words, not a variable name. A key a pack replaced keeps
+// working as a fallback, so it stays optional and says in its title that it is no longer needed (the pack format
+// has no deprecated flag for a credential).
+test('catalog credential titles are words; a replaced key says so and stays optional', async () => {
+  const real = await readCatalog(join(import.meta.dirname, '..'));
+  const ENV_NAME = /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b|\bagent_[a-z_]+/;
+  for (const e of real.packs.filter(p => p.source.kind === 'bundled')) {
+    const pack = JSON.parse(await readFile(join(import.meta.dirname, '..', e.source.path, 'pack.json'), 'utf8'));
+    for (const [name, need] of Object.entries(pack.needs?.credentials ?? {})) {
+      assert.ok(need.title?.trim(), `${e.id} ${name} has a title`);
+      assert.doesNotMatch(need.title, ENV_NAME, `${e.id} ${name}: "${need.title}"`);
+      assert.doesNotMatch(need.title, /lỗi thời/, `${e.id} ${name}: a replaced key says "(cũ, không cần nữa)"`);
+      if (/\(cũ, không cần nữa\)$/.test(need.title)) assert.equal(need.optional, true, `${e.id} ${name}: a replaced key is optional`);
+    }
+  }
+  for (const id of ['marketing', 'lohi-ops']) {
+    const pack = JSON.parse(await readFile(join(import.meta.dirname, '..', 'packs', id, 'pack.json'), 'utf8'));
+    const keys = pack.needs.credentials;
+    assert.equal(keys.PRODUCT_ADMIN_KEY.title, 'Khoá dùng chung (cũ, không cần nữa)', id);
+    assert.equal(keys.PRODUCT_AGENT_KEY.title, 'Khoá riêng của Soot này cho API sản phẩm', `${id}: one title for one key across packs`);
+    for (const name of ['PRODUCT_ADMIN_KEY', 'PRODUCT_AGENT_KEY']) assert.doesNotMatch(keys[name].description, ENV_NAME, `${id} ${name}`);
+  }
 });

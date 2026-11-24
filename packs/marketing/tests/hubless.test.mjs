@@ -475,20 +475,25 @@ test('the CLI entry talks to pack storage over HTTP with the per-call token and 
   } finally { server.close(); }
 });
 
-test('the declaration: hub optional, three pieces of the Marketing project tab and the Kênh đăng bài settings piece, unguarded page tools, node built-ins only', async () => {
+test('the declaration: hub optional, one Marketing desk on the rail and the Chiến dịch tab, unguarded page tools, node built-ins only', async () => {
   const { readFileSync, readdirSync } = await import('node:fs');
   const pack = JSON.parse(readFileSync(new URL('../pack.json', import.meta.url), 'utf8'));
   const tools = Object.fromEntries(pack.tools.map(t => [t.name, t]));
   assert.equal(pack.needs.credentials.MARKETING_HUB.optional, true);
+  assert.equal(pack.needs.credentials.MARKETING_ROOT.optional, true);
   const marketing = { id: 'marketing', label: { vi: 'Marketing', en: 'Marketing' } };
-  assert.deepEqual(pack.interface.pieces.map(p => [p.id, p.slot, p.label.vi, p.tab, p.group, p.order]), [
-    ['posts', 'project.tab', 'Bài viết', marketing, undefined, 510], ['queue', 'project.tab', 'Hàng đợi', marketing, undefined, 520],
-    ['channels', 'settings', 'Kênh đăng bài', undefined, 'server', undefined], ['campaigns', 'project.tab', 'Chiến dịch', marketing, undefined, 530]]);
+  assert.deepEqual(pack.interface.pieces.map(p => [p.id, p.slot, p.label.vi, p.tab, p.group, p.order, p.bundle]), [
+    ['desk', 'rail', 'Marketing', undefined, undefined, 400, 'page/'], ['campaigns', 'project.tab', 'Chiến dịch', marketing, undefined, 530, 'campaigns/']]);
+  const desk = pack.interface.pieces[0];
+  assert.equal(desk.data.ask, true);
+  assert.deepEqual(desk.data.queries, { approvals: { source: 'approval', tool: 'publish_bundle', ref_field: 'ref' }, team_waits: { source: 'attention' } });
   for (const p of pack.interface.pieces) {
     assert.equal(p.provides, undefined, `${p.id}: a piece is placed by its slot, never by a flow capability`);
     assert.equal(tools[p.data.view_tool].run.mode, 'read');
     for (const name of [p.data.view_tool, p.data.action_tool]) assert.equal(tools[name].run.approval, undefined, name);
   }
+  assert.deepEqual([tools.publish_bundle.run.approval, tools.publish_bundle.run.preflight], ['operator', true]);
+  assert.equal(tools.release_due.run.rerun, undefined, 'release_due is never re-run by the host; a lost answer is looked up');
   assert.equal(tools.claim.run.approval, 'operator', 'a host approves claims, or a recipe maps marketing_claim to auto');
   assert.deepEqual(tools.claim.run.secret_env, { MARKETING_CLAIM_KEY: '{{cred:MARKETING_CLAIM_KEY}}' });
   const lib = new URL('../tools/lib/', import.meta.url);

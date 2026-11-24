@@ -1,11 +1,15 @@
-// Bài viết and Hàng đợi page models (page_view) and their actions
-// (page_action). Page tools are never approval-gated: pages refuse those.
+// page_view and page_action: the Marketing desk (input.view / the desk ops,
+// lib/desk.mjs and lib/actions.mjs), the Chiến dịch page and the older
+// Bài viết / Hàng đợi models the hubless tool chain still reads. Page tools
+// are never approval-gated: pieces refuse those.
 import { fail, eq, gte } from './store.mjs';
 import { briefLint, platformOf, defaultsFor, internalLinks, HOLD_LABEL } from './guard.mjs';
 import { videoView } from './video.mjs';
 import { STATE_LABEL, ANSWERS, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
 import { localDayStart, DEFAULT_QUIET, inQuiet, nextSlot } from './time.mjs';
 import { campaignView, campaign_save, readReport, noKey } from './campaign.mjs';
+import { deskView } from './desk.mjs';
+import { deskAction, isDeskOp } from './actions.mjs';
 
 const DAY = 86_400_000;
 export const TABS = {
@@ -57,7 +61,10 @@ export async function metricsRows(store, now) {
   return [...days, ...queries];
 }
 
-export async function page_view(input, { store, now, page, env, soot }) {
+export async function page_view(input, deps) {
+  // The Marketing desk (rail piece `desk`) names a view; the campaigns piece keeps its page model.
+  if (input.view !== undefined) return deskView(input, deps);
+  const { store, now, page, env, soot } = deps;
   const id = input.page ?? page;
   if (id === 'posts') return input.id ? postDetail(input.id, { store, now, soot }) : postList(input.filter, { store, now, soot });
   if (id === 'queue') return queueView({ store, now, soot });
@@ -227,6 +234,7 @@ async function queueView({ store, now, soot }) {
 }
 
 export async function page_action(input, deps) {
+  if (isDeskOp(input)) return deskAction(input, deps);
   const { store } = deps;
   const op = input.op;
   const get = async () => {

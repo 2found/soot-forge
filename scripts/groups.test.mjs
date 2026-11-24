@@ -19,12 +19,14 @@ test('the catalog lists the five standard teams first, then the utilities, then 
   for (const id of [...STANDARD, 'workshop', 'server-watch', ...Object.keys(DEPRECATED)]) {
     const t = source(id);
     assert.equal(t.api_version, STANDARD.includes(id) || ['workshop','finance'].includes(id) || id.startsWith('team-') ? 'soot/group-template/v3' : 'soot/group-template/v2');
-        assert.equal(t.root, '', `${id} asks for its Đầu mối`);
+        assert.equal(t.root, id === 'growth' ? 'editor' : '', `${id} asks for its Đầu mối, except growth: Biên tập is its Đầu mối and the wizard asks for none`);
     assert.match(t.members[0].soul, /Đầu mối/, `${id}/${t.members[0].id} knows what to do as the team's Đầu mối`);
     for (const m of t.members) {
       assert.doesNotMatch(`${m.soul} ${m.mission} ${t.description}`, /Kamaji|\bthe lead\b/, `${id}/${m.id}: the Lead is in no team`);
     }
-    assert.ok(t.inputs.some(i => i.confirm), `${id} confirms something before proposing`);
+    // growth asks nothing: the Marketing desk's setup is the one place a product is entered (re-audit N2).
+    if (id === 'growth') assert.equal(t.inputs, undefined, 'growth asks no brief');
+    else assert.ok(t.inputs.some(i => i.confirm), `${id} confirms something before proposing`);
     for (const p of t.profiles) assert.deepEqual(Object.keys(p.members).sort(), t.members.map(m => m.id).sort(), `${id}/${p.id}`);
   }
 });
@@ -114,7 +116,25 @@ test('company team groups: one group per team, roles by job, no private content 
   assert.doesNotMatch(JSON.stringify(g.insight), /radar_read/, 'insight carries no radar');
   assert.ok(g.insight.schedules.some(s => s.id === 'money-review' && s.member === 'analyst'), 'the weekly money review is the analyst\'s');
   assert.match(g.insight.members[0].mission, /read-only|chỉ đọc/i, 'the money review is read-only');
-  assert.ok(g.growth.schedules.some(s => s.id === 'radar-lohi' && s.member === 'writer'), 'the writer reads the radar on a schedule');
+  // growth is generic: no product is named in it, and the desk's tool-only cycles run on the Editor without a model turn.
+  const growthRaw = readFileSync(new URL('../groups/growth/group.source.json', import.meta.url), 'utf8');
+  assert.doesNotMatch(growthRaw, /lohi|2novel|2found|trysoot|-brand"|radar-lohi|publish_approval|site hub|marketing hub/i, 'no product, brand pack or hub wording in growth');
+  // The desk's setup is the one place a product is entered: no product or voice question in the wizard, no mission
+  // or cycle reading one from the brief, and the card says where the first product goes.
+  assert.equal(g.growth.inputs, undefined, 'the wizard asks no product question');
+  assert.doesNotMatch(JSON.stringify([g.growth.members, g.growth.schedules]), /brief\.(product|voice)|\{\{\s*(product|voice)/, 'nothing reads a product from the brief');
+  assert.match(g.growth.description, /Mở bàn Marketing để thêm sản phẩm đầu tiên/);
+  // Nest's wizard says "Mẫu cần <purpose> cho Biên tập" and "Kết nối <purpose> cho Biên tập": a short phrase, no sentence of its own.
+  const purpose = g.growth.bindings[0].purpose;
+  assert.ok([...purpose].length <= 60, purpose);
+  assert.doesNotMatch(purpose, /[.;:]|Nest|Kho khóa|chat|^[A-ZĐ]/, 'a lower-case phrase that fits inside the wizard\'s sentence');
+  assert.deepEqual(g.growth.default, [], 'Biên tập is the root, so the wizard asks for no Đầu mối');
+  assert.match(g.growth.description, /thẻ duyệt trong Cần bạn/, 'the card says publishing already asks the founder');
+  const tools = Object.fromEntries(g.growth.schedules.filter(s => s.tool).map(s => [s.tool.name, [s.member, s.cron ?? s.every]]));
+  assert.deepEqual(tools, { release_due: ['editor', '*/5 * * * *'], library_scan: ['editor', '*/30 * * * *'], gsc_sync: ['editor', '24h'] });
+  assert.deepEqual(g.growth.profiles.find(p => p.id === 'lean').schedules.slice(-3), ['release', 'library-scan', 'gsc-sync'], 'the lean profile keeps the tool cycles');
+  assert.match(writer.packs[0], /\bfile_read\b/, 'the writer reads brand.md and notes');
+  assert.match(editor.mission, /products\.json[\s\S]*brand\.md/, 'missions read the desk setup');
   assert.match(g.operations.members.find(m => m.id === 'curator').mission, /curator/i);
   // The reception is a public-facing Soot: read_skill only, no account tools; the desk sorts the feedback.
   assert.deepEqual(g.support.members.find(m => m.id === 'reception').packs, ['2found-knowledge']);
@@ -138,7 +158,7 @@ test('v3: the team templates carry a contract, a team budget per profile and mem
     assert.equal(t.contract.version, 'team-contract/v1', id);
     assert.ok(t.contract.decides.self.length && t.contract.escalates.length, `${id} says what it decides and when it escalates`);
     assert.deepEqual([t.contract.consumes, t.contract.requests], [undefined, undefined], `${id}: edges are the company's, a group alone has no other team`);
-    assert.equal(t.root, '', `${id}: the installer names the Đầu mối`);
+    assert.equal(t.root, id === 'growth' ? 'editor' : '', `${id}: the installer names the Đầu mối (growth: always Biên tập)`);
     for (const p of t.profiles) {
       assert.ok(p.team_daily_tokens >= Object.values(p.members).reduce((n, m) => n + m.daily_tokens, 0), `${id}/${p.id}: the team budget holds its members' caps`);
     }
@@ -223,6 +243,9 @@ test('standard teams: each names the parts it owns and its entries (the Đầu m
   assert.deepEqual(Object.fromEntries(STANDARD.map(id => [id, by[id].parts])), { insight: ['value'], growth: ['marketing', 'sales'], support: ['delivery'], operations: ['delivery'] });
   assert.deepEqual(Object.fromEntries(STANDARD.map(id => [id, by[id].entries])), { insight: ['analyst'], growth: ['editor'], support: ['support', 'desk', 'reception'], operations: ['operator', 'curator', 'moderator', 'catalog-exec'] });
   assert.deepEqual(STANDARD.map(id => by[id].name), ['Insight', 'Growth', 'Support', 'Operations'], 'English team names');
+  // A template written for 2found's own products is marked Thử nghiệm · Nội bộ in the gallery; only growth is generic.
+  assert.deepEqual(STANDARD.filter(id => by[id].audience !== 'internal'), ['growth']);
+  for (const id of ['insight', 'support', 'operations', 'workshop']) assert.equal(by[id].stability, 'experimental', id);
   // Every part has an owning team template; company-loop's part check maps a part to the team that holds it.
   const owners = partOwners(catalog);
   assert.deepEqual(Object.keys(owners), PARTS);

@@ -4,12 +4,15 @@
 // MARKETING_HUB is bound; nothing here reads it.
 import { randomBytes, createHash } from 'node:crypto';
 import { fail, eq, gte, isNull, skippedFor } from './store.mjs';
+import { setPause } from './bundle.mjs';
 import { autoChecks, briefLint, internalLinks, claimWindow, defaultsFor, platformOf } from './guard.mjs';
 import { nextSlot, inQuiet, DEFAULT_QUIET } from './time.mjs';
 import { contentHash, signClaim, CLAIM_TTL_MS, INTENT_STALE_MS } from './claim.mjs';
 import { metricsRows } from './page.mjs';
 import { claimAssets } from './video.mjs';
 import { campaignExists, draftCampaign } from './campaign.mjs';
+import { libraryRoot } from './root.mjs';
+import { loadProducts } from './library.mjs';
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const iso = ms => new Date(ms).toISOString();
@@ -29,7 +32,8 @@ export const STATE_LABEL = {
 export async function getSettings(store) {
   const rows = await store.query('settings', [], { limit: 100 });
   const s = Object.fromEntries(rows.map(r => [r.key, r.value]));
-  return { paused_all: s.paused_all === true, quiet_hours: s.quiet_hours ?? DEFAULT_QUIET, stale_after_h: s.stale_after_h ?? 6, paused_at: s.paused_at ?? null, gsc: s.gsc ?? null, project: s.project ?? null, writer: s.writer ?? null, video_pretest_bar: Number.isFinite(s.video_pretest_bar) ? s.video_pretest_bar : null };
+  // The desk's pause-everything (settings.desk_pause.all) holds this chain too: one pause, two readers.
+  return { paused_all: s.paused_all === true || !!(s.desk_pause && typeof s.desk_pause === 'object' && s.desk_pause.all), quiet_hours: s.quiet_hours ?? DEFAULT_QUIET, stale_after_h: s.stale_after_h ?? 6, paused_at: s.paused_at ?? null, gsc: s.gsc ?? null, project: s.project ?? null, writer: s.writer ?? null, video_pretest_bar: Number.isFinite(s.video_pretest_bar) ? s.video_pretest_bar : null };
 }
 
 export async function setSetting(store, key, value) {
@@ -637,7 +641,7 @@ export async function pause(input, { store, now }) {
   } else {
     await setSetting(store, 'paused_all', input.paused);
     await setSetting(store, 'paused_at', input.paused ? iso(now) : null);
-    if (!input.paused) await store.remove('attention', [eq('kind', 'woke-item')]);
+    if (!input.paused) { await store.remove('attention', [eq('kind', 'woke-item')]); await setPause(store, { scope: 'all' }, false, now); }
   }
   const settings = await getSettings(store);
   const channels = await store.query('channels', [], { limit: 50 });
@@ -724,9 +728,27 @@ export function canonUrl(u) {
   try { const x = new URL(String(u)); return `${x.hostname.toLowerCase()}${x.pathname.replace(/\/+$/, '')}`; } catch { return String(u ?? ''); }
 }
 
+/** The Search Console domain property of a product's site (`lohi2.com`, `https://www.x.vn/` → `sc-domain:x.vn`); null when it has none. */
+export function gscProperty(site) {
+  if (typeof site !== 'string' || !site.trim()) return null;
+  try {
+    const host = new URL(/^[a-z]+:\/\//i.test(site.trim()) ? site.trim() : `https://${site.trim()}`).hostname.toLowerCase().replace(/^www\./, '');
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? `sc-domain:${host}` : null;
+  } catch { return null; }
+}
+const GSC_NO_LIBRARY = 'Chưa đọc được thư viện sản phẩm (products.json) nên chưa biết đọc Search Console của trang nào. Kiểm tra thư mục thư viện của Marketing.';
+const GSC_NO_SITE = 'Chưa sản phẩm nào có trang web trong products.json nên chưa biết đọc Search Console của trang nào.';
+
+/** Whether a page url belongs to a Search Console property (a domain property or a url prefix). */
+function inGscSite(url, site) {
+  try {
+    if (site.startsWith('sc-domain:')) { const d = site.slice(10).toLowerCase(), h = new URL(url).hostname.toLowerCase().replace(/^www\./, ''); return h === d || h.endsWith(`.${d}`); }
+    return url.startsWith(site);
+  } catch { return false; }
+}
+
 export async function gsc_sync(input, { store, now, env, fetch }) {
-  const site = input.site;
-  if (typeof site !== 'string' || !site) fail('invalid_request', 'site is the Search Console property, e.g. sc-domain:example.com.');
+  if (input.site !== undefined && (typeof input.site !== 'string' || !input.site)) fail('invalid_request', 'site is the Search Console property, e.g. sc-domain:example.com; leave it out to read every product\'s site.');
   const days = Math.min(Math.max(Number(input.days) || 3, 1), 28);
   const needsPerson = async reason => {
     // The page's note is best effort; the sign-in signal below must go out even if storage is down.
@@ -746,6 +768,23 @@ export async function gsc_sync(input, { store, now, env, fetch }) {
     }
     return needsPerson('signed_out');
   }
+  // No site named (the daily schedule): every product's own site from products.json, one domain property each.
+  let sites = input.site ? [input.site] : [];
+  if (!sites.length) {
+    const lr = await libraryRoot(env);
+    let products = [], unreadable = !lr.ok;
+    if (lr.ok) products = await loadProducts({ root: lr.root }).catch(() => { unreadable = true; return []; });
+    // A library that cannot be read is not "no product has a site": the reason shown stays the true one.
+    if (unreadable) {
+      await setSetting(store, 'gsc', { state: 'no_library', message: GSC_NO_LIBRARY, at: iso(now) }).catch(() => {});
+      return { ok: true, skipped: true, reason_code: 'no_library', message: GSC_NO_LIBRARY, notify: false, wake: false };
+    }
+    sites = [...new Set(products.map(p => gscProperty(p.site)).filter(Boolean))].slice(0, 12);
+    if (!sites.length) {
+      await setSetting(store, 'gsc', { state: 'no_site', message: GSC_NO_SITE, at: iso(now) }).catch(() => {});
+      return { ok: true, skipped: true, reason_code: 'no_site', message: GSC_NO_SITE, notify: false, wake: false };
+    }
+  }
   const auth = await googleToken(env.GSC_GOOGLE, fetch);
   if (auth.error) return needsPerson(auth.error);
   const published = await store.query('posts', [eq('state', 'published')], { limit: 500 });
@@ -753,18 +792,29 @@ export async function gsc_sync(input, { store, now, env, fetch }) {
   // blog may disagree on `/slug` against `/slug/`, which used to drop every row.
   const canon = new Map(published.filter(p => p.url).map(p => [canonUrl(p.url), p.url]));
   const urls = new Set(canon.keys());
-  const noAccess = async () => {
-    const message = `Tài khoản Google đã đăng nhập không có quyền đọc ${site}. Thêm tài khoản đó làm chủ sở hữu hoặc người dùng của thuộc tính này trong Search Console (hoặc đăng nhập lại bằng tài khoản đã xác minh ${site}).`;
-    await setSetting(store, 'gsc', { state: 'no_access', message, site, at: iso(now) }).catch(() => {});
-    return { status: 'no_access', ok: false, site, message, notify: false, wake: false };
+  const accessText = site => `Tài khoản Google đã đăng nhập không có quyền đọc ${site}. Thêm tài khoản đó làm chủ sở hữu hoặc người dùng của thuộc tính này trong Search Console (hoặc đăng nhập lại bằng tài khoản đã xác minh ${site}).`;
+  // Every property the account cannot read is named, not only the first.
+  const noAccess = async list => {
+    const site = list[0], message = list.map(accessText).join(' ');
+    await setSetting(store, 'gsc', { state: 'no_access', message, site, ...(list.length > 1 ? { sites: list } : {}), at: iso(now) }).catch(() => {});
+    return { status: 'no_access', ok: false, site, ...(list.length > 1 ? { sites: list } : {}), message, notify: false, wake: false };
   };
   const day = d => new Date(now - d * DAY).toISOString().slice(0, 10);
-  const pages = await gscQuery(site, auth.token, { startDate: day(days), endDate: day(1), dimensions: ['page', 'date'], rowLimit: 5000 }, fetch);
-  if (pages.error === 'no_access') return noAccess();
-  if (pages.error) return needsPerson(pages.error);
-  const queries = await gscQuery(site, auth.token, { startDate: day(28), endDate: day(1), dimensions: ['page', 'query'], rowLimit: 5000 }, fetch);
-  if (queries.error === 'no_access') return noAccess();
-  if (queries.error) return needsPerson(queries.error);
+  // A property the account cannot read is named and skipped; the others are still read. Only all of them denied is a no_access.
+  const pages = { rows: [] };
+  const queries = { rows: [] };
+  const denied = [];
+  for (const site of sites) {
+    const p = await gscQuery(site, auth.token, { startDate: day(days), endDate: day(1), dimensions: ['page', 'date'], rowLimit: 5000 }, fetch);
+    if (p.error === 'no_access') { denied.push(site); continue; }
+    if (p.error) return needsPerson(p.error);
+    const q = await gscQuery(site, auth.token, { startDate: day(28), endDate: day(1), dimensions: ['page', 'query'], rowLimit: 5000 }, fetch);
+    if (q.error === 'no_access') { denied.push(site); continue; }
+    if (q.error) return needsPerson(q.error);
+    pages.rows.push(...p.rows);
+    queries.rows.push(...q.rows);
+  }
+  if (denied.length === sites.length) return noAccess(denied);
   let stored = 0;
   let matched = 0;
   for (const r of pages.rows) {
@@ -776,8 +826,12 @@ export async function gsc_sync(input, { store, now, env, fetch }) {
     await store.insert('metrics', { url, source: 'gsc', day: d, query: '', impressions: r.impressions ?? 0, clicks: r.clicks ?? 0, position: r.position ?? null, views: null });
     stored++;
   }
-  // Query rows are a 28-day window ending yesterday, replaced on every read.
-  await store.remove('metrics', [eq('source', 'gsc'), { column: 'query', op: 'ne', value: '' }]);
+  // Query rows are a 28-day window ending yesterday, replaced on every read: only for the properties read this time,
+  // so one the account cannot read keeps what it had instead of being wiped by a sync that reports ok.
+  const readSites = sites.filter(s => !denied.includes(s));
+  const heldQueries = { column: 'query', op: 'ne', value: '' };
+  if (!denied.length) await store.remove('metrics', [eq('source', 'gsc'), heldQueries]);
+  else for (const u of canon.values()) if (readSites.some(s => inGscSite(u, s))) await store.remove('metrics', [eq('source', 'gsc'), eq('url', u), heldQueries]);
   for (const r of queries.rows) {
     const [seen, query] = r.keys ?? [];
     const url = canon.get(canonUrl(seen));
@@ -788,8 +842,9 @@ export async function gsc_sync(input, { store, now, env, fetch }) {
   // Say why there are no rows instead of a bare 0: nothing published yet, Google listed no page, or none of its pages is ours.
   const why = stored > 0 ? null : !urls.size ? 'no_published_posts' : !pages.rows.length ? 'search_console_listed_nothing' : 'no_page_matches_a_post';
   const message = why ? GSC_WHY[why] : null;
-  await setSetting(store, 'gsc', { state: 'ok', at: iso(now), listed: pages.rows.length, matched, ...(why ? { why, message } : {}) });
-  return { status: 'ok', rows: stored, urls: urls.size, listed: pages.rows.length, matched, ...(why ? { why, message } : {}) };
+  const part = denied.length ? { no_access: denied, no_access_message: denied.map(accessText).join(' ') } : {};
+  await setSetting(store, 'gsc', { state: 'ok', at: iso(now), listed: pages.rows.length, matched, ...(why ? { why, message } : {}), ...part });
+  return { status: 'ok', rows: stored, urls: urls.size, listed: pages.rows.length, matched, ...(why ? { why, message } : {}), ...(input.site ? {} : { sites }), ...part };
 }
 
 /** Page-day totals for a url over the last `days`; null when nothing was read yet (never 0). */

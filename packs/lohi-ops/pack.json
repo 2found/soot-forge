@@ -2104,16 +2104,16 @@
         "title": "Google Search Console"
       },
       "PRODUCT_ADMIN_KEY": {
-        "description": "Khoá agent_mod dùng chung cũ. Chỉ là phương án dự phòng khi chưa có PRODUCT_AGENT_KEY; sẽ bị bỏ sau khi mọi Soot đã đổi khoá (docs/AGENT-KEYS.md). Chỉ gửi tới PRODUCT_API_URL.",
+        "description": "Khoá dùng chung đời cũ. Không cần nhập: khoá riêng của Soot này cho API sản phẩm đã thay nó; Soot chỉ dùng khoá cũ khi chưa có khoá riêng.",
         "from": "operator",
         "optional": true,
-        "title": "Khoá agent_mod dùng chung (đã lỗi thời)"
+        "title": "Khoá dùng chung (cũ, không cần nữa)"
       },
       "PRODUCT_AGENT_KEY": {
-        "description": "Khoá API của Soot này, đúng một vai trò agent (agent_analyst, agent_moderator, agent_curator, agent_catalog_exec hoặc agent_marketing) tuỳ công cụ nó dùng; mỗi công cụ ghi vai trò cần trong README. Chỉ gửi tới PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
+        "description": "Khoá API mà trang quản trị Lohi tạo riêng cho Soot này, đúng một vai trò theo việc Soot làm (README của gói ghi vai trò từng công cụ cần). Chỉ gửi tới địa chỉ API của sản phẩm. Không dán khoá vào chat.",
         "from": "operator",
         "optional": true,
-        "title": "Khoá agent Lohi"
+        "title": "Khoá riêng của Soot này cho API sản phẩm"
       }
     },
     "env": [

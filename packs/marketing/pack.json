@@ -26,7 +26,7 @@
   "tools": [
     {
       "name": "radar_feeds",
-      "title": "Xem nguồn radar",
+      "title": "Xem nguồn tin theo dõi",
       "description": "List the radar's sources (Reddit, Hacker News, dev.to, Medium, Lobsters, Product Hunt, vendor blogs, X searches) with when each was last read, its last error and how many new items it found.",
       "parameters": {
         "type": "object",
@@ -53,7 +53,7 @@
     },
     {
       "name": "radar_scan",
-      "title": "Quét nguồn radar",
+      "title": "Quét nguồn tin",
       "description": "Read the sources that are due (each at most every 15 minutes; Reddit one feed per scan) and store new items once per URL. Returns the newest untriaged items. Not available from a customer conversation.",
       "parameters": {
         "type": "object",
@@ -99,7 +99,7 @@
     },
     {
       "name": "radar_items",
-      "title": "Xem tin radar",
+      "title": "Xem tin mới từ nguồn",
       "description": "List radar items by triage status (default new), optionally by feed, an accent-insensitive text query, or the last N hours.",
       "parameters": {
         "type": "object",
@@ -163,7 +163,7 @@
     },
     {
       "name": "radar_mark",
-      "title": "Phân loại tin radar",
+      "title": "Phân loại tin",
       "description": "Triage radar items in one call: each item kept (with the angle as note), dismissed, or used once written about. All or nothing: an unknown or repeated id changes none.",
       "parameters": {
         "type": "object",
@@ -227,7 +227,7 @@
     },
     {
       "name": "cms_list",
-      "title": "Xem danh sách bài CMS",
+      "title": "Xem bài trên blog",
       "description": "List the newest posts of a CMS site in every status (draft, published, archived) with revision, live flag and public URL. Check it before drafting so you never duplicate a topic.",
       "parameters": {
         "type": "object",
@@ -269,7 +269,7 @@
     },
     {
       "name": "cms_read",
-      "title": "Đọc một bài CMS",
+      "title": "Đọc một bài trên blog",
       "description": "Read the latest revision of a CMS post: body_markdown, revision, status and preview_url (a signed page showing exactly this revision, for anyone who reviews it before it goes live).",
       "parameters": {
         "type": "object",
@@ -312,7 +312,7 @@
     },
     {
       "name": "cms_save",
-      "title": "Lưu bản nháp CMS",
+      "title": "Lưu bản nháp blog",
       "description": "Save a CMS draft revision; it never goes live (cms_publish does that). New post: expected_revision 0. Edit: the revision cms_read returned. Body is Markdown, at most 40000 bytes.",
       "parameters": {
         "type": "object",
@@ -626,7 +626,7 @@
     },
     {
       "name": "cms_publish",
-      "title": "Đăng hoặc gỡ bài trên CMS",
+      "title": "Đăng hoặc gỡ bài blog",
       "description": "Take one reviewed CMS revision live (status published) or take a live post down (archived). Runs at once; it is public. Copy site, slug, revision and title from cms_read of that same revision; the hub refuses anything else.",
       "parameters": {
         "type": "object",
@@ -798,7 +798,7 @@
     },
     {
       "name": "content_stats",
-      "title": "Xem số liệu nội dung",
+      "title": "Xem số liệu bài",
       "description": "What this team shipped in the last days, per site: articles that went live (with URL), drafts in progress and social posts published by channel. The hub counts what went out, not who read it: visits is always null.",
       "parameters": {
         "type": "object",
@@ -1110,7 +1110,7 @@
     },
     {
       "name": "due",
-      "title": "Việc đến hạn",
+      "title": "Xem việc đến giờ",
       "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised; resolves_need when none is left. The dispatch schedule passes schedule: true and skip: channels a tool chain publishes. With channel: {id, action} of the one due publish there for marketing_claim, or {done: true}.",
       "parameters": {
         "type": "object",
@@ -1240,7 +1240,7 @@
     },
     {
       "name": "fail",
-      "title": "Ghi đăng lỗi",
+      "title": "Ghi lần đăng lỗi",
       "description": "Record that a claimed action did not happen (failed: retried later), needs a person (reason signed_out, layout_changed or captcha: pauses only that channel) or is uncertain (never claimed again until a person answers).",
       "parameters": {
         "type": "object",
@@ -1324,8 +1324,8 @@
     },
     {
       "name": "page_view",
-      "title": "Xem trang marketing",
-      "description": "Bài viết / Hàng đợi / Chiến dịch page model: {page?, filter?, id?, campaign?}. The page id comes from the page context when omitted.",
+      "title": "Xem bàn Marketing",
+      "description": "The Marketing desk and the Chiến dịch page. Desk: {view: summary|today|content|item|channels|channel|library|numbers, product?, stage?, live?, cursor?, ref?, key?, node?, week?, approvals?, with_summary?}; codes and arguments only, a missing number is null with a why code. Chiến dịch: {page: campaigns, campaign?}; the older posts/queue models: {page, filter?, id?}.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1359,6 +1359,143 @@
             "type": "string",
             "maxLength": 16,
             "pattern": "^P-[0-9A-F]{10}$"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "today",
+              "content",
+              "item",
+              "channels",
+              "channel",
+              "library",
+              "numbers"
+            ]
+          },
+          "product": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "idea",
+              "making",
+              "approval",
+              "scheduled",
+              "live"
+            ]
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 8,
+            "pattern": "^[0-9]{1,6}$"
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 13,
+            "pattern": "^(MK-[0-9A-Z]{6}|P-[0-9A-F]{10})$"
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 48,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}:(blog|x|facebook|tiktok|reddit|community|newsletter)$"
+          },
+          "node": {
+            "type": "string",
+            "maxLength": 180,
+            "pattern": "^(product|posts|channel|series|campaigns|campaign|radar|metrics|other)(:[A-Za-z0-9._/-]{1,170})?$"
+          },
+          "week": {
+            "type": "string",
+            "maxLength": 8,
+            "pattern": "^[0-9]{4}-W[0-9]{2}$"
+          },
+          "cards": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "approvals": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "The piece's approvals query answer, passed back.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "approved",
+                    "used",
+                    "rejected",
+                    "expired"
+                  ]
+                },
+                "tool": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 64
+                },
+                "created_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 40
+                },
+                "decided_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 40
+                },
+                "expires_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 40
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 600
+                }
+              },
+              "required": [
+                "id",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "with_summary": {
+            "type": "boolean",
+            "description": "Desk: also return the summary view (as summary) from the same read."
+          },
+          "live": {
+            "type": "string",
+            "enum": [
+              "all"
+            ],
+            "description": "Desk content: every live item, not only this week's."
           }
         },
         "required": [],
@@ -1373,13 +1510,18 @@
         "stdin": "context",
         "mode": "read",
         "timeout": "20s",
-        "max_output_bytes": 1048576
+        "max_output_bytes": 1048576,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}",
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
+        },
+        "max_input_bytes": 65536
       }
     },
     {
       "name": "page_action",
-      "title": "Đổi trang marketing",
-      "description": "Bài viết / Hàng đợi / Chiến dịch page action: pull, restore, reschedule, unpublish, set_limits (a channel's caps), pause, resume, campaign_save or campaign_refresh. Needs a request_id. Only campaign ops need PRODUCT_ADMIN_KEY (optional).",
+      "title": "Đổi bàn Marketing",
+      "description": "Desk actions; never publish. Ops: stop {ref}; pause/resume {scope: all|channel, channel?}; rules {channel, cap_per_day?, spacing_min?, quiet?, max_len?}; confirm {ref, outcome, url?, channel?, lang?}; mark {file, row, onboard}; create {product, format, topic, series?, channels?}; scan {}; setup {product}; reply_done {ref}; export {ref} (newsletter); subscribers {product, list} (replace recipients; answers a count). Older: pull, restore, reschedule, unpublish, post_now, drop, confirm_posted, confirm_not_posted, set_limits, campaign_save, campaign_refresh. Accounts: channels_setup. Needs a request_id.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1398,7 +1540,17 @@
               "pause",
               "resume",
               "campaign_save",
-              "campaign_refresh"
+              "campaign_refresh",
+              "stop",
+              "rules",
+              "confirm",
+              "mark",
+              "create",
+              "scan",
+              "setup",
+              "reply_done",
+              "export",
+              "subscribers"
             ]
           },
           "campaign": {
@@ -1424,8 +1576,8 @@
           },
           "channel": {
             "type": "string",
-            "maxLength": 32,
-            "pattern": "^[a-z0-9-]{1,32}$"
+            "maxLength": 48,
+            "pattern": "^[a-z0-9-]{1,32}(:(blog|x|facebook|tiktok|reddit|community|newsletter))?$"
           },
           "url": {
             "type": "string",
@@ -1445,6 +1597,149 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 50
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "all",
+              "channel"
+            ]
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 12,
+            "pattern": "^(MK-[0-9A-Z]{6}|R-[0-9A-F]{10})$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "posted",
+              "not_posted",
+              "sent"
+            ]
+          },
+          "lang": {
+            "type": "string",
+            "enum": [
+              "vi",
+              "en"
+            ]
+          },
+          "file": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^channels/[a-z0-9][a-z0-9-]{0,79}/radar/[0-9]{4}-[0-9]{2}-[0-9]{2}\\.md$"
+          },
+          "row": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "onboard": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "yes",
+              "no",
+              null
+            ]
+          },
+          "product": {
+            "type": [
+              "string",
+              "object"
+            ],
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "description": "setup: {id, name, site?, langs?, about?, blog?, channels?}"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "blog",
+              "social",
+              "video",
+              "community",
+              "newsletter",
+              "launch"
+            ]
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "series": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+          },
+          "channels": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+              "type": "string",
+              "enum": [
+                "blog",
+                "x",
+                "facebook",
+                "tiktok",
+                "community",
+                "newsletter"
+              ]
+            }
+          },
+          "quiet": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "max_len": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000
+          },
+          "target": {
+            "type": [
+              "string",
+              "object"
+            ],
+            "maxLength": 64
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "week",
+              "topic",
+              "changelog",
+              "paste"
+            ]
+          },
+          "changelog": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "list": {
+            "type": "string",
+            "maxLength": 100000,
+            "description": "subscribers: an address a line."
           }
         },
         "required": [
@@ -1465,8 +1760,11 @@
         "max_output_bytes": 262144,
         "secret_env": {
           "PRODUCT_AGENT_KEY": "{{cred:PRODUCT_AGENT_KEY}}",
-          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
-        }
+          "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}",
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}",
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
+        },
+        "max_input_bytes": 131072
       }
     },
     {
@@ -1499,7 +1797,7 @@
     {
       "name": "gsc_sync",
       "title": "Đọc Search Console",
-      "description": "Read Search Console numbers for published post URLs. Needs the Google sign-in; missing or revoked answers needs_person.",
+      "description": "Read Search Console numbers for published posts. No site: every products.json site as sc-domain:<host>; one it cannot read is named and skipped. A missing or revoked Google sign-in answers needs_person.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1513,9 +1811,7 @@
             "maximum": 28
           }
         },
-        "required": [
-          "site"
-        ],
+        "required": [],
         "additionalProperties": false
       },
       "run": {
@@ -1529,13 +1825,14 @@
         "timeout": "60s",
         "max_output_bytes": 262144,
         "secret_env": {
-          "GSC_GOOGLE": "{{cred:GSC_GOOGLE}}"
+          "GSC_GOOGLE": "{{cred:GSC_GOOGLE}}",
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
         }
       }
     },
     {
       "name": "seo_brief",
-      "title": "Gợi ý SEO",
+      "title": "Gợi ý từ khoá tìm kiếm",
       "description": "Search queries worth a post (impressions ≥ 20 and position 8–20 or CTR under 1 %) and the published posts' 14-day numbers (null when not read yet).",
       "parameters": {
         "type": "object",
@@ -1642,7 +1939,7 @@
     },
     {
       "name": "channels_probe",
-      "title": "Kiểm tra đăng nhập kênh",
+      "title": "Xem kênh còn đăng nhập không",
       "description": "For a tool chain around the Editor's browser: with no result it names the next paused social channel's check page ({action: navigate, url}, the browser-use_control input) or {done: true}; with the page's result it decides signed in or out from the page text, unpauses only a channel the person confirmed that is really signed in, and sends a confirmed-but-signed-out one back to its sign-in card.",
       "parameters": {
         "type": "object",
@@ -1696,7 +1993,7 @@
     },
     {
       "name": "radar_read",
-      "title": "Đọc nguồn radar",
+      "title": "Đọc nguồn tin",
       "description": "Read-only radar for a tool-only schedule: seed the sources table (new keys only), read the sources that are due (https feeds, oldest first), keep each new item once in signals. Items off topic (keywords, lang vi) are kept as dismissed and never reach the model. A source answering 429 rests a day; after 3 failures in a row it is switched off and reported in skipped; retire switches named sources off. Wakes the triage Soot only when enough new signals arrived since the last wake, at most once per wake_gap_hours (default 20), counted from the last wake the triage Soot answered (a wake the host refused counts nothing; the batch may wake again 6 h later), with at most 15 of the best new signals (the surplus is dismissed).",
       "parameters": {
         "type": "object",
@@ -1940,7 +2237,7 @@
     },
     {
       "name": "inputs_health",
-      "title": "Đầu vào còn thiếu",
+      "title": "Xem đội còn thiếu gì",
       "description": "Which inputs of the marketing stage are starving, in plain Vietnamese (Search Console, market signals, TikTok and YouTube numbers). Read-only; chain it into company-loop health_sync. posts.awareness is the 14-day mix of posts by awareness level (unaware, problem, choosing, chua_gan = untagged) with a one-line note when one nấc is over 70% of the tagged posts or a nấc has none while 5 or more were tagged.",
       "parameters": {
         "type": "object",
@@ -2063,7 +2360,7 @@
     },
     {
       "name": "raised",
-      "title": "Đã báo Cần bạn",
+      "title": "Ghi đã hỏi bạn",
       "description": "Mark due.needs items as filed with report_blocker (their key), so the dispatch schedule does not wake again for them.",
       "parameters": {
         "type": "object",
@@ -2097,7 +2394,7 @@
     },
     {
       "name": "answer",
-      "title": "Áp dụng câu trả lời Cần bạn",
+      "title": "Làm theo câu trả lời của bạn",
       "description": "The person picked an option on a due.ask item: pass its key and the option label exactly (with url when they sent the live link). It applies the pick; then file the next due.ask.",
       "parameters": {
         "type": "object",
@@ -2236,7 +2533,7 @@
     },
     {
       "name": "video_import",
-      "title": "Nhận video từ mvf",
+      "title": "Nhận video đã dựng",
       "description": "Read a finished 2build marketing-video (mvf) folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook) with its assets. A render failure or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes.",
       "parameters": {
         "type": "object",
@@ -2476,6 +2773,572 @@
           "PRODUCT_ADMIN_KEY": "{{cred:PRODUCT_ADMIN_KEY}}"
         }
       }
+    },
+    {
+      "name": "publish_bundle",
+      "title": "Lên lịch gói đăng",
+      "description": "Ask the founder ONCE for one source and everything made from it: the blog in each language and its social posts (gói đăng). The approval card shows every post with its words and about when it goes out. After Duyệt this only records the approved set; release_due publishes each post at its slot with the approved revision, and a post changed since is never published. Copy revision, title and text from cms_read / social_list (with no hub, from item_save: its revision, no ids). Community posts and newsletters go in the same bundle with title/subject and body; they, TikTok and posts saved with no hub become the founder's hand-offs after Duyệt. A post for a channel the product cannot post to is left out (skipped). Never call cms_publish or social_publish yourself.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "maxLength": 9,
+            "pattern": "^MK-[0-9A-Z]{6}$"
+          },
+          "product": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+          },
+          "posts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "blog",
+                    "x",
+                    "facebook",
+                    "tiktok",
+                    "community",
+                    "newsletter"
+                  ]
+                },
+                "lang": {
+                  "type": "string",
+                  "enum": [
+                    "vi",
+                    "en"
+                  ]
+                },
+                "site": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                  "description": "blog: the hub site id."
+                },
+                "slug": {
+                  "type": "string",
+                  "maxLength": 96,
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                  "description": "blog: this language's slug."
+                },
+                "id": {
+                  "type": "string",
+                  "pattern": "^(SP-[0-9A-F]{8}|MK-[0-9A-Z]{6}\\.(vi|en))$",
+                  "description": "social: the hub post id; leave it out for a post saved with no hub (it becomes the founder's hand-off)."
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "The revision the founder approves (the hub's, or item_save's revision for a part saved only as files); it must still be the latest when it goes out."
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 300,
+                  "description": "blog: the revision title, as cms_read returned it; community: the post title, as item_save saved it."
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 10000,
+                  "description": "social: the queued text, exactly as social_list returned it."
+                },
+                "link": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                },
+                "not_before": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "description": "Optional ISO time; the post goes at its channel's first slot after it."
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 40000,
+                  "description": "community / newsletter: the body, exactly as item_save saved it."
+                },
+                "subject": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "description": "newsletter: the subject."
+                },
+                "preheader": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 200,
+                  "description": "newsletter: the preheader."
+                }
+              },
+              "required": [
+                "channel",
+                "lang",
+                "revision"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "ref",
+          "product",
+          "posts"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "publish_bundle"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "preflight": true,
+        "approval": "operator",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "max_input_bytes": 65536,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}",
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
+        }
+      }
+    },
+    {
+      "name": "release_due",
+      "title": "Đăng bài đến giờ",
+      "description": "The tool-only schedule (every 5 minutes, no model): publishes the due posts of approved bundles through the hub with the approved revision, and writes approved blogs of a product without a hub blog into its site folder (state written). Re-checks revision and words first (a change holds it), writes an intent before each hub call or file, looks a lost answer up instead of sending again, holds a slot missed by more than 6 hours. notify is true only when a post newly needs the founder; then raise ONE report_blocker listing them.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "release_due"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "120s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}",
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
+        }
+      }
+    },
+    {
+      "name": "library_scan",
+      "title": "Quét thư mục marketing",
+      "description": "Refresh the desk's index of the marketing library (MARKETING_ROOT): items, video campaigns, radars, videos.csv. Lists hub blog posts that no library item names (hub_only: \"chưa có tệp\"). hub: false skips that hub read.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "hub": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "library_scan"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "rerun": "safe",
+        "timeout": "60s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}",
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
+        }
+      }
+    },
+    {
+      "name": "file_read",
+      "title": "Đọc tệp trong thư mục marketing",
+      "description": "Read one text file (or list one folder) inside the marketing library (MARKETING_ROOT), read-only: products.json, <product>/brand.md, an item's files, a radar. path is relative to the library; no path lists the top folder. Refuses anything outside the library, a link that leaves it, hidden files and files over 256 KiB; long files come in pages (offset, max_chars, next_offset).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 262144
+          },
+          "max_chars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 49152
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "file_read"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "20s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
+        }
+      }
+    },
+    {
+      "name": "item_save",
+      "title": "Lưu bài vào thư mục marketing",
+      "description": "The Writer's one save for a piece of content: writes content/<product>/<day>-<slug>/ (meta.json, <lang>.md, <channel>.<lang>.txt) AND the hub drafts (cms_save per language, social_queue/social_update per post). Saving the same text again changes nothing; a changed text moves the hub revision, so an approval in waiting no longer covers it. Pass ref when the desk gave one (Tạo nội dung). Use this instead of cms_save / social_queue.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "maxLength": 9,
+            "pattern": "^MK-[0-9A-Z]{6}$"
+          },
+          "product": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "blog",
+              "social",
+              "video",
+              "community",
+              "newsletter",
+              "launch"
+            ]
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "series": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "campaign": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "langs": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "properties": {
+                "lang": {
+                  "type": "string",
+                  "enum": [
+                    "vi",
+                    "en"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "summary": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 40000
+                },
+                "slug": {
+                  "type": "string",
+                  "maxLength": 80,
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+                }
+              },
+              "required": [
+                "lang",
+                "title",
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "posts": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "properties": {
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "x",
+                    "facebook",
+                    "tiktok"
+                  ]
+                },
+                "lang": {
+                  "type": "string",
+                  "enum": [
+                    "vi",
+                    "en"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "link": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "channel",
+                "lang",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "reopen": {
+            "type": "boolean",
+            "description": "Only when the founder asked to reopen an item stopped on the desk."
+          },
+          "community": {
+            "type": "object",
+            "description": "A community post (format community) or a launch's Show HN part: where, title and body.",
+            "properties": {
+              "target": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9:_-]{0,63}$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "reddit",
+                          "hn",
+                          "devto",
+                          "other"
+                        ]
+                      },
+                      "sub": {
+                        "type": "string",
+                        "maxLength": 24
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "rules": {
+                        "type": "string",
+                        "maxLength": 300
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "body": {
+                "type": "string",
+                "maxLength": 20000
+              },
+              "lang": {
+                "type": "string",
+                "enum": [
+                  "vi",
+                  "en"
+                ]
+              }
+            },
+            "required": [
+              "title",
+              "body"
+            ],
+            "additionalProperties": false
+          },
+          "newsletter": {
+            "type": "object",
+            "description": "A newsletter (format newsletter). sending: true only when the Editor asked email to send the approved one.",
+            "properties": {
+              "subject": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "preheader": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "body": {
+                "type": "string",
+                "maxLength": 40000
+              },
+              "lang": {
+                "type": "string",
+                "enum": [
+                  "vi",
+                  "en"
+                ]
+              },
+              "sending": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "pretest": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "A Micro Fish pre-test of this revision: asked, done (verdict go|fix|stop, n, score 0-10, up to 3 reasons), failed or unavailable.",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "asked",
+                  "done",
+                  "failed",
+                  "unavailable"
+                ]
+              },
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "go",
+                  "fix",
+                  "stop"
+                ]
+              },
+              "n": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "reasons": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              },
+              "conversation_id": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 32
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          "waiting": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 300,
+            "description": "The one question the team is waiting on the founder for (the same words as the report_blocker). The desk shows the item as Chờ bạn trả lời. null clears it once answered."
+          }
+        },
+        "required": [
+          "product"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "item_save"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "90s",
+        "max_output_bytes": 65536,
+        "max_input_bytes": 131072,
+        "secret_env": {
+          "MARKETING_HUB": "{{cred:MARKETING_HUB}}",
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
+        }
+      }
     }
   ],
   "needs": {
@@ -2485,33 +3348,43 @@
       "PATH",
       "HOME"
     ],
+    "env_info": {
+      "PRODUCT_API_URL": {
+        "title": "Địa chỉ API của sản phẩm",
+        "description": "Địa chỉ máy chủ của sản phẩm mà đội đọc số liệu và nội dung. Ví dụ: https://api.example.com."
+      },
+      "YT_DLP_BIN": {
+        "title": "Chương trình tải video",
+        "description": "Đường dẫn tới chương trình yt-dlp trên máy chủ, dùng để tải video tham khảo. Để trống thì dùng bản có sẵn trên máy."
+      }
+    },
     "credentials": {
       "PRODUCT_AGENT_KEY": {
-        "title": "Khoá agent_marketing của sản phẩm",
-        "description": "Khoá API vai trò agent_marketing do quản trị tạo cho Soot này (chỉ tạo liên kết chiến dịch và đọc báo cáo chiến dịch). Chỉ gửi tới PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
+        "title": "Khoá riêng của Soot này cho API sản phẩm",
+        "description": "Khoá API mà trang quản trị sản phẩm của bạn tạo riêng cho Soot này, chỉ để tạo liên kết chiến dịch và đọc số lượt bấm, đăng ký theo chiến dịch. Chỉ gửi tới địa chỉ API của sản phẩm. Không dán khoá vào chat.",
         "from": "operator",
         "optional": true
       },
       "PRODUCT_ADMIN_KEY": {
-        "title": "Khoá agent dùng chung (đã lỗi thời, thay bằng PRODUCT_AGENT_KEY)",
-        "description": "Khoá API tạo trong trang quản trị của sản phẩm, có quyền tạo liên kết chiến dịch và đọc báo cáo chiến dịch; Soot dùng để tạo liên kết rút gọn cho chiến dịch và đọc số lượt bấm, đăng ký theo chiến dịch. Chỉ gửi tới địa chỉ api PRODUCT_API_URL. Nhập trong Nest, không nhập trong chat.",
+        "title": "Khoá dùng chung (cũ, không cần nữa)",
+        "description": "Khoá dùng chung đời cũ. Không cần nhập: khoá riêng của Soot này cho API sản phẩm đã thay nó; Soot chỉ dùng khoá cũ khi chưa có khoá riêng.",
         "from": "operator",
         "optional": true
       },
       "MARKETING_HUB": {
-        "title": "Marketing hub",
-        "description": "Kết nối tới marketing hub của sản phẩm: các site, kênh và quyền đăng của nhóm này. Lấy ở trang quản trị hub; nhập trong Nest, không nhập trong chat.",
+        "title": "Máy chủ đăng bài",
+        "description": "Kết nối tới Máy chủ đăng bài của bạn: các trang, kênh và quyền đăng của đội này. Lấy ở trang quản trị của Máy chủ đăng bài; nhập trong Nest, không nhập trong chat. Không có thì đội vẫn làm được: blog ghi vào thư mục site, bài mạng xã hội bạn đăng tay.",
         "optional": true
       },
       "MARKETING_CLAIM_KEY": {
-        "title": "Khoá ký lượt đăng",
-        "description": "Một chuỗi bí mật dài (ví dụ 32 byte ngẫu nhiên) dùng để ký mỗi lượt đăng. Nhập cùng giá trị cho gói đăng bài (publisher) của kênh; nhập trong Nest, không nhập trong chat.",
+        "title": "Khoá đăng bài của Máy chủ đăng bài",
+        "description": "Khoá do Máy chủ đăng bài cấp cho đội này, để mỗi lượt đăng được ký và Máy đăng chỉ đăng đúng bài bạn đã duyệt. Chép từ trang quản trị của Máy chủ đăng bài; Máy đăng dùng cùng khoá này. Nhập trong Nest, không nhập trong chat.",
         "from": "operator",
         "optional": true
       },
       "FILE_ROOT": {
         "title": "Thư mục làm việc",
-        "description": "Thư mục làm việc của cuộc trò chuyện, nơi mvf để video đã dựng. Nest cấp tự động; công cụ video_import chỉ đọc tệp trong thư mục này.",
+        "description": "Thư mục làm việc của cuộc trò chuyện, nơi để video đã dựng. Nest cấp tự động; công cụ nhận video chỉ đọc tệp trong thư mục này.",
         "from": "workspace",
         "optional": true
       },
@@ -2526,70 +3399,42 @@
             "https://www.googleapis.com/auth/webmasters.readonly"
           ]
         }
+      },
+      "MARKETING_ROOT": {
+        "title": "Thư mục marketing",
+        "description": "Thư mục nơi bàn Marketing giữ sản phẩm, giọng văn, bài và danh sách người nhận bản tin; đội chỉ đọc và ghi trong thư mục này. Mặc định là thư mục riêng của đội; chọn thư mục khác nếu bạn muốn mở nó bằng Finder.",
+        "from": "operator",
+        "optional": true,
+        "default": "team_folder"
       }
     }
   },
   "interface": {
     "pieces": [
       {
-        "id": "posts",
-        "slot": "project.tab",
-        "tab": {
-          "id": "marketing",
-          "label": {
-            "vi": "Marketing",
-            "en": "Marketing"
+        "id": "desk",
+        "slot": "rail",
+        "order": 400,
+        "label": {
+          "vi": "Marketing",
+          "en": "Marketing"
+        },
+        "icon": "megaphone",
+        "access": "operator",
+        "data": {
+          "view_tool": "page_view",
+          "action_tool": "page_action",
+          "ask": true,
+          "queries": {
+            "approvals": {
+              "source": "approval",
+              "tool": "publish_bundle",
+              "ref_field": "ref"
+            },
+            "team_waits": {
+              "source": "attention"
+            }
           }
-        },
-        "order": 510,
-        "label": {
-          "vi": "Bài viết",
-          "en": "Posts"
-        },
-        "icon": "file-text",
-        "access": "operator",
-        "data": {
-          "view_tool": "page_view",
-          "action_tool": "page_action"
-        },
-        "bundle": "page/"
-      },
-      {
-        "id": "queue",
-        "slot": "project.tab",
-        "tab": {
-          "id": "marketing",
-          "label": {
-            "vi": "Marketing",
-            "en": "Marketing"
-          }
-        },
-        "order": 520,
-        "label": {
-          "vi": "Hàng đợi",
-          "en": "Queue"
-        },
-        "icon": "calendar-clock",
-        "access": "operator",
-        "data": {
-          "view_tool": "page_view",
-          "action_tool": "page_action"
-        },
-        "bundle": "page/"
-      },
-      {
-        "id": "channels",
-        "slot": "settings",
-        "group": "server",
-        "label": {
-          "vi": "Kênh đăng bài",
-          "en": "Channels"
-        },
-        "icon": "radio",
-        "access": "operator",
-        "data": {
-          "view_tool": "page_view",
-          "action_tool": "page_action"
         },
         "bundle": "page/"
       },
@@ -2614,12 +3459,12 @@
           "view_tool": "page_view",
           "action_tool": "page_action"
         },
-        "bundle": "page/"
+        "bundle": "campaigns/"
       }
     ]
   },
   "storage": {
-    "version": 7,
+    "version": 8,
     "tables": [
       {
         "name": "settings",
@@ -3307,6 +4152,201 @@
           {
             "name": "raised_at",
             "type": "timestamp"
+          }
+        ]
+      },
+      {
+        "name": "library",
+        "description": "Chỉ mục thư viện marketing: các tệp dưới MARKETING_ROOT (bài, chiến dịch video, radar, số liệu) để bàn Marketing mở nhanh, không đọc đĩa mỗi lần.",
+        "columns": [
+          {
+            "name": "path",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "kind",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "channel",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "series",
+            "type": "text"
+          },
+          {
+            "name": "campaign",
+            "type": "text"
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "search": true
+          },
+          {
+            "name": "mtime",
+            "type": "timestamp"
+          },
+          {
+            "name": "sha",
+            "type": "text"
+          },
+          {
+            "name": "ref",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "meta",
+            "type": "json"
+          }
+        ]
+      },
+      {
+        "name": "bundles",
+        "description": "Gói đăng người sáng lập đã duyệt: một nguồn và mọi bài làm từ nó, đúng bản đã duyệt.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "ref",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "posts",
+            "type": "json"
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "approved_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "verified",
+            "type": "boolean"
+          },
+          {
+            "name": "by",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "name": "releases",
+        "description": "Lượt đăng của từng bài trong gói đã duyệt: giờ lên, bản đã duyệt, ý định trước mỗi lần gọi hub và kết quả.",
+        "columns": [
+          {
+            "name": "key",
+            "type": "text",
+            "required": true,
+            "unique": true
+          },
+          {
+            "name": "bundle",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "ref",
+            "type": "text",
+            "required": true,
+            "index": true
+          },
+          {
+            "name": "product",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "channel",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "lang",
+            "type": "text"
+          },
+          {
+            "name": "site",
+            "type": "text"
+          },
+          {
+            "name": "slug",
+            "type": "text"
+          },
+          {
+            "name": "hub_id",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "revision",
+            "type": "integer"
+          },
+          {
+            "name": "title",
+            "type": "text"
+          },
+          {
+            "name": "text_hash",
+            "type": "text"
+          },
+          {
+            "name": "not_before",
+            "type": "timestamp"
+          },
+          {
+            "name": "slot_at",
+            "type": "timestamp",
+            "index": true
+          },
+          {
+            "name": "state",
+            "type": "text",
+            "index": true
+          },
+          {
+            "name": "intent_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "outcome",
+            "type": "json"
+          },
+          {
+            "name": "url",
+            "type": "text"
+          },
+          {
+            "name": "reason",
+            "type": "text"
           }
         ]
       }
