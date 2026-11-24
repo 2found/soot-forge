@@ -1,0 +1,228 @@
+{
+  "name": {
+    "vi": "Soot x Claude Code",
+    "en": "Soot x Claude Code"
+  },
+  "description": {
+    "vi": "Giao việc dài, cần model mạnh (video, một tính năng, bộ tài liệu) cho một phiên Claude Code ngay trên máy của bạn, chạy bằng gói đăng ký Claude của bạn. Soot bắt đầu, lịch chỉ-công-cụ theo dõi, kết quả nối thẳng sang công cụ kế tiếp.",
+    "en": "Hand long creative or coding work to a Claude Code session on your own machine, on your Claude subscription. A Soot starts it, a tool-only schedule watches it, and its result chains into the next tool without a model call."
+  },
+  "keywords": {
+    "vi": [
+      "claude code",
+      "video",
+      "tác vụ dài",
+      "phiên"
+    ],
+    "en": [
+      "claude code",
+      "long task",
+      "video",
+      "session",
+      "detached"
+    ]
+  },
+  "tools": [
+    {
+      "name": "start",
+      "title": "Giao việc cho Claude Code",
+      "description": "Start one Claude Code session (claude -p, stream-json, no permission prompts) on this machine in `dir`, which must be inside CLAUDE_CODE_DIRS. The session runs detached with the prompt plus an unattended footer, on the operator's logged-in Claude subscription (no API key is passed), and writes its result as one JSON object to result_path. Idempotent on `key`: a job with that key still running is answered with already: true, never a second session. At most CLAUDE_CODE_MAX_RUNNING (default 1) run at once; over it answers {done: true, waiting: \"busy\"}. Answers {started: true, id, key, title, log, result_path}. Check it with `jobs`; a tool-only schedule uses `watch`.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "description": "One session per key. Put the day or the subject in it (video-2026-11-24)."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "dir": {
+            "type": "string",
+            "description": "Absolute path of the folder the session works in; inside CLAUDE_CODE_DIRS."
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "The whole brief: goal, inputs with absolute paths, done condition, constraints, and the exact result JSON shape."
+          },
+          "model": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:\\[\\]-]{0,63}$",
+            "description": "Default: CLAUDE_CODE_MODEL, else opus."
+          },
+          "effort": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "description": "Default: CLAUDE_CODE_EFFORT, else high."
+          },
+          "timeout_min": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "minimum": 5,
+            "maximum": 720,
+            "description": "Wall-clock limit in minutes (default 240); the session is killed after it."
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "dir",
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/cc.mjs",
+          "start"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "jobs",
+      "title": "Xem các phiên Claude Code",
+      "description": "List Claude Code jobs, newest first: id, key, title, dir, model, effort, state (running, done, failed, timed_out, stopped), started_at, ended_at, minutes, cost_usd, num_turns, usage, last_text (the session's last words, at most 1200 characters), result (result.json, at most 4 KiB), error for a job that did not succeed, and the log path. A job whose runner vanished reads failed (runner_gone). Read-only.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "done",
+              "failed",
+              "timed_out",
+              "stopped"
+            ]
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/cc.mjs",
+          "jobs"
+        ],
+        "stdin": "context",
+        "mode": "read",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "stop",
+      "title": "Dừng một phiên Claude Code",
+      "description": "Stop a running job: kills its process group and records exit.json with stopped: true. The stop is its own report, so `watch` says nothing about it. A finished job answers already_finished.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/cc.mjs",
+          "stop"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 65536
+      }
+    },
+    {
+      "name": "watch",
+      "title": "Theo dõi phiên Claude Code",
+      "description": "For a tool-only schedule, no model. Reports at most ONE finished job not yet reported per call, oldest first, and marks it reported. Nothing finished: {done: true, running: n}. Success (result.json is an object that is not ok:false): emit \"result\" answers that object verbatim, so `input_from: previous` hands it to the next tool; emit \"job\" (default) answers {job, result}. A job that failed, timed out, left no or an invalid result, or wrote ok:false answers {ok: false, notify: true, job: {id, key, title, state, error, last_text}}, which wakes the Soot. It also ends jobs whose runner died or outlived their timeout.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key_prefix": {
+            "type": "string",
+            "pattern": "^[a-z0-9._-]{0,64}$",
+            "description": "Only jobs whose key starts with this."
+          },
+          "emit": {
+            "type": "string",
+            "enum": [
+              "result",
+              "job"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/cc.mjs",
+          "watch"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "30s",
+        "max_output_bytes": 262144
+      }
+    }
+  ],
+  "needs": {
+    "env": [
+      "CLAUDE_CODE_DIRS",
+      "CLAUDE_CODE_MAX_RUNNING",
+      "CLAUDE_CODE_MODEL",
+      "CLAUDE_CODE_EFFORT",
+      "CLAUDE_BIN",
+      "CLAUDE_CONFIG_DIR",
+      "PATH",
+      "HOME",
+      "USER",
+      "LOGNAME",
+      "SHELL",
+      "LANG",
+      "LC_ALL",
+      "TMPDIR",
+      "TERM"
+    ]
+  }
+}

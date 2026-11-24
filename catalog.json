@@ -374,6 +374,20 @@
       }
     },
     {
+      "id": "claude-code",
+      "name": "Soot x Claude Code",
+      "description": "Hand long creative or coding work to a Claude Code session on your own machine (your Claude subscription): a Soot starts it, a tool-only schedule watches it, and its result chains into the next tool without a model call.",
+      "tags": [
+        "engineering",
+        "productivity",
+        "video"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/claude-code"
+      }
+    },
+    {
       "id": "micro-fish",
       "name": "Micro Fish",
       "description": "A simulated society where every persona is its own Soot on a shared feed: test content, a product, a price or a campaign, with deterministic tallies.",
