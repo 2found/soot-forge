@@ -536,8 +536,10 @@ test('spacing holds even when a log row has no parseable time', () => {
   assert.equal(claimWindow({ settings: {}, channel: ch, log, now })?.code, 'spacing');
 });
 
-test('a post on the TikTok hand-off channel is never scheduled', async () => {
+test('a post on a TikTok channel a person set to hand is never scheduled', async () => {
   const w = world();
-  const d = await readyPost(w, { kind: 'social', channel: 'tiktok', body: 'Nghe thử một cảnh trên LoHi: https://lohi2.com/novel/tien-hiep', brief: undefined });
-  await assert.rejects(w.call('schedule', { id: d.id }), e => e.code === 'handoff_channel' || /handoff_channel|tự đăng/.test(String(e.message)));
+  await w.call('channels_setup', { channels: [{ id: 'tiktok-lohi', account: '@lohi', publisher: 'hand' }] });
+  assert.equal((await w.store.one('channels', [{ column: 'key', op: 'eq', value: 'tiktok-lohi' }])).publisher, 'hand');
+  await w.store.insert('posts', { ref: 'P-0000000001', kind: 'video', channel: 'tiktok-lohi', body: 'Nghe thử một cảnh trên LoHi', state: 'ready', revision: 1, content_hash: 'h' });
+  await assert.rejects(w.call('schedule', { id: 'P-0000000001' }), e => e.code === 'handoff_channel' || /handoff_channel|tự đăng/.test(String(e.message)));
 });

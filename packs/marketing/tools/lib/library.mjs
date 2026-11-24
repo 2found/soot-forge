@@ -73,6 +73,28 @@ export async function loadProducts({ root, hubSites = [], campaignProducts = [] 
   const ids = [...new Set([...hubSites, ...campaignProducts].filter(id => typeof id === 'string' && PRODUCT_ID.test(id)))].slice(0, 12);
   return ids.map(id => normalProduct({ id }));
 }
+const TIKTOK_HANDLE = /^[A-Za-z0-9._]{2,24}$/;
+const BROWSER_PROFILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+/**
+ * A product's TikTok accounts, `[{handle, video_channel?, profile?}]`, from `accounts.tiktok` as an array of
+ * `{handle, video_channel, profile}` (a single object too) or the older text, "lohi (lohi-truyen), hoalongchannhan
+ * (hoa-long-chan-nhan)" (a name, an optional video channel folder in brackets, commas between). Anything else is left out.
+ */
+export function tiktokAccounts(v) {
+  const out = [];
+  const add = (handle, video_channel, profile) => {
+    const h = String(handle ?? '').trim().replace(/^@/, '');
+    if (!TIKTOK_HANDLE.test(h) || out.some(a => a.handle.toLowerCase() === h.toLowerCase())) return;
+    out.push({ handle: h, ...(typeof video_channel === 'string' && SLUG.test(video_channel) ? { video_channel } : {}), ...(typeof profile === 'string' && BROWSER_PROFILE.test(profile) ? { profile } : {}) });
+  };
+  const text = (s) => { for (const piece of String(s).split(/[,;\n]/)) { const m = /^\s*@?([A-Za-z0-9._]{2,24})\s*(?:\(\s*([a-z0-9-]+)\s*\))?\s*$/.exec(piece); if (m) add(m[1], m[2]); } };
+  const one = (a) => { if (typeof a === 'string') text(a); else if (a && typeof a === 'object') add(a.handle, a.video_channel, a.profile); };
+  if (Array.isArray(v)) v.slice(0, 12).forEach(one); else one(v);
+  return out;
+}
+/** The channel key one TikTok account posts on: `tiktok-<handle>`. */
+export const tiktokChannelId = (handle) => `tiktok-${String(handle).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`.slice(0, 32);
+
 /** How a product's blog is published: its own setting, else through the hub when there is one and to the site folder when not. */
 export const blogMode = (prod, hub) => prod?.blog ?? (hub ? 'hub' : 'folder');
 export function normalProduct(p) {
@@ -83,9 +105,14 @@ export function normalProduct(p) {
   const dir = typeof p.blog?.dir === 'string' && p.blog.dir.trim() ? p.blog.dir.trim() : typeof p.blog_dir === 'string' && p.blog_dir.trim() ? p.blog_dir.trim() : null;
   const blog = p.blog === 'hub' ? 'hub' : p.blog === 'none' ? 'none' : (p.blog && typeof p.blog === 'object') || dir ? 'folder' : null;
   const langs = Array.isArray(p.langs) ? [...new Set(p.langs.filter(l => LANGS.has(l)))] : [];
+  const tiktok = tiktokAccounts(p.accounts?.tiktok);
   return { id: p.id, name, mark, site: typeof p.site === 'string' ? p.site.slice(0, 80) : null, hub_site: typeof p.hub_site === 'string' ? p.hub_site : p.id, video_channels: Array.isArray(p.video_channels) ? p.video_channels.filter(c => typeof c === 'string' && SLUG.test(c)).slice(0, 12) : [],
     // Accounts the product has on a channel the hub may not know yet ("Chưa nối" rather than "Chưa có tài khoản").
-    accounts: Object.fromEntries(['x', 'facebook', 'tiktok'].filter(ch => typeof p.accounts?.[ch] === 'string' && p.accounts[ch].trim()).map(ch => [ch, p.accounts[ch].trim().slice(0, 80)])),
+    accounts: Object.fromEntries(['x', 'facebook'].filter(ch => typeof p.accounts?.[ch] === 'string' && p.accounts[ch].trim()).map(ch => [ch, p.accounts[ch].trim().slice(0, 80)])
+      .concat(typeof p.accounts?.tiktok === 'string' && p.accounts.tiktok.trim() ? [['tiktok', p.accounts.tiktok.trim().slice(0, 80)]]
+        : tiktok.length ? [['tiktok', tiktok.map(a => (a.video_channel ? `${a.handle} (${a.video_channel})` : a.handle)).join(', ').slice(0, 200)]] : [])),
+    // Each TikTok account is its own browser channel (`tiktok-<handle>`), with the video channel folder it is cut in and its browser profile.
+    tiktok_accounts: tiktok,
     blog, blog_dir: blog === 'none' || blog === 'hub' ? dir : dir ?? `${p.id}/site/posts`,
     targets: (Array.isArray(p.targets) ? p.targets : []).map(normalTarget).filter(Boolean).slice(0, 10),
     changelog: typeof p.changelog === 'string' && p.changelog.trim() ? p.changelog.trim().slice(0, 200) : null,

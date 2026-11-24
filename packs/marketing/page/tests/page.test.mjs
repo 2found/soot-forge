@@ -337,7 +337,7 @@ test('channels, a channel sheet, the library radar and a video hand-off draw fro
   await press(d, d.find('[data-k="stage:scheduled"]'));
   const video = d.all('.mk-row.click').find(r => /Ep 1/i.test(text(r)));
   await press(d, video);
-  assert.match(sheet(d), /TikTok luôn do bạn đăng/);
+  assert.match(sheet(d), /Video này chờ bạn đăng TikTok/);
   const url = d.find('#f-url');
   url.value = 'https://evil.example/x';
   url.dispatch('input');

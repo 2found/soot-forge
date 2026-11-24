@@ -13,13 +13,13 @@
 // `signed_out`, so the sign-in card is raised again. It never types, clicks or posts.
 import { eq } from './store.mjs';
 import { platformOf, fold } from './guard.mjs';
-import { setSetting, pause, clearAttention } from './ops.mjs';
+import { setSetting, pause, clearAttention, profileOf } from './ops.mjs';
 
 const MIN = 60_000, HOUR = 60 * MIN;
 const iso = ms => new Date(ms).toISOString();
 
 /** A page only a signed-in account can open (the same pages the Editor's dispatch skill checks). */
-export const CHECK_URL = { x: 'https://x.com/home', facebook: 'https://www.facebook.com/settings', reddit: 'https://www.reddit.com/settings' };
+export const CHECK_URL = { x: 'https://x.com/home', facebook: 'https://www.facebook.com/settings', reddit: 'https://www.reddit.com/settings', tiktok: 'https://www.tiktok.com/tiktokstudio/upload' };
 
 const LOGIN_PATH = /\/(login|signin|sign-in|i\/flow\/login|checkpoint|recover|accounts\/login)(\/|\?|$)/;
 const PASSWORD = /(password|mat khau|type="password")/;
@@ -28,6 +28,7 @@ const SIGNED_IN = {
   x: /(account menu|menu tai khoan|\bprofile\b|\bho so\b)/,
   facebook: /(settings & privacy|cai dat va quyen rieng tu|account settings|cai dat tai khoan|your profile|trang ca nhan cua ban|general account settings)/,
   reddit: /(open inbox|expand user menu|user menu|create post|tao bai dang|tao bai viet)/,
+  tiktok: /(select video|select videos to upload|chon video|tiktok studio|upload video|tai video len)/,
 };
 
 /** 'signed_in' | 'signed_out' | 'unknown' for one platform from the opened page. */
@@ -55,7 +56,9 @@ async function state(store) {
 function due(channels, st, now) {
   const rank = [];
   for (const c of channels) {
-    if (c.kind !== 'social' || !c.paused || !CHECK_URL[c.platform ?? platformOf(c.key)]) continue;
+    // A channel with its own browser profile is not probed: the probe's page opens in the Soot's own profile, so it would
+    // read another account's session. Its person says "Đã đăng nhập" and then resumes it (marketing_pause).
+    if (!(c.kind === 'social' || c.publisher === 'browser') || profileOf(c) || !c.paused || !CHECK_URL[c.platform ?? platformOf(c.key)]) continue;
     const confirmed = c.paused_reason === 'signed_in';
     if (!confirmed && c.paused_reason !== 'signed_out') continue;
     const mine = st.channels?.[c.key] ?? {};

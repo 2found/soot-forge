@@ -6,6 +6,7 @@ import { storage, MarketingError } from './lib/store.mjs';
 import * as ops from './lib/ops.mjs';
 import { page_view, page_action, answer } from './lib/page.mjs';
 import { video_import } from './lib/video.mjs';
+import { video_brief } from './lib/brief.mjs';
 import { campaign_save, campaign_report, campaign_verify } from './lib/campaign.mjs';
 import { plan } from './lib/plan.mjs';
 import { channels_probe } from './lib/probe.mjs';
@@ -21,7 +22,7 @@ export const TOOLS = {
   claim: ops.claim, record: ops.record, fail: ops.failIntent, pause: ops.pause,
   page_view, page_action, facts_sync: ops.facts_sync, gsc_sync: ops.gsc_sync, seo_brief: ops.seo_brief,
   channels_setup: ops.channels_setup, raised: ops.raised, answer, replies_sync: ops.replies_sync, reply_save: ops.reply_save,
-  video_import, campaign_save, campaign_report, campaign_verify, plan, channels_probe, report,
+  video_import, video_brief, campaign_save, campaign_report, campaign_verify, plan, channels_probe, report,
   radar_read, signals_list, signals_mark, video_stats, inputs_health,
   library_scan, item_save, file_read, publish_bundle, release_due,
 };

@@ -15,7 +15,8 @@ import { join } from 'node:path';
 import { fail, eq, gte } from './store.mjs';
 import { hubCall, hubBinding, hubSource } from './hub.mjs';
 import { libraryRoot, rootKind, readText, exists } from './root.mjs';
-import { loadProducts, libraryTree, libraryDetail, refFor, videoRows, askText, localId, blogMode, targetLabel, subscriberCount, changelogVersion, blogDirOf, TITLE_MAX, TZ, ITEM_REF } from './library.mjs';
+import { platformOf } from './guard.mjs';
+import { loadProducts, tiktokChannelId, libraryTree, libraryDetail, refFor, videoRows, askText, localId, blogMode, targetLabel, subscriberCount, changelogVersion, blogDirOf, TITLE_MAX, TZ, ITEM_REF } from './library.mjs';
 import { deskState, rulesFor, pausedFor, markHubOk, releaseKeyOf, DESK_CHANNELS } from './bundle.mjs';
 import { localDay, localDayStart } from './time.mjs';
 
@@ -80,6 +81,9 @@ export async function gather({ store, env, now, fetch: fetchImpl, soot, teams = 
     W.products = await loadProducts({ root: W.root, campaignProducts });
   }
   if (!W.hub.bound) W.hubless = (await store.query('posts', [], { order: 'updated_at', desc: true, limit: 200 })).filter(p => p.kind !== 'reply');
+  // The pack's own channels (a TikTok account is one) and the videos it posts, so a delivered mvf campaign shows what became of it.
+  W.channels = await store.query('channels', [], { limit: 50 });
+  W.videoPosts = W.hubless ? W.hubless.filter(p => p.kind === 'video') : await store.query('posts', [eq('kind', 'video')], { order: 'updated_at', desc: true, limit: 200 });
   W.mode = W.hub.bound ? 'hub' : 'hubless';
   W.teams = Array.isArray(teams) ? teams : null;
   W.abilities = abilitiesOf(packs);
@@ -159,6 +163,15 @@ export function cellFor(W, product, channel) {
     return declared ? { ...base, state: paused ? 'paused' : 'by_hand', via: 'hand', account: declared, waiting: hand } : { ...base, state: 'off', via: null, account: null, why: 'not_chosen' };
   }
   if (channel === 'tiktok') {
+    // The product's TikTok accounts the Publisher drives (channels tiktok-<handle>, publisher browser) show as a browser channel.
+    const ids = new Set((prod?.tiktok_accounts ?? []).map(a => tiktokChannelId(a.handle)));
+    const mine = (W.channels ?? []).filter(c => platformOf(c.key) === 'tiktok' && c.publisher === 'browser' && (c.rules?.product ? c.rules.product === product : ids.has(c.key)));
+    if (mine.length) {
+      const live = mine.filter(c => !c.paused);
+      const state = paused ? 'paused' : live.length ? 'ok' : mine.some(c => c.paused_reason === 'signed_out') ? 'signed_out' : 'paused';
+      const profile = (live[0] ?? mine[0]).rules?.profile ?? null;
+      return { ...base, state, via: 'browser', account: mine.map(c => c.account ?? c.key).join(', '), profile, accounts: mine.map(c => ({ channel: c.key, account: c.account ?? null, profile: c.rules?.profile ?? null, paused: !!c.paused, paused_reason: c.paused_reason ?? null })) };
+    }
     const hand = (W.items ?? []).filter(i => i.product === product && i.format === 'video'); // W.items is still being built while items derive
     // The handle the founder named at setup (accounts.tiktok) is the account; video_channels are only library folders.
     const declared = prod?.accounts?.tiktok ?? null;
@@ -246,7 +259,8 @@ function buildItems(W) {
       video: { stages: m.stages ?? [], delivered: (m.delivery ?? []).length > 0, delivery: m.delivery ?? [], owner: m.owner ?? null, ai_label: m.ai_label ?? null, platforms: m.platforms ?? [], url: link?.url ?? null, posted: link?.posted ?? null, tiktok: m.tiktok ?? null } });
   }
   // Hubless (G1): the pack's own posts.
-  for (const p of W.hubless ?? []) add(hublessItem(p));
+  const campaigns = [...items.values()].filter(i => i.format === 'video' && i.dir);
+  for (const p of W.hubless ?? []) { if (p.kind === 'video' && campaigns.some(i => madeFrom(p, i))) continue; add(hublessItem(p)); }
   for (const it of items.values()) derive(W, it);
   return [...items.values()];
 }
@@ -366,11 +380,23 @@ function planRow(W, { channel, lang, account, r, hub, cell, hash = null, skipped
   return row;
 }
 
+/** A video post of the pack was made from this library campaign folder (its `brief.campaign_dir` is workspace-relative, the item's `dir` library-relative). */
+const madeFrom = (p, it) => typeof p.brief?.campaign_dir === 'string' && !!it.dir && (p.brief.campaign_dir === it.dir || p.brief.campaign_dir.endsWith(`/${it.dir}`));
+const VIDEO_PLAN = { published: 'posted', scheduled: 'scheduled', publishing: 'scheduled', failed: 'held', uncertain: 'uncertain' };
+
 function deriveVideo(W, it) {
   const v = it.video;
-  it.plan = [{ channel: 'tiktok', lang: 'vi', account: it.channel_dir, at: v.posted ?? null, state: v.url ? 'posted' : v.delivered ? 'handoff' : 'after_approval', ...(v.url ? { url: v.url } : {}) }];
+  // A TikTok account the Publisher posts (channel tiktok-<handle>) takes the video from the founder's hand-off: its post says
+  // where it stands. A post still a draft, or on a channel set to hand, changes nothing.
+  const own = (W.videoPosts ?? []).filter(p => platformOf(p.channel) === 'tiktok' && madeFrom(p, it) && VIDEO_PLAN[p.state]);
+  const out = own.find(p => p.state === 'published' && p.url) ?? own.find(p => p.state !== 'published') ?? null;
+  it.plan = [{ channel: 'tiktok', lang: 'vi', account: it.channel_dir, at: v.posted ?? null, state: v.url ? 'posted' : out ? VIDEO_PLAN[out.state] : v.delivered ? 'handoff' : 'after_approval', ...(v.url ? { url: v.url } : out?.url ? { url: out.url } : {}) }];
   it.channels = ['tiktok'];
-  if (v.url) Object.assign(it, { stage: 'live', state: 'posted', at: v.posted ? iso(Date.parse(v.posted)) : null });
+  if (!v.url && out) {
+    const at = out.state === 'published' ? iso(t(out.updated_at)) : null;
+    if (out.state === 'published') Object.assign(it, { stage: 'live', state: 'posted', at, url: out.url });
+    else Object.assign(it, { stage: 'scheduled', state: out.state === 'failed' ? 'held' : out.state === 'uncertain' ? 'uncertain' : 'scheduled', at: null });
+  } else if (v.url) Object.assign(it, { stage: 'live', state: 'posted', at: v.posted ? iso(Date.parse(v.posted)) : null });
   else if (v.delivered) Object.assign(it, { stage: 'scheduled', state: 'handoff', at: null, waiting_since: it.updated_at });
   else Object.assign(it, { stage: 'making', state: 'drafting', at: null });
 }

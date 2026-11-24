@@ -10,8 +10,9 @@ import { join, dirname, basename } from 'node:path';
 import { fail, eq, isNull } from './store.mjs';
 import { platformOf } from './guard.mjs';
 import { channel, getSettings, hashOf, postAssets, STATE_LABEL } from './ops.mjs';
+import { runningTiktok } from './campaign.mjs';
 
-export const VIDEO_PLATFORMS = ['x', 'facebook'];
+export const VIDEO_PLATFORMS = ['x', 'facebook', 'tiktok'];
 export const POSTER_MAX = 200 * 1024; // the data URI, not the file
 export const DEFAULT_BAR = 35; // % of the simulated panel that would keep watching
 const PANELS = ['simulated-panel', 'micro-fish'];
@@ -149,7 +150,7 @@ export function srtCues(text, max = 40) {
 
 /** `video_import`: the mvf campaign at `campaign` → assets + one video draft per channel. */
 export async function video_import(input, deps) {
-  const { store, env, soot } = deps;
+  const { store, env, soot, now } = deps;
   const { request_id, campaign, channels, parent, error } = input;
   // Each channel's draft is keyed `<request_id>:<channel>`, which must fit 64 characters.
   if (typeof request_id !== 'string' || !request_id || request_id.length > 31) fail('invalid_request', 'request_id is 1–31 characters.');
@@ -159,7 +160,7 @@ export async function video_import(input, deps) {
   for (const key of channels) {
     const ch = await channel(store, key);
     const platform = platformOf(ch.key);
-    if (!VIDEO_PLATFORMS.includes(platform)) fail('invalid_request', `Video đăng tự động trên X và Facebook; ${key} (TikTok và kênh khác) là việc người đăng.`);
+    if (!VIDEO_PLATFORMS.includes(platform)) fail('invalid_request', `Video đăng tự động trên X, Facebook và TikTok (kênh tiktok-<tài khoản>); ${key} là kênh khác.`);
     chans.push({ ch, platform });
   }
   const ws = await workspace(env.FILE_ROOT);
@@ -194,6 +195,8 @@ export async function video_import(input, deps) {
   const title = String(input.title ?? script?.spine?.question ?? camp.product ?? sid).slice(0, 200);
   const key = `${campaign}#${sid}/${hook}/${canvas}`;
   const out = [];
+  // A TikTok video goes out with the running campaign's TikTok link (its short link, utm_source=tiktok) unless the caption already holds it.
+  const tiktok = chans.some(c => c.platform === 'tiktok') ? await runningTiktok(store, now) : null;
   for (const { ch, platform } of chans) {
     let hold = null, reason = null, files = null;
     if (typeof error === 'string' && error.trim()) { hold = 'render_failed'; reason = `Dựng video lỗi: ${error.trim().slice(0, 300)}. Vẫn là nháp.`; }
@@ -207,7 +210,8 @@ export async function video_import(input, deps) {
     const copy = files?.copy ?? String(script?.platforms?.[platform]?.post ?? script?.platforms?.[platform]?.caption ?? '').trim();
     const body = copy || `Video "${title}"`;
     const brief = { title, video_key: key, script: sid, hook, canvas, campaign_dir: campaign, ...(hold ? { hold } : {}) };
-    const fields = { kind: 'video', channel: ch.key, campaign: null, parent: typeof parent === 'string' && /^P-[0-9A-F]{10}$/.test(parent) ? parent : null, brief, title, body, link: null };
+    const tk = platform === 'tiktok' ? tiktok : null;
+    const fields = { kind: 'video', channel: ch.key, campaign: tk?.campaign.key ?? null, parent: typeof parent === 'string' && /^P-[0-9A-F]{10}$/.test(parent) ? parent : null, brief, title, body, link: tk && !body.includes(tk.link) ? tk.link : null };
     const hash = hashOf(fields);
     const mine = (await store.query('posts', [eq('kind', 'video'), eq('channel', ch.key)], { limit: 200 })).find(p => p.brief?.video_key === key && !['removed'].includes(p.state));
     const assetsNow = files ? [

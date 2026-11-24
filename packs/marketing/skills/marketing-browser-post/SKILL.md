@@ -1,15 +1,18 @@
 ---
 name: marketing-browser-post
-description: "Publish, find, reply and unpublish on X, a Facebook Page and Reddit through the Soot-kept browser, from a signed marketing claim: signed-out, captcha and changed-layout checks, exact text, post URL, record or fail. Never posts twice."
+description: "Publish, find, reply and unpublish on X, a Facebook Page, Reddit and TikTok (video upload) through the Soot-kept browser, from a signed marketing claim: signed-out, captcha and changed-layout checks, exact text, post URL, record or fail. Never posts twice."
 ---
 # Posting through the Soot's browser
 
 Use this for a channel whose publisher is `browser` (X, a Facebook Page,
-Reddit). You drive the `browser-use_control` tool. When the person granted you
+Reddit, a TikTok account). You drive the `browser-use_control` tool. When the person granted you
 a named browser profile for the account (`browser-use_view {}` lists your
 `profiles`; the id names the account, such as `brand-x`), pass
 `"profile": "<id>"` on every control call for that claim: the sign-in lives
-there. Otherwise the host keeps this Soot signed in to one browser profile when
+there. A claim may name the profile itself (`profile`, from the channel's
+setting): use exactly that one and never another account's, so two TikTok
+accounts never share a sign-in. A named profile that is not in your
+`profiles` is `marketing_fail {status:"needs_person", reason:"signed_out"}`. Otherwise the host keeps this Soot signed in to one browser profile when
 it lists the Soot in `SOOT_BROWSER_PERSISTENT_SOOTS`. The person signs in once,
 in Nest's docked browser panel, on the login page you opened. You never sign in, type a password or a 2FA code, solve a
 captcha or switch accounts.
@@ -19,7 +22,7 @@ founder's to post: it never has a claim, and you never post it, even when asked
 in a chat.
 
 Every action starts from a signed claim from `marketing_claim`. The claim
-carries `platform`, `account`, `body`, `title`, `link`, `subreddit`, for
+carries `platform`, `account`, `profile`, `body`, `title`, `link`, `subreddit`, for
 a reply `reply_url`, and for a video `assets` (the file to upload).
 Type its text exactly: never reword it, add tags or
 mention anyone. Act at human pace: one claim at a time, with no rapid
@@ -66,13 +69,15 @@ and offers "Chạy lại <platform>" / "Để <platform> dừng".
 
 ## Platforms
 
+TikTok is a video channel only: see "Upload a video (TikTok)".
+
 | | X | Facebook Page | Reddit |
 |---|---|---|---|
 | Compose | `https://x.com/compose/post` | the Page URL in `account`, then the "What's on your mind?" / "Bạn đang nghĩ gì?" button | `https://www.reddit.com/r/<subreddit>/submit?type=TEXT` |
 | Text box | textbox "Post text" (or the composer's single textbox) | textbox in the "Create post" / "Tạo bài viết" dialog | textbox "Title" gets `title`; the body textbox gets `body` |
 | Post button | button "Post" | button "Post" / "Đăng" | button "Post" |
 | Link | a `link` goes at the end of the text | a `link` goes at the end of the text | a link post only when the sub's rules allow it; otherwise none |
-| Find | `https://x.com/<account>`: the newest posts | the Page's posts | `https://www.reddit.com/user/<account>/submitted/` |
+| Find | `https://x.com/<account>`: the newest posts | the Page's posts (TikTok: `https://www.tiktok.com/@<handle>`) | `https://www.reddit.com/user/<account>/submitted/` |
 | Post URL | `/<account>/status/<id>` | the post's permalink (`/posts/` or `permalink`) | `/r/<sub>/comments/<id>/…` |
 
 On Facebook, post only as the Page and only on its own timeline. Never post
@@ -114,8 +119,42 @@ post of the week; a rule against the post is `fail failed` with the rule.
 4. Never upload twice for one claim: a second file input after an upload is
    the same claim's composer, not a new post.
 
-TikTok is never posted by the Soot: its files wait on the Marketing desk as a
-hand-off for the person to upload, who pastes the link there.
+## Upload a video (TikTok)
+
+A TikTok claim is `kind:"video"` with `platform:"tiktok"`, the `account`
+(`@handle`), often a `profile`, `body` (the caption, hashtags included) and
+`assets[0]` = `{path, sha256}`. Drive TikTok Studio's upload page; the account
+is whatever the claim's profile is signed in to. Never switch account.
+
+1. Open `https://www.tiktok.com/tiktokstudio/upload` (the page the person
+   signed in on). Classify it as above: a login page or a "Log in" / "Đăng
+   nhập" form is `fail needs_person` with `reason:"signed_out"`. If the
+   signed-in handle shown in the page header is not the claim's `account`,
+   that is `fail needs_person` with `reason:"signed_out"` (name the handle you
+   saw in the note) and nothing is uploaded.
+2. Snapshot, find the file input ("Select video" / "Chọn video",
+   `input[type=file]`) and run `browser-use_control {action:"upload",
+   selector, path: assets[0].path, sha256: assets[0].sha256}`. A refused or
+   changed file is `fail failed` with `reason:"upload: <the tool's message>"`.
+3. Wait for the upload: snapshot every ~5 s, up to 3 minutes, until the
+   preview shows and the post button is enabled. A platform error (too long,
+   too large, unsupported, a copyright or "can't be posted" notice) is
+   `fail failed` with its words. No preview after 3 minutes is `fail
+   needs_person` with `reason:"layout_changed"`.
+4. Click into the caption box and replace its default text (usually the file
+   name) with `body`, exactly. Snapshot and check it holds that text.
+5. Under "AI-generated content" / "Nội dung do AI tạo": when
+   `assets[0].ai_label` is true switch it on; no switch found is `fail
+   needs_person` with `reason:"layout_changed"`. Leave every other setting
+   (visibility, comments, duet, stitch, music) as it is.
+6. Press "Post" / "Đăng" once. If a "Continue to post?" / "Tiếp tục đăng?"
+   dialog appears, press "Post now" / "Đăng ngay" once. Never press it twice
+   for one claim. TikTok may show a short "uploaded" screen with no link.
+7. Find (below): `https://www.tiktok.com/@<handle>`, the newest video whose
+   caption begins with the claim's first 60 characters. Its URL is
+   `/@<handle>/video/<id>`: `marketing_record {intent_id, url, platform_id:
+   <id>}`. A new video can take up to a minute to appear: wait and reload
+   twice before calling it not found, then follow the one-post rule above.
 
 ## Find (crash recovery)
 

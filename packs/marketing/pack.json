@@ -1740,6 +1740,20 @@
             "type": "string",
             "maxLength": 100000,
             "description": "subscribers: an address a line."
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "publisher": {
+            "type": "string",
+            "enum": [
+              "browser",
+              "hand"
+            ]
           }
         },
         "required": [
@@ -2260,7 +2274,7 @@
     {
       "name": "channels_setup",
       "title": "Thiết lập kênh",
-      "description": "For a tool-only schedule: create missing channels (social ones paused until signed in) and fill only unset caps, account, rules, quiet hours, stale_after_h, the product name and the writer Soot. Never unpauses or overwrites an edit.",
+      "description": "For a tool-only schedule: create missing channels (browser ones paused until signed in) and fill only unset caps, account, profile, rules, quiet hours, stale_after_h, the product name and the writer Soot. from_products adds a tiktok-<handle> channel per TikTok account in products.json. Never unpauses or overwrites an edit.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2296,6 +2310,18 @@
                 },
                 "rules": {
                   "type": "object"
+                },
+                "profile": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "Browser profile the Publisher drives; the claim carries it."
+                },
+                "publisher": {
+                  "type": "string",
+                  "enum": [
+                    "browser",
+                    "hand"
+                  ]
                 }
               },
               "required": [
@@ -2339,6 +2365,9 @@
           "writer": {
             "type": "string",
             "maxLength": 63
+          },
+          "from_products": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -2355,7 +2384,10 @@
         "stdin": "context",
         "mode": "write",
         "timeout": "20s",
-        "max_output_bytes": 262144
+        "max_output_bytes": 262144,
+        "secret_env": {
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
+        }
       }
     },
     {
@@ -2534,7 +2566,7 @@
     {
       "name": "video_import",
       "title": "Nhận video đã dựng",
-      "description": "Read a finished 2build marketing-video (mvf) folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook) with its assets. A render failure or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes.",
+      "description": "Read a finished 2build marketing-video (mvf) folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook, TikTok: the 9x16 cut with the platform's own caption; a TikTok draft carries the running campaign's TikTok link) with its assets. A render failure or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2608,6 +2640,67 @@
         "max_output_bytes": 65536,
         "secret_env": {
           "FILE_ROOT": "{{cred:FILE_ROOT}}"
+        }
+      }
+    },
+    {
+      "name": "video_brief",
+      "title": "Chọn bài để dựng video",
+      "description": "Tool-only, no model. Picks the next source for a video: the newest published article of the product that has no video yet on these channels, at most one brief per every_days for each product and video channel (a rerun the same day answers {done: true}). With work it answers exactly the input of claude-code_start: {key: \"video-<product>-<slug>\", title, dir (the repository that holds MARKETING_ROOT, where mvf runs), prompt}. The prompt tells Claude Code to read the 2build marketing-video skill (MVF_SKILL), make ONE short Vietnamese vertical video unattended (brief answered from the source, script approved as delegated after the Micro Fish pretest, nothing posted or committed) and write the result file {request_id, campaign, channels, parent}, which chains into marketing_video_import; on failure {ok: false, error}. Nothing to do: {done: true}. A missing MARKETING_ROOT, skill or video channel folder answers {ok: false, error}.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+          },
+          "channels": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "pattern": "^[a-z0-9-]{1,32}$"
+            },
+            "description": "The video channels the video is for, e.g. [\"tiktok-acme\", \"facebook-acme\"]; at most one TikTok account."
+          },
+          "every_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "description": "At most one brief per this many local days for each product and video channel; default 1."
+          },
+          "source_state": {
+            "type": "string",
+            "enum": [
+              "published",
+              "scheduled",
+              "ready"
+            ],
+            "description": "The state a source article is in; default published."
+          }
+        },
+        "required": [
+          "product",
+          "channels"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "video_brief"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 65536,
+        "secret_env": {
+          "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
         }
       }
     },
@@ -3346,7 +3439,8 @@
       "PRODUCT_API_URL",
       "YT_DLP_BIN",
       "PATH",
-      "HOME"
+      "HOME",
+      "MVF_SKILL"
     ],
     "env_info": {
       "PRODUCT_API_URL": {
@@ -3356,6 +3450,10 @@
       "YT_DLP_BIN": {
         "title": "Chương trình tải video",
         "description": "Đường dẫn tới chương trình yt-dlp trên máy chủ, dùng để tải video tham khảo. Để trống thì dùng bản có sẵn trên máy."
+      },
+      "MVF_SKILL": {
+        "title": "Kỹ năng dựng video (2build marketing-video)",
+        "description": "Đường dẫn tuyệt đối tới SKILL.md của kỹ năng marketing-video (2build) trên máy này, để việc dựng video tự động đọc nó. Để trống thì dùng <thư mục chứa thư mục marketing>/2build/skills/marketing-video/SKILL.md nếu có."
       }
     },
     "credentials": {

@@ -5,7 +5,7 @@
 import { fail, eq, gte } from './store.mjs';
 import { briefLint, platformOf, defaultsFor, internalLinks, HOLD_LABEL } from './guard.mjs';
 import { videoView } from './video.mjs';
-import { STATE_LABEL, ANSWERS, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
+import { STATE_LABEL, ANSWERS, PROFILE_RE, profileOf, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
 import { localDayStart, DEFAULT_QUIET, inQuiet, nextSlot } from './time.mjs';
 import { campaignView, campaign_save, readReport, noKey } from './campaign.mjs';
 import { deskView } from './desk.mjs';
@@ -312,9 +312,23 @@ export async function page_action(input, deps) {
         if (!Number.isInteger(input[f]) || input[f] < 0 || input[f] > max) fail('invalid_request', `${f} là số nguyên từ 0 đến ${max}.`);
         set[f] = input[f];
       }
-      if (!Object.keys(set).length) fail('invalid_request', 'Nêu ít nhất một giới hạn: cap_per_day, spacing_min hoặc reply_cap_per_day.');
+      // The browser profile the Publisher signs in with (null clears it) and who posts: the browser, or the founder by hand.
+      let rules = null;
+      if (input.profile !== undefined) {
+        if (input.profile !== null && !(typeof input.profile === 'string' && PROFILE_RE.test(input.profile))) fail('invalid_request', 'profile là mã hồ sơ trình duyệt (chữ, số, . _ -, tối đa 64) hoặc null.');
+        const { profile: _gone, ...rest } = ch.rules ?? {};
+        rules = { ...rest, ...(input.profile ? { profile: input.profile } : {}) };
+      }
+      if (input.publisher !== undefined) {
+        if (!['browser', 'hand'].includes(input.publisher)) fail('invalid_request', 'publisher là browser hoặc hand.');
+        if (!['x', 'facebook', 'reddit', 'tiktok'].includes(platformOf(ch.key))) fail('invalid_request', `Kênh ${ch.key} không đổi được người đăng.`);
+        set.publisher = input.publisher;
+        rules = { ...(rules ?? ch.rules ?? {}), publisher_by: 'person' };
+      }
+      if (rules) set.rules = rules;
+      if (!Object.keys(set).length) fail('invalid_request', 'Nêu ít nhất một giới hạn: cap_per_day, spacing_min hoặc reply_cap_per_day (hay profile, publisher).');
       await store.update('channels', [eq('key', ch.key)], set);
-      return { id: ch.key, ...set };
+      return { id: ch.key, ...set, ...(set.rules ? { profile: profileOf({ rules: set.rules }) } : {}) };
     }
     case 'pause': case 'resume':
       return pause({ channel: input.channel, paused: op === 'pause' }, deps);

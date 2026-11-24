@@ -1432,7 +1432,7 @@ function viewChannels(v) {
       end: hl.fix === 'connect' ? btn('Nối máy chủ', () => soot.open('nest://settings/setup?key=MARKETING_HUB'), { k: 'hub:connect2' }) : hl.fix === 'retry' ? btn('Thử lại', () => load(), { k: 'hub:retry2' }) : undefined }),
     hubless ? row({ lead: sq('', 'file'), title: 'Thư mục site của từng sản phẩm', sub: 'Duyệt xong, bàn ghi bài blog thành file Markdown. Bạn đưa trang lên như mọi khi.', wrap: true }) : null,
     row({ lead: sq(pl.tone, 'activity'), title: 'Máy đăng bài trên Mac này', sub: hubless ? 'Cần máy chủ đăng bài. Chưa có thì bài X, Facebook do bạn đăng tay rồi dán link.' : pl.text, wrap: true }),
-    row({ lead: sq('', 'users'), title: 'Bạn', sub: 'TikTok, Reddit, Hacker News và gửi bản tin luôn là bạn bấm. Soot soạn sẵn, bạn đăng rồi dán link.', wrap: true }));
+    row({ lead: sq('', 'users'), title: 'Bạn', sub: 'Reddit, Hacker News và gửi bản tin luôn là bạn bấm; TikTok cũng vậy khi bạn chưa nối tài khoản cho máy đăng. Soot soạn sẵn, bạn đăng rồi dán link.', wrap: true }));
   const order = M.CHANNELS;
   const cellBtn = (r, ch) => {
     const c = { ...r.cells[ch], channel: ch };
@@ -1948,7 +1948,7 @@ function sheetItem(s) {
   // A launch pack carries its community post (Show HN …) for the same one approval; after approval it becomes its own community handoff.
   if (d.format === 'launch' && d.community) body.push(communityBlock(d, s));
   if (d.video) {
-    body.push(notice('plain', 'info', null, 'TikTok luôn do bạn đăng. Đăng xong dán link vào đây, Soot đọc lượt xem 48 giờ và 7 ngày.'));
+    body.push(notice('plain', 'info', null, d.state === 'handoff' ? 'Video này chờ bạn đăng TikTok. Đăng xong dán link vào đây, Soot đọc lượt xem 48 giờ và 7 ngày.' : 'Máy đăng đưa video này lên TikTok qua trình duyệt; link hiện ở đây khi video đã lên.'));
     body.push(h('div', { class: 'mk-sec' }, h('h3', null, ic('video', 's12'), 'File đã xuất'),
       // The desk takes a TikTok link only, so that is the one platform it names.
       kv([['Kênh', d.video.account ?? d.video.channel], ['File', (d.video.delivery ?? []).join(', ') || 'Chưa xuất'], ['Nền tảng', platforms((d.video.platforms ?? []).includes('tiktok') || !(d.video.platforms ?? []).length ? ['tiktok'] : [])], ['Nhãn AI', d.video.ai_label === null || d.video.ai_label === undefined ? '—' : d.video.ai_label ? 'Bật nhãn nội dung AI khi đăng' : 'Không'],
@@ -2357,7 +2357,7 @@ function sheetSetup(s) {
   } else if (f.step === 'channels') {
     const rows = SETUP_CH.map(c => {
       const st = f.ch[c.id] ?? (f.ch[c.id] = { on: false, value: '' });
-      const how = c.id === 'tiktok' || c.id === 'community' ? 'Bạn đăng, Soot soạn sẵn' : c.id === 'newsletter' ? 'Bạn bấm gửi; dán danh sách người nhận vào bàn sau' : hubOk ? 'Nối vào máy chủ đăng bài sau' : 'Bạn đăng tay rồi dán link';
+      const how = c.id === 'tiktok' ? 'Máy đăng đăng qua trình duyệt khi đã nối tài khoản; chưa nối thì bạn đăng tay' : c.id === 'community' ? 'Bạn đăng, Soot soạn sẵn' : c.id === 'newsletter' ? 'Bạn bấm gửi; dán danh sách người nhận vào bàn sau' : hubOk ? 'Nối vào máy chủ đăng bài sau' : 'Bạn đăng tay rồi dán link';
       const toggle = h('button', { type: 'button', role: 'checkbox', 'aria-checked': String(st.on), 'data-k': `su:ch:${c.id}`, onclick: () => { st.on = !st.on; f.dirty = true; if (f.bad === `ch-${c.id}`) f.bad = null; renderSheet(); } }, c.label);
       const key = `ch-${c.id}`;
       const field = st.on && c.field ? (() => {

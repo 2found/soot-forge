@@ -13,17 +13,22 @@ export const CHANNEL_DEFAULTS = {
   x: { kind: 'social', publisher: 'browser', cap_per_day: 4, spacing_min: 180, reply_cap_per_day: 10, rules: { max_chars: 280, link_chars: 23, reply_links: false, reply_spacing_min: 10 } },
   facebook: { kind: 'social', publisher: 'browser', cap_per_day: 2, spacing_min: 360, reply_cap_per_day: 10, rules: { page_only: true, reply_spacing_min: 10 } },
   reddit: { kind: 'social', publisher: 'browser', cap_per_day: 1, spacing_min: 24 * 60, reply_cap_per_day: 5, rules: { per_sub_per_week: 1, promo_ratio: 0.1, reply_spacing_min: 30 } },
-  // TikTok is always the founder's upload: a campaign gets its own link for it, and no post is ever scheduled or claimed on it.
-  tiktok: { kind: 'video', publisher: 'hand', cap_per_day: 0, spacing_min: 0, reply_cap_per_day: 0, rules: {} },
+  // TikTok is video only and posted by the browser Publisher like X and Facebook (`tiktok-<handle>` per account). The caption
+  // limit is TikTok's own 2200 characters, a link counted at its full length (TikTok does not shorten it); the first sign-in
+  // pauses the channel. A person can still set a channel to `hand` (page_action set_limits {publisher}): then it is the
+  // founder's upload on the desk and nothing is scheduled or claimed on it.
+  tiktok: { kind: 'video', publisher: 'browser', cap_per_day: 2, spacing_min: 240, reply_cap_per_day: 0, rules: { max_chars: 2200, link_full: true, video_required: true } },
 };
 export const SOCIAL_PLATFORMS = ['x', 'facebook', 'reddit'];
+/** Every platform a channel key may name: the social ones and TikTok (a video-only channel). */
+export const PLATFORMS = [...SOCIAL_PLATFORMS, 'tiktok'];
 
 /** The platform a channel key names: `x-lohi` → `x`; a non-social key is itself. */
 export function platformOf(key) {
   const k = String(key ?? '');
   if (CHANNEL_DEFAULTS[k]) return k;
   const head = k.split('-')[0];
-  return SOCIAL_PLATFORMS.includes(head) && /^[a-z]+-[a-z0-9-]{1,40}$/.test(k) ? head : null;
+  return PLATFORMS.includes(head) && /^[a-z]+-[a-z0-9-]{1,40}$/.test(k) ? head : null;
 }
 export const defaultsFor = key => CHANNEL_DEFAULTS[key] ?? CHANNEL_DEFAULTS[platformOf(key)] ?? null;
 
@@ -136,9 +141,12 @@ const BAIT = /(like nếu|share nếu|tag (?:một )?người|bình luận "?\d|
 export function checkPlatform(post, channel) {
   const rules = channel?.rules ?? {};
   const text = String(post.body ?? '');
+  if (rules.video_required && post.kind !== 'video') return { rule: 'platform', ok: false, code: 'video_required', detail: 'Kênh này chỉ đăng video; bài này không phải video.' };
   if (rules.max_chars) {
     const urls = text.match(/https?:\/\/\S+/g) ?? [];
-    const len = [...text.replace(/https?:\/\/\S+/g, '')].length + urls.length * (rules.link_chars ?? 23) + (post.link ? (rules.link_chars ?? 23) + 1 : 0);
+    // X shortens every link to a fixed length; TikTok counts a link as the characters it is.
+    const len = rules.link_full ? [...text].length + (post.link ? [...post.link].length + 1 : 0)
+      : [...text.replace(/https?:\/\/\S+/g, '')].length + urls.length * (rules.link_chars ?? 23) + (post.link ? (rules.link_chars ?? 23) + 1 : 0);
     if (len > rules.max_chars) return { rule: 'platform', ok: false, code: 'too_long', detail: `Dài ${len} ký tự; kênh cho tối đa ${rules.max_chars}.` };
   }
   if (post.kind === 'reply' && rules.reply_links === false && (/https?:\/\//.test(text) || post.link)) return { rule: 'platform', ok: false, code: 'reply_link', detail: 'Trả lời trên kênh này không được kèm liên kết.' };

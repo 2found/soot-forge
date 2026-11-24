@@ -341,6 +341,6 @@ test('Editor and Writer carry only the tools they use: schema bytes stay small',
   const editor = json('examples/lohi-marketing/soots/lohi-editor/soot.json').packs, writer = json('examples/lohi-marketing/soots/lohi-writer/soot.json').packs;
   const e = size(pack, 'marketing', list(editor[0])) + size(blog, 'lohi-blog', list(editor[1])) + size(browser, 'browser-use');
   const wr = size(pack, 'marketing', list(writer[0]));
-  assert.ok(e < 21_000, `Editor schemas ${e} bytes (was 31,953)`);
+  assert.ok(e < 21_500, `Editor schemas ${e} bytes (was 31,953; 21,000 before TikTok accounts added profile, publisher and from_products)`);
   assert.ok(wr < 5_000, `Writer schemas ${wr} bytes (was 4,963)`);
 });

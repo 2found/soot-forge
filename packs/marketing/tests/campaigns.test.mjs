@@ -205,7 +205,7 @@ test('the key goes only to PRODUCT_API_URL: no tool takes an api address from it
     assert.ok(!Object.keys(t.parameters.properties).some(k => /api|host|base|endpoint/i.test(k)), name);
   }
   assert.equal(pack.needs.credentials.PRODUCT_ADMIN_KEY.from, 'operator');
-  assert.deepEqual(pack.needs.env, ['PRODUCT_API_URL', 'YT_DLP_BIN', 'PATH', 'HOME'], 'one api address is an operator env; the rest is where yt-dlp is found');
+  assert.deepEqual(pack.needs.env, ['PRODUCT_API_URL', 'YT_DLP_BIN', 'PATH', 'HOME', 'MVF_SKILL'], 'one api address is an operator env; the rest is where yt-dlp is found');
   assert.equal(pack.tools.find(t => t.name === 'campaign_report').run.mode, 'write');
   assert.deepEqual(pack.interface.pieces.find(p => p.id === 'campaigns').tab, { id: 'marketing', label: { vi: 'Marketing', en: 'Marketing' } });
 });
@@ -280,13 +280,17 @@ test('PRODUCT_AGENT_KEY is the marketing key; the deprecated PRODUCT_ADMIN_KEY s
   assert.deepEqual([check.state, api.calls.map(c => c.key)], ['ok', [KEY]]);
 });
 
-test('a TikTok channel gets its own campaign link and can never be scheduled', async () => {
+test('a campaign may name the tiktok link: it makes no channel row, and a TikTok account carries that link', async () => {
   api.reset();
   const w = world();
   const out = await w.call('campaign_save', { ...CAMPAIGN, name: 'Lohi: nghe truyện audio', channels: ['blog-lohi', 'tiktok'] });
   assert.deepEqual(out.links.map(l => l.channel), ['blog-lohi', 'tiktok']);
   assert.equal(api.calls.find(c => c.body.channel === 'tiktok').body.target, 'https://lohi2.com/?utm_source=tiktok&utm_medium=social&utm_campaign=lohi-nghe-truyen-audio');
-  const ch = await w.store.one('channels', [{ column: 'key', op: 'eq', value: 'tiktok' }]);
-  assert.equal(ch.publisher, 'hand');
-  assert.equal(ch.paused, false);
+  // The bare `tiktok` is a link name only: no channel row, so no sign-in is asked for an account nobody named.
+  assert.equal(await w.store.one('channels', [{ column: 'key', op: 'eq', value: 'tiktok' }]), null);
+  // A video on a TikTok account of the campaign carries the `tiktok` link.
+  const d = await w.call('draft_save', { request_id: 'tt-1', kind: 'video', channel: 'tiktok-lohi', campaign: out.id, body: 'Nghe thử một cảnh truyện' });
+  assert.equal(d.campaign_link, out.links.find(l => l.channel === 'tiktok').url);
+  const row = await w.store.one('posts', [{ column: 'ref', op: 'eq', value: d.id }]);
+  assert.equal(row.link, d.campaign_link);
 });

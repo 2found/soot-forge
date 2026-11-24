@@ -234,12 +234,12 @@ test('re-importing is idempotent, and a fixed campaign updates the same drafts',
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('TikTok is a handoff, and the import reads only inside FILE_ROOT', async () => {
+test('only X, Facebook and TikTok channels take a video, and the import reads only inside FILE_ROOT', async () => {
   const root = campaign();
   try {
     const w = await seeded(root);
     await w.call('channels_setup', { channels: [{ id: 'reddit-lohi', account: 'acct' }] });
-    await assert.rejects(w.import({ channels: ['reddit-lohi'] }), /TikTok và kênh khác/);
+    await assert.rejects(w.import({ channels: ['reddit-lohi'] }), /là kênh khác/);
     for (const campaign of ['../x', '/etc', 'a/.hidden', 'a//b']) await assert.rejects(w.import({ campaign }), { code: 'invalid_request' }, campaign);
     const link = mkdtempSync(join(tmpdir(), 'mvf-link-'));
     symlinkSync(join(root, 'marketing'), join(link, 'marketing'));

@@ -172,8 +172,8 @@ Tests: `node --test packs/marketing/tests/*.test.mjs packs/marketing/page/tests/
   it.
 - **Hubless.** Without `MARKETING_HUB` the desk is a full mode, not an error:
   `item_save` writes files, `release_due` writes approved blogs as Markdown
-  with front matter into the product's `blog_dir`, and X, Facebook, TikTok,
-  community and newsletter parts become hand-offs on Hôm nay. A post for a
+  with front matter into the product's `blog_dir`, and X, Facebook, TikTok (a
+  channel set to `hand`), community and newsletter parts become hand-offs on Hôm nay. A post for a
   channel the product cannot post to is left out of the approved bundle and
   stays a draft.
 - **Setup.** With no product, the desk shows **Bắt đầu marketing**: a 4-step
@@ -184,8 +184,20 @@ Tests: `node --test packs/marketing/tests/*.test.mjs packs/marketing/page/tests/
   fill an empty `brand.md`.
 - **Learning.** Hôm nay's "Tuần này và tuần sau" shows the week's top posts,
   searches worth a post and the next planned topic, from Search Console,
-  campaign clicks and the plan, with the one input that is missing. TikTok
-  links are pasted on the desk (no hand-editing of `videos.csv`).
+  campaign clicks and the plan, with the one input that is missing. The link
+  of a TikTok video a person posted is pasted on the desk (no hand-editing of
+  `videos.csv`).
+- **TikTok.** A `tiktok-<handle>` channel is posted by the browser Publisher
+  like X and Facebook: video only, 2 a day, 240 minutes apart, caption up to
+  2,200 characters, from its own named browser profile (`rules.profile`, on
+  the signed claim) and paused until the person signs that account in.
+  `channels_setup {from_products: true}` creates one per account in
+  `products.json` (`accounts.tiktok`: `[{handle, video_channel, profile}]`, or
+  the older text `lohi (lohi-truyen), other (other-folder)`). A channel set to
+  `publisher: "hand"` stays the founder's upload. `video_brief` (tool only)
+  picks the next source for a video and answers the input of the claude-code
+  pack's `claude-code_start`; set `MVF_SKILL` to the 2build marketing-video
+  `SKILL.md` when it is not at `<repo>/2build/skills/marketing-video/SKILL.md`.
 - **Replies.** "Cần trả lời" on Hôm nay lists replies saved by the replies
   schedule that need the founder, plus the drafted safe replies; `reply_done`
   marks one answered and closes its Cần bạn item.

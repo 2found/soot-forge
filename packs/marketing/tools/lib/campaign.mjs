@@ -6,7 +6,7 @@
 // The admin key goes only to PRODUCT_API_URL, an env the operator grants
 // (the Lohi recipe: https://api.lohi2.com); never to an address from input.
 import { fail, eq, inList, needsCredential, skippedFor } from './store.mjs';
-import { fold, platformOf } from './guard.mjs';
+import { fold, platformOf, defaultsFor } from './guard.mjs';
 import { channel, getSettings } from './ops.mjs';
 
 export const LANDING_DEFAULT = 'https://lohi2.com/';
@@ -107,7 +107,9 @@ export async function campaign_save(input, deps) {
   if (input.state !== undefined && !['active', 'stopped'].includes(input.state)) fail('invalid_request', 'state is active or stopped.');
   const keys = [...new Set(Array.isArray(input.channels) ? input.channels : [])];
   if (!keys.length || keys.length > 10) fail('invalid_request', 'channels lists 1–10 channel ids.');
-  for (const k of keys) await channel(store, k); // an unknown channel is refused here
+  // An unknown channel is refused here. The bare `tiktok` is only the name of a link (utm_source=tiktok) that every TikTok
+  // account's videos carry: it makes no channel row, so no sign-in is asked for an account nobody named.
+  for (const k of keys) { if (k === 'tiktok') { if (!defaultsFor(k)) fail('unknown_channel', `Không có kênh "${k}".`); } else await channel(store, k); }
   // One link and one row per platform: two channels on one platform would share the api's numbers.
   const dup = keys.find((k, i) => keys.findIndex(o => platform(o) === platform(k)) !== i);
   if (dup) fail('invalid_request', `Mỗi nền tảng một kênh trong một chiến dịch (${dup} trùng nền tảng ${platform(dup)}).`);
@@ -200,15 +202,30 @@ export async function campaign_report(input, deps) {
 /** The campaign a draft names, its channel checked and its link for that channel. */
 export async function draftCampaign(store, id, chKey) {
   const c = await campaignRow(store, id);
-  if (!(c.channels ?? []).includes(chKey)) fail('invalid_request', `Kênh ${chKey} không thuộc chiến dịch ${id} (${(c.channels ?? []).join(', ')}).`);
-  const link = await store.one('links', [eq('campaign', id), eq('channel', chKey)]);
+  // A post on a TikTok account (tiktok-<handle>) carries the campaign's `tiktok` link.
+  const own = !(c.channels ?? []).includes(chKey) && platform(chKey) === 'tiktok' && (c.channels ?? []).includes('tiktok') ? 'tiktok' : chKey;
+  if (!(c.channels ?? []).includes(own)) fail('invalid_request', `Kênh ${chKey} không thuộc chiến dịch ${id} (${(c.channels ?? []).join(', ')}).`);
+  const link = await store.one('links', [eq('campaign', id), eq('channel', own)]);
   return { campaign: c, link: link?.url ?? null };
+}
+
+/** The campaign running now (active, today between its first and last day) that has a `tiktok` link: `{campaign, link}` or null. The newest start wins. */
+export async function runningTiktok(store, now) {
+  const day = localDay(now);
+  const rows = (await store.query('campaigns', [eq('state', 'active')], { limit: 50 }))
+    .filter(c => (c.channels ?? []).includes('tiktok') && c.starts <= day && day <= c.ends)
+    .sort((a, b) => String(b.starts).localeCompare(String(a.starts)));
+  for (const c of rows) {
+    const link = await store.one('links', [eq('campaign', c.key), eq('channel', 'tiktok')]);
+    if (link?.url) return { campaign: c, link: link.url };
+  }
+  return null;
 }
 
 // ---------- Chiến dịch page model (read-only: a view's storage token cannot write) ----------
 
-const CHANNEL_LABEL = { blog: 'Blog', x: 'X', facebook: 'Facebook', reddit: 'Reddit' };
-const ORDER = ['blog', 'x', 'facebook', 'reddit'];
+const CHANNEL_LABEL = { blog: 'Blog', x: 'X', facebook: 'Facebook', reddit: 'Reddit', tiktok: 'TikTok' };
+const ORDER = ['blog', 'x', 'facebook', 'reddit', 'tiktok'];
 const label = key => CHANNEL_LABEL[platform(key)] ?? key;
 const byRank = (a, b) => (ORDER.indexOf(platform(a)) + 1 || 99) - (ORDER.indexOf(platform(b)) + 1 || 99);
 const sum = (rows, f) => rows.reduce((s, r) => s + f(r), 0);

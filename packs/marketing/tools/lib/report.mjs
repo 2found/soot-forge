@@ -54,7 +54,7 @@ export async function report(input, deps) {
   }
   const settings = await getSettings(store);
   if (settings.gsc && settings.gsc.state !== 'ok' && lines.length < 6) lines.push(settings.gsc.message ?? 'Search Console chưa đọc được.');
-  const signedOut = (await store.query('channels', [], { limit: 50 })).filter(c => c.kind === 'social' && c.paused && c.paused_reason === 'signed_out');
+  const signedOut = (await store.query('channels', [], { limit: 50 })).filter(c => (c.kind === 'social' || c.publisher === 'browser') && c.paused && c.paused_reason === 'signed_out');
   if (signedOut.length && lines.length < 6) lines.push(`${signedOut.map(c => c.platform ?? c.key).join(', ')} chưa đăng nhập: chưa tạo bài cho ${signedOut.length > 1 ? 'các kênh này' : 'kênh này'}.`);
   if (settings.paused_all && lines.length < 6) lines.push('Đang tạm dừng đăng mọi kênh.');
 

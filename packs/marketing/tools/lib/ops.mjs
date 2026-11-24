@@ -12,7 +12,7 @@ import { metricsRows } from './page.mjs';
 import { claimAssets } from './video.mjs';
 import { campaignExists, draftCampaign } from './campaign.mjs';
 import { libraryRoot } from './root.mjs';
-import { loadProducts } from './library.mjs';
+import { loadProducts, tiktokChannelId } from './library.mjs';
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const iso = ms => new Date(ms).toISOString();
@@ -41,13 +41,38 @@ export async function setSetting(store, key, value) {
   try { await store.insert('settings', { key, value }); } catch (e) { if (e.code !== 'conflict') throw e; await store.update('settings', [eq('key', key)], { value }); }
 }
 
+/** The browser profile id the Publisher drives for a channel (a person-named id such as "tiktok-lohi"), or null. */
+export const PROFILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+export const profileOf = ch => (typeof ch?.rules?.profile === 'string' && PROFILE_RE.test(ch.rules.profile) ? ch.rules.profile : null);
+
+/** A `tiktok` row stored under the old default (the founder's upload: hand, no caps, no rules) that no person set. */
+export function isLegacyTiktok(row) {
+  if (platformOf(row?.key) !== 'tiktok' || row.publisher !== 'hand' || row.rules?.publisher_by === 'person') return false;
+  if ((row.cap_per_day ?? 0) !== 0 || (row.spacing_min ?? 0) !== 0 || (row.reply_cap_per_day ?? 0) !== 0) return false;
+  return Object.keys(row.rules ?? {}).every(k => ['profile', 'product', 'video_channel'].includes(k));
+}
+
+/**
+ * A stored legacy TikTok row follows the new default (browser, 2 a day, 240 minutes, TikTok's caption rules) on first use.
+ * It is paused for a person ("person": no sign-in card for a channel nobody named a profile for) and resumes with Bật.
+ * A row a person set to `hand` (rules.publisher_by "person") or gave any cap is never touched.
+ */
+async function migrateLegacy(store, row) {
+  const d = defaultsFor(row.key);
+  const set = { kind: d.kind, publisher: d.publisher, cap_per_day: d.cap_per_day, spacing_min: d.spacing_min, reply_cap_per_day: d.reply_cap_per_day, rules: { ...d.rules, ...(row.rules ?? {}) },
+    paused: true, paused_reason: row.paused ? row.paused_reason ?? 'person' : 'person' };
+  await store.update('channels', [eq('key', row.key)], set);
+  return { ...row, ...set };
+}
+
 export async function channel(store, key) {
   const row = await store.one('channels', [eq('key', key)]);
-  if (row) return row;
+  if (row) return isLegacyTiktok(row) ? migrateLegacy(store, row) : row;
   const d = defaultsFor(key);
   if (!d) fail('unknown_channel', `Không có kênh "${key}".`);
-  // Social channels start paused until their first sign-in (p3).
-  const fresh = { key, ...d, platform: platformOf(key) ?? d.kind, paused: d.kind === 'social', paused_reason: d.kind === 'social' ? 'signed_out' : null, account: null };
+  // A channel a browser drives starts paused until its first sign-in (p3).
+  const browser = d.publisher === 'browser';
+  const fresh = { key, ...d, platform: platformOf(key) ?? d.kind, paused: browser, paused_reason: browser ? 'signed_out' : null, account: null };
   try { await store.insert('channels', fresh); } catch (e) { if (e.code !== 'conflict') throw e; }
   return (await store.one('channels', [eq('key', key)])) ?? fresh;
 }
@@ -82,6 +107,7 @@ export async function draft_save(input, { store, now, soot }) {
   // nấc 1/2/3 the post speaks to; a post saved without it stays untagged (counted as chưa gắn, never guessed).
   if (awareness !== undefined && !['unaware', 'problem', 'choosing'].includes(awareness)) fail('invalid_request', 'awareness is unaware, problem or choosing.');
   const ch = await channel(store, chKey);
+  if (ch.rules?.video_required && kind !== 'video') fail('invalid_request', `Kênh ${ch.key} chỉ đăng video (kind "video", từ marketing_video_import); bài ${kind} không đăng ở đây.`);
   if (!id && request_id) {
     const seen = await store.one('posts', [eq('request_id', request_id)]);
     if (seen) return { id: seen.ref, revision: seen.revision, content_hash: seen.content_hash, state: seen.state, lint: briefLint(seen, ch), replayed: true };
@@ -298,8 +324,10 @@ export const NEED_LABEL = {
 };
 export const PAUSE_REASONS = ['signed_out', 'layout_changed', 'captcha'];
 /** Where the person signs in, in the Soot's own browser (Nest opens it with nest://browser/<soot>). */
-export const LOGIN_URL = { x: 'https://x.com/i/flow/login', facebook: 'https://www.facebook.com/login', reddit: 'https://www.reddit.com/login' };
-const PLATFORM_LABEL = { x: 'X', facebook: 'Facebook', reddit: 'Reddit' };
+export const LOGIN_URL = { x: 'https://x.com/i/flow/login', facebook: 'https://www.facebook.com/login', reddit: 'https://www.reddit.com/login', tiktok: 'https://www.tiktok.com/login' };
+const PLATFORM_LABEL = { x: 'X', facebook: 'Facebook', reddit: 'Reddit', tiktok: 'TikTok' };
+/** A platform's name; TikTok has one channel per account, so its name carries the account ("TikTok @lohi"). */
+const channelLabel = (c, platform = c?.platform ?? platformOf(c?.key)) => (platform === 'tiktok' ? `TikTok ${c.account ?? String(c.key).replace(/^tiktok-?/, '') ?? ''}`.trim() : PLATFORM_LABEL[platform] ?? platform);
 export const SIGN_IN_STEPS = 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập';
 const needKey = n => `${n.kind}:${n.id}:${n.reason}`;
 
@@ -333,10 +361,11 @@ export async function due(input, { store, now, soot }) {
     out.needs_person.push({ id: c.key, channel: c.key, reason: c.paused_reason });
     const platform = c.platform ?? platformOf(c.key);
     // A sign-in names the page to open in the Soot's browser and the Nest link to that browser.
-    const label = PLATFORM_LABEL[platform] ?? platform;
+    const label = channelLabel(c, platform);
+    const profile = profileOf(c);
     const signIn = c.paused_reason === 'signed_out' && LOGIN_URL[platform]
-      ? { login_url: LOGIN_URL[platform], title: `Đăng nhập ${label}`, steps: SIGN_IN_STEPS, ...(soot ? { browser: `nest://browser/${soot}` } : {}) } : {};
-    need({ kind: 'channel', id: c.key, channel: c.key, platform, platform_label: label, reason: c.paused_reason, account: c.account ?? null, ...signIn });
+      ? { login_url: LOGIN_URL[platform], title: `Đăng nhập ${label}`, steps: profile ? `${SIGN_IN_STEPS} (hồ sơ trình duyệt ${profile})` : SIGN_IN_STEPS, ...(soot ? { browser: `nest://browser/${soot}` } : {}) } : {};
+    need({ kind: 'channel', id: c.key, channel: c.key, platform, platform_label: label, reason: c.paused_reason, account: c.account ?? null, ...(profile ? { profile } : {}), ...signIn });
   }
   // An uncertain post may be live: never claimed again until a person answers.
   const uncertain = new Set(held.map(p => p.ref));
@@ -441,7 +470,7 @@ export const ANSWERS = { uncertain: ['Đã lên — dán liên kết', 'Chưa l�
 /** One need as a ready Cần bạn item {keys, summary, missing, options}; marketing_answer applies the pick. */
 async function askFor(n, { store, settings, soot, byKey, replies }) {
   const ch = byKey[n.channel] ?? {};
-  const L = PLATFORM_LABEL[ch.platform ?? platformOf(n.channel)] ?? (n.channel === 'blog-lohi' ? 'Blog' : n.channel);
+  const L = n.channel === 'blog-lohi' ? 'Blog' : (ch.key ? channelLabel(ch) : PLATFORM_LABEL[platformOf(n.channel)]) || n.channel;
   const browser = soot ? `nest://browser/${soot}` : null;
   const item = (summary, missing, options, rec) => ({ keys: [n.key], summary, missing: missing.filter(Boolean).join('\n'), options: options.map(label => (label === rec ? { label, recommended: true } : { label })) });
   if (n.kind === 'channel') {
@@ -489,7 +518,8 @@ function claimBody(p, ch, action, intent, now, assets = []) {
     series: b.series ?? ch.rules?.series ?? null, date: new Date(now).toISOString().slice(0, 10),
     url: action === 'unpublish' ? p.url ?? null : null, expires_at: iso(now + CLAIM_TTL_MS),
     // Browser publishers: which platform and account to drive, and for a reply its target.
-    ...(ch.publisher === 'browser' ? { platform: ch.platform ?? platformOf(ch.key), account: ch.account ?? null, subreddit: b.subreddit ?? null } : {}),
+    // `profile` is the named browser profile whose sign-in this account lives in (null: the Soot's own profile).
+    ...(ch.publisher === 'browser' ? { platform: ch.platform ?? platformOf(ch.key), account: ch.account ?? null, profile: profileOf(ch), subreddit: b.subreddit ?? null } : {}),
     ...(action === 'reply' ? { reply_url: b.reply_url ?? null, thread_url: b.thread_url ?? null } : {}),
     // A video post: the file the browser uploads, with the hash it must still have.
     ...(p.kind === 'video' ? { kind: 'video', ...(action === 'publish' ? { assets: claimAssets(assets) } : {}) } : {}),
@@ -883,26 +913,44 @@ export async function seo_brief(_input, { store, now }) {
 
 const CHANNEL_FIELDS = ['cap_per_day', 'spacing_min', 'reply_cap_per_day'];
 
-/** Create missing channels (social ones paused until their first sign-in) and
- * fill only unset values; a founder's edit or pause is never overwritten. */
-export async function channels_setup(input, { store }) {
-  const list = Array.isArray(input.channels) ? input.channels : [];
+/** Create missing channels (a browser channel paused until its first sign-in) and
+ * fill only unset values; a founder's edit or pause is never overwritten.
+ * `from_products: true` adds one TikTok channel per account in products.json (`accounts.tiktok`): `tiktok-<handle>`,
+ * account `@handle`, rules `{product, video_channel}` and the account's `profile` when it names one. */
+export async function channels_setup(input, { store, env }) {
+  const list = Array.isArray(input.channels) ? [...input.channels] : [];
+  if (input.from_products === true) {
+    const lr = await libraryRoot(env ?? {});
+    if (!lr.ok) fail('needs_credential', 'from_products reads products.json from the marketing folder: set MARKETING_ROOT first.');
+    for (const prod of await loadProducts({ root: lr.root })) {
+      for (const a of prod.tiktok_accounts ?? []) {
+        const id = tiktokChannelId(a.handle);
+        if (list.some(c => c?.id === id)) continue;
+        list.push({ id, account: `@${a.handle}`, ...(a.profile ? { profile: a.profile } : {}), rules: { product: prod.id, ...(a.video_channel ? { video_channel: a.video_channel } : {}) } });
+      }
+    }
+  }
   if (list.length > 20) fail('invalid_request', 'At most 20 channels.');
   const out = [];
   for (const c of list) {
     if (!c || typeof c.id !== 'string' || !defaultsFor(c.id)) fail('unknown_channel', `Không có kênh "${c?.id}".`);
+    if (c.profile !== undefined && c.profile !== null && !(typeof c.profile === 'string' && PROFILE_RE.test(c.profile))) fail('invalid_request', 'profile is a browser profile id (letters, digits, . _ -, up to 64).');
+    if (c.publisher !== undefined && !['browser', 'hand'].includes(c.publisher)) fail('invalid_request', 'publisher is browser or hand.');
     const existed = !!(await store.one('channels', [eq('key', c.id)]));
     const row = await channel(store, c.id);
     const set = {};
     for (const f of CHANNEL_FIELDS) if (Number.isInteger(c[f]) && c[f] >= 0 && (!existed || row[f] == null) && row[f] !== c[f]) set[f] = c[f];
     if (typeof c.account === 'string' && c.account && !row.account) set.account = c.account.slice(0, 200);
-    if (c.rules && typeof c.rules === 'object' && !Array.isArray(c.rules)) {
+    if ((c.rules && typeof c.rules === 'object' && !Array.isArray(c.rules)) || typeof c.profile === 'string') {
       const rules = { ...(row.rules ?? {}) };
-      for (const [k, v] of Object.entries(c.rules)) if (rules[k] === undefined) rules[k] = v;
+      for (const [k, v] of Object.entries(c.rules ?? {})) if (rules[k] === undefined) rules[k] = v;
+      if (typeof c.profile === 'string' && !rules.profile) rules.profile = c.profile;
       if (JSON.stringify(rules) !== JSON.stringify(row.rules ?? {})) set.rules = rules;
     }
+    // A channel's publisher changes only when asked, and then it is a person's word (a later default never takes it back).
+    if (c.publisher && c.publisher !== row.publisher) { set.publisher = c.publisher; set.rules = { ...(set.rules ?? row.rules ?? {}), publisher_by: 'person' }; }
     if (Object.keys(set).length) await store.update('channels', [eq('key', row.key)], set);
-    out.push({ id: row.key, platform: row.platform ?? platformOf(row.key), paused: !!row.paused, paused_reason: row.paused_reason ?? null, created: !existed });
+    out.push({ id: row.key, platform: row.platform ?? platformOf(row.key), paused: !!row.paused, paused_reason: row.paused_reason ?? null, created: !existed, profile: profileOf({ rules: set.rules ?? row.rules }), publisher: set.publisher ?? row.publisher });
   }
   const settings = await getSettings(store);
   if (input.quiet_hours && !(await store.one('settings', [eq('key', 'quiet_hours')]))) {
