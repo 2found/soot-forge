@@ -13,10 +13,13 @@ import { claimAssets } from './video.mjs';
 import { campaignExists, draftCampaign } from './campaign.mjs';
 import { libraryRoot } from './root.mjs';
 import { loadProducts, tiktokChannelId } from './library.mjs';
+import { PLATFORM_HOST, signInLink, readProfiles, reportSignedOut, siteState, handleMismatch } from './profiles.mjs';
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const iso = ms => new Date(ms).toISOString();
 const ms = s => Date.parse(s ?? '');
+/** A stored ISO moment (rules.signed_out_at), not a blank or a stray value. */
+const validAt = v => typeof v === 'string' && Number.isFinite(Date.parse(v));
 const ref = () => 'P-' + randomBytes(5).toString('hex').toUpperCase();
 const intentID = () => 'I-' + randomBytes(8).toString('hex');
 
@@ -65,9 +68,15 @@ async function migrateLegacy(store, row) {
   return { ...row, ...set };
 }
 
+/** The legacy single `tiktok` channel: no account, so no browser profile to post from. It is never created again. */
+export const LEGACY_TIKTOK = 'tiktok';
+const tiktokAccountRequired = () => fail('tiktok_account_required', 'TikTok đăng theo từng tài khoản: dùng kênh tiktok-<tài khoản> (channels_setup from_products tạo sẵn từ products.json).');
+
 export async function channel(store, key) {
   const row = await store.one('channels', [eq('key', key)]);
-  if (row) return isLegacyTiktok(row) ? migrateLegacy(store, row) : row;
+  // An existing `tiktok` row is returned as it is (retired, or still waiting for its repair), so its old posts resolve.
+  if (row) return isLegacyTiktok(row) && key !== LEGACY_TIKTOK ? migrateLegacy(store, row) : row;
+  if (key === LEGACY_TIKTOK) tiktokAccountRequired();
   const d = defaultsFor(key);
   if (!d) fail('unknown_channel', `Không có kênh "${key}".`);
   // A channel a browser drives starts paused until its first sign-in (p3).
@@ -75,6 +84,88 @@ export async function channel(store, key) {
   const fresh = { key, ...d, platform: platformOf(key) ?? d.kind, paused: browser, paused_reason: browser ? 'signed_out' : null, account: null };
   try { await store.insert('channels', fresh); } catch (e) { if (e.code !== 'conflict') throw e; }
   return (await store.one('channels', [eq('key', key)])) ?? fresh;
+}
+
+/** The video channel folder a post was cut in: `…/channels/<folder>/campaigns/…` of its campaign_dir. */
+const CAMPAIGN_FOLDER = /(?:^|\/)channels\/([a-z0-9][a-z0-9-]{0,79})\/campaigns\//;
+const LEDGER_MAX = 50;
+const LEGACY_PAGE = 500;
+
+/**
+ * The one-time repair of the legacy `tiktok` row (pack storage stays at version 8, so this is a data repair behind the
+ * `settings.legacy_tiktok` marker, run by the write tools that touch channels). A post on it moves, with its queue,
+ * publish_log and reply rows, to the `tiktok-<handle>` that **exactly one** account matches: the one account whose
+ * `video_channel` is the folder the post was cut in, else the product's only account. Anything else stays where it is.
+ * The row itself is then paused with reason `retired`: no sign-in card, no post, never resumed. Nothing is deleted, an
+ * intent stays on its queue row and no post changes state (an uncertain post is never queued again). Without products.json
+ * (due has no MARKETING_ROOT) only a folder match moves a post, and a post nothing places waits unmarked for a run with
+ * the library; a full page also waits for the next run. A second run after the marker does nothing.
+ */
+export async function retireLegacyTiktok(store, { env, now = Date.now() } = {}) {
+  const mark = (await store.one('settings', [eq('key', 'legacy_tiktok')]))?.value;
+  if (mark?.at) return { ...mark, replayed: true };
+  const row = await store.one('channels', [eq('key', LEGACY_TIKTOK)]);
+  if (!row) { const v = { at: iso(now), row: false }; await setSetting(store, 'legacy_tiktok', v); return v; }
+  // The accounts: the stored tiktok-<handle> rows, then products.json's accounts when the library is readable.
+  const accounts = new Map();
+  for (const c of await store.query('channels', [], { limit: 50 })) {
+    if (c.key === LEGACY_TIKTOK || platformOf(c.key) !== 'tiktok' || c.paused_reason === 'retired') continue;
+    accounts.set(c.key, { key: c.key, product: c.rules?.product ?? null, folder: c.rules?.video_channel ?? null });
+  }
+  const folderProduct = new Map();
+  const lr = env ? await libraryRoot(env).catch(() => ({ ok: false })) : { ok: false };
+  if (lr.ok) {
+    for (const p of await loadProducts({ root: lr.root }).catch(() => [])) {
+      for (const f of p.video_channels ?? []) folderProduct.set(f, p.id);
+      for (const a of p.tiktok_accounts ?? []) {
+        const key = tiktokChannelId(a.handle), had = accounts.get(key);
+        accounts.set(key, { key, product: had?.product ?? p.id, folder: had?.folder ?? a.video_channel ?? null });
+      }
+    }
+  }
+  const all = [...accounts.values()];
+  for (const a of all) if (a.folder && a.product && !folderProduct.has(a.folder)) folderProduct.set(a.folder, a.product);
+  const target = (p) => {
+    const folder = CAMPAIGN_FOLDER.exec(p.brief?.campaign_dir ?? '')?.[1] ?? null;
+    const byFolder = folder ? all.filter(a => a.folder === folder) : [];
+    if (byFolder.length) return byFolder.length === 1 ? byFolder[0].key : null;
+    // Without products.json only a folder match is sure: the stored rows may not be all of a product's accounts.
+    if (!lr.ok) return null;
+    const products = [...new Set(all.map(a => a.product))];
+    const product = (folder && folderProduct.get(folder)) ?? (products.length === 1 ? products[0] : null);
+    const mine = product ? all.filter(a => a.product === product) : [];
+    return mine.length === 1 ? mine[0].key : null;
+  };
+  const posts = await store.query('posts', [eq('channel', LEGACY_TIKTOK)], { limit: LEGACY_PAGE });
+  // No account is known yet (no tiktok-<handle> row, no readable products.json): wait for one rather than keep every post
+  // on the old row for good. The row is not used meanwhile: it is `hand`, so nothing posts from it.
+  if (posts.length && !all.length) return { at: null, waiting: 'no_accounts', posts: posts.length };
+  const moved = [], kept = [];
+  for (const p of posts) {
+    const to = target(p);
+    if (!to) { kept.push(p.ref); continue; }
+    // The post moves last: until it does, a rerun after a failure here still finds it and moves the rest.
+    await store.update('queue', [eq('post', p.ref)], { channel: to });
+    await store.update('publish_log', [eq('post', p.ref)], { channel: to });
+    await store.update('replies', [eq('parent_post', p.ref)], { channel: to });
+    await store.update('posts', [eq('ref', p.ref)], { channel: to });
+    moved.push({ post: p.ref, to });
+  }
+  // A full page may not be all of them: the next write tool goes on (moved posts have left the page).
+  if (posts.length === LEGACY_PAGE && moved.length) return { at: null, waiting: 'more', moved_n: moved.length };
+  // Without products.json a post no folder places waits for it, rather than staying on the retired row for good.
+  if (kept.length && !lr.ok) return { at: null, waiting: 'no_library', moved_n: moved.length, kept_n: kept.length };
+  await store.update('channels', [eq('key', LEGACY_TIKTOK)], { paused: true, paused_reason: 'retired' });
+  await clearAttention(store, 'channel', LEGACY_TIKTOK);
+  const v = { at: iso(now), row: true, moved: moved.slice(0, LEDGER_MAX), kept: kept.slice(0, LEDGER_MAX), moved_n: moved.length, kept_n: kept.length };
+  await setSetting(store, 'legacy_tiktok', v);
+  return v;
+}
+
+/** The channel a new post goes on: never the legacy `tiktok` row, which only keeps its old posts. */
+export async function postChannel(store, key) {
+  if (key === LEGACY_TIKTOK) tiktokAccountRequired();
+  return channel(store, key);
 }
 
 async function post(store, id) {
@@ -106,7 +197,7 @@ export async function draft_save(input, { store, now, soot }) {
   if (typeof body !== 'string' || !body.trim()) fail('invalid_request', 'body is required.');
   // nấc 1/2/3 the post speaks to; a post saved without it stays untagged (counted as chưa gắn, never guessed).
   if (awareness !== undefined && !['unaware', 'problem', 'choosing'].includes(awareness)) fail('invalid_request', 'awareness is unaware, problem or choosing.');
-  const ch = await channel(store, chKey);
+  const ch = await postChannel(store, chKey);
   if (ch.rules?.video_required && kind !== 'video') fail('invalid_request', `Kênh ${ch.key} chỉ đăng video (kind "video", từ marketing_video_import); bài ${kind} không đăng ở đây.`);
   if (!id && request_id) {
     const seen = await store.one('posts', [eq('request_id', request_id)]);
@@ -267,10 +358,15 @@ const slug = i => `o${i + 1}`;
  * again later is a new card, and an unanswered one is raised again after 72 hours by the runtime. Each option runs
  * `marketing_answer` (or, for a sign-in, `marketing_pause {signed_in}`) by itself; only a pick that needs the person's
  * words wakes the Editor. A need the Editor already filed (`raised`) gets no second card.
+ * Sign-ins are one card per browser profile (group `signin:<profile>`, so a newer one replaces it): its link opens that
+ * profile's sign-in in Nest, and once the person records it there `due` resumes the channels and the card settles. The
+ * "Đã đăng nhập" option stays for a host without the profile read, never the recommended pick.
  */
+const signInGroup = n => (n.profile ? `signin:${n.profile}` : `need:${n.key}`);
 async function needCards(needs, { store, settings, soot, byKey, replies, raised, now }) {
   const raise = [];
   const live = new Set();
+  const signIns = new Map();
   const marks = new Map(raised.filter(r => r.key.startsWith('inc:')).map(r => [r.key.slice(4), r]));
   for (const n of needs) {
     live.add(n.key);
@@ -282,12 +378,9 @@ async function needCards(needs, { store, settings, soot, byKey, replies, raised,
     }
     const id = `need:${n.key}@${Date.parse(mark.raised_at)}`;
     if (n.login_url) {
-      raise.push({
-        id, group: `need:${n.key}`, title: n.title, why: `${n.steps}. Trang đăng nhập: ${n.login_url}`,
-        ...(n.browser ? { link: n.browser, link_label: 'Mở trình duyệt của Editor' } : {}),
-        options: [{ id: 'signed_in', label: `Đã đăng nhập ${n.platform_label}`, recommended: true, tool: { pack: 'marketing', name: 'pause', input: { channel: n.channel, paused: true, signed_in: true } } }],
-        reraise_after_hours: 72,
-      });
+      const group = signInGroup(n);
+      if (!signIns.has(group)) signIns.set(group, []);
+      signIns.get(group).push({ n, at: Date.parse(mark.raised_at) });
       continue;
     }
     const ask = await askFor(n, { store, settings, soot, byKey, replies });
@@ -303,12 +396,32 @@ async function needCards(needs, { store, settings, soot, byKey, replies, raised,
       reraise_after_hours: 72,
     });
   }
-  // Incidents whose need is gone: forget the mark and close the card.
   const settle = [];
+  for (const [group, list] of signIns) {
+    // In platform order. The id is the profile's oldest live incident and its channels, so a channel that resumes or
+    // joins gives a new id, which replaces the card in its group.
+    const order = Object.keys(LOGIN_URL);
+    list.sort((a, b) => order.indexOf(a.n.platform) - order.indexOf(b.n.platform) || String(a.n.channel).localeCompare(String(b.n.channel)));
+    const first = list[0], since = Math.min(...list.map(x => x.at));
+    const many = list.length > 1;
+    raise.push({
+      id: `${group}@${since}.${createHash('sha256').update(list.map(x => x.n.channel).join(',')).digest('hex').slice(0, 8)}`, group, title: many ? `Đăng nhập ${list.map(x => x.n.platform_label).join(', ')}` : first.n.title,
+      why: list.map(({ n }) => `${many ? `${n.platform_label}: ` : ''}${n.steps}. Trang đăng nhập: ${n.login_url}`).join('\n'),
+      link: first.n.link, link_label: 'Đăng nhập',
+      options: list.slice(0, 4).map(({ n }, i) => ({ id: many ? `signed_in_${i + 1}` : 'signed_in', label: `Đã đăng nhập ${n.platform_label}`, tool: { pack: 'marketing', name: 'pause', input: { channel: n.channel, paused: true, signed_in: true } } })),
+      reraise_after_hours: 72,
+    });
+    // A card an older version raised per channel (group need:<key>) closes: the profile's card says it all. Settling a
+    // card that is not there does nothing.
+    if (group.startsWith('signin:')) for (const { n } of list) settle.push(`need:${n.key}`);
+  }
+  // Incidents whose need is gone: forget the mark and close the card (a profile's once none of its sign-ins is left).
   for (const [key, row] of marks) {
     if (live.has(key)) continue;
     await store.remove('attention', [eq('key', row.key)]);
     settle.push(`need:${key}`);
+    const profile = row.kind === 'inc-channel' && key.endsWith(':signed_out') ? profileOf(byKey[row.ref]) : null;
+    if (profile && !signIns.has(`signin:${profile}`) && !settle.includes(`signin:${profile}`)) settle.push(`signin:${profile}`);
   }
   return { ...(raise.length ? { raise } : {}), ...(settle.length ? { settle } : {}) };
 }
@@ -323,12 +436,12 @@ export const NEED_LABEL = {
   complaint: 'Phàn nàn', money: 'Tiền', account: 'Chuyển Hỗ trợ', flagged: 'Cần xem',
 };
 export const PAUSE_REASONS = ['signed_out', 'layout_changed', 'captcha'];
-/** Where the person signs in, in the Soot's own browser (Nest opens it with nest://browser/<soot>). */
+/** The platform's login page; the person signs in on the channel's browser profile (Nest: Kho khóa › Đăng nhập trình duyệt). */
 export const LOGIN_URL = { x: 'https://x.com/i/flow/login', facebook: 'https://www.facebook.com/login', reddit: 'https://www.reddit.com/login', tiktok: 'https://www.tiktok.com/login' };
 const PLATFORM_LABEL = { x: 'X', facebook: 'Facebook', reddit: 'Reddit', tiktok: 'TikTok' };
 /** A platform's name; TikTok has one channel per account, so its name carries the account ("TikTok @lohi"). */
 const channelLabel = (c, platform = c?.platform ?? platformOf(c?.key)) => (platform === 'tiktok' ? `TikTok ${c.account ?? String(c.key).replace(/^tiktok-?/, '') ?? ''}`.trim() : PLATFORM_LABEL[platform] ?? platform);
-export const SIGN_IN_STEPS = 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập';
+export const SIGN_IN_STEPS = 'Bấm Đăng nhập → đăng nhập trên trang vừa mở → bấm Tôi đã đăng nhập';
 const needKey = n => `${n.kind}:${n.id}:${n.reason}`;
 
 export async function clearAttention(store, kind, ref) {
@@ -339,32 +452,80 @@ export async function clearAttention(store, kind, ref) {
 /** What a due queue row is, for waking the Editor once: the post, its action, its slot and its intent. */
 const itemKey = q => `item:${q.post}:${q.action ?? 'publish'}:${String(q.scheduled_at ?? '').slice(0, 16)}:${q.intent_id ?? '-'}`;
 
-export async function due(input, { store, now, soot }) {
+/** The platforms `due {platform}` covers: one channel per account (tiktok-<handle>). */
+const DUE_PLATFORMS = ['tiktok'];
+
+/**
+ * AC2.2: a channel paused `signed_out` whose browser profile has the platform's site signed in after the pause began
+ * (`rules.signed_out_at`) is the person's sign-in in Nest: the channel resumes, its attention markers go, and its
+ * Cần bạn card settles once the need is gone. A row paused before the pause time was kept gets it now (so only a
+ * sign-in from here on resumes it). A sign-in as another account than the row's (Nest knows both handles) resumes
+ * nothing. Without `browser.profiles.read` nothing resumes: `unread` says why.
+ */
+async function resumeSignedIn(channels, { store, env, fetch: fetchImpl, now }) {
+  const waiting = channels.filter(c => c.paused && c.paused_reason === 'signed_out' && profileOf(c) && PLATFORM_HOST[c.platform ?? platformOf(c.key)]);
+  if (!waiting.length) return { resumed: [] };
+  for (const c of waiting) {
+    if (validAt(c.rules?.signed_out_at)) continue;
+    c.rules = { ...(c.rules ?? {}), signed_out_at: iso(now) };
+    await store.update('channels', [eq('key', c.key)], { rules: c.rules });
+  }
+  const read = await readProfiles(env, fetchImpl);
+  if (!read.ok) return { resumed: [], unread: read.why };
+  const resumed = [];
+  for (const c of waiting) {
+    const site = siteState(read, profileOf(c), PLATFORM_HOST[c.platform ?? platformOf(c.key)]);
+    if (site.state !== 'signed_in' || !(ms(site.at) > ms(c.rules.signed_out_at))) continue;
+    // Signed in as another account than the row's: its posts would go out from that account, so the row keeps waiting.
+    if (handleMismatch(site, c)) continue;
+    await store.update('channels', [eq('key', c.key)], { paused: false, paused_reason: null });
+    await store.remove('attention', [eq('kind', 'woke-item'), eq('reason', c.key)]);
+    await clearAttention(store, 'channel', c.key);
+    Object.assign(c, { paused: false, paused_reason: null });
+    resumed.push(c.key);
+  }
+  return { resumed };
+}
+
+export async function due(input, { store, now, soot, env, fetch: fetchImpl }) {
+  await retireLegacyTiktok(store, { env, now });
   const settings = await getSettings(store);
   const rows = await store.query('queue', [{ column: 'scheduled_at', op: 'lte', value: iso(now) }], { order: 'scheduled_at', desc: false, limit: 200 });
-  const [channels, raised, held, open] = await Promise.all([
+  const [channels, marks, held, open] = await Promise.all([
     store.query('channels', [], { limit: 50 }),
     store.query('attention', [], { limit: 500 }),
     store.query('posts', [eq('state', 'uncertain')], { limit: 50 }),
     store.query('replies', [eq('state', 'needs_person')], { limit: 50 }),
   ]);
+  // A sign-in recorded in Nest resumes its channels before anything reads them (a tool chain posts on this very call).
+  const signedIn = await resumeSignedIn(channels, { store, env, fetch: fetchImpl, now });
+  // The markers resumeSignedIn just removed are gone (the incident marks stay: they settle the card below).
+  const gone = r => (r.kind === 'woke-item' ? signedIn.resumed.includes(r.reason) : ['channel', 'woke-channel'].includes(r.kind) && signedIn.resumed.includes(r.ref));
+  const raised = signedIn.resumed.length ? marks.filter(r => !gone(r)) : marks;
   const byKey = Object.fromEntries(channels.map(c => [c.key, c]));
   const seen = new Set(raised.map(r => r.key));
   const skip = Array.isArray(input.skip) ? input.skip : [];
-  if (typeof input.channel === 'string') return dueChain(input.channel, { rows, channels, held, settings, now });
-  const out = { wake: false, publish: [], unpublish: [], reply: [], late: [], needs_person: [], needs: [] };
+  if (typeof input.channel === 'string') return dueChain([input.channel], { rows, channels, held, settings, now });
+  if (input.platform !== undefined) {
+    if (!DUE_PLATFORMS.includes(input.platform)) fail('invalid_request', `platform is one of ${DUE_PLATFORMS.join(', ')}.`);
+    // Every account of the platform (tiktok-*), not the retired legacy row: one chain posts for all of them, one per fire.
+    const keys = channels.filter(c => platformOf(c.key) === input.platform && c.key !== input.platform && c.paused_reason !== 'retired').map(c => c.key);
+    return dueChain(keys, { rows, channels, held, settings, now });
+  }
+  const out = { wake: false, publish: [], unpublish: [], reply: [], late: [], needs_person: [], needs: [],
+    ...(signedIn.resumed.length ? { resumed: signedIn.resumed } : {}), ...(signedIn.unread ? { sign_in_unread: signedIn.unread } : {}) };
   const items = [];
   // `woken`: the dispatch schedule already woke the Editor for this need (it may not have filed it yet); never wake twice for one.
   const need = n => out.needs.push({ ...n, key: needKey(n), label: n.label ?? NEED_LABEL[n.reason] ?? n.reason, raised: seen.has(needKey(n)), woken: seen.has('woke:' + needKey(n)) });
   for (const c of channels) {
-    if (!c.paused || !c.paused_reason || c.paused_reason === 'person' || c.paused_reason === 'signed_in') continue;
+    if (!c.paused || !c.paused_reason || ['person', 'signed_in', 'retired'].includes(c.paused_reason)) continue;
     out.needs_person.push({ id: c.key, channel: c.key, reason: c.paused_reason });
     const platform = c.platform ?? platformOf(c.key);
-    // A sign-in names the page to open in the Soot's browser and the Nest link to that browser.
+    // A sign-in names the platform's login page and the Nest link that opens the profile's sign-in on its site.
     const label = channelLabel(c, platform);
     const profile = profileOf(c);
     const signIn = c.paused_reason === 'signed_out' && LOGIN_URL[platform]
-      ? { login_url: LOGIN_URL[platform], title: `Đăng nhập ${label}`, steps: profile ? `${SIGN_IN_STEPS} (hồ sơ trình duyệt ${profile})` : SIGN_IN_STEPS, ...(soot ? { browser: `nest://browser/${soot}` } : {}) } : {};
+      ? { login_url: LOGIN_URL[platform], host: PLATFORM_HOST[platform], title: `Đăng nhập ${label}`, steps: profile ? `${SIGN_IN_STEPS} (hồ sơ trình duyệt ${profile})` : SIGN_IN_STEPS, link: signInLink(profile, PLATFORM_HOST[platform]) } : {};
     need({ kind: 'channel', id: c.key, channel: c.key, platform, platform_label: label, reason: c.paused_reason, account: c.account ?? null, ...(profile ? { profile } : {}), ...signIn });
   }
   // An uncertain post may be live: never claimed again until a person answers.
@@ -391,7 +552,7 @@ export async function due(input, { store, now, soot }) {
     }
     if (settings.paused_all || ch?.paused) continue;
     // A channel the schedule's tool chain publishes is not the Editor's to claim.
-    if (q.action !== 'reply' && skip.includes(q.channel)) continue;
+    if (q.action !== 'reply' && (skip.includes(q.channel) || skip.includes(platformOf(q.channel)))) continue;
     (q.action === 'reply' ? out.reply : out.publish).push(q.post);
     items.push({ q, key: itemKey(q) });
   }
@@ -402,7 +563,7 @@ export async function due(input, { store, now, soot }) {
     const labels = signIns.map(n => n.platform_label);
     out.sign_in = {
       summary: `Đăng nhập ${labels.join(', ')}${settings.project ? ` cho ${settings.project}` : ''}`,
-      missing: [...signIns.map(n => `${n.platform_label}: ${SIGN_IN_STEPS}`), ...(signIns[0].browser ? [signIns[0].browser] : [])].join('\n'),
+      missing: [...signIns.map(n => `${n.platform_label}: ${SIGN_IN_STEPS}`), signIns[0].link].join('\n'),
       options: labels.slice(0, 4).map(l => ({ label: `Đã đăng nhập ${l}` })),
     };
   }
@@ -446,13 +607,15 @@ export async function due(input, { store, now, soot }) {
  * channel, `{id, action}`, or `{done:true}` (the chain stops quietly). Late, uncertain, paused and
  * in-flight items are not its business: they are Cần bạn items the Editor's own dispatch raises.
  */
-function dueChain(chKey, { rows, channels, held, settings, now }) {
-  const ch = channels.find(c => c.key === chKey);
-  if (settings.paused_all || ch?.paused) return { done: true, reason: 'paused' };
+/** The next due publish of one of `keys` (the oldest first) for a chain's claim, or {done: true, reason}. A paused
+ *  channel posts nothing; with every channel paused the answer says so. */
+function dueChain(keys, { rows, channels, held, settings, now }) {
+  const live = new Set(keys.filter(k => !channels.find(c => c.key === k)?.paused));
+  if (settings.paused_all || !live.size) return { done: true, reason: keys.length ? 'paused' : 'no_channel' };
   if (inQuiet(now, settings.quiet_hours ?? DEFAULT_QUIET)) return { done: true, reason: 'quiet_hours' };
   const uncertain = new Set(held.map(p => p.ref));
   for (const q of rows) {
-    if (q.channel !== chKey || (q.action ?? 'publish') !== 'publish' || uncertain.has(q.post)) continue;
+    if (!live.has(q.channel) || (q.action ?? 'publish') !== 'publish' || uncertain.has(q.post)) continue;
     const stuck = q.intent_id && now - ms(q.intent_at) > INTENT_STALE_MS;
     if (q.intent_id && !stuck) continue;
     if (!q.intent_id && now - ms(q.scheduled_at) >= settings.stale_after_h * HOUR) continue;
@@ -471,7 +634,8 @@ export const ANSWERS = { uncertain: ['Đã lên — dán liên kết', 'Chưa l�
 async function askFor(n, { store, settings, soot, byKey, replies }) {
   const ch = byKey[n.channel] ?? {};
   const L = n.channel === 'blog-lohi' ? 'Blog' : (ch.key ? channelLabel(ch) : PLATFORM_LABEL[platformOf(n.channel)]) || n.channel;
-  const browser = soot ? `nest://browser/${soot}` : null;
+  // The Soot's own browser, on the channel's profile when it names one (the page it met stays open there).
+  const browser = soot ? `nest://browser/${soot}${profileOf(ch) ? `?profile=${encodeURIComponent(profileOf(ch))}` : ''}` : null;
   const item = (summary, missing, options, rec) => ({ keys: [n.key], summary, missing: missing.filter(Boolean).join('\n'), options: options.map(label => (label === rec ? { label, recommended: true } : { label })) });
   if (n.kind === 'channel') {
     const held = `Chưa đăng gì. Đăng ${L} đã dừng; bài vẫn ở hàng đợi.`;
@@ -625,7 +789,7 @@ export async function record(input, { store, now }) {
   return { state: done, ...(done === 'published' ? outcome(url) : {}) };
 }
 
-export async function failIntent(input, { store, now }) {
+export async function failIntent(input, { store, now, env, fetch: fetchImpl }) {
   const row = await intentRow(store, input.intent_id);
   const status = input.status;
   if (!['failed', 'needs_person', 'uncertain'].includes(status)) fail('invalid_request', 'status is failed, needs_person or uncertain.');
@@ -636,16 +800,24 @@ export async function failIntent(input, { store, now }) {
   if (row.status !== 'intent') return { state: (await post(store, row.post)).state, replayed: true };
   const unpub = row.action === 'unpublish';
   const q = await store.one('queue', [eq('post', row.post), eq('intent_id', row.intent_id)]);
+  let report = null;
   if (status === 'needs_person') {
     // Only that channel pauses; the reason is the platform code Cần bạn names.
-    await store.update('channels', [eq('key', row.channel)], { paused: true, paused_reason: code });
+    const ch = await store.one('channels', [eq('key', row.channel)]);
+    // A sign-out keeps when it began (rules.signed_out_at), so only a sign-in after it resumes the channel (due).
+    const episode = code === 'signed_out' && ch && !(ch.paused && ch.paused_reason === 'signed_out' && validAt(ch.rules?.signed_out_at));
+    await store.update('channels', [eq('key', row.channel)], { paused: true, paused_reason: code, ...(episode ? { rules: { ...(ch.rules ?? {}), signed_out_at: iso(now) } } : {}) });
+    // The profile's site is the one state of "signed in": say it is signed out there (best effort; the answer records it).
+    const profile = profileOf(ch), host = PLATFORM_HOST[ch?.platform ?? platformOf(row.channel)];
+    if (code === 'signed_out' && profile && host) report = { profile, host, ...(await reportSignedOut(env, fetchImpl, profile, host)) };
   }
+  const reported = report ? { profile_report: report } : {};
   // An earlier attempt may have gone out (verify_first) and the publisher could
   // not look: keep the intent and ask a person, never free it for a second post.
   if (status === 'uncertain' || (q?.verify && !unpub)) {
     await store.update('posts', [eq('ref', row.post)], { state: 'uncertain', reason });
     await store.update('publish_log', [eq('intent_id', row.intent_id)], { status: 'intent', reason });
-    return { state: 'uncertain' };
+    return { state: 'uncertain', ...reported };
   }
   await store.update('publish_log', [eq('intent_id', row.intent_id)], { status, reason, at: iso(now) });
   // A retry the guard would refuse (quiet hours) is promised for when it can go, not for an hour from now.
@@ -654,7 +826,7 @@ export async function failIntent(input, { store, now }) {
   await store.update('queue', [eq('post', row.post), eq('intent_id', row.intent_id)], { intent_id: null, intent_at: null, verify: false, scheduled_at: iso(retry), wait_reason: reason });
   const state = unpub ? 'published' : 'failed';
   await store.update('posts', [eq('ref', row.post)], { state, reason });
-  return { state };
+  return { state, ...reported };
 }
 
 export async function pause(input, { store, now }) {
@@ -662,6 +834,7 @@ export async function pause(input, { store, now }) {
   if (input.signed_in !== undefined && (input.signed_in !== true || !input.channel || input.paused !== true)) fail('invalid_request', 'signed_in is true, with channel and paused: true.');
   if (input.channel) {
     const ch = await channel(store, input.channel);
+    if (ch.paused_reason === 'retired') fail('conflict', `Kênh ${ch.key} đã ngừng: TikTok đăng theo từng tài khoản (tiktok-<tài khoản>).`);
     // The Soot saw the person's session: the sign-in item ends and the channel stays paused until the person's Bật.
     if (input.signed_in && !(ch.paused && ch.paused_reason === 'signed_out')) fail('conflict', `Kênh ${ch.key} không chờ đăng nhập.`);
     await store.update('channels', [eq('key', input.channel)], { paused: input.paused, paused_reason: input.paused ? (input.signed_in ? 'signed_in' : 'person') : null });
@@ -748,7 +921,7 @@ async function gscQuery(site, token, body, fetch) {
   return { rows: (await res.json()).rows ?? [] };
 }
 
-const GSC_NOT_CONNECTED = 'Chưa đăng nhập Google cho Search Console nên chưa có dòng nào (0 dòng). Mở Nest → Thiết lập → Đăng nhập Google bằng tài khoản là chủ sở hữu thuộc tính Search Console của blog.';
+const GSC_NOT_CONNECTED = 'Chưa đăng nhập Google cho Search Console nên chưa có dòng nào (0 dòng). Mở Nest → Cài đặt › Kho khóa → Đăng nhập Google bằng tài khoản là chủ sở hữu thuộc tính Search Console của blog.';
 const GSC_WHY = {
   no_published_posts: 'Chưa có bài đã đăng nên chưa có gì để đọc từ Search Console.',
   search_console_listed_nothing: 'Search Console chưa liệt kê trang nào trong các ngày vừa rồi: bài còn mới (Google cần vài ngày để lập chỉ mục) hoặc thuộc tính chưa nhận blog.',
@@ -917,7 +1090,8 @@ const CHANNEL_FIELDS = ['cap_per_day', 'spacing_min', 'reply_cap_per_day'];
  * fill only unset values; a founder's edit or pause is never overwritten.
  * `from_products: true` adds one TikTok channel per account in products.json (`accounts.tiktok`): `tiktok-<handle>`,
  * account `@handle`, rules `{product, video_channel}` and the account's `profile` when it names one. */
-export async function channels_setup(input, { store, env }) {
+export async function channels_setup(input, { store, env, now }) {
+  await retireLegacyTiktok(store, { env, now });
   const list = Array.isArray(input.channels) ? [...input.channels] : [];
   if (input.from_products === true) {
     const lr = await libraryRoot(env ?? {});
@@ -934,6 +1108,7 @@ export async function channels_setup(input, { store, env }) {
   const out = [];
   for (const c of list) {
     if (!c || typeof c.id !== 'string' || !defaultsFor(c.id)) fail('unknown_channel', `Không có kênh "${c?.id}".`);
+    if (c.id === LEGACY_TIKTOK) tiktokAccountRequired();
     if (c.profile !== undefined && c.profile !== null && !(typeof c.profile === 'string' && PROFILE_RE.test(c.profile))) fail('invalid_request', 'profile is a browser profile id (letters, digits, . _ -, up to 64).');
     if (c.publisher !== undefined && !['browser', 'hand'].includes(c.publisher)) fail('invalid_request', 'publisher is browser or hand.');
     const existed = !!(await store.one('channels', [eq('key', c.id)]));

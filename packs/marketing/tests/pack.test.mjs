@@ -20,7 +20,7 @@ const READS = ['cms_list', 'cms_read', 'social_channels', 'social_list', 'radar_
 
 // Hubless mode adds the pack's own tools (tests/hubless.test.mjs); the hub
 // tools stay exactly as they were.
-const OWN = ['draft_save', 'check', 'schedule', 'due', 'claim', 'record', 'fail', 'pause', 'items', 'facts_sync', 'gsc_sync', 'seo_brief', 'page_view', 'page_action', 'channels_setup', 'raised', 'answer', 'replies_sync', 'reply_save', 'video_import', 'video_brief', 'campaign_save', 'campaign_report', 'campaign_verify', 'plan', 'channels_probe', 'report', 'radar_read', 'signals_list', 'signals_mark', 'video_stats', 'inputs_health', 'library_scan', 'item_save', 'file_read', 'publish_bundle', 'release_due'];
+const OWN = ['draft_save', 'check', 'schedule', 'due', 'claim', 'record', 'fail', 'pause', 'items', 'facts_sync', 'gsc_sync', 'seo_brief', 'page_view', 'page_action', 'channels_setup', 'raised', 'answer', 'replies_sync', 'reply_save', 'video_import', 'video_brief', 'video_job', 'campaign_save', 'campaign_report', 'campaign_verify', 'plan', 'channels_probe', 'report', 'radar_read', 'signals_list', 'signals_mark', 'video_stats', 'inputs_health', 'library_scan', 'item_save', 'file_read', 'publish_bundle', 'release_due'];
 
 test('the pack is one flat set: five role skills, three social skills, the video glue, every hub tool once and the hubless tools', () => {
   assert.deepEqual(skills.map(s => s.name).sort(), ['marketing-browser-post', 'marketing-dispatch', 'marketing-edit', 'marketing-measure', 'marketing-publish', 'marketing-radar', 'marketing-replies', 'marketing-video', 'marketing-write']);

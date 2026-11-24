@@ -73,7 +73,7 @@ export async function loadProducts({ root, hubSites = [], campaignProducts = [] 
   const ids = [...new Set([...hubSites, ...campaignProducts].filter(id => typeof id === 'string' && PRODUCT_ID.test(id)))].slice(0, 12);
   return ids.map(id => normalProduct({ id }));
 }
-const TIKTOK_HANDLE = /^[A-Za-z0-9._]{2,24}$/;
+export const TIKTOK_HANDLE = /^[A-Za-z0-9._]{2,24}$/;
 const BROWSER_PROFILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 /**
  * A product's TikTok accounts, `[{handle, video_channel?, profile?}]`, from `accounts.tiktok` as an array of
@@ -268,6 +268,7 @@ async function tiktokDelivery(root, base) {
 export async function collect(root) {
   const rows = [];
   const products = await loadProducts({ root });
+  const known = new Set(products.map(p => p.id));
   const channelProduct = new Map();
   for (const p of products) for (const c of p.video_channels) channelProduct.set(c, p.id);
   if (await exists(root, 'products.json')) {
@@ -303,8 +304,12 @@ export async function collect(root) {
       const delivered_at = delivery.length ? await mtimeOf(root, `${dir}/08-delivery`) : null;
       const tiktok = delivery.length ? await tiktokDelivery(root, `${dir}/08-delivery`) : null;
       const owner = entries.some(x => x.name === 'owner.json') ? parseJSON(await readText(root, `${dir}/owner.json`, 64 * 1024).catch(() => '')) : null;
-      camps.push(json.product);
-      rows.push({ path: `${dir}/campaign.json`, kind: 'campaign', product: typeof json.product === 'string' ? json.product : null, channel: ch, series: typeof json.series === 'string' ? json.series : null, campaign: e.name, title: String(json.title || slugTitle(json.slug ?? e.name)).slice(0, 300), sha: cj?.sha ?? null, ref: refFor(`video:${ch}/${e.name}`),
+      // A video channel folder is not a product: a campaign.json that names one products.json does not list (mvf writes
+      // the folder name there) belongs to the product that owns the folder.
+      const named = typeof json.product === 'string' && json.product ? json.product : null;
+      const productOf = named && known.has(named) ? named : channelProduct.get(ch) ?? named;
+      camps.push(productOf);
+      rows.push({ path: `${dir}/campaign.json`, kind: 'campaign', product: productOf, channel: ch, series: typeof json.series === 'string' ? json.series : null, campaign: e.name, title: String(json.title || slugTitle(json.slug ?? e.name)).slice(0, 300), sha: cj?.sha ?? null, ref: refFor(`video:${ch}/${e.name}`),
         meta: { platforms: Array.isArray(json.platforms) ? json.platforms.slice(0, 8) : [], delivered_at, goal: json.goal ?? null, languages: json.languages ?? null, stages, delivery, owner: owner && typeof owner === 'object' ? { approved: owner.approved ?? owner.ok ?? null, note: typeof owner.note === 'string' ? owner.note.slice(0, 500) : null, at: owner.at ?? null } : null, ai_label: json.ai_label ?? json.label_ai ?? null, ...(tiktok ? { tiktok } : {}) } });
     }
     const product = channelProduct.get(ch) ?? majority(camps);
@@ -669,7 +674,9 @@ function pretestInput(t) {
 }
 
 /** What the desk asks the Editor for a new item. One function: a resend from the item sheet says the same words. */
-export function askText({ ref, to, format, product, topic, channels = [], series = null, target = null, source = null, changelog = null, notes = null }) {
+export function askText({ ref, to, format, product, topic, channels = [], series = null, target = null, source = null, changelog = null, notes = null, tiktok = [] }) {
+  // TikTok goes out per account: the ask names the product's tiktok-<handle> channels, the ones video_import takes.
+  channels = channels.flatMap(c => (c === 'tiktok' && tiktok.length ? tiktok : [c]));
   const who = to === 'builder' ? 'Builder' : 'Writer';
   const what = { blog: 'bài blog', social: 'bài mạng xã hội', video: 'video', community: 'bài cộng đồng', newsletter: 'bản tin', launch: 'gói ra mắt (blog, X và Show HN)' }[format];
   return [
@@ -679,7 +686,7 @@ export function askText({ ref, to, format, product, topic, channels = [], series
     target ? `Nơi đăng: ${targetLabel(target)}${target.rules ? ` (luật: ${target.rules})` : ''}. Lưu bằng item_save community {target: ${JSON.stringify(target.id ?? target)}, title, body}.` : null,
     format === 'newsletter' ? `Nguồn: ${source === 'topic' ? 'chủ đề trên' : 'những gì đã lên trong tuần'}. Lưu bằng item_save newsletter {subject, preheader, body}.` : null,
     format === 'launch' ? `Nguồn: ${changelog ? `CHANGELOG ${changelog}` : 'ghi chú phát hành'}, chép ở cuối việc này. Chỉ viết điều ghi chú nói. Lưu blog (langs), bài X (posts) và Show HN (community) trong cùng một mục.` : null,
-    to === 'writer' ? `Writer lưu bằng item_save với ref ${ref}, rồi Editor xem và xin duyệt một lần bằng publish_bundle.` : `Builder dựng theo series và để video trong thư mục chiến dịch; tôi đăng TikTok bằng tay.`,
+    to === 'writer' ? `Writer lưu bằng item_save với ref ${ref}, rồi Editor xem và xin duyệt một lần bằng publish_bundle.` : `Builder dựng theo series, để video trong thư mục chiến dịch và nhập bằng video_import vào kênh tiktok-<tài khoản>; máy đăng đăng sau khi duyệt.`,
     format === 'launch' && notes ? `Ghi chú phát hành:\n${notes}` : null,
   ].filter(Boolean).join('\n');
 }

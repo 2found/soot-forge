@@ -178,6 +178,11 @@ const ERRORS = {
   gesture_required: 'Màn hình chỉ gửi được khi bạn bấm nút trên đó. Bấm lại nút.',
   tool_refused: 'Bàn chưa nhận việc này. Thử lại sau ít phút.',
   ask_failed: 'Biên tập chưa nhận được tin. Thử lại sau ít phút.',
+  profile_in_use: 'Hồ sơ này đang dùng cho một tài khoản TikTok khác. Mỗi tài khoản một hồ sơ.',
+  browser_profile_unknown: 'Nest không còn hồ sơ trình duyệt này. Tải lại rồi chọn hồ sơ khác.',
+  profiles_unread: 'Marketing chưa được cấp quyền đọc hồ sơ trình duyệt.',
+  handle_invalid: 'Tên tài khoản chỉ gồm chữ, số, dấu chấm và gạch dưới, 2–24 ký tự.',
+  account_exists: 'Bàn đã có tài khoản TikTok này.',
 };
 /** What a failed call says to the founder. */
 export const errorText = (e) => ERRORS[e?.code] ?? 'Chưa làm được. Thử lại sau ít phút.';
@@ -455,6 +460,79 @@ export function cellText(c) {
   }
   return { tone: 'none', l1: '—', l2: '' };
 }
+/**
+ * A profile's sign-in, from Nest's own state (`sign_in` of a cell or an account line): "Đã đăng nhập · 09:00 hôm nay",
+ * "Đã đăng xuất · …", "Chưa đăng nhập", or "—" with why it cannot be told (the pack is not granted to read it: `grant`
+ * is the link that grants it). Null without a profile.
+ */
+export function signInText(si, now) {
+  if (!si) return null;
+  const at = si.at ? when(si.at, now) : '';
+  if (si.state === 'signed_in') return { text: at ? `Đã đăng nhập · ${at}` : 'Đã đăng nhập', tone: 'ok' };
+  if (si.state === 'signed_out') return { text: at ? `Đã đăng xuất · ${at}` : 'Đã đăng xuất', tone: 'err' };
+  if (si.state === 'never') return { text: 'Chưa đăng nhập', tone: 'wait' };
+  const why = si.why === 'no_grant' ? 'Marketing chưa được cấp quyền đọc hồ sơ trình duyệt.'
+    : si.why === 'browser_profile_unknown' ? 'Máy này không có hồ sơ trình duyệt này.' : 'Chưa đọc được trạng thái từ Nest.';
+  return { text: '—', tone: 'idle', why, grant: si.why === 'no_grant' ? si.grant ?? null : null };
+}
+/**
+ * T3: one browser profile in an account's picker, from the channel view's `profiles.list`. `label` is the option's
+ * words (its name, then who may open it, or the account it already posts for); `taken` is that other account (the
+ * option is disabled: one profile signs in one account).
+ */
+export function profileChoice(p, channel) {
+  const taken = p.bound && p.bound.channel !== channel ? p.bound.account ?? 'một tài khoản khác' : null;
+  const grant = p.granted === 'team' ? 'đã cấp cho đội' : p.granted === 'soot' ? `đã cấp cho ${num(p.allowed ?? 1)} Soot` : 'chưa cấp cho Soot nào';
+  return { label: `${p.name}${p.project ? ` (${p.project})` : ''} · ${taken ? `đang dùng cho ${taken}` : grant}`, taken };
+}
+/** What choosing profile `p` means, under the picker: its TikTok sign-in, then whether a Soot can open it at all. */
+export function profileHint(p, now) {
+  if (!p) return 'Mỗi tài khoản một hồ sơ. Máy đăng mở hồ sơ này để đăng video.';
+  const si = signInText({ state: p.sign_in?.state ?? null, at: p.sign_in?.at ?? null }, now);
+  const signIn = p.sign_in?.state === 'signed_in' ? `TikTok: ${si.text.toLowerCase()}.` : 'TikTok chưa đăng nhập trên hồ sơ này: tài khoản tạm dừng tới khi bạn đăng nhập.';
+  return p.granted === 'none' ? `${signIn} Chưa Soot nào mở được hồ sơ này: cấp trong Kho khóa.` : signIn;
+}
+/** A TikTok handle as the person types it (with or without @), or null when it is not one. */
+export function tiktokHandle(v) {
+  const h = String(v ?? '').trim().replace(/^@/, '');
+  return /^[A-Za-z0-9._]{2,24}$/.test(h) ? h : null;
+}
+/** The toast after a binding (set_limits {browser_profile}) or an added account (add_account). */
+export function bindToast(out, name) {
+  if (!out) return '';
+  const b = out.binding ?? out;
+  const use = out.usage?.set && !out.usage.set.ok ? ' Kho khóa chưa ghi được dòng Dùng cho.' : '';
+  if (out.op === 'add_account') {
+    if (out.signed_in_as) return `Đã thêm ${out.account}. Hồ sơ đang đăng nhập TikTok bằng ${out.signed_in_as}: đăng nhập ${out.account} trên hồ sơ này để tài khoản chạy.${use}`;
+    return `Đã thêm ${out.account}. ${out.paused ? `Đăng nhập TikTok trên hồ sơ${name ? ` ${name}` : ''} để tài khoản chạy.` : 'Hồ sơ đã đăng nhập TikTok, tài khoản chạy ngay.'}${use}`;
+  }
+  if (out.profile === null) return 'Đã bỏ hồ sơ khỏi tài khoản. Máy đăng không đăng cho tài khoản này tới khi bạn chọn hồ sơ.';
+  if (b.unchanged) return `Tài khoản vẫn dùng hồ sơ ${name ?? 'này'}.${use}`;
+  if (b.signed_in_as) return `Đã đổi hồ sơ. Hồ sơ đang đăng nhập TikTok bằng ${b.signed_in_as}: đăng nhập đúng tài khoản rồi bật lại.${use}`;
+  return `Đã đổi sang hồ sơ ${name ?? 'mới'}. ${b.resumed ? 'Hồ sơ đã đăng nhập TikTok, tài khoản chạy lại.' : b.paused && b.paused_reason === 'signed_out' ? 'Đăng nhập TikTok trên hồ sơ này để tài khoản chạy.' : 'Lượt đăng tới dùng hồ sơ này.'}${use}`;
+}
+/** One account line of a TikTok cell: its state and the one thing to do about it. */
+export function accountText(a) {
+  if (a.state === 'ok') return { label: 'Đang chạy', tone: 'ok', action: { id: 'pause', label: 'Tạm dừng' } };
+  if (a.state === 'signed_out') return { label: 'Đã đăng xuất', tone: 'err', action: { id: 'sign_in', label: 'Đăng nhập' } };
+  return { label: a.paused_reason === 'signed_in' ? 'Đã đăng nhập, chờ bật lại' : 'Bạn tạm dừng', tone: 'wait', action: { id: 'resume', label: 'Bật lại' } };
+}
+/** A Claude Code job of the desk's Nội dung (marketing video ledger) in a person's words. A running job's log is the
+ *  session's own; its last words are only readable once it ends. */
+export function jobText(j, now) {
+  const clip = (/** @type {any} */ s, n) => (typeof s === 'string' ? (s.length > n ? `${s.slice(0, n - 1)}…` : s) : '');
+  switch (j.state) {
+    case 'running': return { tone: 'wait', icon: 'hourglass', tag: 'Đang chạy',
+      sub: `${j.minutes === null || j.minutes === undefined ? 'Đang làm video' : `Đã chạy ${num(j.minutes)} phút`}. Xem được nhật ký khi phiên kết thúc.` };
+    case 'waiting': return { tone: 'idle', icon: 'clock', tag: 'Chờ máy rảnh',
+      sub: `Máy đang bận${j.running?.length ? ` với ${j.running.map((/** @type {any} */ r) => r.title || r.key).filter(Boolean).slice(0, 2).join(', ')}` : ''}, nên chưa bắt đầu. Lượt sau tự làm lại.` };
+    case 'done': return { tone: 'ok', icon: 'check_circle', tag: 'Xong',
+      sub: `${j.ended_at ? `Xong ${when(j.ended_at, now)}. ` : ''}${j.posts?.length ? 'Video đã thành nháp, chờ bạn duyệt.' : 'Không có nháp mới.'}` };
+    case 'failed': return { tone: 'err', icon: 'x_circle', tag: 'Lỗi',
+      sub: `${j.ended_at ? `Dừng ${when(j.ended_at, now)}: ` : 'Dừng: '}${clip(j.error, 160) || 'phiên báo lỗi'}.${j.log_tail ? ` Lời cuối: “${clip(j.log_tail, 200)}”` : ''}` };
+  }
+  return { tone: 'idle', icon: 'info', tag: '', sub: '' };
+}
 /** What a channel sheet says first about its state. */
 export function cellWhat(c, productName) {
   const ch = CH[c.channel] ?? c.channel;
@@ -469,7 +547,7 @@ export function cellWhat(c, productName) {
     case 'signed_out': return `Máy đăng mở ${ch} thì gặp trang đăng nhập. Máy đăng không tự đăng nhập, không gõ mật khẩu. Bài đã duyệt đang đứng; quá 48 giờ thì về nháp và cần duyệt lại.`;
     case 'not_connected': return `Tài khoản ${c.account ?? ''} có rồi nhưng chưa nối vào máy chủ đăng bài, nên chưa có bài nào lên kênh này.`;
     case 'no_account': return `${productName} chưa có tài khoản ${ch} riêng.${c.drafts ? ` ${c.drafts} nháp đang chờ.` : ''}`;
-    case 'manual': return c.channel === 'tiktok' ? 'TikTok luôn do bạn đăng: Người dựng video làm video, bạn đăng rồi dán link vào đây.' : `Chưa có máy đăng cho ${ch}: duyệt xong bạn đăng tay rồi dán link.`;
+    case 'manual': return c.channel === 'tiktok' ? `Máy đăng chưa có tài khoản TikTok nào của ${productName}. Video xong thì bạn đăng rồi dán link vào đây.` : `Chưa có máy đăng cho ${ch}: duyệt xong bạn đăng tay rồi dán link.`;
     case 'unknown': return c.why === 'hubless' ? `Chưa có máy đăng cho ${ch}: duyệt xong bạn đăng tay rồi dán link.` : 'Chưa đọc được máy chủ đăng bài, nên chưa biết kênh này ra sao.';
     case 'off': return c.why === 'no_blog' ? `${productName} chưa có blog: Người viết chỉ soạn bài mạng xã hội, cộng đồng và bản tin.` : c.channel === 'community' ? 'Sản phẩm này chưa đăng lên cộng đồng nào. Thêm nơi đăng khi thiết lập sản phẩm.' : c.channel === 'newsletter' ? 'Sản phẩm này chưa có bản tin.' : c.why === 'not_chosen' ? `Lúc thiết lập bạn không chọn ${ch} cho ${productName}, nên Người viết không soạn bài cho kênh này.` : 'Sản phẩm này chưa dùng kênh này.';
   }
@@ -479,9 +557,11 @@ export function cellWhat(c, productName) {
 export function stepText(s, c) {
   const ch = CH[c.channel] ?? c.channel;
   switch (s.id) {
-    case 'sign_in': return { title: `Đăng nhập ${s.args?.account ?? ch}`, hint: `Ở Cài đặt › Trình duyệt${s.args?.profile ? `, hồ sơ ${s.args.profile}` : ''}. Nest hỏi cài trình duyệt cho Soot thì cài trước.`, button: 'Mở Cài đặt › Trình duyệt' };
+    case 'sign_in': return { title: `Đăng nhập ${s.args?.account ?? ch}`, hint: s.args?.profile
+      ? `Trên hồ sơ trình duyệt ${s.args.profile}: đăng nhập trên trang vừa mở rồi bấm Tôi đã đăng nhập. Máy đăng tự chạy lại sau đó.`
+      : 'Ở Kho khóa › Đăng nhập trình duyệt, chọn hồ sơ của tài khoản này rồi đăng nhập.', button: 'Đăng nhập' };
     case 'budget': return { title: 'Cho máy đăng đủ ngân sách', hint: 'Bàn chưa đọc được ngân sách của máy đăng. Xem ở Cần bạn nếu nó báo hết.', button: 'Mở Cần bạn' };
-    case 'resume': return { title: 'Bật lại kênh', hint: 'Máy đăng nhận bài ở lượt kế tiếp.', button: null };
+    case 'resume': return { title: s.args?.account ? `Bật lại ${s.args.account}` : 'Bật lại kênh', hint: 'Máy đăng nhận bài ở lượt kế tiếp.', button: s.args?.channel ? 'Bật lại' : null };
     case 'connect': return { title: `Nối ${ch} vào máy chủ đăng bài`, hint: 'Biên tập soạn sẵn các bước cho bạn.', button: 'Nhờ Biên tập' };
     case 'create_account': return { title: `Tạo tài khoản ${ch} riêng`, hint: 'Tài khoản đang có chỉ đăng cho sản phẩm khác.', button: null };
   }

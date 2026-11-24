@@ -156,11 +156,11 @@ test('the same key while it runs answers the running job; a second session is ne
   await finished(sb, next.id);
 });
 
-test('over CLAUDE_CODE_MAX_RUNNING the answer is a quiet busy; a higher limit lets two run', async () => {
+test('over CLAUDE_CODE_MAX_RUNNING the answer is busy, not done, so a chain records it; a higher limit lets two run', async () => {
   const sb = sandbox();
   const first = await call(sb, 'start', { ...brief('FAKE:sleep=1500'), dir: sb.work });
   const busy = await call(sb, 'start', { ...brief(), key: 'video-2', dir: sb.work });
-  assert.deepEqual([busy.done, busy.waiting, busy.running.map(r => r.key)], [true, 'busy', ['video-1']]);
+  assert.deepEqual([busy.done, busy.started, busy.waiting, busy.key, busy.title, busy.running.map(r => r.key)], [undefined, false, 'busy', 'video-2', 'Make the video', ['video-1']]);
   assert.equal((await call(sb, 'jobs', {})).count, 1);
   await finished(sb, first.id);
   const two = sandbox({ CLAUDE_CODE_MAX_RUNNING: '2' });
@@ -236,7 +236,7 @@ test('a session past its timeout is killed with its whole group; watch reports t
   assert.equal(exit.timed_out, true);
   await until(() => !pidAlive(grandchild));
   const w = await call(sb, 'watch', {});
-  assert.equal(w.ok, false); assert.equal(w.job.state, 'timed_out'); assert.match(w.job.error, /timed out/);
+  assert.equal(w.notify, true); assert.equal(w.job.state, 'timed_out'); assert.match(w.job.error, /timed out/);
 });
 
 test('stop kills the group and records stopped; watch stays quiet about it', async () => {
@@ -268,7 +268,7 @@ test('a runner that vanished is failed (runner_gone): jobs derives it, watch mak
   assert.equal(j.state, 'failed'); assert.match(j.error, /runner_gone/);
   assert.equal(existsSync(join(dir, 'exit.json')), false); // a read tool writes nothing
   const w = await call(sb, 'watch', {});
-  assert.equal(w.ok, false); assert.equal(w.notify, true); assert.match(w.job.error, /runner_gone/);
+  assert.equal(w.ok, undefined); assert.equal(w.notify, true); assert.match(w.job.error, /runner_gone/);
   assert.equal(existsSync(join(dir, 'exit.json')), true);
 });
 
@@ -278,7 +278,7 @@ test('watch ends a job past its timeout whose runner is long gone', async () => 
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'job.json'), JSON.stringify({ id, key: 'old', title: 'Old', dir: sb.work, model: 'opus', effort: 'high', timeout_min: 5, timeout_ms: 300000, started_at: '2026-11-20T01:00:00.000Z', claude_bin: sb.claude }));
   const w = await call(sb, 'watch', {});
-  assert.equal(w.ok, false); assert.equal(w.job.state, 'failed');
+  assert.equal(w.notify, true); assert.equal(w.job.state, 'failed');
 });
 
 test('jobs filters by key and state, newest first, with a long last_text and a large result trimmed', async () => {
@@ -306,4 +306,39 @@ test('the entry script reads the context on stdin and prints {error:{code,messag
   assert.equal(go('nope', {}).error.code, 'invalid_request');
   assert.deepEqual(go('jobs', {}), { count: 0, jobs: [] });
   assert.deepEqual(go('watch', {}), { done: true, running: 0 });
+});
+
+test('watch emit job hands a failure on as {notify, job}, never ok:false, so the next tool records it', async () => {
+  const sb = sandbox();
+  const out = await call(sb, 'start', { ...brief('FAKE:fail'), dir: sb.work });
+  await finished(sb, out.id);
+  const w = await call(sb, 'watch', { key_prefix: 'video-', emit: 'job' });
+  assert.equal(w.ok, undefined); assert.equal(w.done, undefined); assert.equal(w.notify, true);
+  assert.deepEqual([w.job.id, w.job.key, w.job.title, w.job.state, w.job.last_text], [out.id, 'video-1', 'Make the video', 'failed', 'working on it']);
+  assert.match(w.job.error, /code 3/);
+  assert.equal(w.result, undefined);
+  assert.deepEqual(await call(sb, 'watch', { emit: 'job' }), { done: true, running: 0 });
+});
+
+test('start and watch delete job folders that ended more than 14 days ago; a running job and a read tool never do', async () => {
+  const sb = sandbox();
+  const old = await call(sb, 'start', { ...brief(), key: 'old', dir: sb.work });
+  await finished(sb, old.id);
+  const recent = await call(sb, 'start', { ...brief(), key: 'recent', dir: sb.work });
+  await finished(sb, recent.id);
+  // A running job (no exit.json, a live runner) has no end to age from: it is kept.
+  const live = await call(sb, 'start', { ...brief('FAKE:sleep=1500'), key: 'live', dir: sb.work });
+  const jobs = join(sb.state, 'jobs');
+  const exitOf = id => join(jobs, id, 'exit.json');
+  const ended = JSON.parse(readFileSync(exitOf(old.id), 'utf8'));
+  writeFileSync(exitOf(old.id), JSON.stringify({ ...ended, ended_at: new Date(Date.now() - 15 * 86_400_000).toISOString() }));
+  // jobs is a read tool: it deletes nothing.
+  assert.equal((await call(sb, 'jobs', {})).count, 3);
+  assert.ok(existsSync(join(jobs, old.id)));
+  assert.deepEqual(await call(sb, 'watch', { key_prefix: 'none-' }), { done: true, running: 0 });
+  assert.equal(existsSync(join(jobs, old.id)), false, 'an expired job is deleted');
+  assert.equal(existsSync(exitOf(live.id)), false, 'the running job was not ended');
+  assert.ok(existsSync(join(jobs, recent.id)), 'a job that ended today is kept');
+  assert.ok(existsSync(join(jobs, live.id)), 'a running job is kept');
+  await finished(sb, live.id);
 });

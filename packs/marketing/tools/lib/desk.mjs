@@ -16,9 +16,12 @@ import { fail, eq, gte } from './store.mjs';
 import { hubCall, hubBinding, hubSource } from './hub.mjs';
 import { libraryRoot, rootKind, readText, exists } from './root.mjs';
 import { platformOf } from './guard.mjs';
+import { PLATFORM_HOST, signInLink, grantLink, readProfiles, siteState } from './profiles.mjs';
 import { loadProducts, tiktokChannelId, libraryTree, libraryDetail, refFor, videoRows, askText, localId, blogMode, targetLabel, subscriberCount, changelogVersion, blogDirOf, TITLE_MAX, TZ, ITEM_REF } from './library.mjs';
 import { deskState, rulesFor, pausedFor, markHubOk, releaseKeyOf, DESK_CHANNELS } from './bundle.mjs';
 import { localDay, localDayStart } from './time.mjs';
+import { readJobs, jobsView } from './video-jobs.mjs';
+import { profileChoices } from './accounts.mjs';
 
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 export const VIEWS = ['summary', 'today', 'content', 'item', 'channels', 'channel', 'library', 'numbers'];
@@ -54,7 +57,7 @@ export function approvalsIn(list) {
 }
 
 /** Read everything a view needs once: store rows, the library root, and (when asked) the hub. */
-export async function gather({ store, env, now, fetch: fetchImpl, soot, teams = null, packs = null }, { hub = true, approvals = null, remember = false } = {}) {
+export async function gather({ store, env, now, fetch: fetchImpl, soot, teams = null, packs = null }, { hub = true, approvals = null, remember = false, profiles = true } = {}) {
   const lr = await libraryRoot(env);
   const [state, lib, releases, bundles] = await Promise.all([
     deskState(store),
@@ -83,6 +86,11 @@ export async function gather({ store, env, now, fetch: fetchImpl, soot, teams = 
   if (!W.hub.bound) W.hubless = (await store.query('posts', [], { order: 'updated_at', desc: true, limit: 200 })).filter(p => p.kind !== 'reply');
   // The pack's own channels (a TikTok account is one) and the videos it posts, so a delivered mvf campaign shows what became of it.
   W.channels = await store.query('channels', [], { limit: 50 });
+  // The profiles' sign-in state is Nest's (browser.profiles.read): read once, only when a channel names a profile and
+  // the view shows a channel's state (not the content or library tabs).
+  W.soot = soot ?? null;
+  W.profiles = profiles && W.channels.some(c => typeof c.rules?.profile === 'string') || W.hub.channels?.channels?.some(c => (c.accounts ?? []).some(a => a.profile))
+    ? await readProfiles(env, fetchImpl) : null;
   W.videoPosts = W.hubless ? W.hubless.filter(p => p.kind === 'video') : await store.query('posts', [eq('kind', 'video')], { order: 'updated_at', desc: true, limit: 200 });
   W.mode = W.hub.bound ? 'hub' : 'hubless';
   W.teams = Array.isArray(teams) ? teams : null;
@@ -126,6 +134,38 @@ function accountsFor(W, product, channel) {
   const site = W.products.find(p => p.id === product)?.hub_site ?? product;
   return (entry.accounts ?? []).filter(a => !a.sites || a.sites.includes(site));
 }
+/** The product a TikTok account row posts for: its rules.product when the desk knows that product, else the product
+ *  that lists the account or owns its video channel folder (a folder is never a product of its own). */
+function tiktokOwner(W, c) {
+  const named = c.rules?.product ?? null;
+  if (named && W.products.some(p => p.id === named)) return named;
+  const listed = W.products.find(p => (p.tiktok_accounts ?? []).some(a => tiktokChannelId(a.handle) === c.key));
+  if (listed) return listed.id;
+  const dir = c.rules?.video_channel;
+  return (dir && W.products.find(p => (p.video_channels ?? []).includes(dir))?.id) || named;
+}
+/** A product's live TikTok account rows; the retired legacy `tiktok` row is not one. */
+export const tiktokRows = (W, product) => (W.channels ?? []).filter(c => platformOf(c.key) === 'tiktok' && c.key !== 'tiktok' && c.publisher === 'browser' && c.paused_reason !== 'retired' && tiktokOwner(W, c) === product)
+  .sort((a, b) => String(a.key).localeCompare(String(b.key)));
+/**
+ * A profile's sign-in on a platform as the desk shows it, from Nest's own state: {state: signed_in | signed_out | never,
+ * at}, or {state: null, why, grant?} when it cannot be read (no_grant carries the link that grants it). Null without a
+ * profile. `href` opens the profile's sign-in on that site.
+ */
+function signInOf(W, profile, platform) {
+  if (!profile) return null;
+  const host = PLATFORM_HOST[platform] ?? null;
+  const s = siteState(W.profiles, profile, host);
+  return { ...s, host, href: signInLink(profile, host), ...(s.why === 'no_grant' ? { grant: grantLink(W.soot) } : {}) };
+}
+/** One account line of a TikTok cell: running, signed out, or paused (by a person, or waiting for its resume after a sign-in). */
+const accountLine = (W, c) => {
+  const profile = typeof c.rules?.profile === 'string' ? c.rules.profile : null;
+  return { channel: c.key, account: c.account ?? null, profile, video_channel: c.rules?.video_channel ?? null,
+    paused: !!c.paused, paused_reason: c.paused_reason ?? null, state: !c.paused ? 'ok' : c.paused_reason === 'signed_out' ? 'signed_out' : 'paused',
+    sign_in: signInOf(W, profile, 'tiktok') };
+};
+
 /** Product × channel state (spec Cell). */
 export function cellFor(W, product, channel) {
   const key = `${product}:${channel}`;
@@ -163,14 +203,13 @@ export function cellFor(W, product, channel) {
     return declared ? { ...base, state: paused ? 'paused' : 'by_hand', via: 'hand', account: declared, waiting: hand } : { ...base, state: 'off', via: null, account: null, why: 'not_chosen' };
   }
   if (channel === 'tiktok') {
-    // The product's TikTok accounts the Publisher drives (channels tiktok-<handle>, publisher browser) show as a browser channel.
-    const ids = new Set((prod?.tiktok_accounts ?? []).map(a => tiktokChannelId(a.handle)));
-    const mine = (W.channels ?? []).filter(c => platformOf(c.key) === 'tiktok' && c.publisher === 'browser' && (c.rules?.product ? c.rules.product === product : ids.has(c.key)));
-    if (mine.length) {
-      const live = mine.filter(c => !c.paused);
-      const state = paused ? 'paused' : live.length ? 'ok' : mine.some(c => c.paused_reason === 'signed_out') ? 'signed_out' : 'paused';
-      const profile = (live[0] ?? mine[0]).rules?.profile ?? null;
-      return { ...base, state, via: 'browser', account: mine.map(c => c.account ?? c.key).join(', '), profile, accounts: mine.map(c => ({ channel: c.key, account: c.account ?? null, profile: c.rules?.profile ?? null, paused: !!c.paused, paused_reason: c.paused_reason ?? null })) };
+    // One line per TikTok account the Publisher drives (channel tiktok-<handle>, publisher browser), each with its own
+    // state; the row is what due and claim read, so the desk's pause (settings.desk_pause) has no say here, only pause-all.
+    const lines = tiktokRows(W, product).map(c => accountLine(W, c));
+    if (lines.length) {
+      const state = W.state.pause.all ? 'paused' : lines.some(l => l.state === 'signed_out') ? 'signed_out' : lines.some(l => l.state === 'ok') ? 'ok' : 'paused';
+      const first = lines.find(l => l.state === 'signed_out') ?? lines.find(l => l.state === 'ok') ?? lines[0];
+      return { ...base, state, via: 'browser', account: lines.map(l => l.account ?? l.channel).join(', '), profile: first.profile, sign_in: first.sign_in, accounts: lines };
     }
     const hand = (W.items ?? []).filter(i => i.product === product && i.format === 'video'); // W.items is still being built while items derive
     // The handle the founder named at setup (accounts.tiktok) is the account; video_channels are only library folders.
@@ -191,7 +230,7 @@ export function cellFor(W, product, channel) {
   const a = accounts[0];
   const entry = W.hub.channels.channels.find(c => c.channel === channel);
   const via = a.kind === 'browser' ? 'browser' : 'api';
-  const out = { ...base, via, account: a.handle ? `@${a.handle}` : a.page_name ?? a.account, profile: a.profile ?? null, max: entry?.max_length ?? null, posted_7d: posted7(since), poster_seen_at: entry?.poster_seen_at ?? null };
+  const out = { ...base, via, account: a.handle ? `@${a.handle}` : a.page_name ?? a.account, profile: a.profile ?? null, ...(via === 'browser' ? { sign_in: signInOf(W, a.profile ?? null, channel) } : {}), max: entry?.max_length ?? null, posted_7d: posted7(since), poster_seen_at: entry?.poster_seen_at ?? null };
   if (via === 'browser') {
     // The Poster says why it did not post (social_release not_posted keeps the note on the approved post).
     const signed = W.hub.social.filter(p => p.channel === channel && p.status === 'approved' && postProduct(W, p) === product && SIGNED_OUT.test(p.note ?? '') && W.now - t(p.updated_at) < X_APPROVAL_MS);
@@ -382,6 +421,18 @@ function planRow(W, { channel, lang, account, r, hub, cell, hash = null, skipped
 
 /** A video post of the pack was made from this library campaign folder (its `brief.campaign_dir` is workspace-relative, the item's `dir` library-relative). */
 const madeFrom = (p, it) => typeof p.brief?.campaign_dir === 'string' && !!it.dir && (p.brief.campaign_dir === it.dir || p.brief.campaign_dir.endsWith(`/${it.dir}`));
+/** The one TikTok account a video item posts on: the account row whose video_channel is the item's folder, else the
+ *  product's only account; null when none or more than one could. */
+function videoAccount(W, it) {
+  const rows = tiktokRows(W, it.product);
+  const byDir = rows.filter(c => c.rules?.video_channel && c.rules.video_channel === it.channel_dir);
+  const one = byDir.length ? (byDir.length === 1 ? byDir[0] : null) : rows.length === 1 ? rows[0] : null;
+  if (one) return { channel: one.key, account: one.account ?? null };
+  const prod = W.products.find(p => p.id === it.product);
+  const accts = (prod?.tiktok_accounts ?? []).filter(a => a.video_channel === it.channel_dir);
+  const a = accts.length === 1 ? accts[0] : (prod?.tiktok_accounts ?? []).length === 1 ? prod.tiktok_accounts[0] : null;
+  return a ? { channel: tiktokChannelId(a.handle), account: `@${a.handle}` } : null;
+}
 const VIDEO_PLAN = { published: 'posted', scheduled: 'scheduled', publishing: 'scheduled', failed: 'held', uncertain: 'uncertain' };
 
 function deriveVideo(W, it) {
@@ -390,7 +441,7 @@ function deriveVideo(W, it) {
   // where it stands. A post still a draft, or on a channel set to hand, changes nothing.
   const own = (W.videoPosts ?? []).filter(p => platformOf(p.channel) === 'tiktok' && madeFrom(p, it) && VIDEO_PLAN[p.state]);
   const out = own.find(p => p.state === 'published' && p.url) ?? own.find(p => p.state !== 'published') ?? null;
-  it.plan = [{ channel: 'tiktok', lang: 'vi', account: it.channel_dir, at: v.posted ?? null, state: v.url ? 'posted' : out ? VIDEO_PLAN[out.state] : v.delivered ? 'handoff' : 'after_approval', ...(v.url ? { url: v.url } : out?.url ? { url: out.url } : {}) }];
+  it.plan = [{ channel: 'tiktok', lang: 'vi', account: videoAccount(W, it)?.account ?? it.channel_dir, at: v.posted ?? null, state: v.url ? 'posted' : out ? VIDEO_PLAN[out.state] : v.delivered ? 'handoff' : 'after_approval', ...(v.url ? { url: v.url } : out?.url ? { url: out.url } : {}) }];
   it.channels = ['tiktok'];
   if (!v.url && out) {
     const at = out.state === 'published' ? iso(t(out.updated_at)) : null;
@@ -421,12 +472,14 @@ export function blockers(W, product) {
   const out = [];
   const items = W.items.filter(forProduct(product));
   // A signed-out browser channel: one line per product and channel, with what goes back to draft and when.
-  for (const p of W.products.filter(forProduct(product))) for (const ch of ['x', 'facebook']) {
+  for (const p of W.products.filter(forProduct(product))) for (const ch of ['x', 'facebook', 'tiktok']) {
     const c = cellFor(W, p.id, ch);
     if (c.state !== 'signed_out') continue;
+    // A TikTok cell names the accounts that are signed out, not every account it has.
+    const account = c.accounts ? c.accounts.filter(a => a.state === 'signed_out').map(a => a.account ?? a.channel).join(', ') : c.account;
     const held = items.filter(i => i.product === p.id).flatMap(i => (i.plan ?? []).filter(x => x.channel === ch && x.reason === 'signed_out').map(x => ({ ...x, ref: i.ref })));
     const at = held.map(x => x.returns_at).filter(Boolean).sort()[0] ?? null;
-    out.push({ id: `signed_out:${p.id}:${ch}`, kind: held.length ? 'returns_to_draft' : 'signed_out', tone: 'err', product: p.id, channel: ch, count: held.length, at, title_code: held.length ? 'returns' : 'signed_out', title_args: { n: held.length, product: p.id, account: c.account, time: at, channel: ch }, meta_code: 'signed_out_since', meta_args: { since: c.since }, do: { label_code: 'fix_channel', sheet: { kind: 'channel', key: `${p.id}:${ch}` } } });
+    out.push({ id: `signed_out:${p.id}:${ch}`, kind: held.length ? 'returns_to_draft' : 'signed_out', tone: 'err', product: p.id, channel: ch, count: held.length, at, title_code: held.length ? 'returns' : 'signed_out', title_args: { n: held.length, product: p.id, account, time: at, channel: ch }, meta_code: 'signed_out_since', meta_args: { since: c.since }, do: { label_code: 'fix_channel', sheet: { kind: 'channel', key: `${p.id}:${ch}` } } });
   }
   if (W.state.pause.all) out.push({ id: 'paused:all', kind: 'paused', tone: 'idle', product: null, at: W.state.pause.all.since, title_code: 'paused_all', title_args: {}, meta_code: 'paused_since', meta_args: { since: W.state.pause.all.since }, do: { label_code: 'resume', action: { name: 'resume', input: { op: 'resume', scope: 'all' } } } });
   for (const it of items) {
@@ -484,9 +537,12 @@ function tilesOf(W, product, metricsRows, clicksUtm = null) {
   const items = W.items.filter(forProduct(product));
   if (!W.products.length) return ['published', 'approval', 'scheduled', 'channels', 'reads'].map(id => ({ id, value: null, why: 'no_posts_yet', tone: 'idle' }));
   const hubWhy = !W.hub.bound ? 'hubless' : !W.hub.ok ? 'hub' : null;
+  // A desk with no hub still knows its own browser channels (TikTok accounts): Kênh cần sửa counts them.
+  const ownRows = (W.channels ?? []).some(c => c.publisher === 'browser' && c.key !== 'tiktok' && c.paused_reason !== 'retired');
+  const channelsWhy = hubWhy === 'hubless' && ownRows ? null : hubWhy;
   const since = W.now - 7 * DAY;
   const week = liveWeek(W, items);
-  const cells = W.products.filter(forProduct(product)).flatMap(p => ['blog', 'x', 'facebook'].map(ch => cellFor(W, p.id, ch)));
+  const cells = W.products.filter(forProduct(product)).flatMap(p => ['blog', 'x', 'facebook', 'tiktok'].map(ch => cellFor(W, p.id, ch)));
   const fix = cells.filter(c => ['signed_out', 'paused'].includes(c.state));
   const pending = W.approvals === null ? null : items.filter(i => i.state === 'approval');
   // Same count as the content tab's Sắp lên stage: items, hand-off videos included.
@@ -498,7 +554,7 @@ function tilesOf(W, product, metricsRows, clicksUtm = null) {
         : { id: 'published', value: week.live.length, sub_code: 'published_posts', sub_args: { posts: week.posts, channels: week.channels }, tone: 'ok' },
     pending === null ? { id: 'approval', value: null, why: 'approvals_unread', tone: 'idle' } : { id: 'approval', value: pending.length, sub_code: pending.length ? 'oldest_wait' : 'none', sub_args: { hours: pending.length ? Math.floor((W.now - Math.min(...pending.map(i => t(i.approval.created_at)))) / HOUR) : 0 }, tone: pending.length ? 'wait' : 'ok' },
     { id: 'scheduled', value: scheduled.length, sub_code: 'next', sub_args: { at: scheduled.map(i => i.at).filter(a => a && t(a) >= W.now).sort()[0] ?? null, handoff: scheduled.filter(i => i.state === 'handoff').length }, tone: 'ok' },
-    hubWhy ? { id: 'channels', value: null, why: hubWhy, tone: 'idle' } : { id: 'channels', value: fix.length, sub_code: fix.length ? 'first_fix' : 'none', sub_args: fix[0] ? { key: fix[0].key, state: fix[0].state } : {}, tone: fix.some(c => c.state === 'signed_out') ? 'err' : fix.length ? 'wait' : 'ok' },
+    channelsWhy ? { id: 'channels', value: null, why: channelsWhy, tone: 'idle' } : { id: 'channels', value: fix.length, sub_code: fix.length ? 'first_fix' : 'none', sub_args: fix[0] ? { key: fix[0].key, state: fix[0].state } : {}, tone: fix.some(c => c.state === 'signed_out') ? 'err' : fix.length ? 'wait' : 'ok' },
     clicks !== null ? { id: 'reads', value: clicks, sub_code: 'search_clicks', sub_args: {}, tone: 'ok' }
       : clicksUtm !== null ? { id: 'reads', value: clicksUtm, sub_code: 'link_clicks', sub_args: {}, tone: 'ok' }
         : { id: 'reads', value: null, why: 'search_console_not_connected', also: 'hub_counts_published_only', tone: 'idle' },
@@ -730,7 +786,8 @@ async function itemView(W, input, { env, fetchImpl, soot }) {
     // TikTok account the founder named at setup.
     const prod = W.products.find(p => p.id === it.product);
     const tk = it.video.tiktok;
-    out.video = { ...it.video, dir: it.dir, channel: it.channel_dir, account: prod?.accounts?.tiktok ?? null,
+    const acct = videoAccount(W, it);
+    out.video = { ...it.video, dir: it.dir, channel: it.channel_dir, account: acct?.account ?? (acct ? null : prod?.accounts?.tiktok ?? null), ...(acct ? { channel_key: acct.channel } : {}),
       tiktok: tk ? { file: tk.file, path: W.root ? join(W.root, ...tk.file.split('/')) : null, caption: tk.caption ?? null } : null };
   }
   if (it.topic) out.topic = it.topic;
@@ -738,7 +795,7 @@ async function itemView(W, input, { env, fetchImpl, soot }) {
   // A desk item still waiting on its first save: the page can resend the same ask (same words, same ask-<ref>).
   if (it.state === 'asked' && it.meta?.by === 'desk' && it.topic) {
     const prod = W.products.find(p => p.id === it.product);
-    out.ask_text = askText({ ref: it.ref, to: it.to ?? 'writer', format: it.format, product: prod?.name ?? it.product, topic: it.topic, channels: it.channels_wanted ?? [], series: it.series ?? null, target: it.meta?.target ?? null, source: it.meta?.source_kind ?? null, changelog: it.meta?.version ?? null, notes: it.meta?.changelog ?? null });
+    out.ask_text = askText({ ref: it.ref, to: it.to ?? 'writer', format: it.format, product: prod?.name ?? it.product, topic: it.topic, channels: it.channels_wanted ?? [], tiktok: (prod?.tiktok_accounts ?? []).map(a => tiktokChannelId(a.handle)), series: it.series ?? null, target: it.meta?.target ?? null, source: it.meta?.source_kind ?? null, changelog: it.meta?.version ?? null, notes: it.meta?.changelog ?? null });
   }
   return out;
 }
@@ -765,13 +822,19 @@ function channelView(W, input) {
   const [, product, channel] = m;
   if (!W.products.some(p => p.id === product)) fail('not_found', `No product ${product}.`);
   const cell = cellFor(W, product, channel);
-  const steps = cell.state === 'signed_out' ? [{ id: 'sign_in', done: false, href: 'nest://settings/browser', args: { account: cell.account, profile: cell.profile } }, { id: 'budget', done: null }, { id: 'resume', done: false }]
-    : cell.state === 'paused' ? [{ id: 'resume', done: false }]
+  // A TikTok cell's steps act on one account row (tiktok-<handle>): the first signed-out one, else the first paused one.
+  const line = (cell.accounts ?? []).find(a => a.state === 'signed_out') ?? (cell.accounts ?? []).find(a => a.state === 'paused') ?? null;
+  const row = line ? { channel: line.channel } : {};
+  const profile = line?.profile ?? cell.profile ?? null;
+  const steps = cell.state === 'signed_out' ? [{ id: 'sign_in', done: false, href: signInLink(profile, PLATFORM_HOST[channel]), args: { account: line?.account ?? cell.account, profile: line?.profile ?? cell.profile, ...row } }, { id: 'budget', done: null }, { id: 'resume', done: false, ...(line ? { args: { ...row, account: line.account } } : {}) }]
+    : cell.state === 'paused' ? [{ id: 'resume', done: false, ...(line ? { args: { ...row, account: line.account } } : {}) }]
       : cell.state === 'not_connected' ? [{ id: 'connect', done: false, ask: true }]
         : cell.state === 'no_account' || (cell.state === 'off' && cell.why === 'not_chosen' && W.hub.bound && ['x', 'facebook'].includes(channel)) ? [{ id: 'create_account', done: false }, { id: 'connect', done: false, ask: true }]
           : [];
   const waiting = W.items.filter(i => i.product === product && (i.plan ?? []).some(p => p.channel === channel && ['scheduled', 'held', 'after_approval', 'handoff', 'no_account', 'channel_not_connected'].includes(p.state)));
-  return { view: 'channel', key: input.key, cell, steps, rules: rulesFor(W.state, input.key), waiting: waiting.slice(0, 20).map(itemRow), sources: W.sources };
+  // A TikTok cell binds its accounts to Nest's browser profiles on the desk (T3): the profiles it may offer.
+  return { view: 'channel', key: input.key, cell, steps, rules: rulesFor(W.state, input.key), waiting: waiting.slice(0, 20).map(itemRow), sources: W.sources,
+    ...(channel === 'tiktok' ? { profiles: profileChoices(W, 'tiktok') } : {}) };
 }
 
 async function libraryView(W, input) {
@@ -818,6 +881,9 @@ async function numbersView(W, input, store) {
   const week = weekRange(input.week ?? isoWeek(W.now));
   const prev = { from: week.from - 7 * DAY, to: week.from };
   const hubWhy = !W.hub.bound ? 'hubless' : !W.hub.ok ? 'hub' : null;
+  // A desk with no hub still knows its own browser channels (TikTok accounts): Kênh cần sửa counts them.
+  const ownRows = (W.channels ?? []).some(c => c.publisher === 'browser' && c.key !== 'tiktok' && c.paused_reason !== 'retired');
+  const channelsWhy = hubWhy === 'hubless' && ownRows ? null : hubWhy;
   const gsc = await store.query('metrics', [eq('source', 'gsc'), gte('day', new Date(prev.from).toISOString().slice(0, 10))], { limit: 500 }).catch(() => []);
   const rows = [];
   const metricsFiles = W.lib.filter(r => r.kind === 'metrics');
@@ -861,8 +927,10 @@ export async function deskView(input, deps) {
   const approvals = approvalsIn(input.approvals);
   // with_summary: the tab and the header from one read, so a refresh costs the hub's rate budget once, not twice.
   const withSummary = input.with_summary === true && view !== 'summary';
-  const W = await gather(deps, { hub: withSummary || view !== 'library' || !input.node || /^posts:/.test(input.node), approvals });
+  const W = await gather(deps, { hub: withSummary || view !== 'library' || !input.node || /^posts:/.test(input.node), approvals, profiles: withSummary || !['content', 'library'].includes(view) });
   W.cards = cardsIn(input.cards);
+  // A TikTok cell's account picker lists every profile, even before any row names one.
+  if (view === 'channel' && !W.profiles && /:tiktok$/.test(input.key ?? '')) W.profiles = await readProfiles(deps.env, deps.fetch);
   const out = await viewOf(view, W, input, deps);
   if (withSummary) out.summary = await summaryView(W, { ...input, view: 'summary' }, deps.store);
   return out;
@@ -871,7 +939,8 @@ function viewOf(view, W, input, deps) {
   switch (view) {
     case 'summary': return summaryView(W, input, deps.store);
     case 'today': return todayView(W, input, deps.store);
-    case 'content': return contentView(W, input);
+    // The Claude Code jobs that make videos (the ledger video_job and video_import keep), with the first page only.
+    case 'content': return readJobs(deps.store).then(jobs => ({ ...contentView(W, input), claude_code: input.cursor === undefined ? jobsView(jobs, { now: W.now, product: input.product ?? null }) : null }));
     case 'item': return itemView(W, input, { env: deps.env, fetchImpl: deps.fetch, soot: deps.soot });
     case 'channels': return channelsView(W, input);
     case 'channel': return channelView(W, input);

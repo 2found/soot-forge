@@ -44,10 +44,17 @@ export function killGroup(pid, signal = 'SIGKILL') {
 }
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-/** exit.json is written once: the first writer wins (runner, stop or a reaper). */
+/**
+ * exit.json is written once: the first writer wins (runner, stop or a reaper). It appears complete or not at all:
+ * the body goes to a private temp file that is then hard-linked into place (link fails on an existing name), so a
+ * reader never sees an empty or half-written exit.json.
+ */
 export async function writeExit(dir, exit) {
-  try { await fsp.writeFile(join(dir, 'exit.json'), JSON.stringify(exit) + '\n', { flag: 'wx' }); return true; }
+  const tmp = join(dir, `.exit.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`);
+  await fsp.writeFile(tmp, JSON.stringify(exit) + '\n', { flag: 'wx' });
+  try { await fsp.link(tmp, join(dir, 'exit.json')); return true; }
   catch (e) { if (e.code === 'EEXIST') return false; throw e; }
+  finally { await fsp.unlink(tmp).catch(() => {}); }
 }
 
 /** Last `bytes` of a file as text, from a line boundary. */
@@ -134,6 +141,12 @@ export async function inspect(dir, { now, persist }) {
   return { job, exit, dir, state: stateOf(exit) };
 }
 
+function expired(j, now) {
+  if (j.state === 'running' || !j.exit) return false;
+  const ended = Date.parse(j.exit.ended_at);
+  return Number.isFinite(ended) && now - ended > KEEP_DAYS * 86_400_000;
+}
+
 export function stateOf(exit) {
   if (!exit) return 'running';
   if (exit.stopped) return 'stopped';
@@ -142,7 +155,10 @@ export function stateOf(exit) {
   return exit.code === 0 ? 'done' : 'failed';
 }
 
-/** Every job, newest first. */
+/** A finished job's folder is kept this long after it ended; write tools (start, watch) then delete it. */
+export const KEEP_DAYS = 14;
+
+/** Every job, newest first. With `persist` a job that ended more than KEEP_DAYS ago is deleted and left out; a running one never is. */
 export async function listJobs(env, { now, persist }) {
   const root = jobsRoot(env);
   let names = [];
@@ -151,7 +167,9 @@ export async function listJobs(env, { now, persist }) {
   for (const name of names) {
     if (name.startsWith('.')) continue;
     const j = await inspect(join(root, name), { now, persist });
-    if (j) jobs.push(j);
+    if (!j) continue;
+    if (persist && expired(j, now)) { await fsp.rm(j.dir, { recursive: true, force: true }).catch(() => {}); continue; }
+    jobs.push(j);
   }
   return jobs.sort((a, b) => String(b.job.started_at).localeCompare(String(a.job.started_at)) || b.job.id.localeCompare(a.job.id));
 }

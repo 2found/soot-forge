@@ -7,6 +7,7 @@ import * as ops from './lib/ops.mjs';
 import { page_view, page_action, answer } from './lib/page.mjs';
 import { video_import } from './lib/video.mjs';
 import { video_brief } from './lib/brief.mjs';
+import { video_job } from './lib/video-jobs.mjs';
 import { campaign_save, campaign_report, campaign_verify } from './lib/campaign.mjs';
 import { plan } from './lib/plan.mjs';
 import { channels_probe } from './lib/probe.mjs';
@@ -22,17 +23,23 @@ export const TOOLS = {
   claim: ops.claim, record: ops.record, fail: ops.failIntent, pause: ops.pause,
   page_view, page_action, facts_sync: ops.facts_sync, gsc_sync: ops.gsc_sync, seo_brief: ops.seo_brief,
   channels_setup: ops.channels_setup, raised: ops.raised, answer, replies_sync: ops.replies_sync, reply_save: ops.reply_save,
-  video_import, video_brief, campaign_save, campaign_report, campaign_verify, plan, channels_probe, report,
+  video_import, video_brief, video_job, campaign_save, campaign_report, campaign_verify, plan, channels_probe, report,
   radar_read, signals_list, signals_mark, video_stats, inputs_health,
   library_scan, item_save, file_read, publish_bundle, release_due,
 };
+
+const REPAIRS = new Set(['page_action', 'release_due']);
 
 /** Run one tool; `deps` overrides the store, clock and fetch in tests. */
 export async function run(name, ctx, { env = process.env, store, now = Date.now(), fetchImpl = fetch, apiTimeoutMs, exec } = {}) {
   const tool = TOOLS[name];
   if (!tool) throw new MarketingError('invalid_request', `Unknown tool ${name}.`);
   const input = ctx?.input ?? {};
-  return tool(input, { store: store ?? storage(env, fetchImpl), now, env, fetch: fetchImpl, apiTimeoutMs, exec, soot: ctx?.soot ?? ctx?.piece?.soot ?? ctx?.page?.soot ?? null, page: ctx?.piece?.piece ?? ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id, hook: ctx?.hook ?? 'tool.call', viewer: ctx?.viewer ?? null,
+  const deps = { store: store ?? storage(env, fetchImpl), now, env };
+  // The legacy `tiktok` row's one-time repair (ops.retireLegacyTiktok) also runs before the desk's actions and the release
+  // schedule; due and channels_setup run it themselves. A preflight never writes.
+  if (REPAIRS.has(name) && ctx?.hook !== 'tool.preflight') await ops.retireLegacyTiktok(deps.store, { env, now });
+  return tool(input, { store: deps.store, now, env, fetch: fetchImpl, apiTimeoutMs, exec, soot: ctx?.soot ?? ctx?.piece?.soot ?? ctx?.page?.soot ?? null, page: ctx?.piece?.piece ?? ctx?.page?.page ?? null, request_id: ctx?.request_id ?? input.request_id, hook: ctx?.hook ?? 'tool.call', viewer: ctx?.viewer ?? null,
     // The team the piece belongs to and the packs that team has (Micro Fish, email): the host passes them on the piece.
     teams: Array.isArray(ctx?.piece?.teams) ? ctx.piece.teams : null, packs: Array.isArray(ctx?.piece?.packs) ? ctx.piece.packs : null });
 }

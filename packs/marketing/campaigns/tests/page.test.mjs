@@ -168,13 +168,13 @@ test('limits: a form body only carries what changed, refuses out-of-range in Vie
   assert.deepEqual(M.limitsBody(c, { cap: '4', gap: '3', rep: '10' }), {});
 });
 
-test('a failing action shows its inline fix: needs_credential becomes a message with the Thiết lập link, not a raw error', () => {
-  const r = { ok: true, output: { ok: false, reason_code: 'needs_credential', key: 'PRODUCT_ADMIN_KEY', link: 'nest://settings/setup', error: { code: 'needs_credential', message: 'Chiến dịch cần khoá API của Lohi để tạo liên kết. Mở Thiết lập để nhập PRODUCT_ADMIN_KEY (nest://settings/setup).' } } };
+test('a failing action shows its inline fix: needs_credential becomes a message with the Kho khóa link, not a raw error', () => {
+  const r = { ok: true, output: { ok: false, reason_code: 'needs_credential', key: 'PRODUCT_ADMIN_KEY', link: 'nest://settings/setup', error: { code: 'needs_credential', message: 'Chiến dịch cần khoá API của Lohi để tạo liên kết. Mở Kho khóa để nhập PRODUCT_ADMIN_KEY (nest://settings/setup).' } } };
   let err; try { M.output(r); } catch (e) { err = e; }
   assert.ok(err, 'throws');
   assert.equal(err.link, 'nest://settings/setup');
   const text = M.errorText(M.strings('vi'), err);
-  assert.match(text, /^Chiến dịch cần khoá API của Lohi để tạo liên kết\. Bấm Mở Thiết lập, điền "Khoá quản trị Lohi" rồi Thử lại\.$/);
+  assert.match(text, /^Chiến dịch cần khoá API của Lohi để tạo liên kết\. Bấm Mở Kho khóa, điền "Khoá quản trị Lohi" rồi Thử lại\.$/);
   assert.doesNotMatch(text, /PRODUCT_ADMIN_KEY|nest:\/\//, 'no env key or raw link in the founder text');
 });
 

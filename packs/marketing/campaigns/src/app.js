@@ -58,7 +58,7 @@ async function act(/** @type {string} */ op, rest = {}) {
     const r = await bridge.call('action', M.actionBody(p.request_id, p.op, p.rest), p.request_id);
     if (!r.ok && r.error.code === 'no_response') { S.notice = { kind: 'info', text: S.t.unknown }; return; }
     S.pending = null;
-    try { S.notice = M.doneNotice(S.t, op, M.output(r)); } catch (e) { S.notice = { kind: 'info', text: M.errorText(S.t, e), ...(e?.link ? { fix: { label: 'Mở Thiết lập', link: e.link } } : {}) }; }
+    try { S.notice = M.doneNotice(S.t, op, M.output(r)); } catch (e) { S.notice = { kind: 'info', text: M.errorText(S.t, e), ...(e?.link ? { fix: { label: 'Mở Kho khóa', link: e.link } } : {}) }; }
     await load();
   });
 }
@@ -495,7 +495,7 @@ async function saveCampaign() {
     if (!r.ok && r.error.code === 'no_response') { S.sheetError = S.t.unknown; return; }
     S.pending = null;
     let out;
-    try { out = M.output(r); } catch (e) { S.sheetError = M.errorText(S.t, e); S.sheetFix = e?.link ? { label: 'Mở Thiết lập', link: e.link } : null; return; }
+    try { out = M.output(r); } catch (e) { S.sheetError = M.errorText(S.t, e); S.sheetFix = e?.link ? { label: 'Mở Kho khóa', link: e.link } : null; return; }
     S.sheet = null;
     S.campaign = out.id;
     S.notice = out.links_error ? { kind: 'info', text: `Đã tạo chiến dịch. Chưa tạo được liên kết: ${out.links_error.message}` } : { kind: 'success', text: 'Đã tạo chiến dịch và liên kết cho từng kênh.' };

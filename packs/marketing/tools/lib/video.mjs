@@ -9,8 +9,9 @@ import { lstat, readFile, readdir, realpath, open } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import { fail, eq, isNull } from './store.mjs';
 import { platformOf } from './guard.mjs';
-import { channel, getSettings, hashOf, postAssets, STATE_LABEL } from './ops.mjs';
+import { postChannel, getSettings, hashOf, postAssets, STATE_LABEL } from './ops.mjs';
 import { runningTiktok } from './campaign.mjs';
+import { recordEnd } from './video-jobs.mjs';
 
 export const VIDEO_PLATFORMS = ['x', 'facebook', 'tiktok'];
 export const POSTER_MAX = 200 * 1024; // the data URI, not the file
@@ -148,8 +149,50 @@ export function srtCues(text, max = 40) {
   return out;
 }
 
-/** `video_import`: the mvf campaign at `campaign` → assets + one video draft per channel. */
+/** The keys of a session's result that video_import reads (its own parameters, less job, result and notify). */
+const IMPORT_KEYS = ['request_id', 'campaign', 'script', 'hook', 'canvas', 'channels', 'parent', 'title', 'error'];
+
+/**
+ * `video_import`: the mvf result as drafts, and the Claude Code ledger's end of the job (video-jobs.mjs). It takes the
+ * session's result itself (claude-code_watch emit "result", or a Soot's call) or watch's emit "job" answer: {job, result}
+ * on success, {job, notify} when the job failed. A failed job is recorded with its reason and the session's last words,
+ * then answered {ok: false, notify: true, error: "job_failed: …"} so the chain fails loudly and wakes the Soot.
+ */
 export async function video_import(input, deps) {
+  const { store, now } = deps;
+  if (input.job === undefined) return importOrRecord(input, deps, null);
+  const job = input.job;
+  if (!job || typeof job !== 'object' || Array.isArray(job)) fail('invalid_request', 'job is the job claude-code_watch answered.');
+  const extra = Object.keys(input).filter(k => !['job', 'result', 'notify'].includes(k));
+  if (extra.length) fail('invalid_request', `With job, video_import takes only job and result (and notify); not ${extra.join(', ')}.`);
+  const why = typeof job.error === 'string' && job.error.trim() ? job.error.trim()
+    : job.state && job.state !== 'done' ? job.state : !input.result || typeof input.result !== 'object' || Array.isArray(input.result) ? 'the job left no result' : null;
+  if (why) {
+    await recordEnd(store, now, { job, state: 'failed', error: why });
+    return { ok: false, notify: true, error: `job_failed: Claude Code job ${String(job.key ?? job.id ?? '').slice(0, 64)} ${String(job.state ?? 'failed').slice(0, 16)}: ${why.replace(/\s+/g, ' ').slice(0, 300)}`,
+      job: { id: job.id ?? null, key: job.key ?? null, state: job.state ?? 'failed' } };
+  }
+  const unknown = Object.keys(input.result).filter(k => !IMPORT_KEYS.includes(k));
+  if (unknown.length) {
+    await recordEnd(store, now, { job, state: 'failed', error: `result has fields video_import does not take: ${unknown.join(', ')}` });
+    fail('invalid_request', `The job's result has fields video_import does not take: ${unknown.join(', ')}.`);
+  }
+  return importOrRecord(input.result, deps, job);
+}
+
+/** The import, with the ledger's end: done (the drafts it made), or failed when mvf's FAIL line came back or it refused. */
+async function importOrRecord(input, deps, job) {
+  const { store, now } = deps;
+  let out;
+  try { out = await importVideo(input, deps); }
+  catch (e) { await recordEnd(store, now, { job, request_id: input.request_id, state: 'failed', error: e?.message ?? 'import failed' }).catch(() => {}); throw e; }
+  const failed = typeof input.error === 'string' && input.error.trim();
+  await recordEnd(store, now, { job, request_id: input.request_id, state: failed ? 'failed' : 'done', error: failed || null, posts: out.posts.map(p => p.id) });
+  return out;
+}
+
+/** The mvf campaign at `campaign` → assets + one video draft per channel. */
+async function importVideo(input, deps) {
   const { store, env, soot, now } = deps;
   const { request_id, campaign, channels, parent, error } = input;
   // Each channel's draft is keyed `<request_id>:<channel>`, which must fit 64 characters.
@@ -158,7 +201,7 @@ export async function video_import(input, deps) {
   if (!Array.isArray(channels) || !channels.length || channels.length > 4) fail('invalid_request', 'channels lists 1–4 channels.');
   const chans = [];
   for (const key of channels) {
-    const ch = await channel(store, key);
+    const ch = await postChannel(store, key);
     const platform = platformOf(ch.key);
     if (!VIDEO_PLATFORMS.includes(platform)) fail('invalid_request', `Video đăng tự động trên X, Facebook và TikTok (kênh tiktok-<tài khoản>); ${key} là kênh khác.`);
     chans.push({ ch, platform });

@@ -39,9 +39,9 @@ export function targetOf(landing, id, key) {
 }
 
 const API_WHY = {
-  no_api: () => 'Soot chưa biết địa chỉ api của Lohi, hãy điền ở Thiết lập',
-  no_key: () => 'Chưa có khoá quản trị Lohi, hãy thêm ở Thiết lập',
-  forbidden: host => `${host} từ chối khoá quản trị Lohi: hãy thay khoá khác ở Thiết lập (khoá cần quyền tạo liên kết và đọc báo cáo chiến dịch)`,
+  no_api: () => 'Soot chưa biết địa chỉ api của Lohi, hãy điền ở Kho khóa',
+  no_key: () => 'Chưa có khoá quản trị Lohi, hãy thêm ở Kho khóa',
+  forbidden: host => `${host} từ chối khoá quản trị Lohi: hãy thay khoá khác ở Kho khóa (khoá cần quyền tạo liên kết và đọc báo cáo chiến dịch)`,
   api_unreachable: host => `${host} không trả lời`,
   api_failed: host => `${host} trả lỗi`,
   api_bad: host => `${host} trả dữ liệu không đúng dạng`,
@@ -290,7 +290,7 @@ export async function campaignView(input, { store, now, env, soot }) {
   return { ...head, items, choices, empty: !items.length };
 }
 
-/** campaign_verify: one read-only request that says whether the saved admin key works (Thiết lập shows it on the row).
+/** campaign_verify: one read-only request that says whether the saved admin key works (Kho khóa shows it on the row).
  * 401 = wrong key; 403 = a real key without the role; 2xx/404 = accepted. Never writes, never returns the key. */
 export async function campaign_verify(_input, deps) {
   const base = String(deps.env?.PRODUCT_API_URL ?? '').replace(/\/+$/, '');

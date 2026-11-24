@@ -121,8 +121,8 @@ export function output(r) {
   // A missing credential answers with its fix: a Vietnamese cause, the field's Vietnamese name, and the link that opens it.
   const o = r.output;
   if (o?.reason_code === 'needs_credential' || o?.needs_credential) {
-    const key = o.key ?? o.needs_credential, why = String(o.error?.message ?? '').split(' Mở Thiết lập')[0];
-    throw { code: 'needs_credential', message: `${why || 'Thiếu một khoá để làm việc này.'} Bấm Mở Thiết lập, điền "${KEY_LABEL[key] ?? 'khoá còn thiếu'}" rồi Thử lại.`, link: o.link ?? `${SETUP_LINK}?key=${encodeURIComponent(key)}`, credential: key };
+    const key = o.key ?? o.needs_credential, why = String(o.error?.message ?? '').split(/ Mở (?:Thiết lập|Kho khóa)/)[0];
+    throw { code: 'needs_credential', message: `${why || 'Thiếu một khoá để làm việc này.'} Bấm Mở Kho khóa, điền "${KEY_LABEL[key] ?? 'khoá còn thiếu'}" rồi Thử lại.`, link: o.link ?? `${SETUP_LINK}?key=${encodeURIComponent(key)}`, credential: key };
   }
   if (o?.error) throw o.error;
   return r.output;

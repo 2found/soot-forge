@@ -61,9 +61,11 @@ Use `snapshot -i -c` (interactive, compact). Classify the page with these checks
 
 `needs_person` pauses only that channel. Nothing was posted. The other
 channels go on. The person hears of it through `due.ask`, the one
-`report_blocker` that ends your turn (marketing-dispatch step 4). For a
-sign-in you open the platform's login page in your own browser and the item
-links to it; the person signs in there and picks "Đã đăng nhập <platform>".
+`report_blocker` that ends your turn (marketing-dispatch step 4). A sign-out
+is also told to Nest on the channel's browser profile (the fail answer's
+`profile_report`); the item's Đăng nhập link opens that profile's sign-in, and
+the channel resumes by itself once the person records it there. Never sign in
+or mark a sign-in yourself.
 A changed page or a captcha links to your browser, where the page stays open,
 and offers "Chạy lại <platform>" / "Để <platform> dừng".
 

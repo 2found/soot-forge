@@ -2,17 +2,21 @@
 // ({key, title, dir, prompt}) so a schedule chains it: video_brief → claude-code_start → (watch) → marketing_video_import.
 // It picks the newest published post of a product that has no video yet on the target channels, at most one brief per
 // `every_days` for each product and video channel, and remembers what it briefed in settings.video_brief so a rerun the
-// same day answers {done: true}. It never reads the post's page, runs nothing and writes only that one setting.
-import { createHash } from 'node:crypto';
+// same day answers {done: true, reason}. With `channels` left out it covers every live TikTok account of the product:
+// each fire briefs the account whose turn is next (one brief per fire). It answers exactly that start input or
+// {done: true, reason}; what stops it (no root, no skill, an unknown product, a missing folder) is a thrown refusal
+// (`not_configured`, `not_found`), so a chain fails loudly instead of handing `start` half an input. It never reads the
+// post's page, runs nothing and writes only that one setting.
 import { stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join } from 'node:path';
-import { fail, eq } from './store.mjs';
+import { fail, eq, MarketingError } from './store.mjs';
 import { platformOf, fold } from './guard.mjs';
 import { setSetting, getSettings } from './ops.mjs';
 import { VIDEO_PLATFORMS } from './video.mjs';
 import { libraryRoot, readText, exists } from './root.mjs';
 import { loadProducts, tiktokChannelId, SLUG } from './library.mjs';
 import { runningTiktok, localDay } from './campaign.mjs';
+import { requestIdOf } from './video-jobs.mjs';
 
 const DAY = 86_400_000;
 const KEEP_MS = 14 * DAY;
@@ -56,40 +60,78 @@ async function aboutOf(root, id) {
   return { lines, brand };
 }
 
+/** A product's live TikTok account channels (not the retired legacy `tiktok` row): its products.json accounts and any
+ *  tiktok-* row that names it, oldest-briefed first so each fire takes the account whose turn is next. */
+async function tiktokCandidates(store, prod) {
+  const rows = (await store.query('channels', [], { limit: 500 })).filter(c => platformOf(c.key) === 'tiktok' && c.key !== 'tiktok');
+  const keys = new Set([...(prod.tiktok_accounts ?? []).map(a => tiktokChannelId(a.handle)), ...rows.filter(c => c.rules?.product === prod.id).map(c => c.key)]);
+  const retired = new Set(rows.filter(c => c.paused_reason === 'retired').map(c => c.key));
+  return [...keys].filter(k => !retired.has(k)).sort();
+}
+
 export async function video_brief(input, { store, now, env }) {
   const product = input.product;
   if (typeof product !== 'string' || !/^[a-z0-9][a-z0-9-]{0,31}$/.test(product)) fail('invalid_request', 'product is a product id.');
+  const given = input.channels !== undefined;
   const channels = Array.isArray(input.channels) ? [...new Set(input.channels)] : [];
-  if (!channels.length || channels.length > 4 || channels.some(c => typeof c !== 'string' || !/^[a-z0-9-]{1,32}$/.test(c))) fail('invalid_request', 'channels lists 1–4 video channels (tiktok-<account>, x-<account>, facebook-<account>).');
+  if (given && (!channels.length || channels.length > 4 || channels.some(c => typeof c !== 'string' || !/^[a-z0-9-]{1,32}$/.test(c)))) fail('invalid_request', 'channels lists 1–4 video channels (tiktok-<account>, x-<account>, facebook-<account>), or is left out to cover every TikTok account of the product.');
   for (const c of channels) if (!VIDEO_PLATFORMS.includes(platformOf(c))) fail('invalid_request', `${c} is not a video channel (X, Facebook and TikTok accounts take video).`);
-  const tiktok = channels.filter(c => platformOf(c) === 'tiktok');
-  if (tiktok.length > 1) fail('invalid_request', 'One TikTok account per brief: each account has its own video channel folder and its own series.');
+  if (channels.filter(c => platformOf(c) === 'tiktok').length > 1) fail('invalid_request', 'One TikTok account per brief: each account has its own video channel folder and its own series.');
   const every = input.every_days ?? 1;
   if (!Number.isInteger(every) || every < 1 || every > 30) fail('invalid_request', 'every_days is a whole number from 1 to 30.');
   const sourceState = input.source_state ?? 'published';
   if (!['published', 'scheduled', 'ready'].includes(sourceState)) fail('invalid_request', 'source_state is published, scheduled or ready.');
 
   const lr = await libraryRoot(env ?? {});
-  if (!lr.ok) return { ok: false, error: `MARKETING_ROOT is ${lr.error === 'not_configured' ? 'not set' : lr.error}: the video is made in the repository that holds the marketing folder.` };
-  const root = lr.root, dir = dirname(root), rootName = basename(root);
-  const skill = await skillPath(env, dir);
-  if (skill.error) return { ok: false, error: skill.error };
-
+  if (!lr.ok) fail('not_configured', `MARKETING_ROOT is ${lr.error === 'not_configured' ? 'not set' : lr.error}: the video is made in the repository that holds the marketing folder.`);
+  const root = lr.root;
+  const skill = await skillPath(env, dirname(root));
+  if (skill.error) fail('not_configured', skill.error);
   const prod = (await loadProducts({ root })).find(p => p.id === product);
-  if (!prod) return { ok: false, error: `${product} is not in products.json.` };
+  if (!prod) fail('not_found', `${product} is not in products.json.`);
+
+  const memo = (await store.one('settings', [eq('key', 'video_brief')]))?.value ?? {};
+  const ctx = { store, now, root, skill, prod, every, sourceState, memo };
+  if (given) return briefFor(channels, ctx);
+  // Every TikTok account of the product, one brief per fire: the account whose turn is next, then the others in turn
+  // when it has nothing to brief. The memo is per product and video channel folder, so an account briefed today waits.
+  const accounts = await tiktokCandidates(store, prod);
+  if (!accounts.length) fail('not_found', `${product} has no TikTok account channel: list its accounts in products.json (accounts.tiktok), or name channels.`);
+  const last = memo.last ?? {};
+  const turn = (k) => Object.values(last).filter(v => v?.channel === k).map(v => v.at ?? '').sort().pop() ?? '';
+  // An account that cannot be briefed (no folder, a folder that is not there) never stops the others: it is never
+  // briefed, so its turn would come first on every fire. Its refusal is thrown only when no account got a brief.
+  let quiet = null, broken = null;
+  for (const k of [...accounts].sort((a, b) => turn(a).localeCompare(turn(b)) || a.localeCompare(b))) {
+    let out;
+    try { out = await briefFor([k], ctx); } catch (e) {
+      if (!(e instanceof MarketingError) || !['not_configured', 'not_found'].includes(e.code)) throw e;
+      broken ??= e;
+      continue;
+    }
+    if (!out.done) return out;
+    quiet = quiet && quiet.reason !== 'already_briefed' ? quiet : out;
+  }
+  if (broken) throw broken;
+  return quiet;
+}
+
+/** The brief for one set of channels (at most one TikTok account), or {done: true, reason}. */
+async function briefFor(channels, { store, now, root, skill, prod, every, sourceState, memo }) {
+  const product = prod.id, dir = dirname(root), rootName = basename(root);
+  const tiktok = channels.filter(c => platformOf(c) === 'tiktok');
   // The video channel folder: the TikTok account's own, else the product's first.
   const chRow = tiktok.length ? await store.one('channels', [eq('key', tiktok[0])]) : null;
   const acct = tiktok.length ? (prod.tiktok_accounts ?? []).find(a => tiktokChannelId(a.handle) === tiktok[0]) : null;
   const vc = chRow?.rules?.video_channel ?? acct?.video_channel ?? prod.video_channels[0] ?? null;
-  if (!vc || !SLUG.test(vc)) return { ok: false, error: `${product} names no video channel folder (products.json video_channels, or the TikTok channel's rules.video_channel).` };
-  if (!(await exists(root, `channels/${vc}`))) return { ok: false, error: `The video channel folder ${rootName}/channels/${vc} does not exist.` };
+  if (!vc || !SLUG.test(vc)) fail('not_configured', `${product} names no video channel folder for ${channels.join(', ')} (products.json video_channels, or the TikTok channel's rules.video_channel).`);
+  if (!(await exists(root, `channels/${vc}`))) fail('not_found', `The video channel folder ${rootName}/channels/${vc} does not exist.`);
 
   // One brief per every_days for each product and video channel.
-  const memo = (await store.one('settings', [eq('key', 'video_brief')]))?.value ?? {};
   const last = memo.last ?? {};
   const slot = `${product}/${vc}`;
   const today = localDay(now);
-  if (last[slot]?.day && dayNum(today) - dayNum(last[slot].day) < every) return { done: true, reason: 'already_briefed', last: { key: last[slot].key, day: last[slot].day } };
+  if (last[slot]?.day && dayNum(today) - dayNum(last[slot].day) < every) return { done: true, reason: 'already_briefed' };
 
   // The newest published article of the product with no video yet on these channels (and not briefed in the last days).
   const settings = await getSettings(store);
@@ -103,9 +145,13 @@ export async function video_brief(input, { store, now, env }) {
 
   const title = String(source.brief?.title ?? source.title ?? source.ref).replace(/\s+/g, ' ').trim();
   const slug = `${slugOf(title, 40) || 'video'}-${mmdd(today)}`;
-  const key = `video-${product}-${slug}`.slice(0, KEY_MAX).replace(/[-._]+$/, '');
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(key)) return { ok: false, error: `Could not make a valid key from "${title}".` };
-  const request_id = `vb-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`;
+  // Each account's folder has its own key (a second account's job is never "already running" as the first's); the
+  // product's first folder keeps the plain key.
+  const tag = vc === prod.video_channels[0] ? '' : `-${slugOf(vc, 20)}`;
+  const base = `video-${product}${tag}-`;
+  const key = (tag ? `${base}${slugOf(title, Math.max(8, KEY_MAX - base.length - 5)) || 'video'}-${mmdd(today)}` : `${base}${slug}`).slice(0, KEY_MAX).replace(/[-._]+$/, '');
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(key)) fail('invalid_request', `Could not make a valid key from "${title}".`);
+  const request_id = requestIdOf(key);
   const about = await aboutOf(root, product);
   const running = tiktok.length ? await runningTiktok(store, now) : null;
   const where = `${rootName}/channels/${vc}/campaigns/${slug}`;
@@ -144,6 +190,6 @@ export async function video_brief(input, { store, now, env }) {
   // Remember it only now that there is a brief: a rerun the same day (or inside every_days) answers done.
   const cut = now - KEEP_MS;
   const parents = Object.fromEntries(Object.entries({ ...briefed, [`${source.ref}|${vc}`]: new Date(now).toISOString() }).filter(([, at]) => Date.parse(at) >= cut));
-  await setSetting(store, 'video_brief', { last: { ...last, [slot]: { day: today, at: new Date(now).toISOString(), parent: source.ref, key } }, parents });
+  await setSetting(store, 'video_brief', { last: { ...last, [slot]: { day: today, at: new Date(now).toISOString(), parent: source.ref, key, channel: channels[0] } }, parents });
   return { key, title: `Video: ${title}`.slice(0, 120), dir, prompt };
 }

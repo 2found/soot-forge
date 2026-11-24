@@ -179,14 +179,14 @@ for (const [name, setup, code] of [
   });
 }
 
-test('no key: every campaign op answers needs_credential with a Vietnamese line that links Thiết lập, and saves nothing', async () => {
+test('no key: every campaign op answers needs_credential with a Vietnamese line that links Kho khóa, and saves nothing', async () => {
   api.reset();
   const w = world();
   delete w.env.PRODUCT_ADMIN_KEY;
   for (const [tool, input] of [['page_action', { op: 'campaign_save', request_id: 'rq', campaign: CAMPAIGN }], ['page_action', { op: 'campaign_refresh', request_id: 'rq3', campaign_id: 'x-y' }], ['campaign_save', CAMPAIGN]]) {
     const out = await w.call(tool, input, { page: { page: 'campaigns' } });
     assert.deepEqual([out.ok, out.reason_code, out.key], [false, 'needs_credential', 'PRODUCT_AGENT_KEY'], tool);
-    assert.match(out.message, /Thiết lập.*PRODUCT_AGENT_KEY|PRODUCT_AGENT_KEY.*Thiết lập/, tool);
+    assert.match(out.message, /Kho khóa.*PRODUCT_AGENT_KEY|PRODUCT_AGENT_KEY.*Kho khóa/, tool);
     assert.equal(out.link, 'nest://settings/setup');
     assert.equal(out.error.code, 'needs_credential', 'the page prints this line');
   }
@@ -205,7 +205,7 @@ test('the key goes only to PRODUCT_API_URL: no tool takes an api address from it
     assert.ok(!Object.keys(t.parameters.properties).some(k => /api|host|base|endpoint/i.test(k)), name);
   }
   assert.equal(pack.needs.credentials.PRODUCT_ADMIN_KEY.from, 'operator');
-  assert.deepEqual(pack.needs.env, ['PRODUCT_API_URL', 'YT_DLP_BIN', 'PATH', 'HOME', 'MVF_SKILL'], 'one api address is an operator env; the rest is where yt-dlp is found');
+  assert.deepEqual(pack.needs.env, ['PRODUCT_API_URL', 'YT_DLP_BIN', 'PATH', 'HOME', 'MVF_SKILL', 'SOOT_BROWSER_PROFILES', 'SOOT_BROWSER_PROFILE'], 'one api address is an operator env; the rest is where yt-dlp is found, and the profiles the host granted (the sign-in probe) and the one a task is held to (so a bound Poster can still claim and record)');
   assert.equal(pack.tools.find(t => t.name === 'campaign_report').run.mode, 'write');
   assert.deepEqual(pack.interface.pieces.find(p => p.id === 'campaigns').tab, { id: 'marketing', label: { vi: 'Marketing', en: 'Marketing' } });
 });

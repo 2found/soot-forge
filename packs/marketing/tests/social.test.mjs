@@ -430,20 +430,20 @@ test('AC11: the Hàng đợi view on a fresh workspace never writes (its storage
   assert.equal(store.data.channels.some(c => c.key === 'blog-lohi'), false);
 });
 
-test('AC5 sign-in: a signed-out need names the login page and the Soot\'s Nest browser; "Đã đăng nhập" keeps that channel paused until Bật', async () => {
+test('AC5 sign-in: a signed-out need names the login page and the Nest sign-in link (Kho khóa without a profile); "Đã đăng nhập" keeps that channel paused until Bật', async () => {
   const w = world();
   await w.call('channels_setup', { channels: CHANNELS, project: 'Lohi' });
   const due = await w.call('due', {}, { soot: 'lohi-editor' });
-  const steps = 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập';
+  const steps = 'Bấm Đăng nhập → đăng nhập trên trang vừa mở → bấm Tôi đã đăng nhập';
   assert.deepEqual(due.sign_in, {
     summary: 'Đăng nhập X, Facebook, Reddit cho Lohi',
-    missing: `X: ${steps}\nFacebook: ${steps}\nReddit: ${steps}\nnest://browser/lohi-editor`,
+    missing: `X: ${steps}\nFacebook: ${steps}\nReddit: ${steps}\nnest://settings/browser`,
     options: [{ label: 'Đã đăng nhập X' }, { label: 'Đã đăng nhập Facebook' }, { label: 'Đã đăng nhập Reddit' }],
   }, 'one ready Cần bạn item, in channel order');
   assert.deepEqual({ ...due.ask, keys: due.ask.keys.sort() }, { keys: due.needs.map(n => n.key).sort(), ...due.sign_in }, 'the sign-in is the item to file first');
   const x = due.needs.find(n => n.channel === 'x-lohi');
-  assert.deepEqual([x.platform_label, x.title, x.login_url, x.browser, x.account], ['X', 'Đăng nhập X', 'https://x.com/i/flow/login', 'nest://browser/lohi-editor', 'lohi2com']);
-  assert.equal(x.steps, 'Bấm Mở trình duyệt → đăng nhập trong khung bên phải → bấm Đã đăng nhập');
+  assert.deepEqual([x.platform_label, x.title, x.login_url, x.host, x.link, x.browser, x.account], ['X', 'Đăng nhập X', 'https://x.com/i/flow/login', 'x.com', 'nest://settings/browser', undefined, 'lohi2com']);
+  assert.equal(x.steps, steps);
   assert.deepEqual(due.needs.map(n => n.login_url).sort(), ['https://www.facebook.com/login', 'https://www.reddit.com/login', 'https://x.com/i/flow/login']);
   await w.call('raised', { keys: due.needs.map(n => n.key) });
   // The Soot saw the X account: only X leaves the sign-in item; it stays paused, nothing is due.

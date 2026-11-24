@@ -226,6 +226,14 @@
           "tool": "channels_probe",
           "label": "Quyết định đã đăng nhập chưa",
           "input_from": "previous"
+        },
+        {
+          "pack": "browser-use",
+          "tool": "control",
+          "label": "Đóng trình duyệt",
+          "input": {
+            "action": "close"
+          }
         }
       ],
       "text": "The sign-in check could not open the browser. If the browser is not installed say so in one line (Nest: Cài trình duyệt); do nothing else."

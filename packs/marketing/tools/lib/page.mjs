@@ -5,11 +5,12 @@
 import { fail, eq, gte } from './store.mjs';
 import { briefLint, platformOf, defaultsFor, internalLinks, HOLD_LABEL } from './guard.mjs';
 import { videoView } from './video.mjs';
-import { STATE_LABEL, ANSWERS, PROFILE_RE, profileOf, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
+import { STATE_LABEL, ANSWERS, profileOf, channel, getSettings, schedule, pause, totals, record, clearAttention } from './ops.mjs';
 import { localDayStart, DEFAULT_QUIET, inQuiet, nextSlot } from './time.mjs';
 import { campaignView, campaign_save, readReport, noKey } from './campaign.mjs';
 import { deskView } from './desk.mjs';
 import { deskAction, isDeskOp } from './actions.mjs';
+import { bindProfile } from './accounts.mjs';
 
 const DAY = 86_400_000;
 export const TABS = {
@@ -24,7 +25,7 @@ export const TABS = {
   removed: ['pulled', 'removed'],
 };
 const CHANNEL_LABEL = { 'blog-lohi': 'Blog', x: 'X', facebook: 'Facebook', reddit: 'Reddit', tiktok: 'TikTok', hub: 'Hub' };
-export const PAUSED_LABEL = { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha', person: 'bạn dừng', signed_in: 'đã đăng nhập, chờ Bật' };
+export const PAUSED_LABEL = { signed_out: 'chưa đăng nhập', layout_changed: 'giao diện đổi', captcha: 'cần captcha', person: 'bạn dừng', signed_in: 'đã đăng nhập, chờ Bật', retired: 'đã ngừng, đăng theo từng tài khoản' };
 const channelLabel = key => CHANNEL_LABEL[key] ?? CHANNEL_LABEL[platformOf(key)] ?? key;
 const URL_RE = /https?:\/\/\S+/g;
 /** A post's name: its title; a social post or reply reads as its own words, never blank. */
@@ -305,30 +306,28 @@ export async function page_action(input, deps) {
     }
     // Hàng đợi: the channel's own limits, edited in place (the page asks the person to confirm first).
     case 'set_limits': {
-      const ch = await channel(store, input.channel);
+      if (input.profile !== undefined) fail('invalid_request', 'set_limits binds a profile with browser_profile.');
+      let ch = await channel(store, input.channel);
       const set = {};
       for (const [f, max] of [['cap_per_day', 50], ['spacing_min', 10080], ['reply_cap_per_day', 50]]) {
         if (input[f] === undefined) continue;
         if (!Number.isInteger(input[f]) || input[f] < 0 || input[f] > max) fail('invalid_request', `${f} là số nguyên từ 0 đến ${max}.`);
         set[f] = input[f];
       }
-      // The browser profile the Publisher signs in with (null clears it) and who posts: the browser, or the founder by hand.
-      let rules = null;
-      if (input.profile !== undefined) {
-        if (input.profile !== null && !(typeof input.profile === 'string' && PROFILE_RE.test(input.profile))) fail('invalid_request', 'profile là mã hồ sơ trình duyệt (chữ, số, . _ -, tối đa 64) hoặc null.');
-        const { profile: _gone, ...rest } = ch.rules ?? {};
-        rules = { ...rest, ...(input.profile ? { profile: input.profile } : {}) };
-      }
       if (input.publisher !== undefined) {
         if (!['browser', 'hand'].includes(input.publisher)) fail('invalid_request', 'publisher là browser hoặc hand.');
         if (!['x', 'facebook', 'reddit', 'tiktok'].includes(platformOf(ch.key))) fail('invalid_request', `Kênh ${ch.key} không đổi được người đăng.`);
-        set.publisher = input.publisher;
-        rules = { ...(rules ?? ch.rules ?? {}), publisher_by: 'person' };
       }
-      if (rules) set.rules = rules;
-      if (!Object.keys(set).length) fail('invalid_request', 'Nêu ít nhất một giới hạn: cap_per_day, spacing_min hoặc reply_cap_per_day (hay profile, publisher).');
-      await store.update('channels', [eq('key', ch.key)], set);
-      return { id: ch.key, ...set, ...(set.rules ? { profile: profileOf({ rules: set.rules }) } : {}) };
+      if (!Object.keys(set).length && input.publisher === undefined && input.browser_profile === undefined) fail('invalid_request', 'Nêu ít nhất một giới hạn: cap_per_day, spacing_min hoặc reply_cap_per_day (hay browser_profile, publisher).');
+      // The browser profile the Publisher signs in with (null unbinds), checked against Nest's profiles and the other
+      // rows before anything is written (accounts.mjs: why the field is not `profile`).
+      const bound = input.browser_profile !== undefined ? await bindProfile(ch.key, input.browser_profile, deps) : null;
+      if (bound) ch = await store.one('channels', [eq('key', ch.key)]);
+      // Who posts: the browser, or the founder by hand.
+      if (input.publisher !== undefined) { set.publisher = input.publisher; set.rules = { ...(ch.rules ?? {}), publisher_by: 'person' }; }
+      if (Object.keys(set).length) await store.update('channels', [eq('key', ch.key)], set);
+      const { id: _id, usage, ...binding } = bound ?? {};
+      return { id: ch.key, ...set, ...(set.rules || bound ? { profile: profileOf({ rules: set.rules ?? ch.rules }) } : {}), ...(bound ? { binding, usage } : {}) };
     }
     case 'pause': case 'resume':
       return pause({ channel: input.channel, paused: op === 'pause' }, deps);

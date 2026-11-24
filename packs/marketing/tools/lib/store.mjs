@@ -11,7 +11,7 @@ export const fail = (code, message) => { throw new MarketingError(code, message)
 export const SETUP_LINK = 'nest://settings/setup';
 /** An optional credential a sub-op needs and the host did not give: a decided answer, never a crash. */
 export const needsCredential = (key, why) => {
-  const message = `${why} Mở Thiết lập để nhập ${key} (${SETUP_LINK}).`;
+  const message = `${why} Mở Kho khóa để nhập ${key} (${SETUP_LINK}).`;
   return { ok: false, reason_code: 'needs_credential', key, message, link: SETUP_LINK, error: { code: 'needs_credential', message } };
 };
 /** An optional credential that is not set: the tool has nothing to do and says so quietly. */

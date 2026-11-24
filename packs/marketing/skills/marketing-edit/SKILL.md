@@ -131,6 +131,8 @@ that task or thread.
 - Pace of a channel: `{op: "rules", channel, cap_per_day?, spacing_min?,
   quiet?, max_len?}`. `set_limits` is the older form.
 - Accounts and channel defaults: the `channels_setup` tool, not `page_action`.
+  The founder picks a TikTok account's browser profile on the desk
+  (`set_limits {channel, browser_profile}`, `add_account`).
 - Change only what was asked, on the channel named. No channel named: ask once.
 - Never use these ops to publish. Raising a cap or lifting a pause that Cần bạn
   is waiting on is the founder's call: ask in one `report_blocker`.

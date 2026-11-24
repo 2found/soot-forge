@@ -265,6 +265,11 @@ const ERRORS = {
   gesture_required: 'Màn hình chỉ gửi được khi bạn bấm nút trên đó. Bấm lại nút.',
   tool_refused: 'Bàn chưa nhận việc này. Thử lại sau ít phút.',
   ask_failed: 'Biên tập chưa nhận được tin. Thử lại sau ít phút.',
+  profile_in_use: 'Hồ sơ này đang dùng cho một tài khoản TikTok khác. Mỗi tài khoản một hồ sơ.',
+  browser_profile_unknown: 'Nest không còn hồ sơ trình duyệt này. Tải lại rồi chọn hồ sơ khác.',
+  profiles_unread: 'Marketing chưa được cấp quyền đọc hồ sơ trình duyệt.',
+  handle_invalid: 'Tên tài khoản chỉ gồm chữ, số, dấu chấm và gạch dưới, 2–24 ký tự.',
+  account_exists: 'Bàn đã có tài khoản TikTok này.',
 };
 /** What a failed call says to the founder. */
 const errorText = (e) => ERRORS[e?.code] ?? 'Chưa làm được. Thử lại sau ít phút.';
@@ -542,6 +547,79 @@ function cellText(c) {
   }
   return { tone: 'none', l1: '—', l2: '' };
 }
+/**
+ * A profile's sign-in, from Nest's own state (`sign_in` of a cell or an account line): "Đã đăng nhập · 09:00 hôm nay",
+ * "Đã đăng xuất · …", "Chưa đăng nhập", or "—" with why it cannot be told (the pack is not granted to read it: `grant`
+ * is the link that grants it). Null without a profile.
+ */
+function signInText(si, now) {
+  if (!si) return null;
+  const at = si.at ? when(si.at, now) : '';
+  if (si.state === 'signed_in') return { text: at ? `Đã đăng nhập · ${at}` : 'Đã đăng nhập', tone: 'ok' };
+  if (si.state === 'signed_out') return { text: at ? `Đã đăng xuất · ${at}` : 'Đã đăng xuất', tone: 'err' };
+  if (si.state === 'never') return { text: 'Chưa đăng nhập', tone: 'wait' };
+  const why = si.why === 'no_grant' ? 'Marketing chưa được cấp quyền đọc hồ sơ trình duyệt.'
+    : si.why === 'browser_profile_unknown' ? 'Máy này không có hồ sơ trình duyệt này.' : 'Chưa đọc được trạng thái từ Nest.';
+  return { text: '—', tone: 'idle', why, grant: si.why === 'no_grant' ? si.grant ?? null : null };
+}
+/**
+ * T3: one browser profile in an account's picker, from the channel view's `profiles.list`. `label` is the option's
+ * words (its name, then who may open it, or the account it already posts for); `taken` is that other account (the
+ * option is disabled: one profile signs in one account).
+ */
+function profileChoice(p, channel) {
+  const taken = p.bound && p.bound.channel !== channel ? p.bound.account ?? 'một tài khoản khác' : null;
+  const grant = p.granted === 'team' ? 'đã cấp cho đội' : p.granted === 'soot' ? `đã cấp cho ${num(p.allowed ?? 1)} Soot` : 'chưa cấp cho Soot nào';
+  return { label: `${p.name}${p.project ? ` (${p.project})` : ''} · ${taken ? `đang dùng cho ${taken}` : grant}`, taken };
+}
+/** What choosing profile `p` means, under the picker: its TikTok sign-in, then whether a Soot can open it at all. */
+function profileHint(p, now) {
+  if (!p) return 'Mỗi tài khoản một hồ sơ. Máy đăng mở hồ sơ này để đăng video.';
+  const si = signInText({ state: p.sign_in?.state ?? null, at: p.sign_in?.at ?? null }, now);
+  const signIn = p.sign_in?.state === 'signed_in' ? `TikTok: ${si.text.toLowerCase()}.` : 'TikTok chưa đăng nhập trên hồ sơ này: tài khoản tạm dừng tới khi bạn đăng nhập.';
+  return p.granted === 'none' ? `${signIn} Chưa Soot nào mở được hồ sơ này: cấp trong Kho khóa.` : signIn;
+}
+/** A TikTok handle as the person types it (with or without @), or null when it is not one. */
+function tiktokHandle(v) {
+  const h = String(v ?? '').trim().replace(/^@/, '');
+  return /^[A-Za-z0-9._]{2,24}$/.test(h) ? h : null;
+}
+/** The toast after a binding (set_limits {browser_profile}) or an added account (add_account). */
+function bindToast(out, name) {
+  if (!out) return '';
+  const b = out.binding ?? out;
+  const use = out.usage?.set && !out.usage.set.ok ? ' Kho khóa chưa ghi được dòng Dùng cho.' : '';
+  if (out.op === 'add_account') {
+    if (out.signed_in_as) return `Đã thêm ${out.account}. Hồ sơ đang đăng nhập TikTok bằng ${out.signed_in_as}: đăng nhập ${out.account} trên hồ sơ này để tài khoản chạy.${use}`;
+    return `Đã thêm ${out.account}. ${out.paused ? `Đăng nhập TikTok trên hồ sơ${name ? ` ${name}` : ''} để tài khoản chạy.` : 'Hồ sơ đã đăng nhập TikTok, tài khoản chạy ngay.'}${use}`;
+  }
+  if (out.profile === null) return 'Đã bỏ hồ sơ khỏi tài khoản. Máy đăng không đăng cho tài khoản này tới khi bạn chọn hồ sơ.';
+  if (b.unchanged) return `Tài khoản vẫn dùng hồ sơ ${name ?? 'này'}.${use}`;
+  if (b.signed_in_as) return `Đã đổi hồ sơ. Hồ sơ đang đăng nhập TikTok bằng ${b.signed_in_as}: đăng nhập đúng tài khoản rồi bật lại.${use}`;
+  return `Đã đổi sang hồ sơ ${name ?? 'mới'}. ${b.resumed ? 'Hồ sơ đã đăng nhập TikTok, tài khoản chạy lại.' : b.paused && b.paused_reason === 'signed_out' ? 'Đăng nhập TikTok trên hồ sơ này để tài khoản chạy.' : 'Lượt đăng tới dùng hồ sơ này.'}${use}`;
+}
+/** One account line of a TikTok cell: its state and the one thing to do about it. */
+function accountText(a) {
+  if (a.state === 'ok') return { label: 'Đang chạy', tone: 'ok', action: { id: 'pause', label: 'Tạm dừng' } };
+  if (a.state === 'signed_out') return { label: 'Đã đăng xuất', tone: 'err', action: { id: 'sign_in', label: 'Đăng nhập' } };
+  return { label: a.paused_reason === 'signed_in' ? 'Đã đăng nhập, chờ bật lại' : 'Bạn tạm dừng', tone: 'wait', action: { id: 'resume', label: 'Bật lại' } };
+}
+/** A Claude Code job of the desk's Nội dung (marketing video ledger) in a person's words. A running job's log is the
+ *  session's own; its last words are only readable once it ends. */
+function jobText(j, now) {
+  const clip = (/** @type {any} */ s, n) => (typeof s === 'string' ? (s.length > n ? `${s.slice(0, n - 1)}…` : s) : '');
+  switch (j.state) {
+    case 'running': return { tone: 'wait', icon: 'hourglass', tag: 'Đang chạy',
+      sub: `${j.minutes === null || j.minutes === undefined ? 'Đang làm video' : `Đã chạy ${num(j.minutes)} phút`}. Xem được nhật ký khi phiên kết thúc.` };
+    case 'waiting': return { tone: 'idle', icon: 'clock', tag: 'Chờ máy rảnh',
+      sub: `Máy đang bận${j.running?.length ? ` với ${j.running.map((/** @type {any} */ r) => r.title || r.key).filter(Boolean).slice(0, 2).join(', ')}` : ''}, nên chưa bắt đầu. Lượt sau tự làm lại.` };
+    case 'done': return { tone: 'ok', icon: 'check_circle', tag: 'Xong',
+      sub: `${j.ended_at ? `Xong ${when(j.ended_at, now)}. ` : ''}${j.posts?.length ? 'Video đã thành nháp, chờ bạn duyệt.' : 'Không có nháp mới.'}` };
+    case 'failed': return { tone: 'err', icon: 'x_circle', tag: 'Lỗi',
+      sub: `${j.ended_at ? `Dừng ${when(j.ended_at, now)}: ` : 'Dừng: '}${clip(j.error, 160) || 'phiên báo lỗi'}.${j.log_tail ? ` Lời cuối: “${clip(j.log_tail, 200)}”` : ''}` };
+  }
+  return { tone: 'idle', icon: 'info', tag: '', sub: '' };
+}
 /** What a channel sheet says first about its state. */
 function cellWhat(c, productName) {
   const ch = CH[c.channel] ?? c.channel;
@@ -556,7 +634,7 @@ function cellWhat(c, productName) {
     case 'signed_out': return `Máy đăng mở ${ch} thì gặp trang đăng nhập. Máy đăng không tự đăng nhập, không gõ mật khẩu. Bài đã duyệt đang đứng; quá 48 giờ thì về nháp và cần duyệt lại.`;
     case 'not_connected': return `Tài khoản ${c.account ?? ''} có rồi nhưng chưa nối vào máy chủ đăng bài, nên chưa có bài nào lên kênh này.`;
     case 'no_account': return `${productName} chưa có tài khoản ${ch} riêng.${c.drafts ? ` ${c.drafts} nháp đang chờ.` : ''}`;
-    case 'manual': return c.channel === 'tiktok' ? 'TikTok luôn do bạn đăng: Người dựng video làm video, bạn đăng rồi dán link vào đây.' : `Chưa có máy đăng cho ${ch}: duyệt xong bạn đăng tay rồi dán link.`;
+    case 'manual': return c.channel === 'tiktok' ? `Máy đăng chưa có tài khoản TikTok nào của ${productName}. Video xong thì bạn đăng rồi dán link vào đây.` : `Chưa có máy đăng cho ${ch}: duyệt xong bạn đăng tay rồi dán link.`;
     case 'unknown': return c.why === 'hubless' ? `Chưa có máy đăng cho ${ch}: duyệt xong bạn đăng tay rồi dán link.` : 'Chưa đọc được máy chủ đăng bài, nên chưa biết kênh này ra sao.';
     case 'off': return c.why === 'no_blog' ? `${productName} chưa có blog: Người viết chỉ soạn bài mạng xã hội, cộng đồng và bản tin.` : c.channel === 'community' ? 'Sản phẩm này chưa đăng lên cộng đồng nào. Thêm nơi đăng khi thiết lập sản phẩm.' : c.channel === 'newsletter' ? 'Sản phẩm này chưa có bản tin.' : c.why === 'not_chosen' ? `Lúc thiết lập bạn không chọn ${ch} cho ${productName}, nên Người viết không soạn bài cho kênh này.` : 'Sản phẩm này chưa dùng kênh này.';
   }
@@ -566,9 +644,11 @@ function cellWhat(c, productName) {
 function stepText(s, c) {
   const ch = CH[c.channel] ?? c.channel;
   switch (s.id) {
-    case 'sign_in': return { title: `Đăng nhập ${s.args?.account ?? ch}`, hint: `Ở Cài đặt › Trình duyệt${s.args?.profile ? `, hồ sơ ${s.args.profile}` : ''}. Nest hỏi cài trình duyệt cho Soot thì cài trước.`, button: 'Mở Cài đặt › Trình duyệt' };
+    case 'sign_in': return { title: `Đăng nhập ${s.args?.account ?? ch}`, hint: s.args?.profile
+      ? `Trên hồ sơ trình duyệt ${s.args.profile}: đăng nhập trên trang vừa mở rồi bấm Tôi đã đăng nhập. Máy đăng tự chạy lại sau đó.`
+      : 'Ở Kho khóa › Đăng nhập trình duyệt, chọn hồ sơ của tài khoản này rồi đăng nhập.', button: 'Đăng nhập' };
     case 'budget': return { title: 'Cho máy đăng đủ ngân sách', hint: 'Bàn chưa đọc được ngân sách của máy đăng. Xem ở Cần bạn nếu nó báo hết.', button: 'Mở Cần bạn' };
-    case 'resume': return { title: 'Bật lại kênh', hint: 'Máy đăng nhận bài ở lượt kế tiếp.', button: null };
+    case 'resume': return { title: s.args?.account ? `Bật lại ${s.args.account}` : 'Bật lại kênh', hint: 'Máy đăng nhận bài ở lượt kế tiếp.', button: s.args?.channel ? 'Bật lại' : null };
     case 'connect': return { title: `Nối ${ch} vào máy chủ đăng bài`, hint: 'Biên tập soạn sẵn các bước cho bạn.', button: 'Nhờ Biên tập' };
     case 'create_account': return { title: `Tạo tài khoản ${ch} riêng`, hint: 'Tài khoản đang có chỉ đăng cho sản phẩm khác.', button: null };
   }
@@ -848,7 +928,7 @@ function setupProduct(f) {
     channels,
   };
 }
-return { TZ, CHANNELS, CH, CHM, targetText, submitUrl, STAGES, TABS, FORMAT, WHO, MAKER, LANG, REQUEST_ID, ITEM_REF, local, dayDiff, when, day, hm, hoursSince, num, weekLabel, requestId, cardCount, compactApprovals, viewBody, actionBody, intentKey, output, unknownOutcome, errorText, validUrl, URL_HINT, communityKind, profileUrl, safeLink, productMap, statusText, tileText, blockerText, itemState, itemSub, planText, cellText, cellWhat, stepText, cadenceText, hubLine, posterLine, whyText, nodeLabel, NODE_ICON, firstNode, stageLabel, shiftWeek, blocks, topLine, queryLine, inputText, nextWhy, NEED_LABEL, replyText, PRETEST_NEEDS, PRETEST_SETUP_ASK, pretestText, SETUP_STEPS, productId, productMark, KINDS, createProblem, createFields, siteUrl, setupProblem, setupProduct };
+return { TZ, CHANNELS, CH, CHM, targetText, submitUrl, STAGES, TABS, FORMAT, WHO, MAKER, LANG, REQUEST_ID, ITEM_REF, local, dayDiff, when, day, hm, hoursSince, num, weekLabel, requestId, cardCount, compactApprovals, viewBody, actionBody, intentKey, output, unknownOutcome, errorText, validUrl, URL_HINT, communityKind, profileUrl, safeLink, productMap, statusText, tileText, blockerText, itemState, itemSub, planText, cellText, signInText, profileChoice, profileHint, tiktokHandle, bindToast, accountText, jobText, cellWhat, stepText, cadenceText, hubLine, posterLine, whyText, nodeLabel, NODE_ICON, firstNode, stageLabel, shiftWeek, blocks, topLine, queryLine, inputText, nextWhy, NEED_LABEL, replyText, PRETEST_NEEDS, PRETEST_SETUP_ASK, pretestText, SETUP_STEPS, productId, productMark, KINDS, createProblem, createFields, siteUrl, setupProblem, setupProduct };
 })();
 
 // ---- src/app.js ----
@@ -1049,6 +1129,26 @@ async function pauseAll(paused, b) {
   if (!out) return;
   toast(paused ? 'Đã tạm dừng mọi lượt đăng. Bài đã duyệt nằm chờ.' : 'Đã bật lại. Bài lên theo nhịp từ lượt tới.');
   load({ quiet: true });
+}
+/** Pause or resume one account row (tiktok-<handle>): the row the Publisher reads. */
+async function pauseAccount(channel, paused, b) {
+  const out = await act(paused ? 'pause' : 'resume', { scope: 'account', channel }, b);
+  if (!out) return;
+  toast(paused ? 'Đã tạm dừng tài khoản này. Video đã duyệt nằm chờ.' : out.was_signed_out ? 'Đã bật lại. Nếu tài khoản vẫn đăng xuất, máy đăng dừng lại và báo bạn.' : 'Đã bật lại. Máy đăng nhận video ở lượt kế tiếp.');
+  load({ quiet: true });
+}
+/** The one action of an account line: sign in (the profile's sign-in in Kho khóa), resume or pause. */
+function accountAction(a) {
+  const t = M.accountText(a).action;
+  if (t.id === 'sign_in') {
+    const sign = btn(t.label, () => soot.open(a.sign_in?.href ?? 'nest://settings/browser'), { icon: 'login', cls: 'primary', k: `acct:signin:${a.channel}` });
+    // Nest's sign-in resumes the account by itself; when the desk cannot read it, the person says so with Bật lại.
+    if (a.sign_in?.state) return sign;
+    const b = btn('Bật lại', () => pauseAccount(a.channel, false, b), { cls: 'quiet', icon: 'play', k: `acct:resume:${a.channel}`, title: 'Đã đăng nhập ở ngoài Nest? Bật lại tài khoản này' });
+    return h('span', { class: 'acts' }, b, sign);
+  }
+  const b = btn(t.label, () => pauseAccount(a.channel, t.id === 'pause', b), { icon: t.id === 'pause' ? 'pause' : 'play', cls: t.id === 'resume' ? 'primary' : undefined, k: `acct:${t.id}:${a.channel}` });
+  return b;
 }
 async function pauseChannel(key, paused, b) {
   const out = await act(paused ? 'pause' : 'resume', { scope: 'channel', channel: key }, b);
@@ -1383,7 +1483,8 @@ function stageSub(id, s) {
   return '';
 }
 function viewContent(v) {
-  if (S.summary?.status?.code === 'empty') return emptyState();
+  // A video being made is news before the first item exists.
+  if (S.summary?.status?.code === 'empty') return [emptyState(), claudeCodeCard(v.claude_code)];
   const strip = h('div', { class: 'mk-stages', role: 'group', 'aria-label': 'Giai đoạn' }, ...M.STAGES.map(s => {
     const st = v.stages?.[s.id];
     const warn = (s.id === 'approval' && st?.count) || (s.id === 'scheduled' && st?.sub?.held);
@@ -1405,9 +1506,21 @@ function viewContent(v) {
     v.next_cursor && (S.stage || older) ? h('span', { class: 'mk-dot' }, '·') : null,
     older, older && S.stage ? h('span', { class: 'mk-dot' }, '·') : null,
     S.stage ? btn('Mọi giai đoạn', () => { S.stage = null; S.olderLive = false; loadTab(); }, { cls: 'link', icon: 'left', k: 'stage:all' }) : null);
-  return [strip, h('section', { class: 'mk-card' }, ...groups, v.next_cursor || S.stage ? foot : null)];
+  return [strip, h('section', { class: 'mk-card' }, ...groups, v.next_cursor || S.stage ? foot : null), claudeCodeCard(v.claude_code)];
 }
 const ORDER = { approval: 0, scheduled: 1, making: 2, idea: 3, live: 4 };
+/** The Claude Code jobs that make videos: running, waiting for a free machine, done (opens its draft) and failed (why). */
+function claudeCodeCard(cc) {
+  if (!cc?.rows?.length) return null;
+  const c = cc.counts ?? {};
+  const head = [c.running ? `${M.num(c.running)} đang chạy` : '', c.waiting ? `${M.num(c.waiting)} chờ` : '', c.failed ? `${M.num(c.failed)} lỗi` : ''].filter(Boolean).join(' · ');
+  return card('Claude Code', head ? h('span', { class: 'sub' }, head) : null, ...cc.rows.map(j => {
+    const x = M.jobText(j, Date.now());
+    const draft = j.state === 'done' && j.posts?.length ? j.posts[0] : null;
+    return h('div', { 'data-k': `cc:${j.key}` }, row({ lead: sq(x.tone === 'idle' ? '' : x.tone, x.icon), title: j.title || j.key, sub: [pm(j.product), h('span', null, x.sub)], end: tag(x.tag, x.tone), wrap: true,
+      onClick: draft ? () => openSheet('item', draft) : undefined }));
+  }));
+}
 async function more(v, b) {
   b.disabled = true;
   try {
@@ -1432,25 +1545,30 @@ function viewChannels(v) {
       end: hl.fix === 'connect' ? btn('Nối máy chủ', () => soot.open('nest://settings/setup?key=MARKETING_HUB'), { k: 'hub:connect2' }) : hl.fix === 'retry' ? btn('Thử lại', () => load(), { k: 'hub:retry2' }) : undefined }),
     hubless ? row({ lead: sq('', 'file'), title: 'Thư mục site của từng sản phẩm', sub: 'Duyệt xong, bàn ghi bài blog thành file Markdown. Bạn đưa trang lên như mọi khi.', wrap: true }) : null,
     row({ lead: sq(pl.tone, 'activity'), title: 'Máy đăng bài trên Mac này', sub: hubless ? 'Cần máy chủ đăng bài. Chưa có thì bài X, Facebook do bạn đăng tay rồi dán link.' : pl.text, wrap: true }),
-    row({ lead: sq('', 'users'), title: 'Bạn', sub: 'Reddit, Hacker News và gửi bản tin luôn là bạn bấm; TikTok cũng vậy khi bạn chưa nối tài khoản cho máy đăng. Soot soạn sẵn, bạn đăng rồi dán link.', wrap: true }));
+    row({ lead: sq('', 'users'), title: 'Bạn', sub: 'Reddit, Hacker News và gửi bản tin luôn là bạn bấm. Soot soạn sẵn, bạn đăng rồi dán link.', wrap: true }));
   const order = M.CHANNELS;
   const cellBtn = (r, ch) => {
     const c = { ...r.cells[ch], channel: ch };
     const x = M.cellText(c);
+    // A TikTok cell has one line per account, each with its own state; its action is in the cell's sheet.
+    const lines = c.accounts?.length ? c.accounts.map(a => { const t = M.accountText(a); return h('span', { class: 'l2 acct', 'data-k': `cell:acct:${a.channel}` }, h('span', null, a.account ?? a.channel), tag(t.label, t.tone)); }) : [h('span', { class: 'l2' }, x.l2)];
     return h('td', null, h('button', { type: 'button', class: `mk-cell ${x.tone}`, 'data-k': `cell:${r.product}:${ch}`, onclick: () => openSheet('channel', `${r.product}:${ch}`) },
-      h('span', { class: 'l1' }, x.tone === 'err' ? ic('x_circle', 's12') : x.tone === 'ok' ? ic('check_circle', 's12') : null, x.l1), h('span', { class: 'l2' }, x.l2)));
+      h('span', { class: 'l1' }, x.tone === 'err' ? ic('x_circle', 's12') : x.tone === 'ok' ? ic('check_circle', 's12') : null, x.l1), ...lines));
   };
   const table = h('table', { class: 'mk-matrix' },
     h('thead', null, h('tr', null, h('th', null, 'Sản phẩm'), ...order.map(c => h('th', null, cm(c), M.CH[c])))),
     h('tbody', null, ...v.rows.map(r => h('tr', null, h('td', { class: 'p' }, h('b', null, pm(r.product), r.name), h('span', null, M.cadenceText(r.cadence, r.cells))), ...order.map(c => cellBtn(r, c))))));
   const cards = h('div', { class: 'mk-pcards' }, ...v.rows.map(r => card(r.name, h('span', { class: 'muted' }, M.cadenceText(r.cadence, r.cells)),
-    ...order.filter(c => r.cells[c]?.state !== 'off').map(c => {
+    ...order.filter(c => r.cells[c]?.state !== 'off').flatMap(c => {
+      const open = () => openSheet('channel', `${r.product}:${c}`);
+      // One row per TikTok account, as in the matrix.
+      if (r.cells[c]?.accounts?.length) return r.cells[c].accounts.map(a => { const t = M.accountText(a); return row({ lead: cm(c), title: `${M.CH[c]} ${a.account ?? a.channel}`, sub: a.video_channel ?? '', end: tag(t.label, t.tone), onClick: open }); });
       const x = M.cellText({ ...r.cells[c], channel: c });
-      return row({ lead: cm(c), title: M.CH[c], sub: x.l2, end: tag(x.l1, x.tone === 'none' || x.tone === '' ? 'idle' : x.tone), onClick: () => openSheet('channel', `${r.product}:${c}`) });
+      return [row({ lead: cm(c), title: M.CH[c], sub: x.l2, end: tag(x.l1, x.tone === 'none' || x.tone === '' ? 'idle' : x.tone), onClick: open })];
     }))));
   const add = h('div', { class: 'mk-more flat start' }, btn('Thêm sản phẩm', () => openSheet('setup', null), { cls: 'link', icon: 'plus', k: 'setup:add' }));
   return [top, v.rows.length ? h('section', { class: 'mk-card mk-wrap' }, table) : emptyRow('Chưa có sản phẩm nào.'), cards, add,
-    h('p', { class: 'mk-foot' }, hubless ? 'Chưa có máy chủ đăng bài nên không có giờ đăng: bài duyệt xong được ghi vào site, hoặc chờ bạn đăng tay ở Hôm nay.' : 'Hồ sơ trình duyệt của máy đăng nằm ở Cài đặt › Trình duyệt. Giờ đăng X và Facebook là giờ khoảng chừng: máy đăng nhận bài theo lượt.')];
+    h('p', { class: 'mk-foot' }, hubless ? 'Chưa có máy chủ đăng bài nên không có giờ đăng: bài duyệt xong được ghi vào site, hoặc chờ bạn đăng tay ở Hôm nay.' : 'Hồ sơ trình duyệt của máy đăng nằm ở Kho khóa › Đăng nhập trình duyệt. Giờ đăng X và Facebook là giờ khoảng chừng: máy đăng nhận bài theo lượt.')];
 }
 
 // ---------- Thư viện ----------
@@ -1652,7 +1770,7 @@ async function fetchSheet() {
 async function refreshSheet() {
   const s = S.sheet;
   if (!s || s.kind === 'create' || s.kind === 'setup' || s.form.dirty || s.form.editing) return;
-  if (sheetHost.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName ?? '')) return;
+  if (sheetHost.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '')) return;
   await fetchSheet();
 }
 function renderSheet(focus = false) {
@@ -1950,8 +2068,9 @@ function sheetItem(s) {
   if (d.video) {
     body.push(notice('plain', 'info', null, d.state === 'handoff' ? 'Video này chờ bạn đăng TikTok. Đăng xong dán link vào đây, Soot đọc lượt xem 48 giờ và 7 ngày.' : 'Máy đăng đưa video này lên TikTok qua trình duyệt; link hiện ở đây khi video đã lên.'));
     body.push(h('div', { class: 'mk-sec' }, h('h3', null, ic('video', 's12'), 'File đã xuất'),
-      // The desk takes a TikTok link only, so that is the one platform it names.
-      kv([['Kênh', d.video.account ?? d.video.channel], ['File', (d.video.delivery ?? []).join(', ') || 'Chưa xuất'], ['Nền tảng', platforms((d.video.platforms ?? []).includes('tiktok') || !(d.video.platforms ?? []).length ? ['tiktok'] : [])], ['Nhãn AI', d.video.ai_label === null || d.video.ai_label === undefined ? '—' : d.video.ai_label ? 'Bật nhãn nội dung AI khi đăng' : 'Không'],
+      // The desk takes a TikTok link only, so that is the one platform it names. "Kênh" is a posting channel only
+      // (bs-3l8s9cav AC5.2): the video names the account it posts as and the folder its files sit in.
+      kv([['Tài khoản', d.video.account], ['Thư mục video', d.video.channel], ['File', (d.video.delivery ?? []).join(', ') || 'Chưa xuất'], ['Nền tảng', platforms((d.video.platforms ?? []).includes('tiktok') || !(d.video.platforms ?? []).length ? ['tiktok'] : [])], ['Nhãn AI', d.video.ai_label === null || d.video.ai_label === undefined ? '—' : d.video.ai_label ? 'Bật nhãn nội dung AI khi đăng' : 'Không'],
         ['Đã đăng', M.safeLink(d.video.url) ? link('Mở video', d.video.url) : 'Chưa ghi link']])));
   }
   // Hand-off: what the founder does next, after the words it is about.
@@ -2097,6 +2216,96 @@ function rulesBlock(s, d) {
       ch !== 'blog' ? numIn('r-max', 'Độ dài tối đa (ký tự)', x.max, 1, 5000, (v) => { x.max = v; }) : null,
       h('div', { class: 'row' }, btn('Huỷ', () => { s.form = {}; renderSheet(); }, { cls: 'quiet', k: 'rules:cancel' }), save)));
 }
+// ---------- Tài khoản: an account's browser profile (T3) ----------
+
+const focusIn = (sel) => /** @type {HTMLElement | null} */ (sheetHost.querySelector(sel))?.focus();
+/** Nest's browser profiles as options; one another account already posts from is shown but cannot be picked. */
+function profileSelect(id, list, channel, value, onPick, o = {}) {
+  const sel = /** @type {HTMLSelectElement} */ (h('select', { id, 'data-k': o.k, 'aria-describedby': `${id}-hint`, 'aria-invalid': o.bad ? 'true' : null },
+    h('option', { value: '', selected: !value, disabled: !!o.required }, o.required ? 'Chọn hồ sơ…' : 'Không dùng hồ sơ'),
+    ...list.map(p => { const c = M.profileChoice(p, channel); return h('option', { value: p.id, selected: value === p.id, disabled: !!c.taken }, c.label); })));
+  sel.value = value ?? '';
+  sel.addEventListener('change', () => onPick(sel.value || null));
+  return sel;
+}
+/** Nest has no browser profile yet: one is made in Kho khóa, never on the desk. */
+const noProfiles = () => notice('plain', 'info', 'Nest chưa có hồ sơ trình duyệt nào', 'Tạo một hồ sơ trong Kho khóa rồi quay lại đây.', btn('Mở Kho khóa', () => soot.open('nest://settings/browser'), { k: 'acct:profiles' }));
+const closeEditor = (s) => { s.form = {}; renderSheet(); };
+/** After a binding or a new account: the toast, then the sheet and the desk read again. */
+async function bound(s, out, name) {
+  s.form = {};
+  toast(M.bindToast(out, name));
+  await fetchSheet();
+  load({ quiet: true });
+}
+/** Pick another profile for one account line: set_limits {channel, browser_profile}; null unbinds. */
+function bindEditor(s, a, list) {
+  const f = s.form;
+  const chosen = list.find(p => p.id === f.pick) ?? null;
+  const sel = profileSelect('acct-profile', list, a.channel, f.pick, (v) => { f.pick = v; f.bad = null; f.dirty = true; renderSheet(); focusIn('#acct-profile'); }, { k: `acct:profile:${a.channel}`, bad: !!f.bad, required: !a.profile });
+  const save = btn('Lưu hồ sơ', async () => {
+    if ((f.pick ?? null) === (a.profile ?? null)) { closeEditor(s); return; }
+    const out = await act('set_limits', { channel: a.channel, browser_profile: f.pick ?? null }, save, {
+      // A profile taken meanwhile, or gone from Nest, is said under the picker.
+      onError: (e) => { if (!['profile_in_use', 'browser_profile_unknown'].includes(e?.code)) return false; f.bad = M.errorText(e); renderSheet(); focusIn('#acct-profile'); return true; },
+    });
+    if (out) await bound(s, out, chosen?.name);
+  }, { cls: 'primary', k: `acct:save:${a.channel}` });
+  return h('div', { class: 'mk-card mk-rules' },
+    list.length ? h('div', { class: 'mk-field' }, h('label', { for: 'acct-profile' }, `Hồ sơ trình duyệt của ${a.account ?? 'tài khoản'}`), sel,
+      h('span', { class: f.bad ? 'err-hint' : 'hint', id: 'acct-profile-hint' }, f.bad ?? M.profileHint(chosen, Date.now()))) : noProfiles(),
+    h('div', { class: 'row' }, btn('Huỷ', () => closeEditor(s), { cls: 'quiet', k: 'acct:cancel' }), list.length ? save : null));
+}
+/** Thêm tài khoản TikTok: a handle and the profile it signs in on (add_account); the new row waits for its sign-in. */
+function addEditor(s, pid, pname, list) {
+  const f = s.form, x = f.add;
+  const chosen = list.find(p => p.id === x.profile) ?? null;
+  const handle = /** @type {HTMLInputElement} */ (h('input', { id: 'acct-handle', type: 'text', maxlength: '25', placeholder: '@tentaikhoan', autocomplete: 'off', spellcheck: 'false', 'aria-required': 'true', 'aria-describedby': 'acct-handle-hint', 'aria-invalid': f.bad === 'handle' ? 'true' : null, 'data-k': 'acct:handle' }));
+  handle.value = x.handle ?? '';
+  handle.addEventListener('input', () => { x.handle = handle.value; f.dirty = true; if (f.bad === 'handle') { f.bad = null; handle.removeAttribute('aria-invalid'); } });
+  const sel = profileSelect('acct-new-profile', list, null, x.profile, (v) => { x.profile = v; if (f.bad === 'profile') f.bad = null; f.dirty = true; renderSheet(); focusIn('#acct-new-profile'); }, { required: true, k: 'acct:new-profile', bad: f.bad === 'profile' });
+  const wrong = (where, text) => { f.bad = where; f.badText = text; renderSheet(); focusIn(where === 'handle' ? '#acct-handle' : '#acct-new-profile'); };
+  const save = btn('Thêm tài khoản', async () => {
+    const hd = M.tiktokHandle(x.handle);
+    if (!hd) { wrong('handle', M.errorText({ code: 'handle_invalid' })); return; }
+    if (!x.profile) { wrong('profile', 'Chọn hồ sơ mà tài khoản này đăng nhập.'); return; }
+    const out = await act('add_account', { product: pid, handle: hd, browser_profile: x.profile }, save, {
+      onError: (e) => { const where = { handle_invalid: 'handle', account_exists: 'handle', profile_in_use: 'profile', browser_profile_unknown: 'profile' }[e?.code]; if (!where) return false; wrong(where, M.errorText(e)); return true; },
+    });
+    if (out) await bound(s, out, chosen?.name);
+  }, { cls: 'primary', k: 'acct:create' });
+  const hint = (where, id, text) => h('span', { class: f.bad === where ? 'err-hint' : 'hint', id }, f.bad === where ? f.badText : text);
+  return h('div', { class: 'mk-card mk-rules' },
+    h('div', { class: 'mk-field' }, h('label', { for: 'acct-handle' }, `Tài khoản TikTok của ${pname}`), handle, hint('handle', 'acct-handle-hint', 'Tên sau dấu @ trên TikTok.')),
+    list.length ? h('div', { class: 'mk-field' }, h('label', { for: 'acct-new-profile' }, 'Hồ sơ trình duyệt'), sel, hint('profile', 'acct-new-profile-hint', M.profileHint(chosen, Date.now()))) : noProfiles(),
+    h('div', { class: 'row' }, btn('Huỷ', () => closeEditor(s), { cls: 'quiet', k: 'acct:cancel' }), list.length ? save : null));
+}
+/**
+ * A TikTok cell's accounts: each line's state, its profile and its one action. With Nest's profiles readable the
+ * desk picks a line's profile and adds an account; without, the notice below says why ("—"), as for the sign-in.
+ */
+function accountsBlock(s, d, c, ch, pid, pname) {
+  const f = s.form;
+  const list = ch === 'tiktok' && d.profiles?.ok ? d.profiles.list ?? [] : null;
+  const accounts = c.accounts ?? [];
+  if (!accounts.length && !list) return null;
+  const nameOf = (id) => list?.find(p => p.id === id)?.name ?? id;
+  const open = (form, at) => { s.form = { editing: true, ...form }; renderSheet(); focusIn(at); };
+  const lines = accounts.map(a => {
+    const t = M.accountText(a);
+    const si = M.signInText(a.sign_in, Date.now());
+    const pick = list && f.bind !== a.channel ? btn(a.profile ? 'Đổi hồ sơ' : 'Chọn hồ sơ', () => open({ bind: a.channel, pick: a.profile ?? null }, '#acct-profile'), { cls: 'link', k: `acct:bind:${a.channel}` }) : null;
+    const prof = a.profile ? h('span', null, `Hồ sơ ${nameOf(a.profile)}${si ? `: ${si.text}` : ''}`) : list ? h('span', null, 'Chưa chọn hồ sơ') : null;
+    return row({ lead: cm(ch), title: a.account ?? a.channel, sub: [h('span', { class: 'ln' }, tag(t.label, t.tone), pick), prof, a.video_channel ? h('span', null, `Thư mục video ${a.video_channel}`) : null].filter(Boolean), wrap: true, end: accountAction(a), cls: 'acct' });
+  });
+  const editing = f.bind ? accounts.find(a => a.channel === f.bind) : null;
+  const add = list && !f.add ? btn('Thêm tài khoản', () => open({ add: { handle: '', profile: null } }, '#acct-handle'), { cls: 'link', icon: 'plus', k: 'acct:add' }) : null;
+  return h('div', { class: 'mk-sec' }, h('h3', null, 'Tài khoản', h('span', { class: 'sp' }), add),
+    h('div', { class: 'mk-plan' }, ...(lines.length ? lines : [emptyRow(`Chưa có tài khoản TikTok nào của ${pname}. Thêm một tài khoản để máy đăng đăng video.`)])),
+    editing && list ? bindEditor(s, editing, list) : null,
+    f.add && list ? addEditor(s, pid, pname, list) : null);
+}
+
 function sheetChannel(s) {
   const d = s.data;
   const [pid, ch] = String(d.key).split(':');
@@ -2105,12 +2314,18 @@ function sheetChannel(s) {
   const pname = ctx().products[pid]?.name ?? pid;
   const via = c.via === 'browser' ? 'Máy đăng đăng qua trình duyệt trên Mac này' : c.via === 'api' ? 'Máy chủ đăng bài đăng thẳng' : ch === 'blog' && c.via === 'hub' ? 'Máy chủ đăng bài đưa lên blog' : c.state === 'folder' ? 'Ghi vào thư mục site' : ['by_hand', 'manual'].includes(c.state) ? 'Bạn đăng tay' : null;
   const body = [notice(x.tone === 'err' ? 'partial' : 'plain', x.tone === 'err' ? 'x_circle' : x.tone === 'ok' ? 'check_circle' : 'info', x.l1, M.cellWhat(c, pname))];
-  if (d.steps?.length) {
-    body.push(h('div', { class: 'mk-sec' }, h('h3', null, c.state === 'signed_out' ? 'Làm lại từ đầu tới cuối' : 'Các bước'), h('ol', { class: 'mk-steplist' }, ...d.steps.map(st => {
+  // Tài khoản: one line per TikTok account, its state, its browser profile and its one action. With account lines,
+  // each line owns its sign-in and Bật lại, so the steps keep only what is not one account's (the budget).
+  const accounts = accountsBlock(s, d, c, ch, pid, pname);
+  if (accounts) body.push(accounts);
+  const steps = (d.steps ?? []).filter(st => !(c.accounts?.length && st.args?.channel));
+  if (steps.length) {
+    body.push(h('div', { class: 'mk-sec' }, h('h3', null, c.state === 'signed_out' && !c.accounts?.length ? 'Làm lại từ đầu tới cuối' : 'Các bước'), h('ol', { class: 'mk-steplist' }, ...steps.map(st => {
       const t = M.stepText(st, c);
       let action = null;
       if (st.id === 'sign_in') action = btn(t.button, () => soot.open(st.href ?? 'nest://settings/browser'), { icon: 'login', k: 'step:signin' });
       else if (st.id === 'budget') action = btn(t.button, () => soot.open('nest://needs'), { icon: 'wallet', k: 'step:budget' });
+      else if (st.id === 'resume' && t.button) { const b = btn(t.button, () => pauseAccount(st.args.channel, false, b), { icon: 'play', k: 'step:resume' }); action = b; }
       else if (st.id === 'connect') action = btn(t.button, () => ask(`Nối kênh ${M.CH[ch]} của ${pname} vào máy chủ đăng bài${c.account ? ` (tài khoản ${c.account})` : ''} và cho tôi biết cần làm gì.`, NOTE_ASKED).catch(() => {}), { k: 'step:connect' });
       return h('li', { class: st.done ? 'done' : '' }, h('div', { class: 'grow' }, h('b', null, t.title), h('span', null, t.hint), action ? h('div', null, action) : null));
     }))));
@@ -2122,9 +2337,15 @@ function sheetChannel(s) {
   // The newsletter's recipients are pasted here; the desk shows how many, never who.
   if (ch === 'newsletter') body.push(subscribersBlock(s, pid, c.subscribers ?? null));
   if (ch === 'community' && (c.targets ?? []).length) body.push(h('div', { class: 'mk-sec' }, h('h3', null, 'Nơi đăng'), h('div', { class: 'mk-plan' }, ...c.targets.map(t => row({ lead: cm('community'), title: M.targetText(t), sub: t.rules ?? '', wrap: true, end: M.submitUrl(t) ? link('Mở', M.submitUrl(t)) : undefined })))));
-  body.push(support([['Kênh', d.key], ['Tài khoản', c.account], ['Hồ sơ trình duyệt', c.profile], ['Thư mục', c.dir], ['Máy đăng hỏi bài lần cuối', c.poster_seen_at ? M.when(c.poster_seen_at, Date.now()) : null], ['Độ dài tối đa', c.max ? M.num(c.max) : null]]));
+  // The profile's sign-in is Nest's state; the desk never guesses it, and says once why it cannot read it.
+  const si = M.signInText(c.sign_in, Date.now());
+  const listed = d.profiles && !d.profiles.ok ? [{ sign_in: { state: null, why: d.profiles.why, grant: d.profiles.grant } }] : [];
+  const unread = [c, ...(c.accounts ?? []), ...listed].map(x => M.signInText(x.sign_in, Date.now())).find(x => x?.why);
+  if (unread) body.push(notice('plain', 'info', 'Đăng nhập trên hồ sơ trình duyệt: —', unread.why, unread.grant ? btn('Cấp quyền', () => soot.open(unread.grant), { k: 'ch:grant' }) : null));
+  body.push(support([['Kênh', d.key], ['Tài khoản', c.account], ['Hồ sơ trình duyệt', c.profile], ['Đăng nhập trên hồ sơ', si?.text ?? null], ['Thư mục', c.dir], ['Máy đăng hỏi bài lần cuối', c.poster_seen_at ? M.when(c.poster_seen_at, Date.now()) : null], ['Độ dài tối đa', c.max ? M.num(c.max) : null]]));
   const foot = [];
-  const canPause = ['ok', 'signed_out'].includes(c.state) && !c.paused && !['tiktok', 'community', 'newsletter'].includes(ch);
+  // TikTok pauses per account, in Tài khoản above: the desk's own pause would not stop the Publisher.
+  const canPause = ['ok', 'signed_out'].includes(c.state) && !c.paused && !c.accounts && !['tiktok', 'community', 'newsletter'].includes(ch);
   if (canPause) { const b = btn('Tạm dừng kênh', () => pauseChannel(d.key, true, b), { icon: 'pause', k: 'ch:pause' }); foot.push(b); }
   if (c.paused?.scope === 'channel') { const b = btn('Bật lại kênh', () => pauseChannel(d.key, false, b), { cls: 'primary', icon: 'play', k: 'ch:resume' }); foot.push(h('span', { class: 'note' }), b); }
   else if (c.paused?.scope === 'all') foot.push(h('span', { class: 'note' }, 'Bạn đang tạm dừng mọi lượt đăng; bật lại ở Kênh đăng.'));
@@ -2226,7 +2447,7 @@ function sheetCreate(s) {
     body.push(h('div', { class: 'mk-field' }, h('span', { class: 'lb' }, f.format === 'launch' ? 'Gói gồm' : 'Lên kênh nào'), h('div', { class: 'mk-checks' }, ...avail.map(c => {
       const st = cells[c]?.state;
       const off = !usable(c);
-      const label = c === 'community' && f.format === 'launch' ? 'Show HN' : M.CH[c];
+      const label = c === 'community' && f.format === 'launch' ? 'Show HN' : c === 'tiktok' && cells[c]?.accounts?.length ? `${M.CH[c]} ${cells[c].accounts.map(a => a.account ?? a.channel).join(', ')}` : M.CH[c];
       const note = off ? ` · ${st === 'not_connected' ? 'chưa nối' : st === 'off' ? 'không dùng' : 'chưa có tài khoản'}` : st === 'signed_out' ? ' · đang đăng xuất' : st === 'paused' ? ' · đang tạm dừng' : st === 'by_hand' || c === 'community' ? ' · bạn đăng' : st === 'folder' ? ' · ghi vào site' : '';
       return btn(`${label}${note}`, () => { const i = f.channels.indexOf(c); if (i >= 0) f.channels.splice(i, 1); else f.channels.push(c); renderSheet(); }, { pressed: f.channels.includes(c), disabled: off, k: `cf:ch:${c}` });
     }))));
@@ -2409,7 +2630,7 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && t?.classList?.contains('click')) { e.preventDefault(); t.click(); }
   // Keep Tab inside an open sheet.
   if (e.key === 'Tab' && S.sheet) {
-    const f = [...sheetHost.querySelectorAll('button, input, textarea, summary, [tabindex="0"]')].filter(x => !(/** @type {any} */ (x).disabled));
+    const f = [...sheetHost.querySelectorAll('button, input, select, textarea, summary, [tabindex="0"]')].filter(x => !(/** @type {any} */ (x).disabled));
     if (!f.length) return;
     const first = /** @type {HTMLElement} */ (f[0]), last = /** @type {HTMLElement} */ (f[f.length - 1]);
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }

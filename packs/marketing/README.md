@@ -194,10 +194,91 @@ Tests: `node --test packs/marketing/tests/*.test.mjs packs/marketing/page/tests/
   `channels_setup {from_products: true}` creates one per account in
   `products.json` (`accounts.tiktok`: `[{handle, video_channel, profile}]`, or
   the older text `lohi (lohi-truyen), other (other-folder)`). A channel set to
-  `publisher: "hand"` stays the founder's upload. `video_brief` (tool only)
-  picks the next source for a video and answers the input of the claude-code
-  pack's `claude-code_start`; set `MVF_SKILL` to the 2build marketing-video
+  `publisher: "hand"` stays the founder's upload. `due {schedule: true,
+  platform: "tiktok"}` is the next due publish across every live `tiktok-*`
+  account (one posting chain for all of them; `channel: "tiktok-<handle>"`
+  still names one).
+- **Accounts and profiles on the desk.** The TikTok cell's Tài khoản lines
+  pick their Nest browser profile (Đổi hồ sơ: `page_action set_limits
+  {channel, browser_profile}`, null unbinds) and add an account (Thêm tài
+  khoản: `page_action add_account {product, handle, browser_profile}`, which
+  creates `tiktok-<handle>` paused until that profile signs in to TikTok;
+  `products.json` is not written). The picker lists the profiles from
+  `browser.profiles.read`, marked by who may open them; one profile signs in
+  one account per platform (`profile_in_use`). Each binding is written to the
+  profile as a use (`TikTok @handle · <product>`, linking `nest://piece/desk`),
+  which Kho khóa shows as "Dùng cho". The field is `browser_profile`, never
+  `profile`: the host checks a top-level `profile` against the calling Soot's
+  grants because it names a profile that call opens; a binding opens nothing,
+  and the Publisher's own browser call is the one checked.
+- **Videos with Claude Code.** `video_brief` (tool only) picks the next source
+  for a video and answers the exact input of the claude-code pack's
+  `claude-code_start`; left without `channels` it covers every TikTok account
+  of the product, the account whose turn is next, one brief per fire. A
+  missing `MARKETING_ROOT` or skill is a thrown `not_configured`, an unknown
+  product or folder `not_found`, so the chain fails loudly; nothing to do is
+  `{done: true, reason}`. Set `MVF_SKILL` to the 2build marketing-video
   `SKILL.md` when it is not at `<repo>/2build/skills/marketing-video/SKILL.md`.
+  The two chains, run by the video Soot (`claude-code` and
+  `marketing:tools=video_brief,video_job,video_import`):
+  - a few times a day `marketing_video_brief {product}` → `claude-code_start`
+    → `marketing_video_job` (each `input_from: "previous"`). `video_job`
+    writes the Claude Code ledger (`settings.video_jobs`): running with its id,
+    log and start time; a busy machine (`waiting: "busy"`) is waiting and frees
+    the brief's slot so the next fire briefs again;
+  - every 10 minutes `claude-code_watch {key_prefix: "video-", emit: "job"}` →
+    `marketing_video_import` with `wake_when: "notify"`. The import records the
+    end: done with its drafts, or failed with the reason and the session's
+    last words, answered `{ok: false, notify: true, error: "job_failed: …"}`
+    so the failure reaches the owner. The older `emit: "result"` recipe still
+    imports and records the end by request id.
+
+  The desk's Nội dung has a Claude Code card from the ledger (running, waiting,
+  done, failed with its reason). A running job's log is read only when it ends.
+  The desk's TikTok cell has one line per account with its own state and one
+  action (Đăng nhập, Bật lại, Tạm dừng); pause and resume act on the account's
+  channel row (`page_action {op: pause|resume, scope: "account", channel:
+  "tiktok-<handle>"}`), the row `due` and `claim` read. A signed-out account
+  is a Hôm nay blocker and counts in Kênh cần sửa, with or without a hub.
+- **The legacy `tiktok` row is retired.** TikTok posts per account only:
+  `channel("tiktok")` no longer creates a row (`tiktok_account_required`), and
+  `draft_save`, `video_import` and `channels_setup` refuse it. A one-time repair
+  (`settings.legacy_tiktok`, run by `channels_setup`, `due`, `release_due` and
+  the desk's actions) moves each post on an old `tiktok` row, with its queue,
+  publish_log and reply rows, to the `tiktok-<handle>` that exactly one account
+  matches (the account whose `video_channel` is the folder the post was cut in,
+  else the product's only account), then pauses the row with reason `retired`:
+  no sign-in card, never resumed, nothing deleted. A post no single account
+  matches stays on the retired row.
+- **Sign-in probe for account profiles.** `channels_probe` checks a paused
+  channel that has its own browser profile only when the calling Soot holds
+  that profile (`SOOT_BROWSER_PROFILES`, filled by the host once the pack's env
+  grant includes it), and its navigate answer carries `profile` for
+  `browser-use_control`. Run the probe chain on the Soot granted the TikTok
+  profiles (the Poster): `channels_probe {}` → `browser-use_control` (input
+  from previous) → `browser-use_control {action: "command", args: ["snapshot",
+  "-i", "-c"]}` → `channels_probe` (input from previous) → `browser-use_control
+  {action: "close"}`. A channel with a publish in flight is skipped. Granting
+  `SOOT_BROWSER_PROFILES` to this pack also makes the host check every
+  `profile` a marketing tool is given against the caller's grants. The pack
+  also declares `SOOT_BROWSER_PROFILE` (the same grant): without it the host
+  refuses every marketing tool in a task bound to a profile
+  (`browser_profile_unsupported`), so a bound Poster could not claim, record
+  or fail a post.
+- **"Signed in" is the profile's, in Nest.** The pack declares `needs.runtime:
+  [browser.profiles.read, browser.profiles.report]` (contract browser-profiles
+  §3a). `fail {status: "needs_person", reason: "signed_out"}` keeps when the
+  pause began (`rules.signed_out_at`) and tells Nest that the platform's site
+  (`x.com`, `facebook.com`, `reddit.com`, `tiktok.com`) is signed out on the
+  channel's profile (`profile_report` in the answer). `due` resumes a channel
+  paused `signed_out` once its profile has that site signed in after the pause
+  (`resumed`), and the card settles. A sign-in card is one per profile (group
+  `signin:<profile>`) whose Đăng nhập link is
+  `nest://settings/browser?profile=<id>&sign_in=<host>`; "Đã đăng nhập …" stays
+  as an option, never the recommended one. The desk shows each account's
+  sign-in from Nest ("Đã đăng nhập · …", "Đã đăng xuất · …"); without the
+  grant it shows "—" with why and a Cấp quyền link (the Soot's sheet), and
+  `due` resumes nothing (`sign_in_unread: "no_grant"`).
 - **Replies.** "Cần trả lời" on Hôm nay lists replies saved by the replies
   schedule that need the founder, plus the drafted safe replies; `reply_done`
   marks one answered and closes its Cần bạn item.
@@ -224,7 +305,7 @@ are replaced by the desk; `page_view {page: posts|queue}` and their
 `page_action` ops still answer for an older client. **Chiến dịch**
 (`campaigns`, `slot: "project.tab"`, `tab: {id: "marketing"}`) stays, from its
 own bundle `campaigns/`, and shows the next step of each campaign and "Mở
-Thiết lập" when `PRODUCT_AGENT_KEY` (an `agent_marketing` key; the deprecated
+Kho khóa" when `PRODUCT_AGENT_KEY` (an `agent_marketing` key; the deprecated
 shared `PRODUCT_ADMIN_KEY` still works as a fallback) is missing.
 
 ```text
@@ -282,7 +363,7 @@ campaign. When the api cannot be read the page keeps the Soot-side numbers
 
 ## Added in friction round 2
 
-`due {channel, skip}` and `claim` answer `{done:true}` when a chain should stop quietly; `record` accepts the publisher's `ok` and `status`. `channels_probe` is the tool-only sign-in probe (start phase returns `{action:"navigate", url}`; a phase with `result` decides). `report` builds the Editor's daily report (six lines or fewer). `plan` also reports `social` work and ranks topics by `insight`. `page_action set_limits` edits a channel's `cap_per_day`, `spacing_min` and `reply_cap_per_day`. Tools that need an optional credential answer `{ok:true, skipped:true, reason_code:'optional_credential', key}` when it is unset; campaign operations answer `needs_credential` (`link: nest://settings/setup`). `ready` and `due` and a signed-in probe set `resolves_need:true`.
+`due {channel, skip}` and `claim` answer `{done:true}` when a chain should stop quietly; `record` accepts the publisher's `ok` and `status`. `channels_probe` is the tool-only sign-in probe (start phase returns `{action:"navigate", url, profile?}`; a phase with `result` decides; end the chain with `browser-use_control {action:"close"}`). `report` builds the Editor's daily report (six lines or fewer). `plan` also reports `social` work and ranks topics by `insight`. `page_action set_limits` edits a channel's `cap_per_day`, `spacing_min` and `reply_cap_per_day`, and binds its `browser_profile`. Tools that need an optional credential answer `{ok:true, skipped:true, reason_code:'optional_credential', key}` when it is unset; campaign operations answer `needs_credential` (`link: nest://settings/setup`). `ready` and `due` and a signed-in probe set `resolves_need:true`.
 
 ## Radar, comments and restarts
 

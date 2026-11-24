@@ -21,17 +21,17 @@ unattended, in a detached process. Nothing here talks to a network or holds a cr
 | `CLAUDE_BIN` | Absolute path of `claude`. Default: `claude` on `PATH`, then `~/.local/bin/claude`. |
 | `CLAUDE_CODE_MODEL` | Default model (`opus`). |
 | `CLAUDE_CODE_EFFORT` | Default effort: `low`, `medium`, `high` (default), `xhigh` or `max`. |
-| `CLAUDE_CODE_MAX_RUNNING` | Sessions at once, 1 to 8 (default 1). Over it `start` answers `{done: true, waiting: "busy"}`, quiet for a chain. |
+| `CLAUDE_CODE_MAX_RUNNING` | Sessions at once, 1 to 8 (default 1). Over it `start` answers `{started: false, waiting: "busy", key, title, running}`: nothing started, and a chain goes on to the step that records it. |
 | `CLAUDE_CONFIG_DIR` | Claude Code's own config folder, when you keep it somewhere else. |
 
 ## Tools
 
 | tool | mode | what it does |
 | --- | --- | --- |
-| `start` | write | `{key, title, dir, prompt, model?, effort?, timeout_min?}` (timeout 5 to 720, default 240). One session per `key`: a running job with that key is answered (`already: true`). Writes `jobs/<id>/` under the pack's state, adds an unattended footer to the prompt that names the `result.json` path, starts a detached runner. Answers `{started, id, key, title, log, result_path}`. |
+| `start` | write | `{key, title, dir, prompt, model?, effort?, timeout_min?}` (timeout 5 to 720, default 240). One session per `key`: a running job with that key is answered (`already: true`). Writes `jobs/<id>/` under the pack's state, adds an unattended footer to the prompt that names the `result.json` path, starts a detached runner. Answers `{started, id, key, title, log, result_path}`; over `CLAUDE_CODE_MAX_RUNNING`, `{started: false, waiting: "busy", key, title, running}`. |
 | `jobs` | read | `{key?, state?, limit?}`, newest first: state (`running`, `done`, `failed`, `timed_out`, `stopped`), minutes, `cost_usd`, `num_turns`, `usage`, `last_text`, `result` (at most 4 KiB), `error`, log path. A runner that disappeared reads `failed` (`runner_gone`). Writes nothing. |
 | `stop` | write | `{id}`: kills the session's process group, records `stopped`. `watch` does not report a stop. |
-| `watch` | write | `{key_prefix?, emit?}` for a tool-only schedule. One finished, not yet reported job per call, oldest first. Nothing finished: `{done: true, running: n}`. Success: `emit: "result"` answers the session's `result.json` verbatim, `emit: "job"` (default) answers `{job, result}`. Failure, timeout, a missing or invalid result or `ok: false`: `{ok: false, notify: true, job: {id, key, title, state, error, last_text}}`. Also ends jobs whose runner died or outlived their timeout. |
+| `watch` | write | `{key_prefix?, emit?}` for a tool-only schedule. One finished, not yet reported job per call, oldest first. Nothing finished: `{done: true, running: n}`. Success: `emit: "result"` answers the session's `result.json` verbatim, `emit: "job"` (default) answers `{job, result}`. Failure, timeout, a missing or invalid result or `ok: false`: with `emit: "job"`, `{notify: true, job: {id, key, title, state, error, last_text}}`, so the next tool records the failure; with `emit: "result"`, `{ok: false, notify: true, job}`, which ends the chain. Also ends jobs whose runner died or outlived their timeout, and deletes job folders that ended more than 14 days ago. |
 
 A session writes its result to the path in its prompt footer: one JSON object, or `{"ok": false, "error": "..."}`.
 The brief says what shape the next tool needs.
@@ -43,31 +43,39 @@ Watch finished videos and hand each result to the marketing pack (a tool-only sc
 ```json
 {
   "every": "10m",
-  "tool": {"pack": "claude-code", "name": "watch", "input": {"key_prefix": "video-", "emit": "result"}},
-  "then": [{"pack": "marketing", "tool": "video_import", "input_from": "previous"}]
+  "tool": {"pack": "claude-code", "name": "watch", "input": {"key_prefix": "video-", "emit": "job"}},
+  "then": [{"pack": "marketing", "tool": "video_import", "input_from": "previous"}],
+  "wake_when": {"notify": true}
 }
 ```
 
-A failed job answers `{ok: false, notify: true, ...}`, which wakes the Soot under `wake_when: {notify: true}` (or ends
-the chain as a failed step). Nothing finished answers `{done: true}` and the chain stops quietly.
+`emit: "job"` hands a failed job on as `{notify: true, job}` (its `state` and `error` say it failed), so `video_import`
+records it as failed in the marketing ledger and then answers `{ok: false, notify: true}`: the fire fails loudly and
+wakes the Soot. Nothing finished answers `{done: true}` and the chain stops quietly. `emit: "result"` still works for
+an import that only takes the session's result; a failure then ends the chain at `watch`.
 
-Start one video a day: a chain from the marketing brief into `start` (the brief tool's output is the `prompt` source;
-shape the fields your `video_brief` returns to match `start`'s input):
+Start one video a day: a chain from the marketing brief into `start`, then into the ledger (the brief answers `done`
+or the complete `start` input `{key, title, dir, prompt}`):
 
 ```json
 {
   "every": "1d",
   "tool": {"pack": "marketing", "name": "video_brief", "input": {}},
-  "then": [{"pack": "claude-code", "tool": "start", "input_from": "previous"}]
+  "then": [
+    {"pack": "claude-code", "tool": "start", "input_from": "previous"},
+    {"pack": "marketing", "tool": "video_job", "input_from": "previous"}
+  ]
 }
 ```
 
 Put the day in `key` (`video-2026-11-24`) so each day is its own session and a repeated run is answered, never doubled.
+A busy answer (`waiting: "busy"`) reaches `video_job`, which frees the brief's slot so the next fire tries again.
 
 ## Files and limits
 
 - Job folders live under the pack's state (`$SOOT_PACK_STATE/jobs/<id>/`): `job.json`, `prompt.md`, `log.jsonl`
-  (stream-json), `stderr.log`, `result.json`, `exit.json`. They are not deleted by the pack.
+  (stream-json), `stderr.log`, `result.json`, `exit.json`. `start` and `watch` delete a folder whose job ended more than 14 days ago; a running job's folder
+  is never deleted. Copy what you want to keep (the marketing ledger keeps each job's id, title and outcome).
 - The session runs with permission checks off, in `dir`, as you. Keep `CLAUDE_CODE_DIRS` narrow. Briefs should say never to
   publish, post, commit or push unless wanted; the skill teaches the Soot to write that.
 - The timeout kills the session's whole process group (claude and what it started).

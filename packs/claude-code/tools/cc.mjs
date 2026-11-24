@@ -107,7 +107,8 @@ async function start(input, { env, now, timeoutMs }) {
   }
   const dir = checkDir(input.dir, env);
   if (running.length >= maxRunning) {
-    return { done: true, waiting: 'busy', running: running.map(j => ({ id: j.job.id, key: j.job.key, title: j.job.title, minutes: minutes(Date.parse(j.job.started_at), now) })) };
+    // Not `done`: a chain goes on to the step that records it (a video ledger frees its slot), and nothing started.
+    return { started: false, waiting: 'busy', key, title: title.trim(), running: running.map(j => ({ id: j.job.id, key: j.job.key, title: j.job.title, minutes: minutes(Date.parse(j.job.started_at), now) })) };
   }
   const bin = claudeBin(env);
 
@@ -177,7 +178,11 @@ async function watch(input, { env, now }) {
     const why = failureOf(j, result);
     if (why) {
       const v = jobView(j, { withResult: false });
-      return { ok: false, notify: true, job: { id: v.id, key: v.key, title: v.title, state: v.state, error: why, last_text: v.last_text } };
+      const job = { id: v.id, key: v.key, title: v.title, state: v.state, error: why, last_text: v.last_text };
+      // emit "job" hands a failure on like a success, so the next step (an import) records it; it never reads as one,
+      // job.state and job.error say it failed. emit "result" has no job shape to hand on: the failure stops the chain.
+      if (emit === 'job') return { notify: true, job };
+      return { ok: false, notify: true, job };
     }
     if (emit === 'result') return result.value;
     const { result: _r, ...view } = jobView(j);

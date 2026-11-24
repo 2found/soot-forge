@@ -151,6 +151,12 @@ div.mk-tile { cursor: default; }
 .mk-cell:hover { background: var(--mk-hover); }
 .mk-cell .l1 { font-size: 12.5px; font-weight: 600; display: flex; gap: 4px; align-items: center; }
 .mk-cell .l2 { font-size: 11.5px; color: var(--kit-muted); line-height: 1.35; }
+.mk-cell .l2.acct { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+.mk-cell .l2.acct + .l2.acct { margin-top: 3px; }
+.mk-row.acct .sub.wrap { flex-direction: column; align-items: flex-start; gap: 2px; }
+.mk-row.acct .sub .ln { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mk-row .end .acts { display: flex; align-items: center; gap: 6px; }
+.mk-cell .l2.acct .mk-tag { font-size: 11px; }
 .mk-cell.none .l1 { color: var(--kit-muted); font-weight: 500; }
 .mk-cell.err { background: var(--mk-wash-err); } .mk-cell.err .l1 { color: var(--kit-error); }
 .mk-cell.wait .l1 { color: var(--kit-warning); }
@@ -262,7 +268,7 @@ div.mk-tile { cursor: default; }
 .mk-field { display: flex; flex-direction: column; gap: 6px; }
 .mk-field label, .mk-field .lb { font-size: 12px; font-weight: 600; }
 .mk-field .hint { font-size: 12px; color: var(--kit-muted); }
-.mk-field input, .mk-field textarea { width: 100%; }
+.mk-field input, .mk-field textarea, .mk-field select { width: 100%; }
 .mk-checks { display: flex; flex-wrap: wrap; gap: 6px; }
 .mk-checks button { border-radius: 999px; min-height: 30px; gap: 6px; font-size: 12.5px; }
 .mk-checks button[aria-pressed="true"] { border-color: var(--kit-fg); box-shadow: inset 0 0 0 1px var(--kit-fg); }
@@ -290,6 +296,8 @@ div.mk-tile { cursor: default; }
   .mk-prods button { flex: none; }
   .mk-row.act { flex-wrap: wrap; }
   .mk-row.act .end { flex-basis: 100%; padding-left: 38px; }
+  .mk-row.acct { flex-wrap: wrap; }
+  .mk-row.acct .end { flex-basis: 100%; padding-left: 38px; justify-content: flex-start; }
   .mk-sheet .sf .note { flex-basis: 100%; }
   .mk-sheet .sf button { flex: 1; }
   .mk-tile { padding: 8px 10px; } .mk-tile .v { font-size: 18px; }

@@ -39,8 +39,9 @@ export async function world({ hub = true, now = T0, teamFolder = false } = {}) {
   w.store = fakeStore({ clock: () => w.now });
   w.hub = fakeHub({ clock: () => w.now, sites: ['acme', 'beta'] });
   w.env = { MARKETING_ROOT: w.root, ...(hub ? hubEnv() : {}) };
+  // w.fetch (when set) stands in for the hub's, e.g. to compose a fake Nest runtime (fake-runtime.mjs).
   // A refusal comes back as {error: {code, message}}, as the CLI prints it.
-  w.call = (name, input, ctx = {}, over = {}) => run(name, { input, ...ctx }, { store: over.store ?? w.store, now: w.now, env: over.env ?? w.env, fetchImpl: w.hub.fetch })
+  w.call = (name, input, ctx = {}, over = {}) => run(name, { input, ...ctx }, { store: over.store ?? w.store, now: w.now, env: over.env ?? w.env, fetchImpl: over.fetch ?? w.fetch ?? w.hub.fetch })
     .catch(e => { if (!e.code) throw e; return { error: { code: e.code, message: e.message } }; });
   w.view = (input) => w.call('page_view', input);
   w.act = (input) => w.call('page_action', { request_id: 'r-' + Math.random().toString(36).slice(2), ...input });

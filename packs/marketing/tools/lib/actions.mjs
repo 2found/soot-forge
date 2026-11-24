@@ -7,15 +7,17 @@
 import { fail, eq } from './store.mjs';
 import { hubCall, hubBinding, WRITE_TIMEOUT_MS } from './hub.mjs';
 import { libraryRoot, readText, writeText, exists, segments } from './root.mjs';
-import { itemRow, putItem, refFor, itemDir, slugify, markRadar, appendVideo, refreshIndex, loadProducts, askText, normalProduct, targetOf, targetLabel, changelogSection, TZ, FORMATS, ITEM_REF, CHANNEL_KEY, PRODUCT_ID } from './library.mjs';
+import { itemRow, putItem, refFor, itemDir, slugify, markRadar, appendVideo, refreshIndex, loadProducts, askText, tiktokChannelId, normalProduct, targetOf, targetLabel, changelogSection, TZ, FORMATS, ITEM_REF, CHANNEL_KEY, PRODUCT_ID } from './library.mjs';
 import { fold as foldAccents } from './guard.mjs';
 import { setPause, setRules, deskState, rulesFor, stopReleases, holdApproved, LOCAL_ID } from './bundle.mjs';
 import { gather, cellFor, isoWeek } from './desk.mjs';
+import { pause } from './ops.mjs';
+import { addAccount } from './accounts.mjs';
 import { localDay } from './time.mjs';
 import { realpath } from 'node:fs/promises';
 import { isAbsolute, relative, sep, dirname, basename, join } from 'node:path';
 
-export const DESK_OPS = ['stop', 'pause', 'resume', 'rules', 'confirm', 'mark', 'create', 'scan', 'setup', 'reply_done', 'export', 'subscribers'];
+export const DESK_OPS = ['stop', 'pause', 'resume', 'rules', 'confirm', 'mark', 'create', 'scan', 'setup', 'reply_done', 'export', 'subscribers', 'add_account'];
 const REPLY_REF = /^R-[0-9A-F]{10}$/;
 /** The link of a community post, per place: a Reddit thread in that subreddit, a Hacker News item, a dev.to article. */
 const COMMUNITY_URLS = {
@@ -41,8 +43,11 @@ export async function deskAction(input, deps) {
     case 'stop': return stop(input, deps);
     case 'pause': case 'resume': {
       const scope = input.scope;
-      if (!['all', 'channel'].includes(scope)) fail('invalid_request', 'scope is all or channel.');
+      if (!['all', 'channel', 'account'].includes(scope)) fail('invalid_request', 'scope is all, channel or account.');
+      if (scope === 'account') return accountPause(input, deps);
       if (scope === 'channel' && !CHANNEL_KEY.test(input.channel ?? '')) fail('invalid_request', 'channel is <product>:<channel>.');
+      // A TikTok cell's state is its accounts' rows: a desk pause on the cell would show nowhere and stop nothing.
+      if (scope === 'channel' && input.channel.endsWith(':tiktok')) fail('invalid_request', 'TikTok pauses per account: use scope "account" with the tiktok-<handle> row.');
       const paused = input.op === 'pause';
       const at = await setPause(store, { scope, channel: input.channel }, paused, now);
       if (paused) {
@@ -67,6 +72,7 @@ export async function deskAction(input, deps) {
     case 'reply_done': return replyDone(input, deps);
     case 'export': return exportNewsletter(input, deps);
     case 'subscribers': return subscribers(input, deps);
+    case 'add_account': return addAccount(input, deps);
     case 'scan': {
       // The founder's "Quét lại" in Thư viện: the same index refresh library_scan runs, without the hub read.
       const lr = await libraryRoot(deps.env);
@@ -408,6 +414,27 @@ async function setup(input, { store, env, now }) {
   return { ok: true, op: 'setup', id: p.id, name, files, site };
 }
 
+// ---------- pause / resume one account row ----------
+
+const ROW_KEY = /^[a-z0-9][a-z0-9-]{0,31}$/;
+/**
+ * scope "account": pause or resume one channel row (a TikTok account, tiktok-<handle>) — the row due and claim read, so
+ * a paused account posts nothing and a resumed one posts at its next slot. Resuming a signed-out account is the person's
+ * word that it is signed in again; the answer says it was signed out so the page can say what happens if it is not.
+ */
+async function accountPause(input, deps) {
+  const key = input.channel;
+  if (typeof key !== 'string' || !ROW_KEY.test(key)) fail('invalid_request', 'channel is a channel row key such as tiktok-<handle>.');
+  const row = await deps.store.one('channels', [eq('key', key)]);
+  if (!row) fail('not_found', `Không có kênh ${key}.`);
+  const paused = input.op === 'pause';
+  // The same intent twice changes nothing (a new request id for an already-paused row is not a second pause). A
+  // signed-out row is already paused: pausing it keeps it waiting for its sign-in (its card, its resume on sign-in).
+  if (!!row.paused === paused && (!paused || ['person', 'signed_out'].includes(row.paused_reason))) return { ok: true, op: input.op, scope: 'account', channel: key, paused, unchanged: true };
+  await pause({ channel: key, paused }, deps);
+  return { ok: true, op: input.op, scope: 'account', channel: key, paused, ...(!paused && row.paused_reason === 'signed_out' ? { was_signed_out: true } : {}) };
+}
+
 // ---------- mark (radar Onboard?) ----------
 
 async function mark(input, { store, env, now }) {
@@ -467,6 +494,6 @@ async function create(input, { store, env, now }) {
     row = await putItem(store, lr.ok ? lr.root : null, meta, { now });
   }
   const m = row.meta ?? {};
-  const ask_text = askText({ ref, to, format: input.format, product: prod.name, topic, channels, series, target: m.target ?? target, source: m.source_kind ?? source, changelog: m.version ?? null, notes: m.changelog ?? null });
+  const ask_text = askText({ ref, to, format: input.format, product: prod.name, topic, channels, series, tiktok: (prod.tiktok_accounts ?? []).map(a => tiktokChannelId(a.handle)), target: m.target ?? target, source: m.source_kind ?? source, changelog: m.version ?? null, notes: m.changelog ?? null });
   return { ok: true, op: 'create', ref, to, stage: 'making', state: 'asked', ask_text, channels, ...(target ? { target: { ...target, label: targetLabel(target) } } : {}), ...(replayed ? { replayed: true } : {}), dir: row.meta?.dir ?? null };
 }

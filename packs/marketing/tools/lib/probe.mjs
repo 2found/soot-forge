@@ -2,10 +2,15 @@
 // tool finds out, with no model turn, whether the Editor's own browser profile really is.
 // It runs as the first and last step of a schedule tool chain around the browser:
 //
-//   marketing_channels_probe {}                      -> {action:"navigate", url}   (or {done:true})
-//   browser-use_control (input from previous)        -> the page opens in the Editor's profile
+//   marketing_channels_probe {}                      -> {action:"navigate", url, profile?}   (or {done:true})
+//   browser-use_control (input from previous)        -> the page opens in that profile, else the Soot's own browser
 //   browser-use_control {action:"command", args:["snapshot","-i","-c"]}
 //   marketing_channels_probe (input from previous)   -> reads the page, decides, acts
+//   browser-use_control {action:"close"}             -> ends the browser (sign-ins stay)
+//
+// A channel with its own browser profile (a TikTok account, tiktok-<handle>) is probed only by a Soot the profile is
+// granted to (SOOT_BROWSER_PROFILES, which the host sets on every call), and its navigate answer names the profile. A
+// channel with a publish in flight is left alone: the Publisher holds that profile's browser.
 //
 // The decision is a heuristic over the page text; anything it cannot tell is `unknown` and
 // changes nothing. It unpauses only a channel the founder confirmed ("Đã đăng nhập", reason
@@ -53,12 +58,17 @@ async function state(store) {
 }
 
 /** The paused social channels worth a look now: the founder's confirmed ones first, then the oldest checked. */
-function due(channels, st, now) {
+/** The profile ids the host granted the calling Soot (SOOT_BROWSER_PROFILES, comma separated); none when unset. */
+export const grantedProfiles = (env) => new Set(String(env?.SOOT_BROWSER_PROFILES ?? '').split(',').map(s => s.trim()).filter(Boolean));
+
+function due(channels, st, now, { granted = new Set(), busy = new Set() } = {}) {
   const rank = [];
   for (const c of channels) {
-    // A channel with its own browser profile is not probed: the probe's page opens in the Soot's own profile, so it would
-    // read another account's session. Its person says "Đã đăng nhập" and then resumes it (marketing_pause).
-    if (!(c.kind === 'social' || c.publisher === 'browser') || profileOf(c) || !c.paused || !CHECK_URL[c.platform ?? platformOf(c.key)]) continue;
+    if (!(c.kind === 'social' || c.publisher === 'browser') || !c.paused || !CHECK_URL[c.platform ?? platformOf(c.key)]) continue;
+    // A channel with its own browser profile opens in that profile, so only a Soot granted it can look; any other Soot would
+    // read its own session instead. Busy: a publish is in flight on it.
+    const profile = profileOf(c);
+    if ((profile && !granted.has(profile)) || busy.has(c.key)) continue;
     const confirmed = c.paused_reason === 'signed_in';
     if (!confirmed && c.paused_reason !== 'signed_out') continue;
     const mine = st.channels?.[c.key] ?? {};
@@ -76,13 +86,15 @@ export async function channels_probe(input, deps) {
   const st = await state(store);
   if (input && typeof input === 'object' && 'result' in input) return decide(input.result, st, deps);
 
-  const channels = await store.query('channels', [], { limit: 50 });
-  const c = due(channels, st, now);
+  const [channels, queue] = await Promise.all([store.query('channels', [], { limit: 50 }), store.query('queue', [{ column: 'intent_id', op: 'not_null' }], { limit: 200 })]);
+  const busy = new Set(queue.map(q => q.channel));
+  const c = due(channels, st, now, { granted: grantedProfiles(deps.env), busy });
   if (!c) return { done: true, reason: 'nothing_to_probe' };
   const platform = c.platform ?? platformOf(c.key);
+  const profile = profileOf(c);
   const mine = st.channels?.[c.key] ?? {};
-  await setSetting(store, 'probe', { ...st, current: { channel: c.key, platform, at: iso(now) }, channels: { ...(st.channels ?? {}), [c.key]: { ...mine, at: iso(now), tries: (mine.tries ?? 0) + 1 } } });
-  return { action: 'navigate', url: CHECK_URL[platform] };
+  await setSetting(store, 'probe', { ...st, current: { channel: c.key, platform, at: iso(now), ...(profile ? { profile } : {}) }, channels: { ...(st.channels ?? {}), [c.key]: { ...mine, at: iso(now), tries: (mine.tries ?? 0) + 1 } } });
+  return { action: 'navigate', url: CHECK_URL[platform], ...(profile ? { profile } : {}) };
 }
 
 async function decide(result, st, deps) {

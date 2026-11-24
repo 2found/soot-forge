@@ -301,6 +301,42 @@ test('probe: a result nobody asked for, or a stale one, does nothing; two browse
   assert.ok((await w.call('channels_probe', {})).action);
 });
 
+test('probe, per-account profiles: a profiled row is probed only when the calling Soot holds its profile, the navigate answer names it, and a row with a publish in flight is left alone', async () => {
+  const w = world();
+  await w.call('channels_setup', { channels: [{ id: 'tiktok-lohi', profile: 'tiktok-lohi', account: '@lohi' }, { id: 'tiktok-hoa', profile: 'tiktok-hoa', account: '@hoa' }] });
+  // No grant (an Editor, or a host that sets nothing): neither account is probed, so no other session is read.
+  assert.deepEqual(await w.call('channels_probe', {}), { done: true, reason: 'nothing_to_probe' });
+  w.env = { ...w.env, SOOT_BROWSER_PROFILES: 'x-lohi,tiktok-hoa' };
+  // tiktok-hoa has a publish in flight: the Publisher holds that browser. Granted tiktok-lohi is not: still nothing.
+  await w.store.insert('queue', { post: 'P-00000000E1', channel: 'tiktok-hoa', action: 'publish', scheduled_at: new Date(w.now).toISOString(), intent_id: 'I-bbbbbbbbbbbbbbbb', intent_at: new Date(w.now).toISOString(), attempts: 1 });
+  assert.deepEqual(await w.call('channels_probe', {}), { done: true, reason: 'nothing_to_probe' });
+  await w.store.remove('queue', [{ column: 'post', op: 'eq', value: 'P-00000000E1' }]);
+  const start = await w.call('channels_probe', {});
+  assert.deepEqual(start, { action: 'navigate', url: 'https://www.tiktok.com/tiktokstudio/upload', profile: 'tiktok-hoa' }, 'the browser-use_control input, in the account\'s profile');
+  // The founder confirmed it; the page in that profile says signed in: the account resumes.
+  await w.call('pause', { channel: 'tiktok-hoa', paused: true, signed_in: true });
+  w.now += 3 * H;
+  const again = await w.call('channels_probe', {});
+  assert.equal(again.profile, 'tiktok-hoa');
+  const out = await w.call('channels_probe', { session: 's', result: { snapshot: 'TikTok Studio  Select video to upload' } });
+  assert.deepEqual([out.channel, out.state, out.unpaused], ['tiktok-hoa', 'signed_in', true]);
+  // Granted both: the confirmed one first, an ungranted id in the list changes nothing.
+  w.env = { ...w.env, SOOT_BROWSER_PROFILES: 'tiktok-lohi, tiktok-hoa' };
+  w.now += 3 * H;
+  assert.equal((await w.call('channels_probe', {})).profile, 'tiktok-lohi');
+});
+
+test('the probe recipe ends with browser-use close, its own input, and the probe runs on the Soot that holds the profiles', () => {
+  const dep = json('examples/lohi-marketing/deployment.example.json');
+  const find = (o) => Array.isArray(o) ? o.map(find).find(Boolean) : o && typeof o === 'object' ? (o.id === 'marketing-probe' ? o : Object.values(o).map(find).find(Boolean)) : null;
+  const chain = find(dep);
+  const last = chain.then.at(-1);
+  assert.deepEqual([last.pack, last.tool, last.input, last.input_from], ['browser-use', 'control', { action: 'close' }, undefined]);
+  assert.equal(chain.then.at(-2).tool, 'channels_probe');
+  assert.ok(json('packs/marketing/pack.json').needs.env.includes('SOOT_BROWSER_PROFILES'));
+  assert.match(readFileSync(new URL('packs/marketing/README.md', root), 'utf8'), /\{action: "close"\}/);
+});
+
 // ---------- page actions without the admin key ----------
 
 test('page actions: reschedule, pull, restore, pause and set_limits need no PRODUCT_ADMIN_KEY', async () => {

@@ -34,7 +34,8 @@ have good defaults; leave them out unless the work needs less (`haiku` or `low` 
 
 - `key` names the work: `video-2026-11-24`, `feature-search-box`. Same key while it runs: the tool answers the
   running job (`already: true`). Never start a second session for the same work, and never change the key to get one.
-- `{done: true, waiting: "busy"}` means the machine already runs its limit. Do nothing; the next run tries again.
+- `{started: false, waiting: "busy"}` means the machine already runs its limit and nothing started. Do nothing; the
+  next run tries again.
 - `not_configured` or `dir_not_allowed`: report it to the operator in one line; do not retry.
 
 ## Check and finish
@@ -42,7 +43,9 @@ have good defaults; leave them out unless the work needs less (`haiku` or `low` 
 - `claude-code_jobs` (`key`, or `state: "running"`) shows state, minutes, cost, `last_text` and the `result`. Look when
   asked or when a run wakes you; do not poll.
 - A tool-only schedule (`claude-code_watch`) collects the result and passes it on with no model call; you are woken
-  only when a job fails.
+  only when a job fails. With `emit: "job"` a failed job is passed on too (`job.state`, `job.error`), so the next tool
+  records it before you are woken.
+- Job folders that ended more than 14 days ago are deleted; read a job's log before then if it matters.
 - `claude-code_stop {id}` ends a session that is wrong or no longer wanted.
 
 ## When a job fails

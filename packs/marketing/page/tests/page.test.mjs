@@ -12,6 +12,7 @@ import { ICONS } from '../src/icons.js';
 import { build } from './build.mjs';
 import { mount, text } from './fake-dom.mjs';
 import { world, saved, T0 } from '../../tests/desk-world.mjs';
+import { fakeRuntime, runtimeEnv } from '../../tests/fake-runtime.mjs';
 
 const page = new URL('../', import.meta.url);
 const pack = JSON.parse(await readFile(new URL('../../pack.json', import.meta.url), 'utf8'));
@@ -396,4 +397,245 @@ test('an item Nest approved that the Editor has not scheduled yet reads as appro
   assert.ok(ICONS.includes(s.icon), s.icon);
   const row = M.planText({ channel: 'x', state: 'after_approval' }, { now: T0 }, 'granted');
   assert.deepEqual([row.tag, row.line], ['Đã duyệt', 'Bạn đã duyệt; Biên tập đang xếp giờ lên'], 'its plan rows do not say Nháp under the approved banner');
+});
+
+test('a TikTok cell draws one line per account with its own state; the sheet pauses and resumes the account row', async () => {
+  const w = await world();
+  await w.call('channels_setup', { channels: [
+    { id: 'tiktok-acme', account: '@acme', profile: 'tiktok-acme', rules: { product: 'acme', video_channel: 'acme-video' } },
+    { id: 'tiktok-acmeshort', account: '@acmeshort', profile: 'tiktok-acmeshort', rules: { product: 'acme', video_channel: 'acme-video' } },
+  ] });
+  await w.call('pause', { channel: 'tiktok-acmeshort', paused: false });
+  const d = await desk(w);
+  await tab(d, 'channels');
+  assert.match(text(d.find('[data-k="cell:acct:tiktok-acme"]')), /@acme.*Đã đăng xuất/);
+  assert.match(text(d.find('[data-k="cell:acct:tiktok-acmeshort"]')), /@acmeshort.*Đang chạy/);
+  assert.doesNotMatch(main(d), /luôn do bạn đăng|TikTok cũng vậy/);
+  await press(d, d.find('[data-k="cell:acme:tiktok"]'));
+  assert.match(sheet(d), /Tài khoản/);
+  assert.doesNotMatch(sheet(d), BAD_TEXT, sheet(d).match(BAD_TEXT)?.[0]);
+  assert.equal(d.find('[data-k="ch:pause"]'), null, 'TikTok pauses per account, not with the desk pause');
+  // The signed-out line signs in; the running one pauses.
+  await press(d, d.find('[data-k="acct:signin:tiktok-acme"]'));
+  assert.deepEqual(d.opened, ['nest://settings/browser?profile=tiktok-acme&sign_in=tiktok.com'], 'the profile\'s sign-in on its site');
+  // No runtime grant here: the profile's sign-in is "—" with why and the link that grants it, never a guess.
+  assert.match(sheet(d), /Hồ sơ tiktok-acme: —/);
+  assert.match(sheet(d), /Marketing chưa được cấp quyền đọc hồ sơ trình duyệt/);
+  assert.equal(sheet(d).match(/Cấp quyền/g).length, 1, 'said once for the sheet, not per account');
+  await press(d, d.find('[data-k="ch:grant"]'));
+  assert.match(d.opened.at(-1), /^nest:\/\/(soot\/|settings\/updates)/);
+  // Each account line owns its sign-in and Bật lại: the steps never repeat them (one Đăng nhập per signed-out account).
+  assert.equal(d.find('[data-k="step:signin"]'), null);
+  assert.equal(d.find('[data-k="step:resume"]'), null);
+  assert.doesNotMatch(sheet(d), /Làm lại từ đầu tới cuối|Bật lại @acme/);
+  assert.equal(d.app.children[1].querySelectorAll('button').filter(b => /Đăng nhập/.test(text(b))).length, 1, 'one Đăng nhập for the one signed-out account');
+  // Nest's sign-in cannot be read here, so the signed-out line also offers Bật lại (the person signed in outside Nest).
+  await press(d, d.find('[data-k="acct:resume:tiktok-acme"]'));
+  const acts = () => d.calls.filter(c => c.mode === 'action').map(c => [c.input.op, c.input.scope, c.input.channel]);
+  assert.deepEqual(acts(), [['resume', 'account', 'tiktok-acme']]);
+  assert.equal((await w.store.one('channels', [{ column: 'key', op: 'eq', value: 'tiktok-acme' }])).paused, false);
+  await press(d, d.find('[data-k="acct:pause:tiktok-acmeshort"]'));
+  assert.deepEqual(acts().at(-1), ['pause', 'account', 'tiktok-acmeshort']);
+  assert.equal((await w.store.one('channels', [{ column: 'key', op: 'eq', value: 'tiktok-acmeshort' }])).paused_reason, 'person');
+  assert.ok(d.find('[data-k="acct:resume:tiktok-acmeshort"]'), 'the paused line now offers Bật lại');
+  assert.equal(w.publishes(), 0);
+});
+
+test('account lines read plainly: running, signed out, paused by a person, signed in and waiting for Bật lại', () => {
+  assert.deepEqual(M.accountText({ state: 'ok' }), { label: 'Đang chạy', tone: 'ok', action: { id: 'pause', label: 'Tạm dừng' } });
+  assert.deepEqual(M.accountText({ state: 'signed_out' }).action.id, 'sign_in');
+  assert.deepEqual([M.accountText({ state: 'paused', paused_reason: 'person' }).label, M.accountText({ state: 'paused', paused_reason: 'signed_in' }).label], ['Bạn tạm dừng', 'Đã đăng nhập, chờ bật lại']);
+  assert.equal(M.stepText({ id: 'resume', args: { channel: 'tiktok-lohi', account: '@lohi' } }, { channel: 'tiktok' }).button, 'Bật lại');
+  assert.equal(M.stepText({ id: 'resume' }, { channel: 'x' }).button, null, 'a desk-paused channel resumes from the sheet foot');
+  assert.doesNotMatch(M.cellWhat({ state: 'manual', channel: 'tiktok' }, 'Lohi'), /luôn do bạn đăng/);
+});
+
+test('Nội dung shows the Claude Code jobs: running says its log is read when it ends, a failure says why with its last words, a busy one waits', async () => {
+  const w = await world();
+  await w.call('video_job', { started: true, id: 'j-1', key: 'video-acme-chuong-moi-1124', title: 'Video: Chương mới', log: '/jobs/j-1/log.jsonl' });
+  await w.call('video_job', { started: true, id: 'j-2', key: 'video-acme-loi-1124', title: 'Video: Lỗi' });
+  await w.call('video_import', { notify: true, job: { id: 'j-2', key: 'video-acme-loi-1124', state: 'failed', error: 'exit code 1', last_text: 'mvf FAIL: thiếu giọng đọc' } });
+  await w.call('video_job', { started: false, waiting: 'busy', key: 'video-acme-cho-1124', title: 'Video: Chờ', running: [{ id: 'j-1', key: 'video-acme-chuong-moi-1124', title: 'Video: Chương mới', minutes: 3 }] });
+  const d = await desk(w);
+  await tab(d, 'content');
+  const cc = (k) => text(d.find(`[data-k="cc:${k}"]`));
+  assert.match(main(d), /Claude Code.*1 đang chạy · 1 chờ · 1 lỗi/);
+  assert.match(cc('video-acme-chuong-moi-1124'), /Video: Chương mới.*Xem được nhật ký khi phiên kết thúc.*Đang chạy/);
+  assert.match(cc('video-acme-loi-1124'), /exit code 1.*mvf FAIL: thiếu giọng đọc.*Lỗi/);
+  assert.match(cc('video-acme-cho-1124'), /Máy đang bận với Video: Chương mới.*Chờ máy rảnh/);
+  assert.doesNotMatch(main(d), BAD_TEXT, main(d).match(BAD_TEXT)?.[0]);
+  assert.deepEqual(Object.keys(M.jobText({ state: 'done', posts: ['P-1'], ended_at: new Date(T0).toISOString() }, T0)), ['tone', 'icon', 'tag', 'sub']);
+  assert.match(M.jobText({ state: 'done', posts: ['P-1'], ended_at: new Date(T0).toISOString() }, T0).sub, /thành nháp/);
+  assert.equal(M.jobText({ state: 'running', minutes: null }, T0).sub, 'Đang làm video. Xem được nhật ký khi phiên kết thúc.');
+});
+
+test('Nội dung without any Claude Code job has no Claude Code card', async () => {
+  const d = await desk(await world());
+  await tab(d, 'content');
+  assert.doesNotMatch(main(d), /Claude Code/);
+});
+
+// ---------- T3: an account's browser profile, chosen on the desk ----------
+
+/** A desk world with Nest's runtime: the pack reads the profiles and writes what it uses one for. */
+async function withRuntime(profiles, o = {}) {
+  const w = await world();
+  w.rt = fakeRuntime({ profiles, fallback: w.hub.fetch, clock: () => w.now, ...o });
+  w.fetch = w.rt.fetch;
+  w.env = { ...w.env, ...runtimeEnv() };
+  return w;
+}
+const channelRow = (w, key) => w.store.one('channels', [{ column: 'key', op: 'eq', value: key }]);
+const toastText = (d) => text(d.app.children[2]);
+const options = (sel) => sel.children.map(o => ({ value: o.getAttribute('value'), label: text(o), disabled: o.hasAttribute('disabled') }));
+const pick = async (d, sel, value) => { sel.value = value; sel.dispatch('change'); await d.flush(); };
+const type = async (d, el, value) => { el.value = value; el.dispatch('input'); await d.flush(); };
+
+test('the account line picks its browser profile: profiles marked by who may open them, a taken one refused in place', async () => {
+  const w = await withRuntime([
+    { id: 'tt-acme', name: 'TikTok Acme', allowed: ['poster'] },
+    { id: 'tt-spare', name: 'Dự phòng' },
+    { id: 'tt-beta', name: 'TikTok Beta', allowed: ['poster', 'editor'] },
+  ]);
+  await w.call('channels_setup', { channels: [
+    { id: 'tiktok-acme', account: '@acme', rules: { product: 'acme' } },
+    { id: 'tiktok-beta', account: '@beta', profile: 'tt-beta', rules: { product: 'beta' } },
+  ] });
+  const d = await desk(w);
+  await tab(d, 'channels');
+  await press(d, d.find('[data-k="cell:acme:tiktok"]'));
+  assert.match(sheet(d), /@acme.*Chưa chọn hồ sơ/);
+  assert.doesNotMatch(sheet(d), /Đăng nhập trên hồ sơ trình duyệt: —/, 'the profiles are read: no "—" notice');
+  await press(d, d.find('[data-k="acct:bind:tiktok-acme"]'));
+  let sel = d.find('[data-k="acct:profile:tiktok-acme"]');
+  assert.equal(d.doc.activeElement, sel, 'the picker takes focus');
+  assert.deepEqual(options(sel), [
+    { value: '', label: 'Chọn hồ sơ…', disabled: true },
+    { value: 'tt-acme', label: 'TikTok Acme · đã cấp cho 1 Soot', disabled: false },
+    { value: 'tt-beta', label: 'TikTok Beta · đang dùng cho @beta', disabled: true },
+    { value: 'tt-spare', label: 'Dự phòng · chưa cấp cho Soot nào', disabled: false },
+  ]);
+  await pick(d, d.find('[data-k="acct:profile:tiktok-acme"]'), 'tt-spare');
+  assert.match(sheet(d), /Chưa Soot nào mở được hồ sơ này: cấp trong Kho khóa/);
+  await pick(d, d.find('[data-k="acct:profile:tiktok-acme"]'), 'tt-acme');
+  assert.match(sheet(d), /TikTok chưa đăng nhập trên hồ sơ này: tài khoản tạm dừng tới khi bạn đăng nhập/);
+  // Cancel keeps the row as it was.
+  await press(d, d.find('[data-k="acct:cancel"]'));
+  assert.equal(d.find('[data-k="acct:profile:tiktok-acme"]'), null);
+  await press(d, d.find('[data-k="acct:bind:tiktok-acme"]'));
+  await pick(d, d.find('[data-k="acct:profile:tiktok-acme"]'), 'tt-acme');
+  await press(d, d.find('[data-k="acct:save:tiktok-acme"]'));
+  const sent = d.calls.filter(c => c.mode === 'action').map(c => c.input);
+  assert.deepEqual(sent.map(i => [i.op, i.channel, i.browser_profile]), [['set_limits', 'tiktok-acme', 'tt-acme']]);
+  assert.equal((await channelRow(w, 'tiktok-acme')).rules.profile, 'tt-acme');
+  assert.deepEqual(w.rt.uses['tt-acme'].map(u => [u.label, u.link]), [['TikTok @acme · Acme Truyện', 'nest://piece/desk']]);
+  assert.match(toastText(d), /Đã đổi sang hồ sơ TikTok Acme\. Đăng nhập TikTok trên hồ sơ này để tài khoản chạy\./);
+  assert.match(sheet(d), /@acme.*Đổi hồ sơ.*Hồ sơ TikTok Acme: Chưa đăng nhập/);
+  assert.doesNotMatch(sheet(d), BAD_TEXT, sheet(d).match(BAD_TEXT)?.[0]);
+  // A profile another account takes while the picker is open is refused under it, not in a toast.
+  await press(d, d.find('[data-k="acct:bind:tiktok-acme"]'));
+  await pick(d, d.find('[data-k="acct:profile:tiktok-acme"]'), 'tt-spare');
+  await w.call('page_action', { op: 'set_limits', request_id: 'r-other', channel: 'tiktok-beta', browser_profile: 'tt-spare' });
+  const before = toastText(d);
+  await press(d, d.find('[data-k="acct:save:tiktok-acme"]'));
+  sel = d.find('[data-k="acct:profile:tiktok-acme"]');
+  assert.equal(sel.getAttribute('aria-invalid'), 'true');
+  assert.match(sheet(d), /Hồ sơ này đang dùng cho một tài khoản TikTok khác/);
+  assert.equal(toastText(d), before);
+  assert.equal((await channelRow(w, 'tiktok-acme')).rules.profile, 'tt-acme');
+  // Unbind: "Không dùng hồ sơ".
+  await pick(d, sel, '');
+  await press(d, d.find('[data-k="acct:save:tiktok-acme"]'));
+  assert.equal((await channelRow(w, 'tiktok-acme')).rules.profile, undefined);
+  assert.deepEqual(w.rt.uses['tt-acme'], []);
+  assert.match(toastText(d), /Đã bỏ hồ sơ khỏi tài khoản/);
+  assert.equal(w.publishes(), 0);
+});
+
+test('Thêm tài khoản TikTok: handle and profile, checked in place; the new account is its own line, waiting for its sign-in', async () => {
+  const w = await withRuntime([{ id: 'tt-acme', name: 'TikTok Acme', allowed: ['poster'] }, { id: 'tt-two', name: 'TikTok hai', allowed: ['poster'] }]);
+  await w.call('channels_setup', { channels: [{ id: 'tiktok-acme', account: '@acme', profile: 'tt-acme', rules: { product: 'acme' } }] });
+  const d = await desk(w);
+  await tab(d, 'channels');
+  await press(d, d.find('[data-k="cell:acme:tiktok"]'));
+  await press(d, d.find('[data-k="acct:add"]'));
+  assert.equal(d.find('[data-k="acct:add"]'), null, 'one add form at a time');
+  const handle = () => d.find('[data-k="acct:handle"]');
+  assert.equal(d.doc.activeElement, handle());
+  const actions = () => d.calls.filter(c => c.mode === 'action').length;
+  // A handle that is not one never leaves the page.
+  await type(d, handle(), 'tên sai');
+  await press(d, d.find('[data-k="acct:create"]'));
+  assert.equal(handle().getAttribute('aria-invalid'), 'true');
+  assert.match(sheet(d), /Tên tài khoản chỉ gồm chữ, số, dấu chấm và gạch dưới/);
+  assert.equal(actions(), 0);
+  // No profile chosen yet.
+  await type(d, handle(), '@acme');
+  await press(d, d.find('[data-k="acct:create"]'));
+  assert.match(sheet(d), /Chọn hồ sơ mà tài khoản này đăng nhập/);
+  assert.equal(d.find('[data-k="acct:new-profile"]').getAttribute('aria-invalid'), 'true');
+  assert.equal(actions(), 0);
+  // The profile @acme already uses is shown taken; the handle that is already on the desk is refused in place.
+  assert.ok(options(d.find('[data-k="acct:new-profile"]')).find(o => o.value === 'tt-acme').disabled);
+  await pick(d, d.find('[data-k="acct:new-profile"]'), 'tt-two');
+  assert.equal(handle().value, '@acme', 'the typed handle survives a redraw');
+  await press(d, d.find('[data-k="acct:create"]'));
+  assert.match(sheet(d), /Bàn đã có tài khoản TikTok này/);
+  assert.equal(handle().getAttribute('aria-invalid'), 'true');
+  await type(d, handle(), '@acme.two');
+  await press(d, d.find('[data-k="acct:create"]'));
+  const body = d.calls.filter(c => c.mode === 'action').at(-1).input;
+  assert.deepEqual([body.op, body.product, body.handle, body.browser_profile], ['add_account', 'acme', 'acme.two', 'tt-two']);
+  const row = await channelRow(w, 'tiktok-acme-two');
+  assert.deepEqual([row.account, row.rules.product, row.rules.profile, row.paused_reason], ['@acme.two', 'acme', 'tt-two', 'signed_out']);
+  assert.match(toastText(d), /Đã thêm @acme\.two\. Đăng nhập TikTok trên hồ sơ TikTok hai để tài khoản chạy\./);
+  assert.match(sheet(d), /@acme\.two.*Đã đăng xuất.*Hồ sơ TikTok hai: Chưa đăng nhập/);
+  assert.ok(d.find('[data-k="acct:signin:tiktok-acme-two"]'), 'its one action is its sign-in');
+  await press(d, d.find('[data-k="acct:signin:tiktok-acme-two"]'));
+  assert.equal(d.opened.at(-1), 'nest://settings/browser?profile=tt-two&sign_in=tiktok.com');
+  assert.match(text(d.find('[data-k="cell:acct:tiktok-acme-two"]')), /@acme\.two/, 'the Kênh đăng cell lists it too');
+});
+
+test('a TikTok cell with no account offers Thêm tài khoản; with no profile in Nest it points to Kho khóa', async () => {
+  const w = await withRuntime([]);
+  const d = await desk(w);
+  await tab(d, 'channels');
+  await press(d, d.find('[data-k="cell:acme:tiktok"]'));
+  assert.match(sheet(d), /Chưa có tài khoản TikTok nào của Acme Truyện\. Thêm một tài khoản để máy đăng đăng video\./);
+  await press(d, d.find('[data-k="acct:add"]'));
+  assert.match(sheet(d), /Nest chưa có hồ sơ trình duyệt nào/);
+  assert.equal(d.find('[data-k="acct:create"]'), null, 'nothing to add an account on');
+  await press(d, d.find('[data-k="acct:profiles"]'));
+  assert.equal(d.opened.at(-1), 'nest://settings/browser');
+});
+
+test('without browser.profiles.read the TikTok cell picks nothing and says "—" with why, once', async () => {
+  const w = await world();
+  await w.call('channels_setup', { channels: [{ id: 'tiktok-acme', account: '@acme', rules: { product: 'acme' } }] });
+  const d = await desk(w);
+  await tab(d, 'channels');
+  await press(d, d.find('[data-k="cell:acme:tiktok"]'));
+  assert.equal(d.find('[data-k="acct:add"]'), null);
+  assert.equal(d.find('[data-k="acct:bind:tiktok-acme"]'), null);
+  assert.match(sheet(d), /Đăng nhập trên hồ sơ trình duyệt: —.*Marketing chưa được cấp quyền đọc hồ sơ trình duyệt/);
+  assert.equal(sheet(d).match(/Cấp quyền/g).length, 1);
+  assert.doesNotMatch(sheet(d), BAD_TEXT, sheet(d).match(BAD_TEXT)?.[0]);
+});
+
+test('profile words: options, hints and toasts are plain', () => {
+  assert.deepEqual(M.profileChoice({ id: 'a', name: 'A', granted: 'team', bound: null }, 'tiktok-x'), { label: 'A · đã cấp cho đội', taken: null });
+  assert.deepEqual(M.profileChoice({ id: 'a', name: 'A', project: 'Lò', granted: 'none', bound: { channel: 'tiktok-x', account: '@x' } }, 'tiktok-x'), { label: 'A (Lò) · chưa cấp cho Soot nào', taken: null }, 'its own binding is not taken');
+  assert.equal(M.profileChoice({ id: 'a', name: 'A', granted: 'soot', allowed: 2, bound: { channel: 'tiktok-y' } }, null).label, 'A · đang dùng cho một tài khoản khác');
+  assert.match(M.profileHint({ granted: 'soot', sign_in: { state: 'signed_in', at: new Date(T0).toISOString() } }, T0), /^TikTok: đã đăng nhập/);
+  assert.equal(M.tiktokHandle(' @Acme.Truyen '), 'Acme.Truyen');
+  for (const bad of ['', '@', 'a', 'tên', 'a b', 'x'.repeat(25), null]) assert.equal(M.tiktokHandle(bad), null, String(bad));
+  assert.match(M.bindToast({ binding: { resumed: true }, profile: 'p' }, 'P'), /chạy lại/);
+  assert.match(M.bindToast({ op: 'add_account', account: '@a', paused: false }, 'P'), /chạy ngay/);
+  assert.match(M.bindToast({ binding: { signed_in_as: '@b' }, profile: 'p', usage: { set: { ok: false, why: 'usage_full' } } }, 'P'), /@b.*Kho khóa chưa ghi được dòng Dùng cho/);
+  for (const code of ['profile_in_use', 'browser_profile_unknown', 'profiles_unread', 'handle_invalid', 'account_exists']) assert.notEqual(M.errorText({ code }), M.errorText({ code: 'never-heard-of-it' }), code);
+  const ok = (op, f) => actionOK(M.actionBody(op, f, M.requestId('mk')));
+  assert.ok(ok('set_limits', { channel: 'tiktok-acme', browser_profile: 'tt-acme' }), JSON.stringify(actionOK.errors));
+  assert.ok(ok('set_limits', { channel: 'tiktok-acme', browser_profile: null }), JSON.stringify(actionOK.errors));
+  assert.ok(ok('add_account', { product: 'acme', handle: 'acme.two', browser_profile: 'tt-two' }), JSON.stringify(actionOK.errors));
+  assert.equal(ok('set_limits', { channel: 'tiktok-acme', profile: 'tt-acme' }), false, 'the host-checked field is not in the schema');
 });

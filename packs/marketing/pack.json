@@ -1111,7 +1111,7 @@
     {
       "name": "due",
       "title": "Xem việc đến giờ",
-      "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised; resolves_need when none is left. The dispatch schedule passes schedule: true and skip: channels a tool chain publishes. With channel: {id, action} of the one due publish there for marketing_claim, or {done: true}.",
+      "description": "What is due (publish, reply, unpublish; late items never post on their own), needs (Cần bạn items) and ask, the one ready Cần bạn item to file now (refile: true files the sign-in again after a pick). wake/notify only for new work or a need not yet raised; resolves_need when none is left. The dispatch schedule passes schedule: true and skip: channels a tool chain publishes. With channel: {id, action} of the one due publish there for marketing_claim, or {done: true}. With platform: the same over every tiktok-* account.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1125,6 +1125,12 @@
             "type": "string",
             "maxLength": 32,
             "pattern": "^[a-z0-9-]{1,32}$"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "tiktok"
+            ]
           },
           "skip": {
             "type": "array",
@@ -1521,7 +1527,7 @@
     {
       "name": "page_action",
       "title": "Đổi bàn Marketing",
-      "description": "Desk actions; never publish. Ops: stop {ref}; pause/resume {scope: all|channel, channel?}; rules {channel, cap_per_day?, spacing_min?, quiet?, max_len?}; confirm {ref, outcome, url?, channel?, lang?}; mark {file, row, onboard}; create {product, format, topic, series?, channels?}; scan {}; setup {product}; reply_done {ref}; export {ref} (newsletter); subscribers {product, list} (replace recipients; answers a count). Older: pull, restore, reschedule, unpublish, post_now, drop, confirm_posted, confirm_not_posted, set_limits, campaign_save, campaign_refresh. Accounts: channels_setup. Needs a request_id.",
+      "description": "Desk actions; never publish. Ops: stop {ref}; pause/resume {scope: all|channel|account, channel?}; rules {channel, cap_per_day?, spacing_min?, quiet?, max_len?}; confirm {ref, outcome, url?, channel?, lang?}; mark {file, row, onboard}; create {product, format, topic, series?, channels?}; scan {}; setup {product}; reply_done {ref}; export {ref} (newsletter); subscribers {product, list} (replace recipients; answers a count). Bind: set_limits {channel, browser_profile|null}; add_account {product, handle, browser_profile}. Older ops: the enum. Needs a request_id.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1550,7 +1556,8 @@
               "setup",
               "reply_done",
               "export",
-              "subscribers"
+              "subscribers",
+              "add_account"
             ]
           },
           "campaign": {
@@ -1602,7 +1609,8 @@
             "type": "string",
             "enum": [
               "all",
-              "channel"
+              "channel",
+              "account"
             ]
           },
           "ref": {
@@ -1741,12 +1749,16 @@
             "maxLength": 100000,
             "description": "subscribers: an address a line."
           },
-          "profile": {
+          "browser_profile": {
             "type": [
               "string",
               "null"
             ],
             "maxLength": 64
+          },
+          "handle": {
+            "type": "string",
+            "maxLength": 30
           },
           "publisher": {
             "type": "string",
@@ -1954,7 +1966,7 @@
     {
       "name": "channels_probe",
       "title": "Xem kênh còn đăng nhập không",
-      "description": "For a tool chain around the Editor's browser: with no result it names the next paused social channel's check page ({action: navigate, url}, the browser-use_control input) or {done: true}; with the page's result it decides signed in or out from the page text, unpauses only a channel the person confirmed that is really signed in, and sends a confirmed-but-signed-out one back to its sign-in card.",
+      "description": "Tool chain around the browser: with no result it names the next paused social channel's check page ({action: navigate, url, profile?}, the browser-use_control input) or {done: true}; with the page's result it decides signed in or out, unpauses only a person-confirmed channel that is signed in, and sends a confirmed-but-signed-out one back to its sign-in card.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2566,7 +2578,7 @@
     {
       "name": "video_import",
       "title": "Nhận video đã dựng",
-      "description": "Read a finished 2build marketing-video (mvf) folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook, TikTok: the 9x16 cut with the platform's own caption; a TikTok draft carries the running campaign's TikTok link) with its assets. A render failure or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes.",
+      "description": "Read a finished 2build marketing-video (mvf) folder in the workspace (pretest decision, Micro Fish judge numbers, 08-delivery files, QA, captions, poster, platform copy) and save one kind \"video\" draft per channel (X, Facebook, TikTok: the 9x16 cut with the platform's own caption; a TikTok draft carries the running campaign's TikTok link) with its assets. A render failure or a hook under the pretest bar stays a draft with the reason. Re-import updates the same drafts. Never publishes. Takes the session's result {request_id, campaign, channels, ...} (claude-code_watch emit \"result\"), or watch's emit \"job\" answer {job, result} / {job, notify} and records the job's end in the Claude Code ledger (settings.video_jobs, the desk's Nội dung): done with its drafts, or failed with the reason and the session's last words, answered {ok: false, notify: true, error: \"job_failed: ...\"}.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2619,13 +2631,21 @@
             "type": "string",
             "maxLength": 1000,
             "description": "mvf's FAIL line when the render or export failed."
+          },
+          "job": {
+            "type": "object",
+            "description": "claude-code_watch's job (emit \"job\"): {id, key, title, state, error, last_text, ...}."
+          },
+          "result": {
+            "type": "object",
+            "description": "The session's result with emit \"job\": {request_id, campaign, channels, parent, ...}."
+          },
+          "notify": {
+            "type": "boolean",
+            "description": "Set by claude-code_watch on a failed job; ignored."
           }
         },
-        "required": [
-          "request_id",
-          "campaign",
-          "channels"
-        ],
+        "required": [],
         "additionalProperties": false
       },
       "run": {
@@ -2646,7 +2666,7 @@
     {
       "name": "video_brief",
       "title": "Chọn bài để dựng video",
-      "description": "Tool-only, no model. Picks the next source for a video: the newest published article of the product that has no video yet on these channels, at most one brief per every_days for each product and video channel (a rerun the same day answers {done: true}). With work it answers exactly the input of claude-code_start: {key: \"video-<product>-<slug>\", title, dir (the repository that holds MARKETING_ROOT, where mvf runs), prompt}. The prompt tells Claude Code to read the 2build marketing-video skill (MVF_SKILL), make ONE short Vietnamese vertical video unattended (brief answered from the source, script approved as delegated after the Micro Fish pretest, nothing posted or committed) and write the result file {request_id, campaign, channels, parent}, which chains into marketing_video_import; on failure {ok: false, error}. Nothing to do: {done: true}. A missing MARKETING_ROOT, skill or video channel folder answers {ok: false, error}.",
+      "description": "Tool-only, no model. Picks the next source for a video: the newest published article of the product that has no video yet on these channels, at most one brief per every_days for each product and video channel (a rerun the same day answers {done: true, reason}). With channels left out it covers every live TikTok account of the product, one brief per fire: the account whose turn is next. With work it answers exactly the input of claude-code_start: {key: \"video-<product>-<slug>\", title, dir (the repository that holds MARKETING_ROOT, where mvf runs), prompt}. The prompt tells Claude Code to read the 2build marketing-video skill (MVF_SKILL), make ONE short Vietnamese vertical video unattended (brief answered from the source, script approved as delegated after the Micro Fish pretest, nothing posted or committed) and write the result file {request_id, campaign, channels, parent}, which chains into marketing_video_import; on failure {ok: false, error}. Nothing to do: {done: true, reason}. A missing MARKETING_ROOT or skill is refused as not_configured; an unknown product, a missing video channel folder or a product with no TikTok account as not_found.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -2665,7 +2685,7 @@
               "maxLength": 32,
               "pattern": "^[a-z0-9-]{1,32}$"
             },
-            "description": "The video channels the video is for, e.g. [\"tiktok-acme\", \"facebook-acme\"]; at most one TikTok account."
+            "description": "The video channels the video is for, e.g. [\"tiktok-acme\", \"facebook-acme\"]; at most one TikTok account. Left out: every TikTok account of the product, in turn."
           },
           "every_days": {
             "type": "integer",
@@ -2684,8 +2704,7 @@
           }
         },
         "required": [
-          "product",
-          "channels"
+          "product"
         ],
         "additionalProperties": false
       },
@@ -2702,6 +2721,71 @@
         "secret_env": {
           "MARKETING_ROOT": "{{cred:MARKETING_ROOT}}"
         }
+      }
+    },
+    {
+      "name": "video_job",
+      "title": "Ghi việc Claude Code",
+      "description": "Tool-only, chained after claude-code_start with input_from previous: records the start's answer in the Claude Code ledger (settings.video_jobs) the desk's Nội dung shows. A started or already running job is running {id, key, title, started_at, log}; a busy answer (waiting: \"busy\") started nothing, so the entry is waiting and the brief's slot and source are freed for the next fire. Answers {ok: true, state, key}.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "started": {
+            "type": "boolean"
+          },
+          "already": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 101
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "log": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "result_path": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "waiting": {
+            "type": "string",
+            "enum": [
+              "busy"
+            ]
+          },
+          "running": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "run": {
+        "program": "node",
+        "args": [
+          "tools/marketing.mjs",
+          "video_job"
+        ],
+        "stdin": "context",
+        "mode": "write",
+        "timeout": "20s",
+        "max_output_bytes": 16384
       }
     },
     {
@@ -3435,12 +3519,18 @@
     }
   ],
   "needs": {
+    "runtime": [
+      "browser.profiles.read",
+      "browser.profiles.report"
+    ],
     "env": [
       "PRODUCT_API_URL",
       "YT_DLP_BIN",
       "PATH",
       "HOME",
-      "MVF_SKILL"
+      "MVF_SKILL",
+      "SOOT_BROWSER_PROFILES",
+      "SOOT_BROWSER_PROFILE"
     ],
     "env_info": {
       "PRODUCT_API_URL": {

@@ -789,7 +789,9 @@
               "goals.read",
               "goals.checkin",
               "data.read",
-              "data.insert"
+              "data.insert",
+              "browser.profiles.read",
+              "browser.profiles.report"
             ],
             "type": "string"
           },
