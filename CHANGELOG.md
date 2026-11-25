@@ -3,7 +3,7 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
-## Unreleased
+## 0.27.0 — 2026-11-25
 
 - **data-pool: a pool can be public, and a reserved `knowledge` reader answers the public.** `data-pool_manage {action: "pool_update", pool, public: true|false}` (host managers only; not on `pool_create`, not inherited by child pools) marks a pool readable by the reserved identity `knowledge`, which any host binding may act as with no grant: it lists public pools and searches, reads and lists their documents, and every other call, a private pool and a private child of a public pool answer the same `access denied` as a missing pool. Its reads are not logged. Soot core's `knowledge_search` / `knowledge_read` read through it, which replaces the runtime's `/llms.txt` knowledge mirror. Never mark the `data_pool.feedback` pool public.
 - **data-pool: an embedded SQLite pool for one host.** `database_url: sqlite:///absolute/path/pool.db` runs the pool in a pure-Go SQLite file (0600, WAL) with a trigram index, so search folds accents and case and tolerates typos as on PostgreSQL; grants, revisions, receipts and activity are unchanged. The runner's code moved to the importable package `packs/data-pool/runner/datapool`, which the `soot` binary embeds so every machine has a pool with no service. PostgreSQL stays the choice for a pool shared by several hosts.
