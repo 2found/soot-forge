@@ -921,7 +921,7 @@ async function gscQuery(site, token, body, fetch) {
   return { rows: (await res.json()).rows ?? [] };
 }
 
-const GSC_NOT_CONNECTED = 'Chưa đăng nhập Google cho Search Console nên chưa có dòng nào (0 dòng). Mở Nest → Cài đặt › Kho khóa → Đăng nhập Google bằng tài khoản là chủ sở hữu thuộc tính Search Console của blog.';
+const GSC_NOT_CONNECTED = 'Chưa đăng nhập Google cho Search Console nên chưa có dòng nào (0 dòng). Đăng nhập Google bằng tài khoản là chủ sở hữu thuộc tính Search Console của blog: nest://settings/setup?key=GSC_GOOGLE';
 const GSC_WHY = {
   no_published_posts: 'Chưa có bài đã đăng nên chưa có gì để đọc từ Search Console.',
   search_console_listed_nothing: 'Search Console chưa liệt kê trang nào trong các ngày vừa rồi: bài còn mới (Google cần vài ngày để lập chỉ mục) hoặc thuộc tính chưa nhận blog.',

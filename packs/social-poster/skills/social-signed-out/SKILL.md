@@ -26,9 +26,12 @@ Việc của bạn là nói đúng một lần, rõ ràng, để người vận 
    hồ sơ ấy. Gọi `report_blocker`:
    - `summary`: "Đăng nhập lại <kênh> <tài khoản> trên máy này" (ví dụ
      "Đăng nhập lại X @lohi2com trên máy này").
-   - `missing`: hồ sơ trình duyệt `<tên hồ sơ>` (Nest › Cài đặt › Trình duyệt) cần đăng nhập
-     <tài khoản>; nêu có mấy bài đã duyệt đang chờ (từ `social_list {status:"approved"}`)
-     và `post.id` nếu có. Không kèm nội dung bài.
+   - `missing`: hồ sơ trình duyệt `<tên hồ sơ>` cần đăng nhập <tài khoản>; nêu có mấy
+     bài đã duyệt đang chờ (từ `social_list {status:"approved"}`) và `post.id` nếu có.
+     Kết thúc bằng đúng link mở trang đăng nhập của hồ sơ trong Nest:
+     `nest://settings/browser?profile=<tên hồ sơ>&sign_in=<trang>` (`x.com`,
+     `facebook.com`, `tiktok.com`); Nest biến nó thành nút Đăng nhập. Không viết đường
+     đi bằng chữ (Cài đặt › …) và không kèm nội dung bài.
    - `options`: "Tôi đã đăng nhập, chạy lại" và "Tạm dừng tài khoản này".
 3. Báo cáo một câu: tài khoản nào, hồ sơ nào, bao nhiêu bài đang chờ. Kết thúc lượt;
    không thử lại hồ sơ đó trong lượt này. Hồ sơ khác (tài khoản khác) vẫn đăng bình thường.

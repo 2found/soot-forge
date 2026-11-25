@@ -31,7 +31,7 @@ One named browser profile per account. The name is what the hub returns as
 | Facebook Page `https://www.facebook.com/lohi2com` (browser) | `facebook-lohi2com` | lohi |
 | X 2found handle (browser) | `x-2found` (use the real handle: `x-<handle>`) | 2found, soot, 2novel |
 
-Sign each profile in once by hand (Nest › Cài đặt › Trình duyệt), then grant it
+Sign each profile in once by hand (Nest › Kho khóa › Đăng nhập trình duyệt; the signed-out card's Đăng nhập opens it), then grant it
 to the `poster` Soot. A profile is one browser shared by every conversation that
 uses it; the skills never sign out of it. The poster never signs in, never asks
 for a password and never solves a captcha.

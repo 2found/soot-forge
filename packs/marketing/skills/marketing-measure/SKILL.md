@@ -63,8 +63,9 @@ When the desk asks "Nối Search Console cho các trang blog của bàn Marketin
 `gsc_sync {site, days: 3}` once for each product's Search Console property
 (`sc-domain:<domain>` of its site). Then answer in one or two plain lines:
 read (how many rows), skipped because Google was never signed in (the founder
-signs in once in Nest, on this Soot's Quyền hạn › Đăng nhập Google, with the
-account that owns the property), `needs_person` (the sign-in card is in Cần bạn) or
+signs in once with the account that owns the property; end the line with
+`nest://settings/setup?key=GSC_GOOGLE`, which Nest turns into the Đăng nhập
+Google button, never a path written in words), `needs_person` (the sign-in card is in Cần bạn) or
 `no_access` (that Google account cannot read the property: add it as a user in
 Search Console). Keep the daily `gsc_sync` schedule; one read does not keep the
 numbers fresh.
