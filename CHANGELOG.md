@@ -3,6 +3,11 @@
 Release notes for Soot Forge pack releases. The version is `package.json`'s;
 `catalog.json` `version` is the catalog schema version.
 
+## 0.27.1 — 2026-11-26
+
+- **marketing, social-poster: a sign-in ask carries Nest's link, never a path in words.** The signed-out card's `missing` ends with `nest://settings/browser?profile=<profile>&sign_in=<site>` (x.com, facebook.com, tiktok.com), which Nest shows as the Đăng nhập button; the Search Console line (`GSC_NOT_CONNECTED`, skill `marketing-measure`) ends with `nest://settings/setup?key=GSC_GOOGLE`. The old texts named "Thiết lập" and "Cài đặt › Trình duyệt", places Nest does not have.
+- **data-pool: the service image builds again.** `.dockerignore` lets the build context include the `runner/datapool` package the 0.27.0 runner imports.
+
 ## 0.27.0 — 2026-11-25
 
 - **data-pool: a pool can be public, and a reserved `knowledge` reader answers the public.** `data-pool_manage {action: "pool_update", pool, public: true|false}` (host managers only; not on `pool_create`, not inherited by child pools) marks a pool readable by the reserved identity `knowledge`, which any host binding may act as with no grant: it lists public pools and searches, reads and lists their documents, and every other call, a private pool and a private child of a public pool answer the same `access denied` as a missing pool. Its reads are not logged. Soot core's `knowledge_search` / `knowledge_read` read through it, which replaces the runtime's `/llms.txt` knowledge mirror. Never mark the `data_pool.feedback` pool public.
