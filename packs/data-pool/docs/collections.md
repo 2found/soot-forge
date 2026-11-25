@@ -20,7 +20,7 @@ boundary. Existing roots retain their previous private/direct-grant behavior.
 Creating a root requires a workspace manager; a child requires management of its
 parent. A delegated creator retains a direct management grant on the new child.
 
-`pool_update` accepts `name`, `parent` and `inherit`. Empty parent means workspace
+`pool_update` accepts `name`, `parent`, `inherit` and `public` (a host manager only; see below). Empty parent means workspace
 root. Moving requires management of source and destination; it recalculates
 inherited access without rewriting documents. Cycles and paths deeper than 8
 collections are rejected. Removing a parent with children is refused, never
@@ -79,6 +79,16 @@ Launch Alpha/Drafts; users need not choose a collection for every chat. Omit
 `pool` on a write only when the host configured its default. Missing/revoked
 defaults fail, never silently redirect data. Collection creation/classification
 is not on the ingestion path; append continues accepting duplicate observations.
+
+## Public pools
+
+`pool_update` with `public:true` lets the reserved `knowledge` reader search and
+read the pool; `public:false` revokes that at once. Pools start private, a
+child does not inherit the flag, `pool_create` rejects it, and restating the
+current value is a no-op (no policy revision bump). `knowledge` sees only public
+pools in `data-pool_pools` (no grants or policy in the detail) and is refused
+everything else with the stable `access denied`; a private pool answers like a
+missing one. See the README section "Public pools and the knowledge reader".
 
 ## Conversation references
 

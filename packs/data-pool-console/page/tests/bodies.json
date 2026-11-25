@@ -9,6 +9,8 @@
     "input": { "kind": "status", "input": { "request_id": "lib-0123456789abcdef01234567" } }, "valid": true },
   { "name": "page body: guarded document save", "mode": "action", "request_id": "lib-0123456789abcdef01234567",
     "input": { "kind": "write", "input": { "action": "upsert", "pool": "lohi-support", "id": "doc-1", "title": "Chính sách hoàn LT", "generation": "g1", "expected_revision": 7, "tags": ["nạp tiền"], "content": "…", "request_id": "lib-0123456789abcdef01234567" } }, "valid": true },
+  { "name": "page body: public switch (a host manager only; the service refuses anyone else)", "mode": "action", "request_id": "lib-0123456789abcdef01234567",
+    "input": { "kind": "manage", "input": { "action": "pool_update", "pool": "lohi-support", "public": true, "generation": "g1", "expected_policy_revision": 3, "request_id": "lib-0123456789abcdef01234567" } }, "valid": true },
   { "name": "INVALID unknown view kind is refused with a reason", "mode": "view",
     "input": { "kind": "export", "input": {} }, "valid": false, "reason": "unsupported data-pool view" },
   { "name": "INVALID unknown action kind is refused with a reason", "mode": "action", "request_id": "lib-0123456789abcdef01234567",

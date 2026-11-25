@@ -39,7 +39,7 @@ and skip to [the shared pool](#connect-local-and-vm-soots-to-one-shared-pool).
 The runtime must include `soot tool-forward`.
 
 Direct mode, where the Soot host itself connects to PostgreSQL, needs the built
-runner. You need Go 1.25+ to build the connector and a Soot workspace. The
+runner. You need Go 1.26+ to build the connector and a Soot workspace. The
 operator runs PostgreSQL 16+ separately and supplies a DSN; the service or
 direct connector creates the trusted `pg_trgm` extension and the `data_pool`
 schema (including its tables and search indexes) on start. The Pack never
@@ -126,6 +126,21 @@ the Soot host. It does **not** share state with a second machine unless both
 hosts use the same database and namespace. Do not point two independently
 managed namespaces at one database; use the shared service above for local + VM
 access.
+
+### Embedded SQLite (one host, no database server)
+
+For one host that does not need a database server, set `database_url` to
+`sqlite:///absolute/path/to/pool.db`. The runner creates the file (mode 0600)
+and its directory (0700), uses WAL, and keeps a trigram index so search is as
+fuzzy as on PostgreSQL: accents and case fold away and a typo still matches. It
+is a pure-Go driver, so no C toolchain is needed. Grants, revisions, receipts
+and activity behave exactly as on PostgreSQL. Only the service or runner may
+write the file, because the index is maintained by SQL functions that live in
+the runner; never edit it with another tool. SQLite serves one host: for local
++ VM Soots use the shared service with PostgreSQL. Back it up by copying the
+file while idle, or with `sqlite3 pool.db ".backup /private/backup/pool.db"`.
+Queries shorter than three characters scan the pool (as `LIKE` does on
+PostgreSQL); the per-pool document limit bounds that.
 
 ## Bind credentials and select the pack
 
@@ -287,6 +302,28 @@ Shared mode holds all state only in the central PostgreSQL database; client
 hosts need no policy filesystem, search credential or database role.
 Use bounded pages rather than asking a Soot to copy a whole pool into context.
 
+## Public pools and the knowledge reader
+
+A host manager can mark a pool public with `data-pool_manage`
+`{"action":"pool_update","pool":"faq","public":true,"request_id":"..."}` (and
+`public:false` to take it back). Setting the state it already has succeeds and
+changes nothing. Pools are private by default; `public` is not accepted on
+`pool_create`, is not inherited by child pools, and is not available to a pool
+manager, only to a host manager.
+
+The identity `knowledge` is reserved for reading public pools. Any host binding
+(local runner or shared-service host credential) may act as `knowledge` with no
+`soots` entry and no grant, so a customer-facing Soot needs no setup. It may only
+call `pools` (public pools only) and `query` with `search`, `read` or `list` on a
+public pool. Every write, manage, status, view or action call, every
+`references` query, and every private pool, including a private child of a
+public pool, returns the same stable `access denied`, indistinguishable from a
+pool that does not exist. Its reads are not recorded in the activity log. It
+cannot be granted access, admitted, made a manager or writer: listing it in a
+binding changes nothing. Make a pool public only when everything in it,
+including documents added later, may be read by anyone who can talk to a
+customer-facing Soot.
+
 ## Synchronous writes and stable receipts
 
 Use a stable `request_id` for each intended mutation and preserve both it and
@@ -310,8 +347,8 @@ deduplication. Soot's write/Stop/resource receipts still apply.
 
 ## Backup, upgrade and remove
 
-All state is in PostgreSQL schema `data_pool`; there is no local state directory
-to copy. Back up the database with `pg_dump` (custom or plain format) against a
+All state is in PostgreSQL schema `data_pool` (or in the one SQLite file named by
+`sqlite:///...`); there is no other local state directory to copy. Back up the database with `pg_dump` (custom or plain format) against a
 consistent snapshot or while writes are quiesced:
 
 ```sh
@@ -332,7 +369,7 @@ settings/Soot definition, stop the runtime, preserve the old Pack,
 and install the reviewed replacement with `soot add`. That command rejects
 duplicate IDs and never overwrites a Pack in place. Build its executable,
 validate with check, then select the pack again. The service creates or upgrades
-its schema (`schema_version` 1) on start under an advisory lock; future versions
+its schema (`schema_version` 2: adds `pools.public`, additive, default false) on start under an advisory lock (PostgreSQL) or a write transaction (SQLite); future versions
 must document any migration. PostgreSQL major-version upgrades follow
 PostgreSQL's `pg_upgrade`/dump-and-restore guidance, not this Pack's installer.
 
@@ -348,6 +385,15 @@ unknown namespace or a committed receipt merely because the plugin is disabled.
 ```sh
 (cd runner && go test -race ./... && go vet ./...)
 ```
+
+The suite runs on the embedded SQLite backend by default (nothing to set up).
+`DATA_POOL_TEST_BACKEND=postgres` with `DATA_POOL_TEST_DATABASE_URL` runs the
+same tests on PostgreSQL, and `DATA_POOL_TEST_DATABASE_URL` alone also enables
+the differential test that checks both backends rank the same corpus and
+queries identically.
+
+The runner is `runner/main.go` (a thin main) over the importable package
+`github.com/2found/soot-forge/packs/data-pool/runner/datapool`.
 
 The opt-in real-database tests need a **disposable** PostgreSQL 16+ database:
 each test drops and recreates schema `data_pool`, then exercises service and

@@ -47,6 +47,14 @@ export const createPool = (p, requestID) => actionBody('manage', { action: 'pool
 export const removePool = (pool, requestID) => actionBody('manage', { action: 'pool_remove', pool: pool.id, generation: pool.generation, expected_policy_revision: pool.policy_revision, request_id: requestID });
 
 /**
+ * Public or private: whether Soots that answer the public may read the pool
+ * (the service's reserved knowledge reader). Only a host manager's call is
+ * accepted; the generation and policy revision are the ones the person read.
+ * @param {{ id: string, generation: string, policy_revision: number }} pool @param {boolean} value @param {string} requestID
+ */
+export const setPublic = (pool, value, requestID) => actionBody('manage', { action: 'pool_update', pool: pool.id, public: value, generation: pool.generation, expected_policy_revision: pool.policy_revision, request_id: requestID });
+
+/**
  * One reading of a call result.
  * - done: the service stored a terminal `succeeded` receipt (`replayed` when it was an earlier save).
  * - conflict: a revision/generation went stale; the draft stays.

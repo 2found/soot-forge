@@ -39,9 +39,9 @@ export async function startBoardApi({ key = KEY, port = 0 } = {}) {
   return api;
 }
 
-/** A CS runtime double: GET /v1/settings/knowledge with the operator bearer token. */
+/** A CS runtime double (sessions and messages of the feedback desk) with the operator bearer token. */
 export async function startCsApi({ token = 'cs-token' } = {}) {
-  const api = { calls: [], sessions: [], messages: {}, gaps: [{ id: 'g1', topic: 'Hoàn tiền sau 7 ngày', count: 5, state: 'open', samples: ['x'] }, { id: 'g2', topic: 'Đã giải quyết', count: 9, state: 'resolved' }, { id: 'g3', topic: 'Đổi email', count: 2, state: 'open' }] };
+  const api = { calls: [], sessions: [], messages: {} };
   const server = createServer((req, res) => {
     api.calls.push({ path: req.url, auth: req.headers.authorization ?? null });
     if (req.headers.authorization !== `Bearer ${token}`) { res.writeHead(401); return res.end('{}'); }
@@ -50,7 +50,7 @@ export async function startCsApi({ token = 'cs-token' } = {}) {
     if (u.pathname === '/v1/sessions') return send({ sessions: api.sessions, counts: {}, next: '' });
     const m = /^\/v1\/sessions\/([\w-]+)\/messages$/.exec(u.pathname);
     if (m) return send({ messages: api.messages[m[1]] ? [{ id: 1, role: 'user', text: api.messages[m[1]] }] : [], next_after: 0 });
-    send({ pools: [], sources: [], soots: [], gaps: api.gaps });
+    send({});
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   api.url = `http://127.0.0.1:${server.address().port}`;

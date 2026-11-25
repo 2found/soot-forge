@@ -23,7 +23,7 @@ or `person.address_as`; replace an older value instead of adding a second one.
 
 Passwords, codes, card or bank numbers, ID documents, health, anything they ask you
 not to keep, and anything a member told you privately. Facts about the product are
-not memories: they come from the collection and the product tool.
+not memories: they come from the public pools and the product tool.
 
 ## Recall (`memory_recall`)
 

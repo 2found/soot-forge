@@ -56,6 +56,8 @@ test('General is the 2agent template, every pack fetched from Forge and no 2buil
   // Image generation needs a local diffusion model many hosts (a server
   // above all) cannot run: installed for an owner to turn on, never selected.
   assert.ok(preset.install.includes('image-gen') && !preset.packs.includes('image-gen'));
+  // The data pool is on by default: both packs are installed, and the host's data_pool block (not General's pack list) attaches the tools.
+  assert.ok(['data-pool', 'data-pool-console'].every(id => preset.install.includes(id) && !preset.packs.includes(id)));
 });
 
 test('the creation preset must resolve from this repository alone', async () => {

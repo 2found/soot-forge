@@ -168,6 +168,14 @@ const createPool = (p, requestID) => actionBody('manage', { action: 'pool_create
 const removePool = (pool, requestID) => actionBody('manage', { action: 'pool_remove', pool: pool.id, generation: pool.generation, expected_policy_revision: pool.policy_revision, request_id: requestID });
 
 /**
+ * Public or private: whether Soots that answer the public may read the pool
+ * (the service's reserved knowledge reader). Only a host manager's call is
+ * accepted; the generation and policy revision are the ones the person read.
+ * @param {{ id: string, generation: string, policy_revision: number }} pool @param {boolean} value @param {string} requestID
+ */
+const setPublic = (pool, value, requestID) => actionBody('manage', { action: 'pool_update', pool: pool.id, public: value, generation: pool.generation, expected_policy_revision: pool.policy_revision, request_id: requestID });
+
+/**
  * One reading of a call result.
  * - done: the service stored a terminal `succeeded` receipt (`replayed` when it was an earlier save).
  * - conflict: a revision/generation went stale; the draft stays.
@@ -268,7 +276,7 @@ async function recallDraft(io, storage) {
     return out.ok ? validRecord(out.output?.value) : null;
   } catch { return null; }
 }
-return { VIEW_KINDS, ACTION_KINDS, viewBody, actionBody, PAGE, listDocuments, searchDocuments, readDocument, listPools, poolDetail, activity, requestStatus, saveDocument, removeDocument, createPool, removePool, classify, viewOutput, RECOVERY_KEY, recoveryRecord, remember, validRecord, recall, rememberDraft, recallDraft };
+return { VIEW_KINDS, ACTION_KINDS, viewBody, actionBody, PAGE, listDocuments, searchDocuments, readDocument, listPools, poolDetail, activity, requestStatus, saveDocument, removeDocument, createPool, removePool, setPublic, classify, viewOutput, RECOVERY_KEY, recoveryRecord, remember, validRecord, recall, rememberDraft, recallDraft };
 })();
 
 // ---- src/text.js ----
@@ -304,22 +312,26 @@ const vi = {
   recovered: 'Trang vừa mở lại khi một thay đổi chưa được xác nhận. Kiểm tra trạng thái trước; nội dung bản sửa không được lưu trên thiết bị.',
   recoveredMissing: 'Máy chủ chưa nhận thay đổi đó. Nội dung không được lưu trên thiết bị, hãy nhập lại.',
   replayed: (/** @type {string} */ at) => `Đã lưu một lần${at ? ', lúc ' + at : ''}. Lần gửi lại chỉ nhận lại xác nhận cũ.`,
-  saved: { upsert: 'Đã lưu · Soot dùng bản này từ câu trả lời tới', remove: 'Đã xoá tài liệu.', pool_create: 'Đã tạo bộ sưu tập.', pool_remove: 'Đã xoá bộ sưu tập.' },
+  saved: { upsert: 'Đã lưu · Soot dùng bản này từ câu trả lời tới', remove: 'Đã xoá tài liệu.', pool_create: 'Đã tạo bộ sưu tập.', pool_remove: 'Đã xoá bộ sưu tập.', pool_update: 'Đã đổi chế độ công khai.' },
   failed: 'Kho dữ liệu chưa lưu được. Bản sửa của bạn vẫn được giữ, bạn có thể thử lại.',
   busy: 'Máy chủ đang bận. Thử lại sau ít phút.', retry: 'Thử lại', loading: 'Đang tải…', working: 'Đang xử lý…',
   noStorage: 'Không lưu được thông tin khôi phục trên thiết bị. Đừng tải lại trang trước khi kiểm tra xong yêu cầu.',
   loadFailed: 'Chưa đọc được kho dữ liệu. Kiểm tra dịch vụ kho dữ liệu đang chạy và khoá giao diện đã được cấp.',
-  grantsIntro: 'Soot nào được đọc bộ sưu tập này. Trang này chỉ hiển thị; đổi quyền ở Cài đặt › Soot › Quyền hạn của từng Soot.',
+  grantsIntro: 'Soot nào được đọc bộ sưu tập này. Chế độ công khai đổi ngay ở trên; quyền của từng Soot đổi ở Cài đặt › Soot › Quyền hạn.',
   grantSoot: 'Soot', grantLevel: 'Quyền', hostManager: 'Người quản lý máy chủ', changeAt: 'Đổi ở Cài đặt › Soot › Quyền hạn',
   levels: { '': 'Không có quyền', read: 'Đọc', write: 'Đọc và ghi', manage: 'Quản lý' }, readers: (/** @type {string[]} */ n) => n.length ? `Đọc được: ${n.join(', ')}` : 'Chưa Soot nào đọc được',
   documents: (/** @type {number} */ n) => `${n} tài liệu`,
   activityIntro: (/** @type {number} */ n) => `Giữ tối đa ${n} sự kiện. Nhật ký truy cập không xác nhận dữ liệu đã được dùng trong câu trả lời.`,
   noActivity: 'Chưa có hoạt động nào trong bộ sưu tập này.', newest: 'Mới nhất', older: 'Trang trước đó', expired: 'Các hoạt động cũ hơn đã hết thời gian lưu.',
-  events: { pool_create: 'Tạo bộ sưu tập', pool_update: 'Sắp xếp bộ sưu tập', pool_remove: 'Xoá bộ sưu tập', append: 'Thêm quan sát', upsert: 'Thêm / cập nhật', remove: 'Xoá tài liệu', grant: 'Cấp quyền', revoke: 'Thu hồi quyền', read: 'Đọc tài liệu', list: 'Xem danh sách', search: 'Tìm dữ liệu' },
+  events: { pool_create: 'Tạo bộ sưu tập', pool_update: 'Đổi cài đặt bộ sưu tập', pool_remove: 'Xoá bộ sưu tập', append: 'Thêm quan sát', upsert: 'Thêm / cập nhật', remove: 'Xoá tài liệu', grant: 'Cấp quyền', revoke: 'Thu hồi quyền', read: 'Đọc tài liệu', list: 'Xem danh sách', search: 'Tìm dữ liệu' },
   statuses: { succeeded: 'Đã hoàn tất', failed: 'Thất bại', rejected: 'Đã từ chối', pending: 'Đang xử lý', uncertain: 'Chưa xác nhận' },
   human: (/** @type {string} */ via) => `Người dùng · qua ${via}`, unrecorded: 'Chưa ghi nhận', untitled: 'Tài liệu chưa đặt tên',
   source: 'Xuất xứ', noSource: 'Chưa ghi địa chỉ gốc', bySoot: 'Do Soot thêm vào', noTags: 'Chưa có nhãn', changed: 'Tài liệu đã đổi. Tải lại từ đầu để xem cùng một bản.',
   support: 'Thông tin hỗ trợ', requestID: 'Mã yêu cầu',
+  publicTitle: 'Công khai', publicLabel: 'Công khai bộ sưu tập này',
+  publicOn: 'Mọi Soot trả lời khách, kể cả Soot không có quyền riêng, tra được tài liệu trong bộ sưu tập này. Khách có thể đọc lại nội dung qua câu trả lời của Soot.',
+  publicOff: 'Chỉ những Soot được cấp quyền ở bên dưới đọc được. Bật công khai nếu bộ sưu tập này chỉ chứa thông tin ai cũng được xem, như bảng giá hay chính sách hoàn tiền.',
+  publicBadge: 'Công khai', confirmPublic: (/** @type {string} */ name) => `Công khai “${name}”? Mọi người hỏi Soot trả lời khách sẽ đọc được toàn bộ tài liệu trong bộ này, cả tài liệu thêm sau này. Chỉ bật khi không có thông tin riêng tư.`, confirmPublicYes: 'Công khai',
 };
 
 /** @type {typeof vi} */
@@ -350,22 +362,26 @@ const en = {
   recovered: 'The page reopened while a change was unconfirmed. Check its status first; the edited content was not stored on this device.',
   recoveredMissing: 'The server never received that change. The content was not stored on this device; enter it again.',
   replayed: at => `Saved once${at ? ' at ' + at : ''}. The resend only fetched the earlier confirmation.`,
-  saved: { upsert: 'Saved · Soots use this version from the next answer', remove: 'Document deleted.', pool_create: 'Collection created.', pool_remove: 'Collection deleted.' },
+  saved: { upsert: 'Saved · Soots use this version from the next answer', remove: 'Document deleted.', pool_create: 'Collection created.', pool_remove: 'Collection deleted.', pool_update: 'Visibility changed.' },
   failed: 'The library could not save this. Your edits are kept; you can try again.',
   busy: 'The server is busy. Try again in a few minutes.', retry: 'Try again', loading: 'Loading…', working: 'Working…',
   noStorage: 'Recovery details could not be stored on this device. Do not reload until the request is checked.',
   loadFailed: 'Could not read the library. Check that the data-pool service runs and the interface key is granted.',
-  grantsIntro: 'Which Soots may read this collection. This page only shows it; change it under each Soot’s Permissions.',
+  grantsIntro: 'Which Soots may read this collection. Change public access above; change each Soot’s access under Settings › Soot › Permissions.',
   grantSoot: 'Soot', grantLevel: 'Access', hostManager: 'Host manager', changeAt: 'Change in Settings › Soot › Permissions',
   levels: { '': 'No access', read: 'Read', write: 'Read and write', manage: 'Manage' }, readers: n => n.length ? `Readable by: ${n.join(', ')}` : 'No Soot can read it yet',
   documents: n => `${n} documents`,
   activityIntro: n => `Keeps at most ${n} events. Access records do not prove a source was used in an answer.`,
   noActivity: 'No activity in this collection yet.', newest: 'Newest', older: 'Older', expired: 'Older activity has expired.',
-  events: { pool_create: 'Collection created', pool_update: 'Collection arranged', pool_remove: 'Collection deleted', append: 'Observation added', upsert: 'Added / updated', remove: 'Document deleted', grant: 'Access granted', revoke: 'Access revoked', read: 'Document read', list: 'List viewed', search: 'Searched' },
+  events: { pool_create: 'Collection created', pool_update: 'Collection settings changed', pool_remove: 'Collection deleted', append: 'Observation added', upsert: 'Added / updated', remove: 'Document deleted', grant: 'Access granted', revoke: 'Access revoked', read: 'Document read', list: 'List viewed', search: 'Searched' },
   statuses: { succeeded: 'Done', failed: 'Failed', rejected: 'Refused', pending: 'In progress', uncertain: 'Unconfirmed' },
   human: via => `A person · via ${via}`, unrecorded: 'Not recorded', untitled: 'Untitled document',
   source: 'Source', noSource: 'No source address', bySoot: 'Added by a Soot', noTags: 'No tags', changed: 'The document changed. Reload it from the start to read one version.',
   support: 'Support details', requestID: 'Request ID',
+  publicTitle: 'Public', publicLabel: 'Make this collection public',
+  publicOn: 'Every Soot that answers customers, including Soots with no access of their own, can look documents up here. Customers can read the content back through a Soot’s answers.',
+  publicOff: 'Only the Soots granted access below can read it. Turn it public if this collection holds only information anyone may see, such as a price list or a refund policy.',
+  publicBadge: 'Public', confirmPublic: name => `Make “${name}” public? Anyone asking a customer-facing Soot can read every document in it, including ones added later. Turn it on only when nothing private is inside.`, confirmPublicYes: 'Make public',
 };
 
 const STRINGS = { vi, en };
@@ -407,7 +423,7 @@ const { createBridge, applyTheme, randomID } = __bridge;
 const M = __model;
 const { strings, docTitle, sourceLine, actorLabel, utf8Bytes, overInlineLimit, readerIds, parseTags } = __text;
 
-/** @typedef {{ id: string, name: string, generation: string, policy_revision: number, parent?: string, inherit?: boolean }} Pool */
+/** @typedef {{ id: string, name: string, generation: string, policy_revision: number, parent?: string, inherit?: boolean, public?: boolean }} Pool */
 /** @typedef {{ id: string, title: string, source?: string, tags?: string[], revision: number, updated_at: string, writer?: { kind: string, soot: string } }} Doc */
 
 const storage = () => { try { return globalThis.sessionStorage; } catch { return undefined; } };
@@ -419,7 +435,7 @@ const S = {
   /** @type {any} */ draft: null, conflict: false, latestLoaded: false, tab: 'documents',
   /** @type {any[]} */ activity: [], activityNext: '', oldest: 0,
   busy: false, goTo: '', /** @type {{ kind: 'info' | 'success' | 'wait', text: string } | null} */ notice: null, loadError: '',
-  /** @type {any} */ pending: null, /** @type {{ text: string, run: () => void } | null} */ confirm: null, creating: false,
+  /** @type {any} */ pending: null, /** @type {{ text: string, run: () => void, yes?: string } | null} */ confirm: null, creating: false,
 };
 
 const bridge = createBridge({
@@ -586,7 +602,7 @@ function noticeView() {
   if (S.notice) out.push(h('div', { class: 'notice ' + S.notice.kind, role: S.notice.kind === 'success' ? 'status' : 'alert' }, h('span', { class: 'grow' }, S.notice.text)));
   if (S.confirm) {
     const c = S.confirm;
-    out.push(h('div', { class: 'notice confirm', role: 'alertdialog' }, h('span', { class: 'grow' }, c.text), btn(t.cancel, () => { S.confirm = null; render(); }, 'quiet sm'), btn(t.confirmYes, () => { S.confirm = null; c.run(); }, 'danger sm')));
+    out.push(h('div', { class: 'notice confirm', role: 'alertdialog' }, h('span', { class: 'grow' }, c.text), btn(t.cancel, () => { S.confirm = null; render(); }, 'quiet sm'), btn(c.yes || t.confirmYes, () => { S.confirm = null; c.run(); }, c.yes ? 'primary sm' : 'danger sm')));
   }
   return out;
 }
@@ -679,10 +695,25 @@ function editorView() {
           btn(t.save, submit, 'primary', !!S.pending)));
 }
 
+/** The public switch. Turning it on asks first; turning it off does not. */
+function publicView() {
+  const t = S.t, pool = S.detail.pool, on = !!pool.public;
+  const change = (/** @type {boolean} */ value) => { void mutate(M.setPublic(pool, value, randomID('lib'))); };
+  const toggle = (/** @type {Event} */ e) => {
+    const want = /** @type {HTMLInputElement} */ (e.target).checked;
+    if (want) S.confirm = { text: t.confirmPublic(pool.name), yes: t.confirmPublicYes, run: () => change(true) };
+    if (!want) change(false);
+    render();
+  };
+  return h('div', { class: 'card stack', role: 'group', 'aria-label': t.publicTitle },
+    h('div', { class: 'row' }, h('input', { id: 'pool-public', type: 'checkbox', checked: on, disabled: !!S.pending || S.busy || undefined, onchange: toggle }), h('label', { for: 'pool-public' }, h('b', {}, t.publicLabel))),
+    h('p', { class: 'muted' }, on ? t.publicOn : t.publicOff));
+}
+
 function grantsView() {
   const t = S.t, d = S.detail, managers = new Set(d.host_managers ?? []);
   const rows = [...new Set([...(d.host_managers ?? []), ...(d.bound_soots ?? [])])];
-  return h('div', { class: 'stack' }, h('p', { class: 'muted' }, t.grantsIntro), h('p', { class: 'who' }, t.readers(readerIds(d).map(name))),
+  return h('div', { class: 'stack' }, publicView(), h('p', { class: 'muted' }, t.grantsIntro), h('p', { class: 'who' }, t.readers(readerIds(d).map(name))),
     h('div', { class: 'card tbl' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t.grantSoot), h('th', {}, t.grantLevel), h('th', {}))),
       h('tbody', {}, rows.map(id => h('tr', {}, h('td', {}, h('b', {}, name(id)), name(id) !== id ? h('span', { class: 'who' }, ` · ${id}`) : null),
         h('td', {}, managers.has(id) ? t.hostManager : /** @type {any} */ (t.levels)[d.effective_permissions?.[id] ?? d.grants?.[id] ?? ''] ?? t.levels['']),
@@ -715,7 +746,7 @@ function render() {
     if (S.creating) body.push(createView());
     if (!S.pools.length && !S.creating) body.push(h('div', { class: 'empty' }, h('b', {}, t.noCollections), h('p', { class: 'muted' }, t.noCollectionsHint)));
     if (S.detail) {
-      body.push(h('div', { class: 'row' }, h('h2', { class: 'grow' }, S.detail.pool.name)), tabsView());
+      body.push(h('div', { class: 'row' }, h('h2', {}, S.detail.pool.name), S.detail.pool.public ? h('span', { class: 'who' }, '· ' + t.publicBadge) : null), tabsView());
       if (S.tab === 'grants') body.push(grantsView());
       else if (S.tab === 'activity') body.push(activityView());
       else body.push(S.draft ? editorView() : S.selected ? docView() : listView());

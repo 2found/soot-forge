@@ -54,6 +54,7 @@ function action({ kind, input }) {
     state.writes++;
     if (input.action === 'pool_create') { pools.set(input.pool, { id: input.pool, name: input.name, generation: 'g1', policy_revision: 1 }); docs.set(input.pool, new Map()); }
     else if (input.action === 'pool_remove') { if (!pool || pool.generation !== input.generation) return refuse('conflict', 'revision conflict'); pools.delete(pool.id); docs.delete(pool.id); }
+    else if (input.action === 'pool_update') { if (!pool || pool.generation !== input.generation || pool.policy_revision !== input.expected_policy_revision) return refuse('conflict', 'revision conflict'); if (!!pool.public !== input.public) { pool.public = input.public; pool.policy_revision++; } }
     else return refuse('rejected', 'unsupported manage action');
     const r = { request_id: input.request_id, status: 'succeeded', pool: input.pool, action: input.action };
     receipts.set(input.request_id, r); return r;

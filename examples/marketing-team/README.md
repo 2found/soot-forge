@@ -49,14 +49,15 @@ and [Data Pool](https://trysoot.com/docs/data-pool/index.md). It holds:
 
 | file | what it is |
 | --- | --- |
-| `soot/source.json` | the four Soots, the `acme-marketing` group, two schedules, the products knowledge pool |
+| `soot/source.json` | the four Soots, the `acme-marketing` group, two schedules; the products pool is a public pool you fill from your site (see below) |
 | `soot/soots/acme-*/MISSION.md` | **your company**: audience, sources, channels, languages, daily limit |
 | `soot/soots/acme-*/SOUL.md` | each role's character |
 | `soot/packs/acme-marketing/` | **the procedure**, as skills: shared workspace, radar, writing, review and publishing, posting |
 
 The split is deliberate. Procedure lives in the pack's skills, written once.
 Your company lives in the missions. Product facts live in neither: they come
-from your website's `llms.txt` through `knowledge_search`, so the team never
+from your website's `llms.txt`, kept in a public pool of the data pool and read
+through `knowledge_search`, so the team never
 claims something your site does not say.
 
 ## Set it up
@@ -74,9 +75,11 @@ your own.
    prefix `acme` everywhere (file names and contents) with your own short id:
    Soot, group, pool and schedule ids are shared by the whole runtime.
 2. **Point it at your company.** Edit the lines marked `Edit these lines` in
-   the four missions, the `knowledge.sources` URL in `source.json` (a page
-   listing your product pages; see [llms.txt](https://llmstxt.org)), and the
-   schedules' `timezone`.
+   the four missions and the schedules' `timezone`. Make a pool named
+   `acme-products` (renamed with your prefix) and mark it public. Fill it from
+   your site with the [librarian](../../packs/librarian/README.md) pack (it
+   reads your `llms.txt`, a page listing your product pages; see
+   [llms.txt](https://llmstxt.org)), or by hand in the Library page.
 3. **Install the packs** the Soots borrow (`host_packs`) in your host (Nest or a
    server runtime):
 

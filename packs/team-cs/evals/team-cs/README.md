@@ -25,9 +25,8 @@ soot eval --tag memory-first && soot eval --tag memory-second
 
 A workspace used only for evals, with both Soots from `../../soots/`:
 
-- a collection granted as their `knowledge` (listed in each Soot's `knowledge`
-  and the host's `data_pool.knowledge`, readable by both Soots and by the
-  runtime's `knowledge` identity, which performs knowledge reads), holding a page
+- a pool marked public in the data pool (both Soots select `knowledge`, and the
+  runtime's reserved `knowledge` reader performs the reads), holding a page
   on changing a password and a **stale** page "Bảng giá: gói Pro 99.000đ/tháng";
 - a typed host operation `product_lookup` (a `plan` parameter, `stdin:
   "context"`, mode `read`) listed in both Soots' `operations`, returning

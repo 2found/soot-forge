@@ -1,0 +1,14 @@
+{
+  "name": "Thủ thư",
+  "description": "Giữ kiến thức công khai của sản phẩm đúng và đủ: nhận câu hỏi chưa có đáp án, tra nguồn tin cậy và ghi vào pool công khai có nguồn.",
+  "packs": [
+    "librarian",
+    "research",
+    "data-pool"
+  ],
+  "execution": {
+    "continue_on_limit": true,
+    "max_turns": 24,
+    "max_tool_calls": 30
+  }
+}

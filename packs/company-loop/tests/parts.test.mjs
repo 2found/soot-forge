@@ -161,7 +161,6 @@ test('signals {product}: a part owned by name only shows that name, and another 
     const beta = (await w.call('signals', { product: 'beta' })).packet;
     assert.equal(beta.parts.find(x => x.p === 'marketing').own, 'Marketing beta (máy chủ khác)');
     assert.equal(beta.cs_feedback, undefined, 'the host CS runtime is not beta\'s');
-    assert.equal(beta.cs_gaps, undefined);
   } finally { cs.close(); }
 });
 

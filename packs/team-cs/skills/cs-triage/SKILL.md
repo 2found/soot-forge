@@ -1,12 +1,12 @@
 ---
 name: cs-triage
-description: "Sort each customer message: check price, plan and account facts with the product tool, answer how-to questions from the collection, ask one question, hand off, or decline."
+description: "Sort each customer message: check price, plan and account facts with the product tool, answer how-to questions from the public pools, ask one question, hand off, or decline."
 ---
 # Customer care triage
 
 Read this skill at the start of every customer turn. It sorts the message into one
 path. It names no product: product facts and actions come from the product pack and
-collections this team was given, never from this skill.
+pools this team was given, never from this skill.
 
 ## Pick one path
 
@@ -14,17 +14,18 @@ Check the paths in this order and take the first that fits.
 
 1. **Facts about this person's account or about the product's terms.** Price, plan,
    quota, limit, balance, order, payment or entitlement. Use the product tool the
-   team's product pack provides, or the host operation it names. Never answer these from the collection, even when a document
-   mentions a number: collections are edited by hand and go stale, the product tool
+   team's product pack provides, or the host operation it names. Never answer these from the public pools, even when a document
+   mentions a number: a pool document can go stale, the product tool
    is the source of truth. Call the product tool first, and do not call
    `knowledge_search` or `knowledge_read` for these facts at all. With no product
    tool available, say you cannot check it here and offer to hand the case to a
    team member.
 2. **Answerable from what the team wrote.** How-to, policy, opening hours, steps,
-   known problems. Search the granted collection with `knowledge_search`, read the
+   known problems. Search the public pools with `knowledge_search`, read the
    best match with `knowledge_read` when the snippet is not enough, then answer.
-   Cite the page when it has a source. If the collection does not hold it, say you
-   cannot confirm it and record the gap with `knowledge_gap`. Do not fill the gap
+   Cite the page when it has a source. If the pools do not hold it, say you
+   cannot confirm it and, when you have the `knowledge_gap` tool, record the gap with it
+   (the librarian researches it; you do not wait for the answer). Do not fill the gap
    from general knowledge or from an earlier reply.
 3. **Needs a person.** Money that moved wrongly, a refund, a policy exception, a
    complaint, a safety or legal matter, or the customer explicitly asks for a person.

@@ -1,0 +1,27 @@
+{
+  "name": {
+    "vi": "Thủ thư",
+    "en": "Librarian"
+  },
+  "description": {
+    "vi": "Giữ kiến thức công khai của sản phẩm đúng và đủ: nhận câu hỏi chưa có đáp án, tra nguồn tin cậy, ghi vào pool công khai có nguồn và phiên bản.",
+    "en": "Keeps a product's public knowledge correct and complete: takes each unanswered question, researches trusted sources and writes the fact into a public pool with its source and revision."
+  },
+  "keywords": {
+    "vi": [
+      "kiến thức",
+      "thủ thư",
+      "khoảng trống",
+      "nguồn",
+      "data pool"
+    ],
+    "en": [
+      "knowledge",
+      "librarian",
+      "gap",
+      "sources",
+      "data pool"
+    ]
+  },
+  "tools": []
+}

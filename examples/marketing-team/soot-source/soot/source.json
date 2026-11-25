@@ -2,13 +2,6 @@
   "$schema": "schemas/source.schema.json",
   "id": "acme",
   "name": "Acme marketing team",
-  "knowledge": {
-    "pool": "acme-products",
-    "refresh": "6h",
-    "sources": [
-      {"id": "acme-site", "url": "https://acme.example/llms.txt"}
-    ]
-  },
   "packs_dir": "packs",
   "soots": [
     "soots/acme-editor/soot.json",

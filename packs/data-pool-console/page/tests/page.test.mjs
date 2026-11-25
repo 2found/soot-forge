@@ -34,6 +34,23 @@ test('the page and Nest share one body: legacy pools/query bodies pass, an unkno
   assert.deepEqual(M.requestStatus('lib-0123456789abcdef01234567'), bodies[3].input);
 });
 
+test('the public switch sends one guarded pool_update and reads as plain words in both languages', async () => {
+  const pool = { id: 'lohi-support', generation: 'g1', policy_revision: 3 };
+  assert.deepEqual(M.setPublic(pool, true, 'lib-0123456789abcdef01234567'), bodies[5].input);
+  assert.deepEqual(M.setPublic(pool, false, 'lib-0123456789abcdef01234567').input.public, false);
+  for (const locale of ['vi', 'en']) {
+    const t = strings(locale);
+    for (const key of ['publicTitle', 'publicLabel', 'publicOn', 'publicOff', 'publicBadge', 'confirmPublicYes']) assert.ok(t[key].length > 3, `${locale}.${key}`);
+    assert.match(t.confirmPublic('Giá'), /Giá/);
+    assert.ok(t.saved.pool_update, `${locale}: the switch has its own saved notice`);
+  }
+  assert.match(strings('vi').publicLabel, /Công khai/);
+  assert.doesNotMatch(strings('vi').publicOn + strings('vi').publicOff + strings('vi').confirmPublic('x'), /\b(pool|public|knowledge|reader)\b/i, 'no developer words on screen');
+  const app = await readFile(new URL('app.js', page), 'utf8');
+  assert.match(app, /id: 'pool-public', type: 'checkbox'/, 'the switch is in the shipped page');
+  assert.match(app, /S\.confirm = \{ text: t\.confirmPublic\(pool\.name\)/, 'turning it on asks first');
+});
+
 test('the declaration matches soot-pages v2: data.tab piece, operator, read view tool and action tool on stdin context', () => {
   const [p] = pack.interface.pieces;
   assert.deepEqual({ id: p.id, slot: p.slot, access: p.access, bundle: p.bundle }, { id: 'library', slot: 'data.tab', access: 'operator', bundle: 'page/' });

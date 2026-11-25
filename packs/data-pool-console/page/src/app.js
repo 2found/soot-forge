@@ -7,7 +7,7 @@ import { createBridge, applyTheme, randomID } from './bridge.js';
 import * as M from './model.js';
 import { strings, docTitle, sourceLine, actorLabel, utf8Bytes, overInlineLimit, readerIds, parseTags } from './text.js';
 
-/** @typedef {{ id: string, name: string, generation: string, policy_revision: number, parent?: string, inherit?: boolean }} Pool */
+/** @typedef {{ id: string, name: string, generation: string, policy_revision: number, parent?: string, inherit?: boolean, public?: boolean }} Pool */
 /** @typedef {{ id: string, title: string, source?: string, tags?: string[], revision: number, updated_at: string, writer?: { kind: string, soot: string } }} Doc */
 
 const storage = () => { try { return globalThis.sessionStorage; } catch { return undefined; } };
@@ -19,7 +19,7 @@ const S = {
   /** @type {any} */ draft: null, conflict: false, latestLoaded: false, tab: 'documents',
   /** @type {any[]} */ activity: [], activityNext: '', oldest: 0,
   busy: false, goTo: '', /** @type {{ kind: 'info' | 'success' | 'wait', text: string } | null} */ notice: null, loadError: '',
-  /** @type {any} */ pending: null, /** @type {{ text: string, run: () => void } | null} */ confirm: null, creating: false,
+  /** @type {any} */ pending: null, /** @type {{ text: string, run: () => void, yes?: string } | null} */ confirm: null, creating: false,
 };
 
 const bridge = createBridge({
@@ -186,7 +186,7 @@ function noticeView() {
   if (S.notice) out.push(h('div', { class: 'notice ' + S.notice.kind, role: S.notice.kind === 'success' ? 'status' : 'alert' }, h('span', { class: 'grow' }, S.notice.text)));
   if (S.confirm) {
     const c = S.confirm;
-    out.push(h('div', { class: 'notice confirm', role: 'alertdialog' }, h('span', { class: 'grow' }, c.text), btn(t.cancel, () => { S.confirm = null; render(); }, 'quiet sm'), btn(t.confirmYes, () => { S.confirm = null; c.run(); }, 'danger sm')));
+    out.push(h('div', { class: 'notice confirm', role: 'alertdialog' }, h('span', { class: 'grow' }, c.text), btn(t.cancel, () => { S.confirm = null; render(); }, 'quiet sm'), btn(c.yes || t.confirmYes, () => { S.confirm = null; c.run(); }, c.yes ? 'primary sm' : 'danger sm')));
   }
   return out;
 }
@@ -279,10 +279,25 @@ function editorView() {
           btn(t.save, submit, 'primary', !!S.pending)));
 }
 
+/** The public switch. Turning it on asks first; turning it off does not. */
+function publicView() {
+  const t = S.t, pool = S.detail.pool, on = !!pool.public;
+  const change = (/** @type {boolean} */ value) => { void mutate(M.setPublic(pool, value, randomID('lib'))); };
+  const toggle = (/** @type {Event} */ e) => {
+    const want = /** @type {HTMLInputElement} */ (e.target).checked;
+    if (want) S.confirm = { text: t.confirmPublic(pool.name), yes: t.confirmPublicYes, run: () => change(true) };
+    if (!want) change(false);
+    render();
+  };
+  return h('div', { class: 'card stack', role: 'group', 'aria-label': t.publicTitle },
+    h('div', { class: 'row' }, h('input', { id: 'pool-public', type: 'checkbox', checked: on, disabled: !!S.pending || S.busy || undefined, onchange: toggle }), h('label', { for: 'pool-public' }, h('b', {}, t.publicLabel))),
+    h('p', { class: 'muted' }, on ? t.publicOn : t.publicOff));
+}
+
 function grantsView() {
   const t = S.t, d = S.detail, managers = new Set(d.host_managers ?? []);
   const rows = [...new Set([...(d.host_managers ?? []), ...(d.bound_soots ?? [])])];
-  return h('div', { class: 'stack' }, h('p', { class: 'muted' }, t.grantsIntro), h('p', { class: 'who' }, t.readers(readerIds(d).map(name))),
+  return h('div', { class: 'stack' }, publicView(), h('p', { class: 'muted' }, t.grantsIntro), h('p', { class: 'who' }, t.readers(readerIds(d).map(name))),
     h('div', { class: 'card tbl' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, t.grantSoot), h('th', {}, t.grantLevel), h('th', {}))),
       h('tbody', {}, rows.map(id => h('tr', {}, h('td', {}, h('b', {}, name(id)), name(id) !== id ? h('span', { class: 'who' }, ` · ${id}`) : null),
         h('td', {}, managers.has(id) ? t.hostManager : /** @type {any} */ (t.levels)[d.effective_permissions?.[id] ?? d.grants?.[id] ?? ''] ?? t.levels['']),
@@ -315,7 +330,7 @@ function render() {
     if (S.creating) body.push(createView());
     if (!S.pools.length && !S.creating) body.push(h('div', { class: 'empty' }, h('b', {}, t.noCollections), h('p', { class: 'muted' }, t.noCollectionsHint)));
     if (S.detail) {
-      body.push(h('div', { class: 'row' }, h('h2', { class: 'grow' }, S.detail.pool.name)), tabsView());
+      body.push(h('div', { class: 'row' }, h('h2', {}, S.detail.pool.name), S.detail.pool.public ? h('span', { class: 'who' }, '· ' + t.publicBadge) : null), tabsView());
       if (S.tab === 'grants') body.push(grantsView());
       else if (S.tab === 'activity') body.push(activityView());
       else body.push(S.draft ? editorView() : S.selected ? docView() : listView());

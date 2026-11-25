@@ -62,7 +62,7 @@
     {
       "name": "signals",
       "title": "Gói tín hiệu cho bản tin",
-      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, CS knowledge gaps, opportunities and decisions with actual_delta, last launches. Reader feedback comes from the team contract item cs.voc, which the digest reads with the data tool first and reports with voc: true; only when voc is unavailable (voc false or omitted) the packet falls back to the legacy feedback desk scrape (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, needs CS_RUNTIME_TOKEN). Wakes the Lead in a chain. The packet also carries parts [{p, st ok|hong|chua_do, m metric, pct, own team id or null}] (a hong or unowned part is evidence), moats (count of Go decisions by moat) and awareness (content topics by level over 8 weeks). Optional product narrows everything to one product.",
+      "description": "The compact packet (at most 3 KiB) the weekly digest reads: metric changes against the previous period, top sources, why support handed over, opportunities and decisions with actual_delta, last launches. Reader feedback comes from the team contract item cs.voc, which the digest reads with the data tool first and reports with voc: true; only when voc is unavailable (voc false or omitted) the packet falls back to the legacy feedback desk scrape (counts by kind plus up to 5 scrubbed samples each, at most 1 KiB, needs CS_RUNTIME_TOKEN). Wakes the Lead in a chain. The packet also carries parts [{p, st ok|hong|chua_do, m metric, pct, own team id or null}] (a hong or unowned part is evidence), moats (count of Go decisions by moat) and awareness (content topics by level over 8 weeks). Optional product narrows everything to one product.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1041,7 +1041,7 @@
       },
       "CS_RUNTIME_TOKEN": {
         "title": "Khoá runtime Hỗ trợ",
-        "description": "Khoá vận hành của runtime Hỗ trợ (CS_RUNTIME_URL) để đọc những câu khách hỏi mà kho kiến thức chưa trả lời được và những điều bạn đọc muốn có (bàn ghi nhận). Tuỳ chọn: không có thì bản tin bỏ phần này. Nhập trong Nest, không nhập trong chat.",
+        "description": "Khoá vận hành của runtime Hỗ trợ (CS_RUNTIME_URL) để đọc những điều bạn đọc muốn có (bàn ghi nhận). Tuỳ chọn: không có thì bản tin bỏ phần này. Nhập trong Nest, không nhập trong chat.",
         "from": "operator",
         "optional": true
       },

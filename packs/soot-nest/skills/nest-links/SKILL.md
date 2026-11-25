@@ -32,7 +32,7 @@ wants to see it first (`nest-lead`).
 | `nest://schedules/nest-morning-brief` | the morning brief's schedule, to turn it off or change the time (the fixed id of the Lead's brief) |
 | `nest://overview`, `tasks`, `chat`, `team`, `data`, `reports` | that page; `tasks` (Việc) is every server's work in one list |
 | `nest://inbox` | Cần bạn, the queue on Tổng quan |
-| `nest://settings` and `/servers`, `/ai`, `/approvals`, `/website`, `/knowledge` | that Settings page |
+| `nest://settings` and `/servers`, `/ai`, `/approvals`, `/website` | that Settings page |
 | `nest://settings/channels` | Nest 0.13.27+: Cài đặt › Kênh, the overview of every team's bots and websites, each opening its team's tab; a bot token is entered on `nest://team/<team>/channels`. Older Nest: Kênh chat, the Telegram and Discord bots — where a bot token is entered, pairing codes, who is paired, **Thu hồi** |
 | `nest://settings/browser` | Trình duyệt: named browser sign-ins (profiles), which team or Soot may use each, and signing one in (Nest 0.13.27+) |
 | `nest://new?soot=<soot>&team=<team>&text=<draft>` | new work with `text` waiting in the composer |

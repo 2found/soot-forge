@@ -38,8 +38,13 @@ body is the data-pool `{kind, input}` body in [the contract](docs/nest-interface
 - Lost answer: the page says the outcome is unknown, then resends the same
   `request_id` (the service answers with the earlier receipt, so nothing is
   saved twice) or checks it with `view` kind `status`.
-- Read access: shown read-only. Changes go through the Soot's Quyền hạn page;
-  a page grants nothing.
+- Public: a switch (*Công khai*, manager only; the service refuses anyone
+  else) on the collection's access tab. Turning it on asks first, because the
+  reserved `knowledge` reader that answers customers can then search and read
+  every document in it; turning it off does not. It sends one `pool_update`
+  with the `generation` and `expected_policy_revision` the person read.
+- Read access: shown read-only. Per-Soot changes go through the Soot's Quyền
+  hạn page; a page grants nothing.
 - Activity: bounded and paged.
 - Recovery: only `{request_id, kind, action, pool, at}` goes to
   `sessionStorage`, never document content. Inside Nest's opaque-origin frame,

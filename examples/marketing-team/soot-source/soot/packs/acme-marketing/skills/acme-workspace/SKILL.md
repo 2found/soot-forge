@@ -9,8 +9,9 @@ article into a message: it writes the document and hands on its **id**. A
 document is the single copy everyone works on, so a later run (or a person in
 Nest) can pick up exactly where the last one stopped.
 
-Product facts do not live here. They come from the products pool through
-`knowledge_search`, which the host refreshes from the product site. If a fact
+Product facts do not live here. They come from the products pool, a public pool of the data pool, through
+`knowledge_search`; a librarian Soot (or a person) keeps it current from the
+product site. If a fact
 you need is not there, it is not a fact yet.
 
 ## Documents

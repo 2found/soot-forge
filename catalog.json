@@ -220,6 +220,19 @@
       }
     },
     {
+      "id": "librarian",
+      "name": "Librarian",
+      "description": "Keeps a product's public knowledge correct: takes each knowledge gap, researches trusted sources and writes the fact into a public data pool with its source and revision.",
+      "tags": [
+        "data",
+        "research"
+      ],
+      "source": {
+        "kind": "bundled",
+        "path": "packs/librarian"
+      }
+    },
+    {
       "id": "live-chat",
       "name": "Live chat",
       "description": "Communication guidance for Soots serving visitors through a separately configured gateway.",

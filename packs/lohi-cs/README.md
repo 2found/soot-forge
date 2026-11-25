@@ -70,10 +70,10 @@ token is in this pack. Prices, plans and gas numbers come only from
 
 ## Knowledge
 
-`knowledge/lohi-support/*.md` is the seed of the `lohi-support` Kho tài liệu
-collection: sign-in, missed top-ups, chapter and audio reports, novel requests.
-Import the folder into a collection in Nest (Kho tài liệu) and grant it to both
-role Soots. The pages hold how-tos and policy only, never a price.
+`knowledge/lohi-support/*.md` is the seed of the `lohi-support` pool of the data
+pool: sign-in, missed top-ups, chapter and audio reports, novel requests.
+Import the folder into a pool in Nest (Kho tài liệu), mark the pool public and
+add `knowledge:pools=lohi-support` to both role Soots' packs. The pages hold how-tos and policy only, never a price.
 
 ## Tests
 

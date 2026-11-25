@@ -209,54 +209,6 @@
         "null"
       ]
     },
-    "knowledge": {
-      "additionalProperties": false,
-      "properties": {
-        "pool": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "refresh": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sources": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "url": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        }
-      },
-      "type": [
-        "object",
-        "null"
-      ]
-    },
     "name": {
       "type": [
         "string",

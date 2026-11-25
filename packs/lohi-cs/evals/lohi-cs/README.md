@@ -34,7 +34,7 @@ soot eval --tag lohi-cs
 
 A local Lohi api (`cd api && pnpm dev`, port 6001) with its support fixture
 reader, `LOHI_CS`, `LOHI_CS_EXEC` and `LOHI_CS_BASE` bound on the host, and the
-`lohi-support` collection imported from `../../knowledge/lohi-support/`. Every
+public `lohi-support` pool imported from `../../knowledge/lohi-support/`. Every
 case except `anonymous-needs-sign-in` runs as an asserted principal (the eval
 runner signs the conversation); the approval cases end `waiting_approval`
 unless the eval deployment sets those operations to `auto`.

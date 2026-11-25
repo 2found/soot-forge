@@ -1,0 +1,24 @@
+{
+  "_comment": "A template to merge into deployment.json (the host's, not a source's): a pack declares no schedules, grants or credentials. Merge, never replace: keep the data_pool keys you already have. No credential values here. Writing needs a pool grant: in the data-pool service add the librarian Soot to its writers (or its write role) and grant it write on each public pool it keeps; the binding file never holds a secret in this repository. With a per-Soot DATA_POOL credential instead of the shared data_pool block, bind the librarian's own DATA_POOL to an environment variable (for example LIBRARIAN_DATA_POOL, set outside this file) with the operations data-pool_pools, data-pool_query, data-pool_status and data-pool_write. Marking a pool public is a pool manager's action (data-pool_manage pool_update public:true), never the librarian's. Never mark the data_pool.feedback pool public.",
+  "data_pool": {
+    "librarian": "librarian"
+  },
+  "schedules": [
+    {
+      "id": "librarian-sweep",
+      "name": "Thủ thư xem lại các câu hỏi chưa có đáp án",
+      "soot": "librarian",
+      "cron": "0 7 * * *",
+      "timezone": "UTC",
+      "text": "Daily sweep: read the librarian skill. List your open knowledge-gap tasks (task list, query \"knowledge-gap\", status todo, doing or blocked). For each, check whether a pool document now answers it and close it, or research it and write the fact. Ask a person only when sources are missing or disagree. End with one line: gaps closed, gaps still open."
+    },
+    {
+      "id": "librarian-refresh",
+      "name": "Thủ thư kiểm tra lại nguồn tin cậy",
+      "soot": "librarian",
+      "cron": "0 8 * * 1",
+      "timezone": "UTC",
+      "text": "Weekly refresh: read the librarian-refresh skill and re-check the trusted sources kept in your memory against the pool documents they feed. Update only what changed, with the revision you read. Report what changed."
+    }
+  ]
+}

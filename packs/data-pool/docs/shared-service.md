@@ -8,7 +8,7 @@ share documents, grants, revisions, receipts and revocations through the API.
 
 ## Operator setup
 
-Build the standalone executable (Go 1.25+) on the target architecture:
+Build the standalone executable (Go 1.26+) on the target architecture:
 
 ```sh
 cd packs/data-pool/runner
@@ -119,6 +119,13 @@ can and cannot do:
   is denied (403), so the VM's credential cannot act as a Soot listed only on the
   Mac, and vice versa. The service refuses to start if an `@host` entry has no
   `name` or an empty `soots` list.
+- One identity needs no allowlist entry: the reserved reader `knowledge`. Any
+  host credential may claim it. It is held to `pools` and `query`
+  (search/read/list) over **public** pools (`pool_update` with `public:true`,
+  host manager only); everything else is 403 or the stable `access denied`, and
+  it is never granted, admitted or made a manager. It is how a public,
+  customer-facing Soot reads published knowledge without holding any
+  credential of its own that could reach private pools.
 - Operations follow the claimed identity's bound role: namespace managers and
   `pool_managers` get write+manage, `writers` get write, everyone else
   pools/query/status. Pool grants still apply on top.
@@ -130,7 +137,7 @@ can and cannot do:
   manager if one is listed. Keep the file mode 0600 for the Soot runtime's
   account only, list only Soots that machine actually runs, and never put a
   public or untrusted Soot (for example a public chat Soot) in a host allowlist;
-  give such a Soot no data-pool credential, or its own per-Soot read binding.
+  such a Soot reads public pools through the `knowledge` reader and nothing else.
 - Revoke one machine by deleting its client entry and restarting; the other
   host keeps working. Distinct hosts may list the same Soot when a Soot
   intentionally runs on both; they then share its permissions and request IDs.

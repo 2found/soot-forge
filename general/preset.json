@@ -10,7 +10,9 @@
     "ocr",
     "image-gen",
     "research",
-    "writing"
+    "writing",
+    "data-pool",
+    "data-pool-console"
   ],
   "sources": {
     "soot": {
@@ -41,6 +43,12 @@
       "github_latest": "2found/soot-forge"
     },
     "writing": {
+      "github_latest": "2found/soot-forge"
+    },
+    "data-pool": {
+      "github_latest": "2found/soot-forge"
+    },
+    "data-pool-console": {
       "github_latest": "2found/soot-forge"
     }
   },

@@ -26,8 +26,7 @@ sub-agents, no other tool than the ones named here.
    unavailable: the tool then reads the older feedback desk itself). It is a compact packet: `metrics`
    (`v` now, `p` before, `pct` change), `sources`, `reasons` (why support handed
    over to a person), `support` (threads by state: `waiting_human` is readers
-   waiting for a person right now), `cs_gaps` (questions the knowledge base
-   could not answer, when present), `cs_feedback` (what readers asked for or
+   waiting for a person right now), `cs_feedback` (what readers asked for or
    lacked, when present: `n` counts by kind, `ex` a few short samples per kind),
    `waiting` and `later` (opportunities already open),
    `decisions` (what was decided, with `act`ual change once measured),
@@ -44,7 +43,7 @@ sub-agents, no other tool than the ones named here.
    counts past Go decisions by moat; `awareness` counts the content topics of
    the last 8 weeks by nấc.
 2. Pick **at most five** opportunities, best first. **Customers first:** what
-   customers said or did (voc rows, `reasons`, `cs_gaps`, `support.waiting_human`)
+   customers said or did (voc rows, `reasons`, `support.waiting_human`)
    ranks above what competitors or the market do. Then a part that is `hong`
    or `own: null` is evidence: prefer the opportunity that fixes that part and
    say it in `part`. Then rank by evidence

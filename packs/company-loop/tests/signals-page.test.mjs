@@ -17,7 +17,7 @@ test('signals without any scoreboard is a quiet stop, not a wake', async () => {
   assert.deepEqual([out.done, out.empty, out.notify, out.wake], [true, true, undefined, undefined]);
 });
 
-test('signals is a packet under 3 KiB that wakes the Lead; CS gaps are optional and quiet when unset', async () => {
+test('signals is a packet under 3 KiB that wakes the Lead, and is quiet about CS when unset', async () => {
   const w = mk();
   await w.call('scoreboard_sync');
   await w.call('digest_save', { opportunities: [ITEM.content, ITEM.product] });
@@ -32,10 +32,12 @@ test('signals is a packet under 3 KiB that wakes the Lead; CS gaps are optional 
   assert.ok(!JSON.stringify(out.packet).includes(KEY));
 });
 
-test('with a CS runtime the open knowledge gaps join, by count; a refused token is a short code, never a failure', async () => {
+test('with a CS runtime no knowledge-gap list joins the packet (the librarian owns gaps); a refused token is a short code, never a failure', async () => {
   const w = mk({ CS_RUNTIME_URL: cs.url, CS_RUNTIME_TOKEN: 'cs-token' });
   await w.call('scoreboard_sync');
-  assert.deepEqual((await w.call('signals')).packet.cs_gaps, [{ t: 'Hoàn tiền sau 7 ngày', n: 5 }, { t: 'Đổi email', n: 2 }]);
+  const ok = (await w.call('signals')).packet;
+  assert.equal(ok.cs_gaps, undefined);
+  assert.ok(!cs.calls.some(c => c.path.includes('/v1/settings/knowledge')), 'the retired route is never read');
   const bad = mk({ CS_RUNTIME_URL: cs.url, CS_RUNTIME_TOKEN: 'wrong' });
   await bad.call('scoreboard_sync');
   const out = await bad.call('signals');

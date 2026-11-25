@@ -42,6 +42,8 @@ receipt and activity commit in one transaction or the call fails. A transport
 failure still provides no outcome; keep the original request and check its
 receipt before any further mutation.
 
+`action` kind `manage` with `{ "action": "pool_update", "pool", "public": true|false, "generation", "expected_policy_revision", "request_id" }` makes a collection public or private (host manager only; restating the current value succeeds and changes nothing; a stale revision is `conflict`). Pool details and `pools` entries carry `public`. The reserved `knowledge` reader reads only public collections; see the data-pool README.
+
 Pool details expose `policy_revision`, effective `grants`, `host_managers` and
 `bound_soots`. Namespace administrators cannot be revoked through pool grants.
 

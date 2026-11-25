@@ -5,7 +5,7 @@ base it adds two role Soots and four generic skills:
 
 | Soot | Role |
 | --- | --- |
-| `cs-triage` (CSKH tiếp nhận) | Faces customers first: answers from the team's collection, checks account and product facts with the product tool, asks one question, hands off, or declines. |
+| `cs-triage` (CSKH tiếp nhận) | Faces customers first: answers from the public pools of the data pool, checks account and product facts with the product tool, asks one question, hands off, or declines. |
 | `cs-escalation` (CSKH xử lý chuyên sâu) | Takes cases members send it and people who write to it directly: gathers facts, drafts the resolution, asks a member only for the decision. |
 
 Both run with `interaction: {mode: "interactive", handoff: "members"}`, so
@@ -14,13 +14,13 @@ in the members' queue instead of ending it blocked.
 
 | Skill | What it decides |
 | --- | --- |
-| `cs-triage` | The one path a message takes. Price, plan, quota, limit and account facts come from the product tool, never from the collection. |
+| `cs-triage` | The one path a message takes. Price, plan, quota, limit and account facts come from the product tool, never from the public pools. |
 | `handoff-policy` | When to call `report_blocker`, what the report holds, what the customer hears, how to resume. |
 | `tone` | Short, warm, plain, in the customer's language; no promise a result does not show. |
 | `person-memory` | What to keep about a returning person, what never to keep, recall and forget. |
 
 The pack names no product and imports no product skill. Product knowledge is a
-Kho tài liệu collection you grant, and product facts and actions come from your
+public pool of your data pool (read through the `knowledge` pack ref), and product facts and actions come from your
 product pack (for Lohi, `lohi-cs` layers on this one).
 
 ## Install in 3 steps
@@ -41,10 +41,15 @@ product pack (for Lohi, `lohi-cs` layers on this one).
    secret is shown once; never commit it, paste it in chat or log it. A binding
    holds two active secrets, so you can rotate without downtime.
 
-Then give both Soots read access to a **Kho tài liệu** collection with your
-how-to and policy pages (add its id to each Soot's `knowledge` and to the host's
-`data_pool.knowledge`). Do not put prices or plan terms there: the Soots read
-them from the product tool. The Soot sources are in `soots/cs-triage/` and
+Then give the Soots your how-to and policy pages as documents in a **public pool**
+of the data pool (mark the pool public in the Library page or with
+`data-pool_manage` `pool_update`), and add `"knowledge"` (every public pool) or
+`"knowledge:pools=<pool>"` to each Soot's `packs` in your source; this pack's own
+`soot.json` files select only the base and this pack. Do not put prices or plan
+terms there: the Soots read them from the product tool. To have missing answers
+researched and written for you, install the [librarian](../librarian/README.md)
+pack and set `data_pool.librarian`; without it the Soots just say they cannot
+confirm. The Soot sources are in `soots/cs-triage/` and
 `soots/cs-escalation/`.
 
 Advanced: the same binding can be declared in `deployment.json`:
@@ -85,4 +90,4 @@ every person and the channel binding all stay with the host (P4.6, AC-P4-5).
 
 [`evals/team-cs/`](evals/team-cs/README.md): 8 cases covering triage, handoff,
 direct message, out-of-scope decline, question-card answer, memory across two
-conversations and a price answered from the tool, not the collection.
+conversations and a price answered from the tool, not the pool.

@@ -1,7 +1,7 @@
 // signals: the compact packet (at most 3 KiB) the weekly digest reads. Numbers and refs,
 // never raw text from customers: metric changes against the previous period, the top
-// sources, why support handed over to a person, what the CS runtime could not answer
-// and what readers asked for or lacked (optional), the opportunities and decisions so far and the last launches.
+// sources, why support handed over to a person, what readers asked for or lacked (optional),
+// the opportunities and decisions so far and the last launches.
 import { eq, getJson, getState, safeUrl, short, addDays, ictDay } from './base.mjs';
 import { latestBoard, labelOf, boardFor, dataProducts } from './scoreboard.mjs';
 import { hitRate } from './review.mjs';
@@ -11,17 +11,6 @@ import { partHealth, partsOf, compactParts } from './parts.mjs';
 export const MAX_BYTES = 3072;
 
 const CS_WHY = { forbidden: () => '', unreachable: () => '', failed: () => '', bad: () => '' };
-
-/** Knowledge gaps from the CS runtime (GET /v1/settings/knowledge, operator token), or why not. Quiet when unset. */
-export async function csGaps(deps) {
-  const url = safeUrl(deps.env.CS_RUNTIME_URL);
-  if (!url || !deps.env.CS_RUNTIME_TOKEN) return null;
-  const target = new URL('/v1/settings/knowledge', url);
-  const r = await getJson(deps, target, { Authorization: `Bearer ${deps.env.CS_RUNTIME_TOKEN}` }, CS_WHY);
-  if (r.error) return { error: r.error.code };
-  return (Array.isArray(r.out.gaps) ? r.out.gaps : []).filter(g => g?.state === 'open' && typeof g.topic === 'string')
-    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).slice(0, 5).map(g => ({ t: short(g.topic, 80), n: g.count ?? 0 }));
-}
 
 const KINDS = ['feature_request', 'bug', 'complaint', 'question', 'feedback'];
 const FEEDBACK_DAYS = 14, FEEDBACK_SESSIONS = 40, FEEDBACK_BYTES = 1024, SAMPLES = 5;
@@ -75,7 +64,7 @@ const pct = (v, p) => (Number.isFinite(v) && Number.isFinite(p) && p > 0 ? Math.
 export function fit(packet) {
   const size = () => Buffer.byteLength(JSON.stringify(packet));
   // The moat and awareness tallies are summaries the digest can do without: they go before any history.
-  const trims = [['cohorts', 2], ['plans', 3], ['awareness'], ['moats'], ['decisions', 3], ['decisions', 1], ['sources', 3], ['reasons', 3], ['cs_gaps', 3], ['launched', 1], ['decisions', 0], ['sources', 1], ['reasons', 1], ['cs_gaps', 1], ['waiting', 3]];
+  const trims = [['cohorts', 2], ['plans', 3], ['awareness'], ['moats'], ['decisions', 3], ['decisions', 1], ['sources', 3], ['reasons', 3], ['launched', 1], ['decisions', 0], ['sources', 1], ['reasons', 1], ['waiting', 3]];
   for (const [k, n] of trims) {
     if (size() <= MAX_BYTES) break;
     if (n === undefined) delete packet[k];
@@ -135,9 +124,8 @@ export async function packetFor(deps, { voc = false, product = null } = {}) {
   // Awareness levels the content topics of the last 8 weeks spoke to, so the digest keeps a mix.
   const since = addDays(ictDay(deps.now), -56), awareness = {};
   for (const t of topics) if (t.kind === 'content' && t.awareness && String(t.created_at).slice(0, 10) >= since) awareness[t.awareness] = (awareness[t.awareness] ?? 0) + 1;
-  // CS_RUNTIME_URL is the host product's support runtime: another product's packet never carries its gaps or feedback.
+  // CS_RUNTIME_URL is the host product's support runtime: another product's packet never carries its feedback.
   const hostCs = !want || want === productId(host);
-  const gaps = hostCs ? await csGaps(deps).catch(() => ({ error: 'failed' })) : null;
   // The contract item cs.voc (read by the digest through the data tool) replaces the desk scrape; the scrape is the fallback when voc is unavailable.
   const feedback = voc || !hostCs ? null : await csFeedback(deps).catch(() => ({ error: 'failed' }));
   const rate = hitRate(decisions);
@@ -150,11 +138,9 @@ export async function packetFor(deps, { voc = false, product = null } = {}) {
     // Anonymous cohorts and plans (additive fields of the scoreboard); null when the product does not serve them yet: "chưa có".
     cohorts: board.cohorts ? board.cohorts.slice(0, 4).map(c => ({ c: c.cohort, su: c.signups, w1: c.active_w1, w2: c.active_w2, w4: c.active_w4, fp: c.first_payers })) : null,
     plans: board.plans ? board.plans.slice(0, 6).map(p => ({ t: p.tier, st: p.started, ac: p.active, rev: p.revenue_vnd })) : null,
-    ...(gaps && !gaps.error ? { cs_gaps: gaps } : {}),
-    ...(gaps?.error ? { cs_error: gaps.error } : {}),
     ...(voc ? { cs_voc: 'contract' } : {}),
     ...(feedback && !feedback.error ? { cs_feedback: feedback } : {}),
-    ...(feedback?.error && !gaps?.error ? { cs_error: feedback.error } : {}),
+    ...(feedback?.error ? { cs_error: feedback.error } : {}),
     waiting: opps.filter(o => o.state === 'proposed').slice(0, 5).map(o => ({ ref: o.ref, title: short(o.title, 60), kind: o.kind })),
     later: opps.filter(o => o.state === 'later').slice(0, 3).map(o => ({ ref: o.ref, title: short(o.title, 60) })),
     decisions: decisions.filter(d => d.decision !== 'later').slice(0, 6).map(d => ({ ref: d.opportunity_ref, d: d.decision, by: d.by, to: d.target_outcome, ...(d.goal ? { g: d.goal } : {}), exp: d.expected_delta, act: d.actual_delta })),

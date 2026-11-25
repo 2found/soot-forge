@@ -306,7 +306,7 @@
     },
     {
       "name": "manage",
-      "description": "Manage collections: create, rename/move, set inheritance, grant/revoke a bound Soot, group or the whole workspace (group \"@workspace\"). Removing a collection with children is rejected.",
+      "description": "Manage collections: create, rename/move, set inheritance, make a collection public or private, grant/revoke a bound Soot, group or the whole workspace (group \"@workspace\"). Removing a collection with children is rejected.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -360,6 +360,10 @@
           "inherit": {
             "type": "boolean",
             "description": "Inherit access from parent; false is a private boundary. New collections default true; legacy roots retain old privacy."
+          },
+          "public": {
+            "type": "boolean",
+            "description": "pool_update only, host managers only: true makes the collection readable (search/read) by the reserved knowledge reader that answers the public; false makes it private again. Same value as now is a no-op. Never a way to give one Soot access: use grant."
           },
           "group": {
             "type": "string",

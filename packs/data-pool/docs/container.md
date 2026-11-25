@@ -38,7 +38,7 @@ the operator builds, configures and starts it.
 ## Image
 
 `packs/data-pool/service/Dockerfile` builds a static binary (`CGO_ENABLED=0`,
-`-trimpath`, stripped) in `golang:1.25` and copies it into
+`-trimpath`, stripped) in `golang:1.26` and copies it into
 `gcr.io/distroless/static-debian12:nonroot`. Both base images are pinned by
 digest; bump them deliberately. The build context is the runner directory only:
 
