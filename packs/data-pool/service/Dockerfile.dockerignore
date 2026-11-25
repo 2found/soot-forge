@@ -3,4 +3,6 @@
 !go.mod
 !go.sum
 !*.go
-*_test.go
+!datapool/
+!datapool/*.go
+**/*_test.go
